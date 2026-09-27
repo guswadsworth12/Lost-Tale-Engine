@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { Section } from '@/components/ui/Section'
 import { VoiceSampleField } from './VoiceSampleField'
 import { SettingsPage } from '@/components/ui/SettingsPage'
-import { errorMessage, toastError } from '@/lib/store/useToastStore'
+import { errorMessage } from '@/lib/store/useToastStore'
 
 const PROVIDERS = Object.keys(TTS_PROVIDER_LABELS) as TtsProviderId[]
 
@@ -34,13 +34,22 @@ export function VoiceSettings() {
 
   const testControllerRef = useRef<AbortController | null>(null)
   const testUrlRef = useRef<string | null>(null)
+  const stopTest = () => {
+    testControllerRef.current?.abort()
+    testControllerRef.current = null
+    if (testAudioRef.current) {
+      testAudioRef.current.onended = null
+      testAudioRef.current.onerror = null
+      testAudioRef.current.pause()
+      testAudioRef.current.remove()
+      testAudioRef.current = null
+    }
+    if (testUrlRef.current) URL.revokeObjectURL(testUrlRef.current)
+    testUrlRef.current = null
+  }
   useEffect(() => {
     setTestState('idle')
-    return () => {
-      testControllerRef.current?.abort()
-      testAudioRef.current?.pause()
-      if (testUrlRef.current) URL.revokeObjectURL(testUrlRef.current)
-    }
+    return stopTest
   }, [ttsProvider, ttsModel, ttsVoice, ttsApiKey, ttsBaseUrl, ttsRegion, openMayhemApiKey])
 
   const loadSpeakers = async () => {
@@ -53,8 +62,7 @@ export function VoiceSettings() {
   // result back — a real synthesis + playback, not just a ping, so a wrong voice ID or a key with
   // no quota left surfaces here instead of the first time a line is read aloud in a scene.
   const testConnection = async () => {
-    testAudioRef.current?.pause()
-    if (testUrlRef.current) URL.revokeObjectURL(testUrlRef.current)
+    stopTest()
     const controller = new AbortController()
     testControllerRef.current = controller
     setTestState('loading')
@@ -70,21 +78,31 @@ export function VoiceSettings() {
       const url = URL.createObjectURL(blob)
       testUrlRef.current = url
       const audio = new Audio(url)
+      audio.hidden = true
+      document.body.append(audio)
       testAudioRef.current = audio
-      audio.onended = () => URL.revokeObjectURL(url)
-      audio.onerror = () => {
+      await audio.play()
+      if (controller.signal.aborted) return
+      const finish = () => {
+        if (testAudioRef.current !== audio) return
+        audio.onended = null
+        audio.onerror = null
+        audio.remove()
         URL.revokeObjectURL(url)
+        testUrlRef.current = null
+        testAudioRef.current = null
+        testControllerRef.current = null
+      }
+      audio.onended = finish
+      audio.onerror = () => {
+        finish()
         setTestError('The browser could not play the generated audio.')
         setTestState('error')
       }
-      await audio.play()
       setTestState('ok')
     } catch (e) {
-      if (controller.signal.aborted) {
-        if (!(e instanceof DOMException && e.name === 'AbortError')) toastError(errorMessage(e))
-        return
-      }
-      if (testUrlRef.current) URL.revokeObjectURL(testUrlRef.current)
+      if (controller.signal.aborted) return
+      stopTest()
       setTestState('error')
       setTestError(errorMessage(e))
     }
@@ -235,7 +253,7 @@ export function VoiceSettings() {
                 {testState === 'loading' ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : null}
                 {testState === 'loading' ? 'Testing…' : 'Test connection'}
               </Button>
-              {testState === 'loading' && <Button onClick={() => { testControllerRef.current?.abort(); setTestState('idle') }}>Stop test</Button>}
+              {testState === 'loading' && <Button onClick={() => { stopTest(); setTestState('idle') }}>Stop test</Button>}
               {testState === 'ok' && (
                 <span className="flex items-center gap-1 text-xs text-success">
                   <CheckCircle2 size={14} strokeWidth={2} />

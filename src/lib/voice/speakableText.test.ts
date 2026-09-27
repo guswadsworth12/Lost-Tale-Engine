@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toSpeakableText } from './speakableText'
+import { splitSpeechText, toSpeakableText } from './speakableText'
 
 describe('toSpeakableText', () => {
   it('strips an action wrapped in asterisks, leaving surrounding dialogue', () => {
@@ -35,4 +35,11 @@ describe('toSpeakableText', () => {
       .toBe('The city comes back into view. Home is waiting.')
     expect(toSpeakableText('Game Master: Hello.')).toBe('Game Master: Hello.')
   })
+})
+
+it('splits long narration into bounded clips without losing words', () => {
+  const text = 'The western hill is still there. The old hall waits above the city. Home is waiting at the top of it.'
+  const clips = splitSpeechText(text, 45)
+  expect(clips.every((clip) => clip.length <= 45)).toBe(true)
+  expect(clips.join(' ')).toBe(text)
 })

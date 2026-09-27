@@ -57,7 +57,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
-import { toSpeakableText } from '@/lib/voice/speakableText'
+import { splitSpeechText, toSpeakableText } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
 import { resolveExpressionSprite } from '@/lib/vn/expressions'
@@ -586,9 +586,14 @@ export function VNStage({
   const stopSpeaking = () => {
     speakControllerRef.current?.abort()
     speakControllerRef.current = null
-    if (speakUrlRef.current) { URL.revokeObjectURL(speakUrlRef.current); speakUrlRef.current = null }
-    speakAudioRef.current?.pause()
+    if (speakAudioRef.current) {
+      speakAudioRef.current.onended = null
+      speakAudioRef.current.onerror = null
+      speakAudioRef.current.pause()
+      speakAudioRef.current.remove()
+    }
     speakAudioRef.current = null
+    if (speakUrlRef.current) { URL.revokeObjectURL(speakUrlRef.current); speakUrlRef.current = null }
     setSpeakState('idle')
   }
   // Always starts fresh (cancelling anything already playing) — shared by the manual button's
@@ -610,42 +615,59 @@ export function VNStage({
       if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
         throw new Error('This character overrides the voice provider. Select that provider in Settings → Voice first, or use the global default for this character.')
       }
-      const blob = await synthesizeSpeech(
-        {
-          provider,
-          apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey,
-          model: ttsModel,
-          baseUrl: ttsBaseUrl,
-          region: ttsRegion,
-          // A character's own voice id only means something on the provider it was chosen for.
-          voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
-          speed: override?.speed,
-        },
-        text,
-        koboldBaseUrl,
-        controller.signal,
-      )
-      controller.signal.throwIfAborted()
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      speakUrlRef.current = url
-      speakAudioRef.current = audio
-      setSpeakState('playing')
-      const finish = () => {
-        URL.revokeObjectURL(url)
-        if (speakAudioRef.current === audio) {
-          speakAudioRef.current = null
-          setSpeakState('idle')
-        }
+      const config = {
+        provider,
+        apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey,
+        model: ttsModel,
+        baseUrl: ttsBaseUrl,
+        region: ttsRegion,
+        // A character's own voice id only means something on the provider it was chosen for.
+        voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
+        speed: override?.speed,
       }
-      audio.onended = finish
-      audio.onerror = finish
-      try { await audio.play() } catch (error) { finish(); throw error }
+      const parts = provider === 'luxtts' ? splitSpeechText(text) : [text]
+      for (const part of parts) {
+        setSpeakState('loading')
+        const blob = await synthesizeSpeech(config, part, koboldBaseUrl, controller.signal)
+        controller.signal.throwIfAborted()
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audio.hidden = true
+        document.body.append(audio)
+        speakUrlRef.current = url
+        speakAudioRef.current = audio
+        setSpeakState('playing')
+        await new Promise<void>((resolve, reject) => {
+          let settled = false
+          const finish = (error?: Error) => {
+            if (settled) return
+            settled = true
+            controller.signal.removeEventListener('abort', cancel)
+            audio.onended = null
+            audio.onerror = null
+            audio.remove()
+            if (speakAudioRef.current === audio) {
+              URL.revokeObjectURL(url)
+              speakUrlRef.current = null
+              speakAudioRef.current = null
+            }
+            if (error) reject(error)
+            else resolve()
+          }
+          const cancel = () => { audio.pause(); finish(new DOMException('Playback stopped', 'AbortError')) }
+          controller.signal.addEventListener('abort', cancel, { once: true })
+          audio.onended = () => finish()
+          audio.onerror = () => finish(new Error('The browser could not play the generated audio.'))
+          audio.play().catch((error: Error) => finish(error))
+        })
+      }
+      if (speakControllerRef.current === controller) {
+        speakControllerRef.current = null
+        setSpeakState('idle')
+      }
     } catch (e) {
-      if (controller.signal.aborted) {
-        if (!(e instanceof DOMException && e.name === 'AbortError')) toastError(errorMessage(e))
-        return
-      }
+      if (controller.signal.aborted) return
+      speakControllerRef.current = null
       setSpeakState('idle')
       toastError(errorMessage(e))
     }

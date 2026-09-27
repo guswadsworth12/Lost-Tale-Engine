@@ -34,10 +34,19 @@ export function VoiceSampleField({
   const [busy, setBusy] = useState<'upload' | 'preview' | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
+  const urlRef = useRef<string | null>(null)
   const stop = () => {
     controllerRef.current?.abort()
-    audioRef.current?.pause()
+    controllerRef.current = null
+    if (audioRef.current) {
+      audioRef.current.onended = null
+      audioRef.current.onerror = null
+      audioRef.current.pause()
+      audioRef.current.remove()
+    }
     audioRef.current = null
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+    urlRef.current = null
     setBusy(null)
   }
   useEffect(() => stop, [])
@@ -49,14 +58,24 @@ export function VoiceSampleField({
     controllerRef.current = controller
     try {
       const blob = await synthesizeSpeech({ provider: 'luxtts', voice: value }, previewText, '', controller.signal)
+      controller.signal.throwIfAborted()
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
+      audio.hidden = true
+      document.body.append(audio)
+      urlRef.current = url
       audioRef.current = audio
-      audio.onended = () => { URL.revokeObjectURL(url); setBusy(null) }
       await audio.play()
+      if (controller.signal.aborted) return
+      audio.onended = stop
+      audio.onerror = () => {
+        stop()
+        toastError('The browser could not play the generated audio.')
+      }
     } catch (e) {
-      if (!controller.signal.aborted) toastError(errorMessage(e))
-      setBusy(null)
+      if (controller.signal.aborted) return
+      stop()
+      toastError(errorMessage(e))
     }
   }
 
