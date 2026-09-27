@@ -3068,7 +3068,7 @@ export function useChatSession(chatId: string | null) {
       if (turn.addCharacterIds?.length) {
         const fresh = await chatsApi.get(chatId)
         if (fresh) {
-          const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])]
+          const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])].filter((id) => id !== fresh.characterId)
           const scene = fresh.scene?.presentCharacterIds
             ? { ...fresh.scene, presentCharacterIds: [...new Set([...fresh.scene.presentCharacterIds, ...turn.addCharacterIds])] }
             : fresh.scene

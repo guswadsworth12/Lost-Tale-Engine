@@ -116,14 +116,14 @@ export function ScenePanel({
     <Modal
       onClose={onClose}
       title="Scene"
-      description="Frames where this group scene is happening and who replies next. Section 4/12's Scene entity. Location/atmosphere fold into the prompt the same way an active event's own does; turn policy only matters once more than one character is present."
+      description="Set the scene's location, atmosphere, cast, and turn policy. A Game Master can begin with an empty stage and bring characters in as the story calls for them."
       size="lg"
       scrollable
     >
       <div className="flex-1 overflow-y-auto">
         {otherCharacters.length > 0 && (
           <div className="mb-4">
-            <span className="mb-1 block text-xs font-medium text-text-muted">Who's in this scene</span>
+            <span className="mb-1 block text-xs font-medium text-text-muted">{turnPolicy === 'gm' ? 'Characters loaded for the GM' : "Who's in this scene"}</span>
             <div className="flex flex-wrap gap-1.5">
               {otherCharacters.map((c) => (
                 <Chip key={c.id} on={participants.includes(c.id)} onClick={() => toggleParticipant(c.id)}>
@@ -132,8 +132,9 @@ export function ScenePanel({
               ))}
             </div>
             <p className="mt-1.5 text-[11px] text-text-muted">
-              Add someone mid-scene, or drop someone who's left. Past messages keep the name/art they were sent
-              with either way, this only changes who can speak next.
+              {turnPolicy === 'gm'
+                ? 'Loaded cards keep their own voices. The Game Master decides when each person enters the scene.'
+                : "Add someone mid-scene, or drop someone who's left. Past messages keep their name and art."}
             </p>
           </div>
         )}
