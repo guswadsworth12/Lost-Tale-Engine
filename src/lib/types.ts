@@ -349,6 +349,8 @@ export interface StoredMessage extends ChatMessage {
   gm?: import('@/lib/world/gm').GmTurn
   /** A PbtA move the player rolled with this (user) message. Binding on the GM turn that follows. */
   campaignRoll?: import('@/lib/world/gm').RecordedMove
+  /** A location/atmosphere edit the player made while this was the latest message of the branch (`chat/sceneSetting.ts`). */
+  sceneSetting?: import('@/lib/chat/sceneSetting').SceneSettingEvent
   /** A scenery choice the player made while this was the latest message of the branch (`vn/scenery.ts`). */
   scenery?: import('@/lib/vn/scenery').SceneryChoice
 }

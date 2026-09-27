@@ -239,18 +239,21 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     .map((item) => ({ role: item.role, content: sub(item.content.trim()) }))
   const rolePromptText = rolePromptItems.map((item) => `[${item.role} prompt item]\n${item.content}`).join('\n\n')
 
-  const participantsBlock =
-    input.participants && input.participants.length > 0
-      ? [
-          'Also present in this scene:',
-          ...input.participants.map((p) => {
-            const bits = [p.description?.trim(), p.personality?.trim() ? `Personality: ${p.personality.trim()}` : '']
-              .filter(Boolean)
-              .join(' ')
-            return `- ${sub(p.name)}${bits ? `: ${sub(bits)}` : ''}`
-          }),
-        ].join('\n')
-      : ''
+  // A group scene: the others are people in the room, not a list of names. The speaker may engage
+  // any of them; each still speaks and acts only for themselves (their own agent writes their turn).
+  const isGroupScene = !!input.participants && input.participants.length > 0
+  const participantsBlock = isGroupScene
+    ? [
+        `Also present in this scene: ${input.participants!.map((p) => sub(p.name)).join(', ')}, and ${macroCtx.userName} (played by the player).`,
+        ...input.participants!.flatMap((p) => {
+          const bits = [p.description?.trim(), p.personality?.trim() ? `Personality: ${p.personality.trim()}` : '']
+            .filter(Boolean)
+            .join(' ')
+          return bits ? [`- ${sub(p.name)}: ${sub(bits)}`] : []
+        }),
+        `This is a group scene. ${macroCtx.charName} can talk to, look at, tease, help, disagree with, or react to any of them, not only ${macroCtx.userName}, whenever that is what ${macroCtx.charName} would actually do. Each of them speaks and acts for themselves: never write their dialogue, choices, thoughts, feelings, or reactions, and leave them room to answer.`,
+      ].join('\n')
+    : ''
 
   const summaryBlock = input.chatSummary?.trim() ? `Story so far: ${sub(input.chatSummary)}` : ''
   const worldBlock = input.worldDescription?.trim() ? sub(input.worldDescription) : ''
@@ -340,7 +343,9 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
       imp ? '' : buildSceneInstruction(input.sceneOptions),
       imp
         ? ''
-        : `Conversation fidelity: keep statements with their speaker. Resolve references from the exchange; never attribute ${macroCtx.charName}'s words or beliefs to ${macroCtx.userName}. Answer ${macroCtx.userName}'s latest message directly.`,
+        : isGroupScene
+          ? `Conversation fidelity: keep statements with their speaker. Resolve references from the exchange; never attribute ${macroCtx.charName}'s words or beliefs to anyone else. Respond to whatever in the latest exchange ${macroCtx.charName} would actually respond to: ${macroCtx.userName}'s last message, or something another character present just said or did.`
+          : `Conversation fidelity: keep statements with their speaker. Resolve references from the exchange; never attribute ${macroCtx.charName}'s words or beliefs to ${macroCtx.userName}. Answer ${macroCtx.userName}'s latest message directly.`,
       imp ? `[Write only ${macroCtx.userName}'s next message. Stop before ${macroCtx.charName} replies.]` : '',
     ]
       .filter(Boolean)
@@ -388,16 +393,33 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
   // beat silently missing from the middle and no indication anything was removed. It also meant a
   // full-length history walk every build, one tokenizer round-trip per turn (an HTTP POST on
   // KoboldCpp), to count hundreds of turns that were never going to be included.
+  //
+  // The current beat — the player's latest message and every reply since it — is kept even when the
+  // fixed prompt has eaten the budget: a group agent that can't see what the player just did, or what
+  // the others just said this beat, can only answer the player generically. Older history is what
+  // gets trimmed. Bounded to a quarter of the context, so one giant paste still can't blow it up.
+  const beatAllowance = Math.floor(contextBudget / 4)
+  let beatTokens = 0
+  let currentBeatStart = historyForTrimming.length - 1
+  for (let i = historyForTrimming.length - 1; i >= 0; i--) {
+    if (historyForTrimming[i].role === 'user') {
+      currentBeatStart = i
+      break
+    }
+  }
   for (let i = historyForTrimming.length - 1; i >= 0; i--) {
     const msg = historyForTrimming[i]
     const rendered = renderTurn(msg, template, macroCtx, input.regexScripts)
     const tokens = await countTokens(rendered)
-    if (tokens > remaining && includedTurns.length > 0) {
+    const inBeat = i >= currentBeatStart
+    const fits = tokens <= remaining || (inBeat && beatTokens + tokens <= beatAllowance)
+    if (!fits && includedTurns.length > 0) {
       excludedCount += i + 1
       break
     }
     includedTurns.push({ text: rendered, tokens })
     remaining -= tokens
+    if (inBeat) beatTokens += tokens
   }
   includedTurns.reverse()
 

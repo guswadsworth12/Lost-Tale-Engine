@@ -30,6 +30,7 @@ import {
   type RecordedMove,
 } from '@/lib/world/gm'
 import { currentScenery, describeScenery, pinnedSceneryGuidance, sceneryIsNight } from '@/lib/vn/scenery'
+import { sceneSettingFrom, type SceneSettingEvent } from '@/lib/chat/sceneSetting'
 import { BUILTIN_SYSTEM_PROMPTS, buildPrompt, estimateTokens, type ChatMessage, type StyleGuidanceItem } from '@/lib/prompt/builder'
 import { countTokensCached } from '@/lib/tokenCache'
 import { SUMMARY_MAX_LENGTH, summarizeMessages } from '@/lib/prompt/summarize'
@@ -657,6 +658,8 @@ export function useChatSession(chatId: string | null) {
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
       const branchConsequences = branchConsequencesFrom(branchMessages)
+      // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`), not the chat's opening value.
+      const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       const worldMomentLines = [
         ...(world
           ? [
@@ -674,7 +677,7 @@ export function useChatSession(chatId: string | null) {
                       speaker.schedule,
                       world.currentDay ?? 0,
                       promptPhaseIndex,
-                      freshChat.scene?.location,
+                      sceneSetting.location,
                     ),
                   )
                 : '',
@@ -684,8 +687,8 @@ export function useChatSession(chatId: string | null) {
           ? `Current event: ${freshChat.activeEvent.title}${freshChat.activeEvent.description ? `. ${freshChat.activeEvent.description}` : ''}`
           : '',
         // Location/atmosphere framing, independent of whether this chat has a bound World.
-        freshChat.scene?.location ? `Scene location: ${freshChat.scene.location}` : '',
-        freshChat.scene?.atmosphere ? `Scene atmosphere: ${freshChat.scene.atmosphere}` : '',
+        sceneSetting.location ? `Scene location: ${sceneSetting.location}` : '',
+        sceneSetting.atmosphere ? `Scene atmosphere: ${sceneSetting.atmosphere}` : '',
         pinnedSceneryGuidance(currentScenery(branchMessages, freshChat.scene), world),
         branchConsequences.length ? `Established in this story so far:\n${branchConsequences.map((c) => `- ${c}`).join('\n')}` : '',
       ].filter(Boolean)
@@ -698,7 +701,7 @@ export function useChatSession(chatId: string | null) {
             speaker.schedule,
             world?.currentDay ?? 0,
             promptPhaseIndex,
-            freshChat.scene?.location,
+            sceneSetting.location,
           )
         : undefined
       const scheduleLocation = speakerPresence?.location
@@ -706,7 +709,7 @@ export function useChatSession(chatId: string | null) {
       const scheduleConflictLine =
         !freshChat.activeEvent && speakerPresence ? scheduleConflictGuidance(speaker.card.name, speakerPresence) : ''
       // Don't tell the model to "drift toward" a place the scene is already set — offer other backgrounds instead.
-      const sceneLocationNow = freshChat.scene?.location?.trim().toLowerCase() ?? ''
+      const sceneLocationNow = sceneSetting.location?.trim().toLowerCase() ?? ''
       const scheduleLocationNorm = scheduleLocation?.trim().toLowerCase() ?? ''
       const sceneAlreadyAtScheduleSpot =
         !!scheduleLocationNorm &&
@@ -885,7 +888,7 @@ export function useChatSession(chatId: string | null) {
       const vnOverride = freshChat.assistOverrides?.visualNovelMode ?? globalVisualNovelMode
       const isVisualNovel = vnOverride === 'auto' ? isVnReady(speaker, world) : !!vnOverride
       // How a reply is written when it lands in a dialogue box under a sprite (`prompt/vnProse.ts`).
-      const vnProseLine = vnProseNote(isVisualNovel, speaker.card.name, persona?.name || 'You', speakerTrack.mood)
+      const vnProseLine = vnProseNote(isVisualNovel, speaker.card.name, persona?.name || 'You', speakerTrack.mood, sceneRoster.map((c) => c.card.name))
       // The reactive half of `vnExpressionGuidance`'s standing "let the face move" rule — names the
       // specific expression back once it's actually gone stale, the same pressure `slopAvoidance`
       // applies to repeated phrasing. Costs nothing on the (typical) turn nothing has gone stale.
@@ -905,7 +908,7 @@ export function useChatSession(chatId: string | null) {
 
       // Where and when, resolved once: the state block asserts these as fact and `continuityGuard.ts`
       // checks the reply against them afterwards, so both halves have to be reading the same values.
-      const promptLocation = freshChat.scene?.location ?? scheduleLocation
+      const promptLocation = sceneSetting.location ?? scheduleLocation
       const promptTimePhase = world
         ? `${getCalendarInfo(world.currentDay ?? 0).weekday} ${PHASES[promptPhaseIndex]}`
         : freshChat.scene?.timePhase || undefined
@@ -2281,9 +2284,25 @@ export function useChatSession(chatId: string | null) {
         return
       }
       const current: Scene = chat?.scene ?? { turnPolicy: 'manual' }
+      // A location/atmosphere edit happens at this point in the story, so it rides the branch
+      // (`chat/sceneSetting.ts`); with no messages yet it is simply the opening setting.
+      const event: SceneSettingEvent = {}
+      if ('location' in patch) event.location = patch.location ?? null
+      if ('atmosphere' in patch) event.atmosphere = patch.atmosphere ?? null
+      const branch = Object.keys(event).length ? await messagesApi.listByChat(chatId) : []
+      const shown = sceneSettingFrom(branch, current, (id) => backgroundLabel(id, world))
+      const changed = (event.location !== undefined && (event.location ?? undefined) !== shown.location)
+        || (event.atmosphere !== undefined && (event.atmosphere ?? undefined) !== shown.atmosphere)
+      const last = branch[branch.length - 1]
+      if (changed && last) {
+        await messagesApi.update(last.id, { sceneSetting: { ...last.sceneSetting, ...event } })
+        const { location: _l, atmosphere: _a, ...rest } = patch
+        await chatsApi.update(chatId, { scene: { ...current, ...rest } })
+        return
+      }
       await chatsApi.update(chatId, { scene: { ...current, ...patch } })
     },
-    [chat?.scene, chatId],
+    [chat?.scene, chatId, world],
   )
 
   /** Updates the group-chat roster after chat creation. Resets `roundRobinIndex`, since a changed roster can shift what that index used to point at. */
@@ -2694,19 +2713,9 @@ export function useChatSession(chatId: string | null) {
           // Rolls world-info sticky/cooldown state forward for next turn.
           await chatsApi.update(chat.id, { worldInfoState: built.worldInfoState ?? {} })
 
-          // Keep `Chat.scene.location` following the story: the reply's own detected background is
-          // the app's existing "where is this scene" signal (it already drives VN mode), so when it
-          // moves, the prompt's scene/presence lines should move with it rather than staying pinned
-          // to wherever the chat opened. One-reply latency, self-correcting, same as the VN backdrop.
-          if (isUsableReply && scene?.background) {
-            const movedLocation = backgroundLabel(scene.background, world)
-            const currentLocation = chat.scene?.location ?? undefined
-            if (movedLocation && movedLocation !== currentLocation) {
-              await chatsApi.update(chat.id, {
-                scene: { turnPolicy: 'manual', ...chat.scene, location: movedLocation },
-              })
-            }
-          }
+          // Where the scene is now follows the branch itself (`chat/sceneSetting.ts`): a changed
+          // background tag on this reply is replayed as a move, while a tag that only repeats the
+          // nearest art is not — so a declared place with no art of its own is never overwritten.
 
           const generatedTokens = !abort.signal.aborted && newText.trim() ? await countTokens(newText) : 0
           const hitCap = !abort.signal.aborted && generatedTokens >= effectiveMaxLength - 1
@@ -2784,7 +2793,15 @@ export function useChatSession(chatId: string | null) {
           // A declared background move is the app's own supported way to relocate a scene (see the
           // `scene.background` handling above), so location is only checked when nothing declared one.
           const sceneForContinuity = flagCheckScene
-          const declaredMove = !!scene?.background && backgroundLabel(scene.background, world) !== (chat.scene?.location ?? undefined)
+          // The location the prompt asserted: the branch's setting before this reply (`chat/sceneSetting.ts`).
+          const assertedLocation = sceneForContinuity
+            ? sceneSettingFrom(
+                (await messagesApi.listByChat(chat.id)).filter((m) => m.id !== targetMessageId),
+                chat.scene,
+                (id) => backgroundLabel(id, world),
+              ).location
+            : undefined
+          const declaredMove = !!scene?.background && backgroundLabel(scene.background, world) !== assertedLocation
           const continuityBreak = sceneForContinuity
             ? detectContinuityBreak(
                 combined,
@@ -2793,7 +2810,7 @@ export function useChatSession(chatId: string | null) {
                   // Only the persisted scene location, which is also what the state block asserted
                   // whenever one is set; a schedule-derived fallback isn't authoritative enough to
                   // call a contradiction on, so no location is checked in that case.
-                  location: declaredMove ? undefined : (chat.scene?.location ?? undefined),
+                  location: declaredMove ? undefined : assertedLocation,
                   knownLocations: declaredMove
                     ? undefined
                     : getUnlockedBackgroundIds(world, chat.affection ?? 0).map((id) => backgroundLabel(id, world)),
@@ -2997,6 +3014,10 @@ export function useChatSession(chatId: string | null) {
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
         branchConsequences: branchConsequencesFrom(upTo),
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
+        ...(() => {
+          const setting = sceneSettingFrom(upTo, freshChat?.scene, (id) => backgroundLabel(id, world))
+          return { location: setting.location, atmosphere: setting.atmosphere }
+        })(),
         timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
         roster: cast,
         availableRoster: available,
@@ -3082,6 +3103,9 @@ export function useChatSession(chatId: string | null) {
         }
       }
       const playerName = persona?.name || 'You'
+      // Each agent is told who speaks before and after it this beat, so it can answer the others.
+      const nameOfAgent = (id: string) => (id === character.id ? character : participantCharacters.find((c) => c.id === id))?.card.name
+      const beatOrder = turn.speakerIds.map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
       let at = startAt + 1
       for (const speakerId of turn.speakerIds) {
         const agent = speakerId === character.id ? character : participantCharacters.find((c) => c.id === speakerId)
@@ -3105,7 +3129,7 @@ export function useChatSession(chatId: string | null) {
         await runGeneration(history, replyMsg.id, [], {
           speakerId: agent.id,
           extraStyleGuidance: [
-            gmDirectionFor(turn, agent.card.name, playerName),
+            gmDirectionFor(turn, agent.card.name, playerName, beatOrder),
             ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
           ].join('\n\n'),
         })
@@ -3395,7 +3419,7 @@ export function useChatSession(chatId: string | null) {
               roster,
               history: historyForDirector,
               userName: persona?.name || 'You',
-              sceneLocation: freshChat.scene?.location ?? undefined,
+              sceneLocation: sceneSettingFrom(messages, freshChat.scene, (id) => backgroundLabel(id, world)).location,
             }, assistShaping)
             if (pickedId) speaker = resolveSpeaker(pickedId).active
           }
@@ -3464,7 +3488,10 @@ export function useChatSession(chatId: string | null) {
         // An agent reply inside a GM beat keeps the GM's ruling as its steer on a regenerate too.
         const beatStart = [...priorMessages].reverse().find((m) => m.role === 'user' || m.gm)
         const speakerCard = messages[idx].speakerId ? participantCharacters.find((c) => c.id === messages[idx].speakerId) : character
-        const gmSteer = beatStart?.gm && speakerCard ? gmDirectionFor(beatStart.gm, speakerCard.card.name, persona?.name || 'You') : undefined
+        const beatOrder = (beatStart?.gm?.speakerIds ?? [])
+          .map((id) => (id === character?.id ? character : participantCharacters.find((c) => c.id === id))?.card.name)
+          .filter((n): n is string => !!n)
+        const gmSteer = beatStart?.gm && speakerCard ? gmDirectionFor(beatStart.gm, speakerCard.card.name, persona?.name || 'You', beatOrder) : undefined
         // Keeps whoever originally spoke — switching speaker is a distinct, explicit edit action.
         await runGeneration(historyForPrompt, messageId, latestImages(priorMessages), { speakerId: messages[idx].speakerId, extraStyleGuidance: gmSteer })
       } finally {

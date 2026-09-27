@@ -66,6 +66,7 @@ import { vnArtHint } from '@/lib/vn/artHint'
 import { getWorldTemplate } from '@/lib/world/worldTemplates'
 import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/world/calendar'
 import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
+import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 
 /**
  * Visual-novel presentation of a chat: full-bleed scene background, each cast member's sprite
@@ -531,6 +532,7 @@ export function VNStage({
     narration,
     night,
     scenery,
+    location: sceneSettingFrom(messages, chat.scene, (id) => backgroundLabel(id, world)).location,
   })
   const sceneBackground = resolvedBackground.id
   const backgroundUrl = resolvedBackground.url

@@ -767,3 +767,55 @@ describe('styleGuidanceItems — graceful degradation under a tight budget', () 
     expect(result.prompt).not.toContain('SHOULD_NOT_APPEAR')
   })
 })
+
+describe('group scenes', () => {
+  it('frames others present as people the speaker can engage, while each speaks only for themselves', async () => {
+    const result = await buildPrompt(
+      baseInput({
+        character: character({ name: 'Kestrel' }),
+        personaName: 'Wren',
+        participants: [{ name: 'Aria' }, { name: 'Tobin' }],
+      }),
+    )
+    expect(result.prompt).toContain('Also present in this scene: Aria, Tobin, and Wren (played by the player).')
+    expect(result.prompt).toContain('This is a group scene. Kestrel can talk to, look at, tease, help, disagree with, or react to any of them, not only Wren')
+    expect(result.prompt).toContain('never write their dialogue, choices, thoughts, feelings, or reactions')
+    // The closing instruction no longer points every agent back at the player.
+    expect(result.prompt).toContain("Respond to whatever in the latest exchange Kestrel would actually respond to: Wren's last message, or something another character present just said or did.")
+    expect(result.prompt).not.toContain("Answer Wren's latest message directly.")
+  })
+
+  it('leaves a one-on-one chat addressed to the player exactly as before', async () => {
+    const result = await buildPrompt(baseInput({ character: character({ name: 'Kestrel' }), personaName: 'Wren' }))
+    expect(result.prompt).toContain("Answer Wren's latest message directly.")
+    expect(result.prompt).not.toContain('This is a group scene')
+  })
+})
+
+describe('history trimming keeps the current beat', () => {
+  it("keeps the player's latest message and every reply since it, even when older turns must go", async () => {
+    const turn = (id: string, role: 'user' | 'char', name: string, words: number) => ({ id, role, name, text: `${name} ${'word '.repeat(words)}`.trim() })
+    const result = await buildPrompt(
+      baseInput({
+        character: character({ name: 'Kestrel' }),
+        personaName: 'Wren',
+        participants: [{ name: 'Aria' }, { name: 'Tobin' }],
+        // A card-heavy prompt: the fixed part leaves almost nothing, like a large card at 8k.
+        characterPromptItems: [{ id: 'p', name: 'Card', role: 'system', enabled: true, content: 'lore '.repeat(1800) }],
+        contextBudget: 2400,
+        history: [
+          turn('1', 'user', 'Wren', 200),
+          turn('2', 'char', 'Aria', 200),
+          turn('3', 'user', 'Wren', 40),
+          turn('4', 'char', 'Game Master', 20),
+          turn('5', 'char', 'Aria', 40),
+          turn('6', 'char', 'Tobin', 40),
+        ],
+      }),
+    )
+    // The whole current beat survives (player turn, GM line, both earlier agents); older turns are cut.
+    expect(result.includedMessageCount).toBe(4)
+    expect(result.prompt).toContain('Wren word')
+    expect(result.prompt).toContain('Tobin word')
+  })
+})

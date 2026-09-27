@@ -36,6 +36,8 @@ export interface ResolveBackgroundParams {
   night?: boolean
   /** The player's in-chat scenery choice (`vn/scenery.ts`). A pinned background outranks every tag. */
   scenery?: SceneryChoice
+  /** Where the scene is now (`chat/sceneSetting.ts`); falls back to the chat's opening location. */
+  location?: string
 }
 
 /** An id is only usable if the world hasn't gated it behind more affection than the player has. */
@@ -79,8 +81,9 @@ export function resolveSceneBackground(params: ResolveBackgroundParams): Resolve
   // 3. The chat's own established scene location — free text, but it was written from a background
   //    label in the first place (see `createChat`), so it usually matches one exactly.
   const pool = candidates(world, affection)
-  if (chat.scene?.location) {
-    const fromLocation = matchBackgroundKeyword(chat.scene.location, pool)
+  const location = params.location ?? chat.scene?.location
+  if (location) {
+    const fromLocation = matchBackgroundKeyword(location, pool)
     if (unlocked(fromLocation, world, affection)) return withArt(fromLocation, 'location')
   }
 

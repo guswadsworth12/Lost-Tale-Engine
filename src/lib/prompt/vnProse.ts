@@ -20,10 +20,16 @@ const BOX_SENTENCE_BUDGET = 4
  * The core craft note. On every turn while VN mode is presenting the scene, since form is not
  * situational — a reply either reads like a visual novel or it doesn't.
  */
-export function vnProseGuidance(charName: string, userName: string): string {
+export function vnProseGuidance(charName: string, userName: string, others: string[] = []): string {
+  // In a group the shot holds everyone on stage, and the speaker faces whoever they are talking to.
+  const group = others.length > 0
+  const onStage = group ? `${charName} on stage with ${listNames([...others, userName])}, turned toward whoever they are talking to` : `${charName} facing ${userName}`
+  const ending = group
+    ? `End the turn with something left open, for ${userName} or for whoever ${charName} just addressed.`
+    : `End the turn while ${userName} still has something to answer.`
   return [
-    `This scene is being presented as a visual novel: a still background, ${charName} facing ${userName}, and the text appearing in a dialogue box beneath them. Write for that frame.`,
-    `Keep it to one beat — roughly ${BOX_SENTENCE_BUDGET} sentences or fewer of narration around what ${charName} says, not a paragraph of scene-setting. A dialogue box is a small, close space; a wall of text in it reads as a wall of text no matter how good the prose is. End the turn while ${userName} still has something to answer.`,
+    `This scene is being presented as a visual novel: a still background, ${onStage}, and the text appearing in a dialogue box beneath them. Write for that frame.`,
+    `Keep it to one beat — roughly ${BOX_SENTENCE_BUDGET} sentences or fewer of narration around what ${charName} says, not a paragraph of scene-setting. A dialogue box is a small, close space; a wall of text in it reads as a wall of text no matter how good the prose is. ${ending}`,
     `The camera does not move. ${charName} is right there in frame and the room stays where it is, so keep the description inside that shot: what ${charName}'s face and hands are doing, what is close enough to touch, what can be heard from here. Don't cut to another angle, pull back for a wide establishing shot, or narrate the room from above.`,
     `The background already says where this is. Only name the setting when something in it actually changes or ${charName} genuinely notices it — light going, a sound in the next room, the smell of what's cooking. Re-describing the room every turn is the single most common way this kind of scene goes flat.`,
   ].join(' ')
@@ -63,18 +69,26 @@ export function vnSoundGuidance(): string {
  * the interiority available is the character reading the player from outside, which is a genuinely
  * different and better instruction than "add inner thoughts".
  */
-export function vnInteriorityGuidance(charName: string, userName: string): string {
+export function vnInteriorityGuidance(charName: string, userName: string, others: string[] = []): string {
+  if (others.length > 0) {
+    const everyone = listNames([userName, ...others])
+    return `${charName}'s inner life is on the page; nobody else's is — not ${everyone}. Write ${charName} *reading* the people around them from the outside: what they think they see in ${userName}, and in the others too, what they're not sure about, what they decide it means. Being wrong about someone is one of the most interesting things ${charName} can do, and it leaves the actual answer to them.`
+  }
   return `${charName}'s inner life is on the page; ${userName}'s is not, and guessing at it is the fastest way to break this. Write ${charName} *reading* ${userName} from the outside instead — what they think they see, what they're not sure about, what they decide it means. Being wrong about ${userName} is one of the most interesting things ${charName} can do, and it leaves the actual answer to ${userName}.`
 }
 
-/** Everything above, assembled. Empty when VN mode isn't presenting this scene. */
-export function vnProseNote(isVisualNovel: boolean, charName: string, userName: string, mood?: CharacterMood): string {
+function listNames(names: string[]): string {
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/** Everything above, assembled. Empty when VN mode isn't presenting this scene. `others` are the other characters on stage in a group scene. */
+export function vnProseNote(isVisualNovel: boolean, charName: string, userName: string, mood?: CharacterMood, others: string[] = []): string {
   if (!isVisualNovel) return ''
   return [
-    vnProseGuidance(charName, userName),
+    vnProseGuidance(charName, userName, others),
     vnExpressionGuidance(charName, mood),
     vnDialogueBalanceGuidance(charName),
     vnSoundGuidance(),
-    vnInteriorityGuidance(charName, userName),
+    vnInteriorityGuidance(charName, userName, others),
   ].join(' ')
 }

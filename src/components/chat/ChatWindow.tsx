@@ -76,6 +76,7 @@ import { formatPbtaRoll } from '@/lib/world/campaign'
 import { SceneryPicker } from './SceneryPicker'
 import { GmActionsContext } from './GmTurnCard'
 import { currentScenery } from '@/lib/vn/scenery'
+import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
 import { GM_NAME, GM_SPEAKER_ID } from '@/lib/world/gm'
 import { Modal } from '@/components/ui/Modal'
@@ -373,13 +374,15 @@ export function ChatWindow({
   // Only meaningful for a world-bound character with an authored schedule; most stay unbadged.
   // Uses the same scene-reconciled presence the prompt does (per-chat time-of-day override, an
   // established scene location) so the badge can't say "in class" while the scene is elsewhere.
+  // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`).
+  const sceneSetting = sceneSettingFrom(messages, chat.scene, (id) => backgroundLabel(id, world))
   const presence =
     world && character?.schedule?.length
       ? resolveScheduledPresence(
           character.schedule,
           world.currentDay ?? 0,
           chat.scene?.timePhase ? PHASES.indexOf(chat.scene.timePhase) : (world.currentPhaseIndex ?? 0),
-          chat.scene?.location,
+          sceneSetting.location,
         )
       : undefined
   // Always the primary character's warmth, unlike VNStage's Bond card — this header's identity is always the primary's.
@@ -888,7 +891,7 @@ export function ChatWindow({
       )}
       {showScene && (
         <ScenePanel
-          scene={chat.scene}
+          scene={chat.scene ? { ...chat.scene, location: sceneSetting.location ?? null, atmosphere: sceneSetting.atmosphere ?? null } : chat.scene}
           gmNotes={chat.gmNotes}
           participantIds={chat.participants ?? []}
           otherCharacters={otherCharacters.map((c) => ({ id: c.id, name: c.card.name }))}

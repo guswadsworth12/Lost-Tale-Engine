@@ -91,3 +91,20 @@ describe('the remaining craft notes', () => {
     expect(line).toContain('Being wrong about Kai')
   })
 })
+
+describe('group scenes on the VN stage', () => {
+  it('holds everyone in the shot and ends open for whoever was addressed, not only the player', () => {
+    const note = vnProseNote(true, 'Kestrel', 'Wren', undefined, ['Aria', 'Tobin'])
+    expect(note).toContain('Kestrel on stage with Aria, Tobin and Wren, turned toward whoever they are talking to')
+    expect(note).toContain('for Wren or for whoever Kestrel just addressed')
+    expect(note).toContain('reading* the people around them')
+    expect(note).not.toContain('Kestrel facing Wren')
+    expect(note).not.toContain('End the turn while Wren still has something to answer')
+  })
+
+  it('keeps the one-on-one framing when nobody else is present', () => {
+    const note = vnProseNote(true, 'Kestrel', 'Wren')
+    expect(note).toContain('Kestrel facing Wren')
+    expect(note).toContain('End the turn while Wren still has something to answer')
+  })
+})

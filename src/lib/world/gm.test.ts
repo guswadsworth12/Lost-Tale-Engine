@@ -173,3 +173,32 @@ describe('branch consequences', () => {
     expect(branchConsequencesFrom(branch.slice(0, 1))).toEqual([])
   })
 })
+
+describe('group interplay and scene moves', () => {
+  it('shows the GM where the scene is and asks for speakers who can play off each other', () => {
+    const { system, user } = buildGmPrompt(ctx({ location: 'Guild Library', atmosphere: 'rain on the windows' }))
+    expect(user).toContain('Current location: Guild Library (rain on the windows)')
+    expect(system).toContain('Characters may answer one another, not only the player.')
+    expect(system).toContain('A character arriving is not a move.')
+  })
+
+  it('records a move the fiction made, ignores a "move" to where the scene already is', () => {
+    const moved = parseGmTurn('{"speakers":["Hana"],"setting":{"location":"Balcony terrace above the courtyard","atmosphere":"Late sun"}}', ctx({ location: 'Guild Library' }), ids)
+    expect(moved.setting).toEqual({ location: 'Balcony terrace above the courtyard', atmosphere: 'Late sun' })
+    expect(formatGmMessage(moved)).toContain('[Scene: Balcony terrace above the courtyard]')
+    expect(parseGmTurn('{"speakers":["Hana"],"setting":{"location":"guild library"}}', ctx({ location: 'Guild Library' }), ids).setting).toBeUndefined()
+    expect(parseGmTurn('{"speakers":["Hana"],"setting":null}', ctx(), ids).setting).toBeUndefined()
+  })
+
+  it('tells each agent who already spoke this beat (answerable) and who follows (theirs to answer)', () => {
+    const turn = parseGmTurn('{"speakers":["Ivo","Tobin","Hana"]}', ctx(), ids)
+    const order = ['Ivo Brand', 'Tobin Reed', 'Hana Pike']
+    const first = gmDirectionFor(turn, 'Ivo Brand', 'Wren Calloway', order)
+    const last = gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway', order)
+    expect(first).toContain('Tobin Reed and Hana Pike will speak after Ivo Brand; leave their responses to them.')
+    expect(first).not.toContain('just spoke')
+    expect(last).toContain('Ivo Brand and Tobin Reed just spoke this beat. Hana Pike can respond to them as readily as to Wren Calloway.')
+    expect(last).toContain('Never speak or act for Wren Calloway or any other carded character.')
+    expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).not.toContain('just spoke')
+  })
+})

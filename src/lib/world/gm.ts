@@ -61,6 +61,8 @@ export interface GmTurn {
   /** Public lorebook entries the GM called for the character agents on this beat. */
   loreCallIds?: string[]
   adjudication?: GmAdjudication
+  /** Where the fiction moved this beat, if it did (`chat/sceneSetting.ts` replays it on the branch). */
+  setting?: { location: string; atmosphere?: string }
   proposals: GmProposal[]
   /** The scenery line the GM was shown, kept for the inspector. */
   scenery: string
@@ -86,6 +88,9 @@ export interface GmContext {
   canonFacts: string[]
   branchConsequences: string[]
   scenery: string
+  /** Where the scene currently is and how it feels, derived from the branch. */
+  location?: string
+  atmosphere?: string
   timeOfDay?: string
   /** Character agents present — player-controlled characters already removed. */
   roster: GmRosterEntry[]
@@ -144,10 +149,12 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
+    'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
+    'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
+    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
   ].join('\n')
 
   const rosterLine = ctx.roster.length
@@ -167,6 +174,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.gmNotes?.trim() ? `Storyteller-only continuity (do not disclose without an in-story cause): ${ctx.gmNotes.trim()}` : '',
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
+    ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
     `Characters available to enter (add at most one, only if the scene calls for it):\n${availableLine}`,
@@ -332,6 +340,13 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     }
   }
 
+  const rawSetting = obj.setting && typeof obj.setting === 'object' && !Array.isArray(obj.setting) ? obj.setting as Record<string, unknown> : undefined
+  const settingLocation = str(rawSetting?.location, 120)
+  const settingAtmosphere = str(rawSetting?.atmosphere, 300)
+  const setting = settingLocation && settingLocation.toLowerCase() !== (ctx.location ?? '').trim().toLowerCase()
+    ? { location: settingLocation, ...(settingAtmosphere ? { atmosphere: settingAtmosphere } : {}) }
+    : undefined
+
   const proposals: GmProposal[] = (Array.isArray(obj.proposals) ? obj.proposals : [])
     .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
     .map((p) => ({ scope: p.scope === 'world' ? 'world' as const : 'branch' as const, text: str(p.text, 400) }))
@@ -349,6 +364,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     fork,
     loreCallIds: loreCallIds.length ? loreCallIds : undefined,
     adjudication,
+    setting,
     proposals,
     scenery: ctx.scenery,
     corrections: corrections.length ? corrections : undefined,
@@ -363,14 +379,19 @@ export function adjudicationLabel(adj: GmAdjudication): string {
 
 /** The public text of a GM message — what every character agent and the player sees in the transcript. */
 export function formatGmMessage(turn: GmTurn): string {
-  const parts = [turn.narration]
+  // The move is public: every agent and the player should know where the scene now is.
+  const parts = [turn.setting ? `[Scene: ${turn.setting.location}]` : '', turn.narration]
   if (turn.adjudication) parts.push(`[${adjudicationLabel(turn.adjudication)}] ${turn.adjudication.outcome}`)
   if (turn.pacing === 'cut') parts.push('[Scene ends]')
   return parts.filter(Boolean).join('\n\n') || '[The GM lets the moment play out.]'
 }
 
-/** One-shot steer for a character agent's reply: the GM's public ruling, never anyone's private notes. */
-export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: string): string {
+/**
+ * One-shot steer for a character agent's reply: the GM's public ruling, never anyone's private notes.
+ * `beatOrder` is the names of this beat's speakers in order, so each agent knows who has already
+ * spoken (they are in its transcript and it may answer them) and who still will.
+ */
+export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: string, beatOrder: string[] = []): string {
   const lines = [`The Game Master has ruled on this beat. Reply only as ${speakerName}.`]
   if (turn.adjudication?.source === 'recorded_roll') {
     lines.push(`Binding recorded result: ${adjudicationLabel(turn.adjudication)} — ${turn.adjudication.outcome} Do not reroll, change, or soften it.`)
@@ -379,10 +400,20 @@ export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: st
   } else if (turn.adjudication) {
     lines.push(`GM ruling: ${turn.adjudication.outcome}`)
   }
+  if (turn.setting) lines.push(`The scene is now at ${turn.setting.location}.`)
+  const at = beatOrder.indexOf(speakerName)
+  const before = at > 0 ? beatOrder.slice(0, at) : []
+  const after = at >= 0 ? beatOrder.slice(at + 1) : []
+  if (before.length) lines.push(`${listNames(before)} just spoke this beat. ${speakerName} can respond to them as readily as to ${playerName}.`)
+  if (after.length) lines.push(`${listNames(after)} will speak after ${speakerName}; leave their responses to them.`)
   if (turn.pacing === 'advance') lines.push('Move the situation forward.')
   if (turn.pacing === 'cut') lines.push('Bring the scene to a close.')
   lines.push(`Never speak or act for ${playerName} or any other carded character.`)
   return lines.join(' ')
+}
+
+function listNames(names: string[]): string {
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
 /** Consequences the player confirmed on this branch, in story order. Derived from messages, so fork/rewind need no bookkeeping. */
