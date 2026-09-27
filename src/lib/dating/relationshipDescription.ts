@@ -35,23 +35,23 @@ export function buildRelationshipDescription(
   const stage = relationshipStageForWarmth(warmth, relationshipMilestonesFor(world?.relationshipThresholds))
   const notes: string[] = []
   if (stats.trust >= 70) notes.push('a deep mutual trust has built up')
-  if (stats.chemistry >= 70) notes.push(emphasis === 'focus' ? 'there is a strong romantic spark' : 'there is strong chemistry')
+  if (stats.chemistry >= 70 && emphasis !== 'off') notes.push(emphasis === 'focus' ? 'there is a strong romantic spark' : 'there is strong chemistry')
   if (stats.tension >= 60) notes.push('real unresolved tension between them')
   if (stats.comfort <= 20 && stage !== 'near_strangers') notes.push('things still feel a little unsettled between them')
   const giftTasteNote = buildGiftTasteNote(character)
   // Only stated when there's an actual explicit status (10c's DTR ladder) — an unset/'none'
   // commitment is the ordinary default for most chats and isn't worth a line every single turn.
   const commitmentNote =
-    chat.commitmentStatus && chat.commitmentStatus !== 'none'
+    emphasis !== 'off' && chat.commitmentStatus && chat.commitmentStatus !== 'none'
       ? `{{user}} and ${primaryName} are officially ${formatCommitmentStatus(chat.commitmentStatus)}.`
       : undefined
   // 10c's "Breakups & reconciliation" — a standing warning is the model's cue to actually play the
   // strain, not just have the numbers move; a past breakup colors things even once patched up.
-  const warningNote = chat.relationshipWarning
+  const warningNote = emphasis !== 'off' && chat.relationshipWarning
     ? `The relationship is genuinely on the rocks right now (${chat.relationshipWarning.reason}). Let that show; don't just narrate past it.`
     : undefined
   const breakupNote =
-    chat.breakupCount && chat.breakupCount > 0
+    emphasis !== 'off' && chat.breakupCount && chat.breakupCount > 0
       ? `${primaryName} and {{user}} have broken up before. Some caution or guardedness is earned here, whether or not that's fully behind them now.`
       : undefined
   // Momentum: how fast (and which way) things have been moving recently, separate from where they

@@ -68,4 +68,13 @@ describe('buildRelationshipDescription — story worlds', () => {
     expect(out).not.toContain('closing the distance')
     expect(out).not.toContain('moved fast')
   })
+
+  it('tracks a bond without dating assumptions when dating is off', () => {
+    const out = buildRelationshipDescription(chat({
+      commitmentStatus: 'dating', breakupCount: 1, momentum: 3,
+      relationshipStats: { trust: 80, chemistry: 90, comfort: 60, respect: 50, curiosity: 40, tension: 10 },
+    }), undefined, character, 'off')!
+    expect(out).toContain('deep mutual trust')
+    expect(out).not.toMatch(/chemistry|romantic|officially dating|broken up|moved fast/i)
+  })
 })
