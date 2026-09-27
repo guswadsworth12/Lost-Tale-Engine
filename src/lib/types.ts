@@ -501,6 +501,8 @@ export interface WorldCard {
   name: string
   /** Optional storytelling campaign configuration; unset worlds keep Lost Tales Engine behavior. */
   campaign?: import('@/lib/world/campaign').CampaignConfig
+  /** Optional module choices; absent fields derive from template and campaign for old worlds. */
+  modules?: import('@/lib/world/worldTemplates').WorldModuleChoices
   /** Storyteller-only continuity notes for the GM. Never included in a character agent's prompt. */
   gmNotes?: string
   /** Ordered setting prompts shared by everyone in this world. */

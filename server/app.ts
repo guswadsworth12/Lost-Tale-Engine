@@ -83,6 +83,17 @@ function normalizeVrm(id: string, raw: unknown) {
   }
 }
 
+function normalizeWorldModules(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  const modules: Record<string, boolean | 'guided' | 'mechanical'> = {}
+  if (value.campaignRules === false || value.campaignRules === 'guided' || value.campaignRules === 'mechanical') modules.campaignRules = value.campaignRules
+  for (const key of ['relationships', 'dating', 'visualNovel', 'worldSimulation']) {
+    if (typeof value[key] === 'boolean') modules[key] = value[key] as boolean
+  }
+  return modules
+}
+
 function normalizeCampaign(raw: unknown) {
   if (!raw || typeof raw !== 'object') return undefined
   const value = raw as Record<string, unknown>
@@ -1157,6 +1168,7 @@ app.post('/api/worlds', (req, res) => {
     id,
     name: req.body.name,
     campaign: normalizeCampaign(req.body.campaign),
+    modules: normalizeWorldModules(req.body.modules),
     promptItems: normalizePromptItems(req.body.promptItems),
     canonFacts: normalizeCanonFacts(req.body.canonFacts),
     description: req.body.description,
@@ -1190,6 +1202,7 @@ app.put('/api/worlds/:id', (req, res) => {
   const patch: Record<string, unknown> = { ...req.body, updatedAt: Date.now() }
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
+  if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('canonFacts' in req.body) patch.canonFacts = normalizeCanonFacts(req.body.canonFacts)
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)

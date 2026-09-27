@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { WORLD_TEMPLATES, assistOverridesForTemplate, getWorldTemplate, hiddenWorldTabs, normalizeWorldTemplateId, romanceEmphasisFor } from './worldTemplates'
+import { WORLD_TEMPLATES, assistOverridesForTemplate, getWorldTemplate, hiddenWorldTabs, modulesForWorld, normalizeWorldTemplateId, romanceEmphasisFor } from './worldTemplates'
+
+describe('modulesForWorld', () => {
+  it('derives old worlds without changing their stored data', () => {
+    expect(modulesForWorld()).toMatchObject({ campaignRules: false, relationships: true, dating: true, romanceEmphasis: 'focus' })
+    expect(modulesForWorld({ template: 'visual_novel' })).toMatchObject({ dating: true, visualNovel: true, worldSimulation: true, romanceEmphasis: 'natural' })
+    expect(modulesForWorld({ template: 'freeform', campaign: { ruleset: 'Custom', mode: 'guided', resolver: 'pbta', relationships: false, dating: false, moves: [] } })).toEqual({
+      campaignRules: 'guided', relationships: false, dating: false, visualNovel: false, worldSimulation: false, romanceEmphasis: 'off',
+    })
+  })
+
+  it('honors explicit choices and never enables dating without relationships', () => {
+    const world = { template: 'dating_sim' as const, campaign: { ruleset: 'Custom', mode: 'guided' as const, resolver: 'pbta' as const, relationships: true, dating: true, moves: [] }, modules: { dating: false, worldSimulation: false } }
+    expect(modulesForWorld(world)).toMatchObject({ dating: false, romanceEmphasis: 'off', worldSimulation: false })
+    expect(hiddenWorldTabs(world)).toEqual(['dating', 'clock'])
+    expect(modulesForWorld({ ...world, modules: { relationships: false, dating: true } })).toMatchObject({ relationships: false, dating: false, romanceEmphasis: 'off' })
+  })
+})
 
 describe('romanceEmphasisFor', () => {
   it('keeps dating-sim prompts focused and story prompts natural when dating is available', () => {

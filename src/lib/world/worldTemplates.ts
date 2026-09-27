@@ -1,5 +1,34 @@
+import type { WorldCard } from '@/lib/types'
+
 export type WorldTemplateId = 'freeform' | 'visual_novel' | 'dating_sim'
 export type RomanceEmphasis = 'off' | 'natural' | 'focus'
+
+export interface WorldModules {
+  campaignRules: false | 'guided' | 'mechanical'
+  relationships: boolean
+  dating: boolean
+  visualNovel: boolean
+  worldSimulation: boolean
+  romanceEmphasis: RomanceEmphasis
+}
+
+/** Only explicit choices are stored. Missing choices continue to follow the existing world. */
+export type WorldModuleChoices = Partial<Omit<WorldModules, 'romanceEmphasis'>>
+
+export function modulesForWorld(world?: Pick<WorldCard, 'template' | 'campaign' | 'modules'>): WorldModules {
+  const template = normalizeWorldTemplateId(world?.template)
+  const choices = world?.modules
+  const relationships = choices?.relationships ?? world?.campaign?.relationships ?? true
+  const dating = relationships && (choices?.dating ?? world?.campaign?.dating ?? true)
+  return {
+    campaignRules: choices?.campaignRules ?? world?.campaign?.mode ?? false,
+    relationships,
+    dating,
+    visualNovel: choices?.visualNovel ?? template !== 'freeform',
+    worldSimulation: choices?.worldSimulation ?? template !== 'freeform',
+    romanceEmphasis: romanceEmphasisFor(template, dating),
+  }
+}
 
 /** Dating is a campaign capability; the world template decides how often prompts foreground it. */
 export function romanceEmphasisFor(template: WorldTemplateId | undefined, datingEnabled: boolean | undefined): RomanceEmphasis {
@@ -33,8 +62,12 @@ const HIDDEN_TABS: Record<WorldTemplateId, string[]> = {
   dating_sim: [],
 }
 
-export function hiddenWorldTabs(template: WorldTemplateId | undefined): string[] {
-  return HIDDEN_TABS[normalizeWorldTemplateId(template)]
+export function hiddenWorldTabs(templateOrWorld: WorldTemplateId | Pick<WorldCard, 'template' | 'campaign' | 'modules'> | undefined): string[] {
+  if (typeof templateOrWorld === 'string' || templateOrWorld === undefined) {
+    return HIDDEN_TABS[normalizeWorldTemplateId(templateOrWorld)]
+  }
+  const modules = modulesForWorld(templateOrWorld)
+  return [!modules.dating && 'dating', !modules.worldSimulation && 'clock'].filter((tab): tab is string => !!tab)
 }
 
 export interface WorldTemplateDef {
