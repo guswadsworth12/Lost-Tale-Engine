@@ -9,14 +9,18 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 
-/**
- * The Assistant: a plain conversation with the model, with no character and no relationship.
- *
- * Replaces Companion mode, whose problem was that it ran a voice loop through the roleplay session
- * hook and so inherited the entire dating engine for a use case that wanted none of it. This is the
- * "talking to the model" surface the app was missing — and the two things it can *make* (a roleplay
- * character, a chaptered story) are offered rather than inferred, so ordinary chat stays ordinary.
- */
+/** Writing workspace backed by ordinary assistant threads and their existing producers. */
+
+const STARTERS = [
+  { group: 'Brainstorm', label: 'Character', prompt: 'Help me brainstorm a character for my story. Ask about the setting and their role, then suggest a motive, a contradiction, and a relationship that creates tension.' },
+  { group: 'Brainstorm', label: 'Location', prompt: 'Help me brainstorm a memorable location. Ask about the world and tone, then suggest sensory details, a secret, and a reason to revisit it.' },
+  { group: 'Brainstorm', label: 'Faction', prompt: 'Help me brainstorm a faction. Ask about the setting, then suggest its public goal, internal conflict, key figure, and how it affects the cast.' },
+  { group: 'Brainstorm', label: 'Story arc', prompt: 'Help me plan a story arc. Ask about the cast and current conflict, then sketch a beginning, turning point, climax, and aftermath.' },
+  { group: 'Review & prep', label: 'Continuity check', prompt: 'Check my story notes for continuity issues. I will paste the relevant scenes or facts; flag contradictions and uncertainties, and cite the passages you used.' },
+  { group: 'Review & prep', label: 'Summary', prompt: 'Summarize the story material I paste next. Separate confirmed events, character changes, and open questions. Do not invent missing details.' },
+  { group: 'Review & prep', label: 'Dangling threads', prompt: 'Find dangling story threads in the notes I paste next. List unresolved promises, mysteries, and character goals, with possible follow-up scenes.' },
+  { group: 'Review & prep', label: 'Encounter prep', prompt: 'Help me prepare an encounter. Ask for the setting, participants, and desired stakes, then suggest an opening, complications, and possible outcomes.' },
+] as const
 
 /** Renders a reply's text: headings, list items and fenced code, and nothing more elaborate. */
 function AssistantText({ text }: { text: string }) {
@@ -154,6 +158,7 @@ export function AssistantView() {
   const threads = useApiQuery<AssistantThread[]>('assistant-threads', () => assistantThreadsApi.list(), []) ?? []
   const [threadId, setThreadId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [pending, setPending] = useState<{ id: string; text: string; kind?: ProducerKind } | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -172,6 +177,17 @@ export function AssistantView() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [thread?.messages.length, streamingText])
+
+  // A newly created thread must load before useAssistant can send through its new id.
+  useEffect(() => {
+    if (!pending || threadId !== pending.id || thread?.id !== pending.id) return
+    setPending(null)
+    void (async () => {
+      await sendMessage(pending.text)
+      if (pending.kind === 'character') await produceCharacter(pending.text)
+      if (pending.kind === 'story') await produceStory(pending.text)
+    })()
+  }, [pending, threadId, thread?.id, sendMessage, produceCharacter, produceStory])
 
   const newThread = async () => {
     try {
@@ -199,11 +215,16 @@ export function AssistantView() {
   const submit = async () => {
     const text = draft.trim()
     if (!text || isBusy) return
-    let id = threadId
-    if (!id) {
-      const created = await assistantThreadsApi.create({ title: 'New conversation', messages: [] })
-      id = created.id
-      setThreadId(id)
+    if (!threadId) {
+      try {
+        const created = await assistantThreadsApi.create({ title: 'New conversation', messages: [] })
+        setPending({ id: created.id, text })
+        setThreadId(created.id)
+        setDraft('')
+      } catch (error) {
+        toastError(errorMessage(error))
+      }
+      return
     }
     setDraft('')
     await sendMessage(text)
@@ -213,11 +234,16 @@ export function AssistantView() {
   const runProducer = async (kind: ProducerKind) => {
     const text = draft.trim()
     if (!text || isBusy) return
-    let id = threadId
-    if (!id) {
-      const created = await assistantThreadsApi.create({ title: text.slice(0, 60), messages: [] })
-      id = created.id
-      setThreadId(id)
+    if (!threadId) {
+      try {
+        const created = await assistantThreadsApi.create({ title: text.slice(0, 60), messages: [] })
+        setPending({ id: created.id, text, kind })
+        setThreadId(created.id)
+        setDraft('')
+      } catch (error) {
+        toastError(errorMessage(error))
+      }
+      return
     }
     setDraft('')
     // The brief is kept in the thread as the user's own turn, so the request reads as a request.
@@ -234,7 +260,7 @@ export function AssistantView() {
       {/* Thread list */}
       <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-bg-sunken/50">
         <div className="flex items-center justify-between gap-2 p-3">
-          <span className="font-display text-sm font-semibold">Assistant</span>
+          <span className="font-display text-sm font-semibold">Writer's Room</span>
           <Button onClick={newThread} className="inline-flex items-center gap-1.5">
             <Plus size={14} />
             New
@@ -269,18 +295,36 @@ export function AssistantView() {
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
           <div className="mx-auto max-w-chat space-y-5">
             {messages.length === 0 && !isBusy && (
-              <div className="py-16 text-center">
-                <p className="font-display text-lg text-text">Ask the model anything.</p>
-                <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
-                  This is a plain conversation, not a character. It can also build a roleplay character for your library,
-                  or write a full story chapter by chapter, when you ask it to.
+              <div className="py-8">
+                <h1 className="font-display text-xl text-text">Writer's Room</h1>
+                <p className="mt-2 max-w-xl text-sm text-text-muted">
+                  Brainstorm, review your notes, or prepare the next scene. Choose a starting point, edit the brief, and send it when ready.
+                  For continuity work, paste the relevant story material into the conversation.
                 </p>
+                {(['Brainstorm', 'Review & prep'] as const).map((group) => (
+                  <section key={group} className="mt-6" aria-label={group}>
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{group}</h2>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {STARTERS.filter((starter) => starter.group === group).map((starter) => (
+                        <button
+                          key={starter.label}
+                          type="button"
+                          onClick={() => setDraft(starter.prompt)}
+                          className="rounded-xl border border-border bg-bg-elevated p-3 text-left transition-colors hover:border-accent/50 hover:bg-accent/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                        >
+                          <span className="text-sm font-medium text-text">{starter.label}</span>
+                          <span className="mt-1 block text-xs text-text-muted">{starter.prompt.split('.')[0]}.</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             )}
             {messages.map((m) => (
               <div key={m.id}>
                 <div className="mb-1 text-[10px] uppercase tracking-[0.06em] text-text-muted/70">
-                  {m.role === 'user' ? 'You' : 'Assistant'}
+                  {m.role === 'user' ? 'You' : "Writer's Room"}
                 </div>
                 {m.error ? (
                   <p className="text-sm text-danger">{m.error}</p>
@@ -293,7 +337,7 @@ export function AssistantView() {
             ))}
             {streamingText && (
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-[0.06em] text-text-muted/70">Assistant</div>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.06em] text-text-muted/70">Writer's Room</div>
                 <AssistantText text={streamingText} />
               </div>
             )}
@@ -336,7 +380,7 @@ export function AssistantView() {
                   }
                 }}
                 rows={2}
-                placeholder="Ask anything. Shift+Enter for a new line."
+                placeholder="Describe what you want to write or review. Shift+Enter for a new line."
                 className="min-h-[52px] flex-1 resize-y rounded-xl border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent/60"
               />
               {isBusy ? (
