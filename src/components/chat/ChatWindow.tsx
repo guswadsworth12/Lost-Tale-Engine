@@ -699,11 +699,11 @@ export function ChatWindow({
   )
 
   return (
-    // overflow-hidden is load-bearing: TuningPanel's closed (translate-x-full) state still counts
+    // overflow-clip is load-bearing: TuningPanel's closed (translate-x-full) state still counts
     // toward scrollWidth without it, causing a permanent horizontal scrollbar. Panels that need to
     // escape this box use position: fixed instead, which plain overflow doesn't clip.
     <GmActionsContext.Provider value={gmActions}>
-    <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden">
+    <div className="relative flex flex-1 flex-col min-w-0 overflow-clip">
       {showFirstReplyTip && (
         // `fixed` (not `absolute`) so it floats consistently above whichever layout is active
         // (VNStage is full-bleed and doesn't otherwise have a slot for this) — same reasoning the

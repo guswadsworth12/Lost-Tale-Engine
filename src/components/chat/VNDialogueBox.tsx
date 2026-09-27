@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, type ReactNode } from 'react'
-import { ChevronDown, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pencil } from 'lucide-react'
 
 /**
  * VN mode's dialogue box: one floating glass panel of a **fixed height**, carrying either the
@@ -43,8 +43,12 @@ interface VNDialogueBoxProps {
   caption?: ReactNode
   /** Swipe/regenerate/voice/pin cluster, docked to the box's top-right and faded until hover. */
   utilities?: ReactNode
+  /** Visible line controls when several speakers replied in the same beat. */
+  lineNavigation?: ReactNode
   /** Read state's footer affordance: clicking it (or the box) hands the box over. Omitted in `docked` input mode, where the composer lives below instead. */
   onStartWriting?: () => void
+  /** While a group beat has unread lines, the footer advances one speaker instead of opening input. */
+  onNextLine?: () => void
   /** Escape out of write state. */
   onStopWriting?: () => void
   /** Who the box becomes when the player writes. */
@@ -64,7 +68,9 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
     complete,
     caption,
     utilities,
+    lineNavigation,
     onStartWriting,
+    onNextLine,
     onStopWriting,
     personaLabel,
   },
@@ -127,9 +133,10 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
                   {initials}
                 </span>
               )}
-              <span className="font-display text-[15px] font-semibold leading-none" style={{ color: plate.name }}>
+              <span className="min-w-0 truncate font-display text-[15px] font-semibold leading-none" style={{ color: plate.name }}>
                 {speakerName}
               </span>
+              {lineNavigation}
             </>
           )}
         </div>
@@ -161,14 +168,14 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
 
         {/* Read state's one footer line — the invitation to take the box over. Same height as
             nothing at all in write state, because the composer's own control row sits there instead. */}
-        {!writing && onStartWriting && (
+        {!writing && (onStartWriting || onNextLine) && (
           <button
             type="button"
-            onClick={onStartWriting}
+            onClick={onNextLine ?? onStartWriting}
             className="vn-box-foot flex w-full items-center gap-2 border-t border-white/[0.07] px-4 text-left text-[13px] text-white/40 transition-colors hover:bg-white/[0.05] hover:text-white/75 sm:px-6"
           >
-            <Pencil size={12} strokeWidth={2} className="shrink-0" />
-            <span className="truncate">Say something as {personaLabel}…</span>
+            {onNextLine ? <ChevronRight size={14} className="shrink-0" /> : <Pencil size={12} strokeWidth={2} className="shrink-0" />}
+            <span className="truncate">{onNextLine ? 'Next line' : `Say something as ${personaLabel}…`}</span>
             <span className="ml-auto hidden shrink-0 rounded border border-white/15 px-1.5 py-px text-[10px] tracking-wide text-white/35 sm:inline">
               Enter
             </span>

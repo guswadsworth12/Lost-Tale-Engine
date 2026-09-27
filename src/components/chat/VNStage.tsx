@@ -348,8 +348,27 @@ export function VNStage({
     }
   }, [showLog, highlightedMessageId])
 
-  const lastCharMsg = [...messages].reverse().find((m) => m.role === 'char')
+  const newestCharMsg = [...messages].reverse().find((m) => m.role === 'char')
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
+  const lastUserIndex = lastUserMsg ? messages.findIndex((m) => m.id === lastUserMsg.id) : -1
+  const beatMessages = messages.slice(lastUserIndex + 1).filter((m) => m.role === 'char')
+  const [viewedMessageId, setViewedMessageId] = useState<string | null>(newestCharMsg?.id ?? null)
+  const viewedBeatRef = useRef({ chatId: chat.id, userId: lastUserMsg?.id ?? null })
+  useEffect(() => {
+    if (viewedBeatRef.current.chatId !== chat.id) {
+      viewedBeatRef.current = { chatId: chat.id, userId: lastUserMsg?.id ?? null }
+      setViewedMessageId(newestCharMsg?.id ?? null)
+    } else if (viewedBeatRef.current.userId !== (lastUserMsg?.id ?? null) && beatMessages.length) {
+      // A GM beat can deliver several speakers before the UI paints. Show its first line and
+      // leave every later one queued until the reader advances.
+      viewedBeatRef.current.userId = lastUserMsg?.id ?? null
+      setViewedMessageId(beatMessages[0].id)
+    }
+  }, [chat.id, lastUserMsg?.id, beatMessages[0]?.id, newestCharMsg?.id])
+  const lastCharMsg = messages.find((m) => m.id === viewedMessageId && m.role === 'char') ?? newestCharMsg
+  const beatIndex = beatMessages.findIndex((m) => m.id === lastCharMsg?.id)
+  const previousBeatMsg = beatMessages[beatIndex - 1]
+  const nextBeatMsg = beatMessages[beatIndex + 1]
   const isStreamingThis = !!lastCharMsg && generatingMessageId === lastCharMsg.id
   // A failed generation leaves no real character line to show — fall back to the player's own last
   // line as "current" instead of putting an error banner in Sumire's mouth. Same textbox, same
@@ -552,22 +571,6 @@ export function VNStage({
   useEffect(() => {
     setWriting(false)
   }, [lastCharMsg?.id])
-  // Enter takes the box, the way Enter sends from it. Ignored while a dialog is open, while the
-  // caret is already in a field, and while the backlog/hide-UI have the screen.
-  useEffect(() => {
-    if (!inlineInput || isWriting || showLog || hideUI) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
-      const t = e.target as HTMLElement | null
-      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return
-      if (document.querySelector('[role="dialog"]')) return
-      e.preventDefault()
-      setWriting(true)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [inlineInput, isWriting, showLog, hideUI])
-
   // Per-line voice: "read this line aloud" via the shared TTS stack (`lib/voice`). Manual and
   // one line at a time only — no auto-voice-on-every-reply, unlike Auto above; that's a
   // recurring-cost surface this pass intentionally doesn't take on.
@@ -701,6 +704,23 @@ export function VNStage({
     skip: skipTypewriter,
   } = useTypewriterReveal(displayText, reducedMotion ? 0 : vnTextSpeedMs, typewriterActive)
   const shownDialogueText = typewriterActive ? revealedDialogueText : displayText
+  // Enter/Space reveal the current line, then advance to the next speaker. In inline input mode,
+  // Enter opens the composer once the beat is caught up.
+  useEffect(() => {
+    if (isWriting || showLog || hideUI) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== 'Enter' && e.key !== ' ') || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.closest('button, a, input, textarea, select, [role="button"]') || t.isContentEditable)) return
+      if (document.querySelector('[role="dialog"]')) return
+      if (typewriterActive && !dialogueRevealDone) { e.preventDefault(); skipTypewriter() }
+      else if (nextBeatMsg) { e.preventDefault(); setViewedMessageId(nextBeatMsg.id) }
+      else if (e.key === 'Enter' && inlineInput) { e.preventDefault(); setWriting(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlineInput, isWriting, showLog, hideUI, typewriterActive, dialogueRevealDone, nextBeatMsg?.id])
   // The ADV "done typing" glyph — only for an actual, complete character line, never the empty-chat
   // placeholder or a still-in-flight stream.
   const dialogueComplete = !isStreamingThis && !!lastCharMsg?.text && !lastCharMsg?.failed && dialogueRevealDone
@@ -717,14 +737,14 @@ export function VNStage({
     startSpeaking(lastCharMsg.text)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoVoice, dialogueComplete, lastCharMsg?.id])
-  // Keeps the growing edge of the reveal (and, once done, the glyph right after it) in view instead
-  // of leaving a long reply scrolled to its own top inside the capped-height box.
+  // Start each speaker at the beginning. The reader controls scrolling through a long line;
+  // following every typed character used to push the first sentences out of view too quickly.
   const dialogueBoxRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    dialogueBoxRef.current?.scrollTo({ top: dialogueBoxRef.current.scrollHeight })
-  }, [shownDialogueText])
+    dialogueBoxRef.current?.scrollTo({ top: 0 })
+  }, [lastCharMsg?.id, activeSwipe])
 
-  // Auto mode: once a reply's typewriter finishes, wait a beat scaled to its length, then hand off
+  // Auto mode: once a reply's typewriter (and optional voice) finishes, wait for reading time, then hand off
   // to `onAutoAdvanceFire` — real VN autoplay. Keyed on the message id + completion flag so this
   // schedules exactly once per newly-completed reply, not on every unrelated re-render while it
   // stays complete. A "latest callback" ref means the fire, whenever it lands, always sees
@@ -735,12 +755,12 @@ export function VNStage({
     onAutoAdvanceFireRef.current = onAutoAdvanceFire
   })
   useEffect(() => {
-    if (!autoAdvance || !dialogueComplete) return
-    const delayMs = Math.min(8000, Math.max(900, 700 + shownDialogueText.length * 22))
+    if (!autoAdvance || !dialogueComplete || nextBeatMsg || speakState !== 'idle') return
+    const delayMs = Math.min(30000, Math.max(4000, 1500 + shownDialogueText.length * 55))
     const t = setTimeout(() => onAutoAdvanceFireRef.current?.(), delayMs)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoAdvance, dialogueComplete, lastCharMsg?.id])
+  }, [autoAdvance, dialogueComplete, lastCharMsg?.id, nextBeatMsg?.id, speakState])
 
   const regexScripts = useSettingsStore((s) => s.regexScripts)
   const sfxEnabled = useSettingsStore((s) => s.sfxBursts)
@@ -754,6 +774,26 @@ export function VNStage({
       })
     : undefined
   const showPetals = !reducedMotion && !!sceneBackground && OUTDOOR_BACKGROUNDS.has(sceneBackground)
+
+  const lineNavigation = beatIndex >= 0 && beatMessages.length > 1 ? (
+    <nav aria-label="Scene lines" className="ml-auto flex shrink-0 items-center gap-1 text-xs text-white/75">
+      <button
+        type="button"
+        onClick={() => previousBeatMsg && setViewedMessageId(previousBeatMsg.id)}
+        disabled={!previousBeatMsg}
+        aria-label="Previous line"
+        className="rounded-lg p-1.5 hover:bg-white/10 disabled:opacity-30"
+      ><ChevronLeft size={16} /></button>
+      <span className="min-w-10 text-center tabular-nums">{beatIndex + 1} / {beatMessages.length}</span>
+      <button
+        type="button"
+        onClick={() => nextBeatMsg && setViewedMessageId(nextBeatMsg.id)}
+        disabled={!nextBeatMsg}
+        aria-label="Next line"
+        className="flex items-center gap-0.5 rounded-lg px-1.5 py-1 font-medium text-white hover:bg-white/10 disabled:opacity-30"
+      >Next <ChevronRight size={15} /></button>
+    </nav>
+  ) : undefined
 
   // Per-line controls, floated above the box's top-right corner and faded until hover — they act on
   // the line being shown, but they aren't part of reading it, so they don't get a row inside the frame.
@@ -866,16 +906,16 @@ export function VNStage({
   return (
     <div
       className="relative flex flex-1 flex-col overflow-hidden"
-      // Click-anywhere-on-scene: brings the UI back first if it's hidden (the universal way back —
-      // no on-screen hint needed), otherwise skips an in-progress typewriter reveal. Both are
-      // harmless no-ops the rest of the time; nested buttons/inputs still get their own click first,
-      // this never blocks or duplicates their own action.
-      onClick={() => {
+      // A scene click reveals the current line, then advances one queued speaker at a time.
+      onClick={(e) => {
         if (hideUI) {
           setHideUI(false)
           return
         }
-        if (!showLog && typewriterActive && !dialogueRevealDone) skipTypewriter()
+        if ((e.target as HTMLElement).closest('button, input, textarea, select, [role="button"]')) return
+        if (showLog) return
+        if (typewriterActive && !dialogueRevealDone) skipTypewriter()
+        else if (dialogueComplete && nextBeatMsg) setViewedMessageId(nextBeatMsg.id)
       }}
     >
       {/* The outgoing scene stays painted underneath while the incoming one fades in over it — a
@@ -1171,7 +1211,7 @@ export function VNStage({
                 <span className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">{locationCaption}</span>
               )}
               {assistSlot}
-              {activeChoiceData && vnChoiceStyle === 'docked' && (
+              {activeChoiceData && !nextBeatMsg && vnChoiceStyle === 'docked' && (
                 <div className="max-h-[16vh] overflow-y-auto">
                   <ChoiceList
                     variant="vn"
@@ -1182,7 +1222,7 @@ export function VNStage({
                   />
                 </div>
               )}
-              {choiceListSlot}
+              {!nextBeatMsg && choiceListSlot}
             </div>
           </div>
 
@@ -1195,12 +1235,14 @@ export function VNStage({
               plate={plate}
               personaLabel={persona?.name || 'You'}
               writing={isWriting}
-              onStartWriting={inlineInput ? () => setWriting(true) : undefined}
+              onStartWriting={inlineInput && !nextBeatMsg ? () => setWriting(true) : undefined}
+              onNextLine={inlineInput && nextBeatMsg ? () => setViewedMessageId(nextBeatMsg.id) : undefined}
               onStopWriting={() => setWriting(false)}
               composer={composerSlot}
               streaming={isStreamingThis}
               complete={dialogueComplete}
               utilities={utilities}
+              lineNavigation={lineNavigation}
               caption={dialogueCaption}
             >
               {renderMessageText(shownDialogueText, regexScripts, dialogueSfx)}
@@ -1209,7 +1251,7 @@ export function VNStage({
 
           {/* 'docked' input mode keeps the composer as its own bar under the box — for anyone who'd
               rather always see it than have the box change hands. */}
-          {!inlineInput && (
+          {!inlineInput && (!nextBeatMsg || composerHasDraft) && (
             <div className="vn-stack relative z-10 pb-3 sm:pb-5">
               <div className="vn-glass rounded-2xl px-3 py-1.5">{composerSlot}</div>
             </div>
@@ -1221,7 +1263,7 @@ export function VNStage({
               docked pills above — a real VN choice screen. Sits outside the Hide-UI gate above on
               purpose in the sense that it's its own conditional, but still never shows while
               Hide-UI is on (a pending choice just waits; clicking the scene restores the UI first). */}
-          {activeChoiceData && vnChoiceStyle === 'centered' && !hideUI && (
+          {activeChoiceData && !nextBeatMsg && vnChoiceStyle === 'centered' && !hideUI && (
             <VNCenteredChoices
               choices={activeChoiceData.choices}
               onPick={activeChoiceData.onPick}
