@@ -3000,6 +3000,7 @@ export function useChatSession(chatId: string | null) {
         timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
         roster: cast,
         availableRoster: available,
+        cardedNames: fullRoster.filter((c) => !isPlayerCharacter(c.name, playerName)).map((c) => c.name),
         canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
         loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
         playerName,

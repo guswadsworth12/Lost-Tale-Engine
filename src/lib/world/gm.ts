@@ -3,7 +3,7 @@ import type { CampaignConfig, PbtaRoll } from './campaign'
 /**
  * The game master agent. Separate from the character agents on purpose: the GM paces the scene,
  * decides who acts, adjudicates the player's declared action under the campaign's resolver mode,
- * and proposes lasting changes. It never speaks *as* a character — character dialogue comes from
+ * and proposes lasting changes. It never speaks *as* a carded character — their dialogue comes from
  * each character's own prompt (`useChatSession`'s `buildCurrentPrompt`), which is the only place
  * private lore, private memory, and card prompt items are assembled.
  *
@@ -91,6 +91,8 @@ export interface GmContext {
   roster: GmRosterEntry[]
   /** World characters available to enter, excluding the player's character and current cast. */
   availableRoster?: GmRosterEntry[]
+  /** All non-player characters with cards, including ones the GM cannot add to this scene. */
+  cardedNames?: string[]
   /** False when a nearby beat already forked this conversation. */
   canFork?: boolean
   loreIndex?: { id: string; title: string }[]
@@ -132,11 +134,12 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     : []
   const system = [
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
-    'You run the scene; you do not play the characters. Each character is voiced by their own separate agent after you decide.',
+    'You run the scene and NPCs without character cards. Every listed present or available character has a card and is played by a separate agent, even when you do not choose them to speak this beat.',
+    'Never write a carded character’s dialogue, actions, gestures, thoughts, feelings, entrance, or reaction in narration or adjudication. Do not preview or paraphrase their reply. Put present carded characters who should respond in speakers; their agents will write their own turns. Narration is only for scenery, uncarded NPCs, and immediate observable effects of the player’s action. Keep carded character names out of narration. For example: "Rain strikes the windows. The barkeep says the bridge is closed."',
     `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
     ...moveLines,
-    'Your job each beat: (1) adjudicate the player\'s declared action, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
+    'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
     'You may add at most one available character to the scene when an entrance follows naturally from the fiction. That character becomes eligible to speak on the next beat. Never add the player character.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
@@ -167,6 +170,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
     `Characters available to enter (add at most one, only if the scene calls for it):\n${availableLine}`,
+    ctx.cardedNames?.length ? `All carded characters (never portray them in GM prose): ${ctx.cardedNames.join(', ')}` : '',
     `Fork allowed this beat: ${ctx.canFork === false ? 'no — a nearby beat already forked' : 'yes, if a distinct continuing branch is truly needed'}`,
     ctx.loreIndex?.length ? `Callable public lorebook entries:\n${ctx.loreIndex.map((l) => `- ${l.title}`).join('\n')}` : '',
     ctx.transcript.length ? `Recent scene:\n${ctx.transcript.map((t) => `${t.speaker}: ${t.text}`).join('\n')}` : '',
@@ -252,6 +256,16 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     narration = narrationLines.filter((line) => !playerLine.test(line)).join('\n').trim()
     corrections.push(`Removed narration that spoke for ${ctx.playerName}.`)
   }
+  // A carded character's own agent owns their turn. If the GM names one in narration,
+  // discard that narration rather than risk presenting a second, conflicting turn.
+  const cardedNames = ctx.cardedNames ?? [...ctx.roster, ...(ctx.availableRoster ?? [])].map((card) => card.name)
+  const namedCardIn = (text: string) => cardedNames.find((card) =>
+    [card, firstName(card)].some((name) => name && new RegExp(`\\b${escapeRe(name)}\\b`, 'i').test(text)))
+  const namedCard = namedCardIn(narration)
+  if (namedCard) {
+    narration = ''
+    corrections.push(`Removed GM narration involving ${namedCard}; the character agent owns that turn.`)
+  }
 
   const pacing: GmPacing = obj.pacing === 'advance' || obj.pacing === 'cut' ? obj.pacing : 'linger'
 
@@ -310,6 +324,13 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       if (claimedTier) corrections.push(`${ctx.campaign.mode === 'guided' ? 'Guided mode' : 'A ruling without dice'} cannot claim a mechanical tier; it was discarded.`)
     }
   }
+  if (adjudication?.source === 'guided_judgment') {
+    const namedInRuling = namedCardIn(adjudication.outcome)
+    if (namedInRuling) {
+      adjudication = undefined
+      corrections.push(`Removed a GM judgment involving ${namedInRuling}; the character agent owns that response.`)
+    }
+  }
 
   const proposals: GmProposal[] = (Array.isArray(obj.proposals) ? obj.proposals : [])
     .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
@@ -360,7 +381,7 @@ export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: st
   }
   if (turn.pacing === 'advance') lines.push('Move the situation forward.')
   if (turn.pacing === 'cut') lines.push('Bring the scene to a close.')
-  lines.push(`Never speak or act for ${playerName}.`)
+  lines.push(`Never speak or act for ${playerName} or any other carded character.`)
   return lines.join(' ')
 }
 

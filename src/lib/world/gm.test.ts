@@ -43,6 +43,8 @@ describe('Game Master prompt', () => {
     const { system, user } = buildGmPrompt(ctx({ recordedMove: mixedRoll }))
     expect(system).toContain('MECHANICAL')
     expect(system).toContain('Never write Wren Calloway')
+    expect(system).toContain('NPCs without character cards')
+    expect(system).toContain('Put present carded characters who should respond in speakers')
     expect(user).toContain('Current scenery: Guild Hall (night) — pinned by the player')
     expect(user).toContain('Recorded roll (binding): Take a Risk')
     expect(user).toContain('= 8, 7–9 mixed hit')
@@ -92,15 +94,37 @@ describe('Game Master decision validation', () => {
 
   it("never hands the player's character to an agent or lets narration speak for them", () => {
     const raw = JSON.stringify({
-      narration: 'Dust rains down.\nWren: "Get back!"\nHana stumbles.',
+      narration: 'Dust rains down.\nWren: "Get back!"',
       speakers: ['Wren Calloway', 'Wren', 'Tobin Reed', 'Nobody'],
     })
     const turn = parseGmTurn(raw, ctx(), ids)
     expect(turn.speakerIds).toEqual(['tobin'])
-    expect(turn.narration).toBe('Dust rains down.\nHana stumbles.')
+    expect(turn.narration).toBe('Dust rains down.')
     expect(turn.corrections).toHaveLength(3)
     expect(isPlayerCharacter('Wren Calloway', 'Wren Calloway')).toBe(true)
     expect(isPlayerCharacter('Hana Pike', 'Wren Calloway')).toBe(false)
+  })
+
+  it('keeps carded characters out of the GM message but lets an uncarded NPC speak', () => {
+    const context = ctx({ cardedNames: ['Ivo Brand', 'Hana Pike', 'Tobin Reed', 'Mira Vale'] })
+    const duplicate = parseGmTurn(JSON.stringify({
+      narration: 'Hana smiles and says, "Welcome home." The rain stops.',
+      speakers: ['Hana Pike'],
+      adjudication: { action: 'return home', move: null, tier: null, outcome: 'Hana welcomes Wren warmly.' },
+    }), context, ids)
+    expect(duplicate.speakerIds).toEqual(['hana'])
+    expect(duplicate.narration).toBe('')
+    expect(duplicate.adjudication).toBeUndefined()
+    expect(formatGmMessage(duplicate)).not.toContain('Welcome home')
+    expect(formatGmMessage(duplicate)).not.toContain('welcomes Wren')
+    expect(duplicate.corrections?.join(' ')).toContain('Hana Pike')
+
+    const absentCard = parseGmTurn('{"narration":"Mira enters the hall.","speakers":["Hana"]}', context, ids)
+    expect(absentCard.narration).toBe('')
+
+    const npc = parseGmTurn('{"narration":"The barkeep says the bridge is closed.","speakers":["Hana"],"adjudication":{"action":"ask directions","outcome":"The bridge is blocked."}}', context, ids)
+    expect(npc.narration).toBe('The barkeep says the bridge is closed.')
+    expect(npc.adjudication?.outcome).toBe('The bridge is blocked.')
   })
 
   it('falls back without the model, still honoring the roll and the addressed character', () => {
