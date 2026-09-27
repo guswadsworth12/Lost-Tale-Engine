@@ -41,10 +41,8 @@ interface VNDialogueBoxProps {
   complete?: boolean
   /** A small caption under the line — an intimacy-action badge, a generation-failure note. */
   caption?: ReactNode
-  /** Swipe/regenerate/voice/pin cluster, docked to the box's top-right and faded until hover. */
+  /** Line navigation and per-message controls, docked to the box's top-right and faded until hover. */
   utilities?: ReactNode
-  /** Visible line controls when several speakers replied in the same beat. */
-  lineNavigation?: ReactNode
   /** Read state's footer affordance: clicking it (or the box) hands the box over. Omitted in `docked` input mode, where the composer lives below instead. */
   onStartWriting?: () => void
   /** While a group beat has unread lines, the footer advances one speaker instead of opening input. */
@@ -68,7 +66,6 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
     complete,
     caption,
     utilities,
-    lineNavigation,
     onStartWriting,
     onNextLine,
     onStopWriting,
@@ -95,7 +92,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
           height is all dialogue. Near-invisible at rest; full opacity on hover or keyboard focus. */}
       {utilities && !writing && (
         <div className="pointer-events-none absolute -top-1 right-4 z-20 flex justify-end opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover/vnbox:opacity-100 sm:right-6">
-          <div className="vn-glass pointer-events-auto flex items-center gap-0.5 rounded-full px-1.5 py-1">{utilities}</div>
+          <div className="vn-glass pointer-events-auto flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-0.5 rounded-full px-1.5 py-1">{utilities}</div>
         </div>
       )}
 
@@ -136,7 +133,6 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
               <span className="min-w-0 truncate font-display text-[15px] font-semibold leading-none" style={{ color: plate.name }}>
                 {speakerName}
               </span>
-              {lineNavigation}
             </>
           )}
         </div>

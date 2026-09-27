@@ -776,7 +776,7 @@ export function VNStage({
   const showPetals = !reducedMotion && !!sceneBackground && OUTDOOR_BACKGROUNDS.has(sceneBackground)
 
   const lineNavigation = beatIndex >= 0 && beatMessages.length > 1 ? (
-    <nav aria-label="Scene lines" className="ml-auto flex shrink-0 items-center gap-1 text-xs text-white/75">
+    <nav aria-label="Scene lines" className="flex shrink-0 items-center gap-1 text-xs text-white/75">
       <button
         type="button"
         onClick={() => previousBeatMsg && setViewedMessageId(previousBeatMsg.id)}
@@ -795,11 +795,14 @@ export function VNStage({
     </nav>
   ) : undefined
 
-  // Per-line controls, floated above the box's top-right corner and faded until hover — they act on
-  // the line being shown, but they aren't part of reading it, so they don't get a row inside the frame.
+  // Navigation and per-line controls share one popup so the popup cannot cover the line buttons.
   const utilities =
-    !isWriting && (canSwipe || (lastCharMsg && !isStreamingThis && !showUserAsCurrent)) ? (
+    !isWriting && (lineNavigation || canSwipe || (lastCharMsg && !isStreamingThis && !showUserAsCurrent)) ? (
       <>
+        {lineNavigation}
+        {lineNavigation && (canSwipe || (lastCharMsg && !isStreamingThis && !showUserAsCurrent)) && (
+          <span className="mx-1 h-4 w-px bg-white/15" />
+        )}
         {canSwipe && (
           <>
             <span className="flex items-center gap-0.5 text-xs text-white/70">
@@ -1242,7 +1245,6 @@ export function VNStage({
               streaming={isStreamingThis}
               complete={dialogueComplete}
               utilities={utilities}
-              lineNavigation={lineNavigation}
               caption={dialogueCaption}
             >
               {renderMessageText(shownDialogueText, regexScripts, dialogueSfx)}
