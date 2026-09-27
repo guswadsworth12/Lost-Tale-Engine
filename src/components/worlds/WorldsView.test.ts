@@ -2,9 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_CAMPAIGN } from '@/lib/world/campaign'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { WORLD_TAB_ALIASES } from '@/lib/ui/navigation'
-import { changeWorldModule, worldEditorTabs } from './WorldsView'
+import { changeWorldModule, initialWorldEditorModules, worldEditorTabs } from './WorldsView'
 
 describe('world editor modules', () => {
+  it('keeps a campaign-less legacy world’s effective modules when opened and saved', () => {
+    const legacy = { template: 'dating_sim' as const }
+    const initial = initialWorldEditorModules(legacy)
+    expect(modulesForWorld({ ...legacy, ...initial })).toEqual(modulesForWorld(legacy))
+    expect(initial.modules.campaignRules).toBe(false)
+    expect(initial.campaign).toMatchObject({ relationships: true, dating: true })
+
+    const explicitOff = { template: 'dating_sim' as const, modules: { dating: false } }
+    expect(modulesForWorld({ ...explicitOff, ...initialWorldEditorModules(explicitOff) })).toEqual(modulesForWorld(explicitOff))
+  })
+
   it('shows only the tabs supported by effective modules and keeps canon accessible', () => {
     const off = modulesForWorld({ template: 'freeform', campaign: DEFAULT_CAMPAIGN, modules: { campaignRules: false } })
     expect(worldEditorTabs(off, 2)).toEqual([

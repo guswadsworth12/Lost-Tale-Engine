@@ -246,6 +246,18 @@ export function changeWorldModule<K extends keyof WorldModuleChoices>(
   return { modules: nextModules, campaign }
 }
 
+export function initialWorldEditorModules(world: Pick<WorldCard, 'template' | 'campaign' | 'modules'>): {
+  campaign: CampaignConfig
+  modules: WorldModuleChoices
+} {
+  if (world.campaign) return { campaign: world.campaign, modules: world.modules ?? {} }
+  const effective = modulesForWorld(world)
+  return {
+    campaign: { ...DEFAULT_CAMPAIGN, relationships: effective.relationships, dating: effective.dating },
+    modules: { ...world.modules, campaignRules: effective.campaignRules },
+  }
+}
+
 function WorldEditor({
   world,
   initialTemplate,
@@ -264,8 +276,9 @@ function WorldEditor({
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
-  const [campaign, setCampaign] = useState<CampaignConfig>(base.campaign ?? { ...DEFAULT_CAMPAIGN })
-  const [modules, setModules] = useState<WorldModuleChoices>(base.modules ?? {})
+  const initialModules = initialWorldEditorModules(base)
+  const [campaign, setCampaign] = useState<CampaignConfig>(initialModules.campaign)
+  const [modules, setModules] = useState<WorldModuleChoices>(initialModules.modules)
   const [promptItems, setPromptItems] = useState<PromptItem[]>(base.promptItems ?? [])
   const [canonFacts, setCanonFacts] = useState<NonNullable<WorldCard['canonFacts']>>(base.canonFacts ?? [])
   const [openedCanonIds] = useState(() => new Set((base.canonFacts ?? []).map((fact) => fact.id)))
