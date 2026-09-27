@@ -1,9 +1,8 @@
 import {
   BookOpen,
-  CircleUserRound,
   GalleryHorizontalEnd,
   Globe,
-  MessageCircle,
+  LibraryBig,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -14,18 +13,18 @@ import {
 } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { BrandMark, BrandWordmark } from '@/components/ui/BrandMark'
+import { USER_LABELS, type ViewId } from '@/lib/ui/navigation'
 
-export type ViewId = 'chat' | 'assistant' | 'characters' | 'worlds' | 'personas' | 'worldinfo' | 'gallery' | 'settings'
+export type { ViewId } from '@/lib/ui/navigation'
 
-export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
-  { id: 'chat', label: 'Chat', icon: MessageCircle },
-  { id: 'assistant', label: 'Assistant', icon: Sparkles },
-  { id: 'characters', label: 'Characters', icon: Users },
-  { id: 'worlds', label: 'Worlds', icon: Globe },
-  { id: 'personas', label: 'Personas', icon: CircleUserRound },
-  { id: 'worldinfo', label: 'World Info', icon: BookOpen },
-  { id: 'gallery', label: 'Gallery', icon: GalleryHorizontalEnd },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+export const NAV: { id: ViewId; label: string; section: 'Play' | 'Studio' | 'Tools'; icon: LucideIcon }[] = [
+  { id: 'stories', label: 'Stories', section: 'Play', icon: LibraryBig },
+  { id: 'cast', label: USER_LABELS.Characters, section: 'Studio', icon: Users },
+  { id: 'worlds', label: 'Worlds', section: 'Studio', icon: Globe },
+  { id: 'lore', label: USER_LABELS['World Info'], section: 'Studio', icon: BookOpen },
+  { id: 'media', label: USER_LABELS.Gallery, section: 'Studio', icon: GalleryHorizontalEnd },
+  { id: 'writer', label: USER_LABELS.Assistant, section: 'Tools', icon: Sparkles },
+  { id: 'settings', label: 'Settings', section: 'Tools', icon: SettingsIcon },
 ]
 
 export function Sidebar({
@@ -72,23 +71,31 @@ export function Sidebar({
           {expanded && <span className="hidden md:inline">Search</span>}
         </button>
       )}
-      {NAV.map((item) => (
+      {NAV.map((item, index) => (
+        <div key={item.id} className="contents md:block md:w-full">
+        {(index === 0 || NAV[index - 1].section !== item.section) && (
+          <div className={`hidden px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-text-muted md:block ${index > 0 ? 'md:pt-4' : ''}`}>
+            {expanded ? item.section : <span className="sr-only">{item.section}</span>}
+          </div>
+        )}
         <button
-          key={item.id}
           onClick={() => onChange(item.id)}
           title={item.label}
           aria-label={item.label}
-          className={`flex flex-1 items-center justify-center rounded-xl text-xs transition-colors md:flex-initial ${
+          aria-current={view === item.id ? 'page' : undefined}
+          className={`flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl text-[10px] transition-colors md:flex-initial md:flex-row ${
             expanded ? 'md:w-auto md:justify-start md:gap-3 md:px-3 md:py-2.5' : 'md:h-10 md:w-10'
-          } h-11 w-11 ${
+          } h-11 ${
             view === item.id
               ? 'bg-accent/10 text-accent font-medium'
               : 'text-text-muted hover:bg-bg-sunken hover:text-text'
           }`}
         >
           <item.icon size={18} strokeWidth={1.75} className="shrink-0" />
+          <span className="truncate md:hidden">{item.label === "Writer's Room" ? 'Writer' : item.label}</span>
           {expanded && <span className="hidden md:inline">{item.label}</span>}
         </button>
+        </div>
       ))}
 
       <button

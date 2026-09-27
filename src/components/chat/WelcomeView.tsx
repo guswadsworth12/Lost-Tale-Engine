@@ -395,7 +395,7 @@ export function WelcomeView({
 
         {/* 2. First chat */}
         <div className="mt-4 rounded-2xl border border-border bg-bg-elevated p-5">
-          <div className="mb-3 text-sm font-medium text-text">Start your first chat</div>
+          <div className="mb-3 text-sm font-medium text-text">Start your first story</div>
 
           {charactersLoading ? (
             // Don't flash the "you have no characters" branch before the list has loaded — a fresh
@@ -419,16 +419,16 @@ export function WelcomeView({
                 </div>
               </div>
               <Button variant="primary" onClick={() => setShowNewChat(true)} className="mt-4 w-full">
-                Chat with {featured.card.name}
+                Start a story with {featured.card.name}
               </Button>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
-                <button className="hover:text-text" onClick={() => onNavigate('characters')}>
-                  Browse characters
+                <button className="hover:text-text" onClick={() => onNavigate('cast')}>
+                  Browse cast
                 </button>
-                <button className="flex items-center gap-1 hover:text-text" onClick={() => onNavigate('characters')}>
+                <button className="flex items-center gap-1 hover:text-text" onClick={() => onNavigate('cast')}>
                   <Sparkles size={12} strokeWidth={2} /> Generate one
                 </button>
-                <button className="flex items-center gap-1 hover:text-text" onClick={() => onNavigate('characters')}>
+                <button className="flex items-center gap-1 hover:text-text" onClick={() => onNavigate('cast')}>
                   <Upload size={12} strokeWidth={2} /> Import a card
                 </button>
               </div>
@@ -440,10 +440,10 @@ export function WelcomeView({
                 SillyTavern / Character-Card-V3 file.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button variant="primary" onClick={() => onNavigate('characters')} className="flex items-center gap-1.5">
+                <Button variant="primary" onClick={() => onNavigate('cast')} className="flex items-center gap-1.5">
                   <Wand2 size={14} strokeWidth={2} /> Create a character
                 </Button>
-                <Button onClick={() => onNavigate('characters')} className="flex items-center gap-1.5">
+                <Button onClick={() => onNavigate('cast')} className="flex items-center gap-1.5">
                   <Upload size={14} strokeWidth={2} /> Import a card
                 </Button>
               </div>
@@ -457,7 +457,7 @@ export function WelcomeView({
             className="mt-4 flex items-center gap-1.5 text-xs text-text-muted hover:text-text"
           >
             <Trash2 size={12} strokeWidth={2} />
-            {trashCount === 1 ? '1 deleted chat in the trash' : `${trashCount} deleted chats in the trash`}
+            {trashCount === 1 ? '1 deleted story in the trash' : `${trashCount} deleted stories in the trash`}
           </button>
         )}
       </div>
