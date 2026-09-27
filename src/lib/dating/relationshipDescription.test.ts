@@ -53,3 +53,19 @@ describe('buildRelationshipDescription — asymmetric pacing (item 2)', () => {
     expect(out).not.toMatch(/closing the distance/i)
   })
 })
+
+describe('buildRelationshipDescription — story worlds', () => {
+  it('preserves the bond and strain without presenting chemistry as a standing romance prompt', () => {
+    const out = buildRelationshipDescription(chat({
+      momentum: 3,
+      initiativeBalance: -3,
+      relationshipStats: { trust: 80, chemistry: 90, comfort: 60, respect: 50, curiosity: 40, tension: 65 },
+    }), undefined, character, 'natural')!
+    expect(out).toContain('deep mutual trust')
+    expect(out).toContain('strong chemistry')
+    expect(out).toContain('unresolved tension')
+    expect(out).not.toContain('romantic spark')
+    expect(out).not.toContain('closing the distance')
+    expect(out).not.toContain('moved fast')
+  })
+})

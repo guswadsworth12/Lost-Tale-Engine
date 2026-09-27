@@ -7,6 +7,7 @@
  */
 
 import type { CommitmentStatus } from '@/lib/types'
+import type { RomanceEmphasis } from '@/lib/world/worldTemplates'
 
 export const RELATIONSHIP_ARCHETYPES = ['rival', 'found_family', 'mentor_mentee', 'power_imbalanced'] as const
 export type RelationshipArchetype = (typeof RELATIONSHIP_ARCHETYPES)[number]
@@ -115,15 +116,18 @@ export interface ParticipantGuidanceParams {
   primaryCommitmentStatus?: CommitmentStatus
   /** Whether a jealousy `SceneFlag` is active; only deepens a `rival` match (see `rivalJealousyIntensifier`). */
   jealousyFlagActive?: boolean
+  emphasis?: RomanceEmphasis
 }
 
 /** Builds the model-facing relationship guidance line for a non-primary participant, layering archetype and (for rivals) commitment/jealousy framing on top of a warmth baseline. */
 export function participantRelationshipGuidance(params: ParticipantGuidanceParams): string {
   const other = params.primaryName ?? 'the rest of the group'
-  const baseline = `${params.speakerName} has their own independent footing with ${params.personaName || 'you'} here, separate from ${other}'s — right now that reads as ${warmthRegister(params.warmth)}. Don't default to the same romantic warmth ${other} gets; play ${params.speakerName}'s own footing honestly.`
+  const baseline = params.emphasis === 'natural'
+    ? `${params.speakerName} has their own history and aims among the people in this scene. Their bond with ${params.personaName || 'you'} is ${warmthRegister(params.warmth)}; let them respond to ${other} and others when relevant, not just to ${params.personaName || 'you'}.`
+    : `${params.speakerName} has their own independent footing with ${params.personaName || 'you'} here, separate from ${other}'s — right now that reads as ${warmthRegister(params.warmth)}. Don't default to the same romantic warmth ${other} gets; play ${params.speakerName}'s own footing honestly.`
   const archetypeLine = params.archetype ? archetypeGuidance(params.archetype, params.speakerName, params.archetypeOtherName ?? params.personaName ?? 'you') : ''
   const isRival = params.archetype?.archetype === 'rival'
-  const commitmentLine = isRival
+  const commitmentLine = isRival && params.emphasis !== 'natural'
     ? rivalCommitmentFraming(params.primaryCommitmentStatus, params.primaryName ?? params.archetypeOtherName ?? 'them', params.personaName ?? 'you')
     : ''
   const jealousyLine = isRival ? rivalJealousyIntensifier(params.speakerName, params.jealousyFlagActive) : ''

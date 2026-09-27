@@ -34,7 +34,7 @@ import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { useBgmSceneStore } from '@/lib/store/useBgmSceneStore'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { getEnergyRemaining, PHASES, presenceLabel, resolveScheduledPresence } from '@/lib/world/calendar'
-import { getWorldTemplate } from '@/lib/world/worldTemplates'
+import { getWorldTemplate, romanceEmphasisFor } from '@/lib/world/worldTemplates'
 import {
   computeWarmth,
   formatRelationshipStage,
@@ -392,6 +392,8 @@ export function ChatWindow({
 
   // Built once, rendered as the header toolbar (tone="chrome") or folded into VNStage's overlay (tone="glass").
   const toolbarTone = resolvedVisualNovelMode ? 'glass' : 'chrome'
+  const romanceFocus = romanceEmphasisFor(world?.template ?? chat.mode, world?.campaign?.dating) === 'focus'
+  const showDateControls = chat.assistOverrides?.showDateEventButton ?? romanceFocus
   const scenery = currentScenery(messages, chat.scene)
   const gmActions = {
     decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
@@ -453,23 +455,23 @@ export function ChatWindow({
       key: 'event',
       icon: CalendarHeart,
       label: chat.activeEvent?.title ? `Event: ${chat.activeEvent.title}` : 'Start a date or event',
-      priority: 'primary-desktop',
+      priority: romanceFocus ? 'primary-desktop' : 'secondary',
       active: !!chat.activeEvent,
       // An author-level opt-out, or this chat's own mode saying "no romance mechanics" — either
       // way hidden entirely rather than just disabled. Never hides a genuinely active event,
       // though, even if the mode override would otherwise say no — nothing to strand the user with.
-      hidden: world?.campaign?.dating === false || !!character?.dateModeOptOut || (chat.assistOverrides?.showDateEventButton === false && !chat.activeEvent),
+      hidden: world?.campaign?.dating === false || !!character?.dateModeOptOut || (!showDateControls && !chat.activeEvent),
       onClick: () => setShowEvent(true),
     },
     {
       key: 'day-planner',
       icon: Sunrise,
       label: 'Plan your day',
-      priority: 'primary-desktop',
+      priority: romanceFocus ? 'primary-desktop' : 'secondary',
       // Same "romance-flavored surface" bucket the event button already opts out of — this just
       // leads into the same scored-hangout machinery through a different door — plus no bound
       // world at all, since there's no clock/energy to plan around without one.
-      hidden: !world || world.campaign?.dating === false || !!character?.dateModeOptOut || chat.assistOverrides?.showDateEventButton === false,
+      hidden: !world || world.campaign?.dating === false || !!character?.dateModeOptOut || !showDateControls,
       onClick: () => setShowDayPlanner(true),
     },
     {
@@ -577,7 +579,7 @@ export function ChatWindow({
   // either way (e.g. a Freeform chat where the player later turned relationship tracking back on
   // for some other reason still doesn't want "Flirt/Tease" chips; that vocabulary is genre, not tracking).
   const relationshipTrackingActive = world?.campaign?.relationships !== false && (chat?.assistOverrides?.autoTrackRelationship ?? autoTrackRelationship)
-  const showIntentChips = relationshipTrackingActive && (chat?.assistOverrides?.showIntentChips ?? relationshipTrackingActive) && !isGenerating && !!character
+  const showIntentChips = relationshipTrackingActive && (chat?.assistOverrides?.showIntentChips ?? romanceFocus) && !isGenerating && !!character
   const liveDateActive = isLiveScene(chat?.activeEvent)
 
   const AUTO_ADVANCE_MAX_TURNS = 5

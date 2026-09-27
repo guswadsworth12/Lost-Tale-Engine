@@ -57,6 +57,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
+import { romanceEmphasisFor } from '@/lib/world/worldTemplates'
 import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
@@ -520,7 +521,7 @@ export function VNStage({
   // day" modal, so knowing whether there was still room for another activity today meant actually
   // opening it. Same visibility gate `ChatWindow`'s own day-planner toolbar button uses, so the
   // readout never claims a budget exists for a mode/character that has opted the whole mechanic out.
-  const showEnergy = !!world && world.campaign?.dating !== false && !character?.dateModeOptOut && chat.assistOverrides?.showDateEventButton !== false
+  const showEnergy = !!world && world.campaign?.dating !== false && !character?.dateModeOptOut && (chat.assistOverrides?.showDateEventButton ?? romanceEmphasisFor(world?.template ?? chat.mode, world?.campaign?.dating) === 'focus')
   const energyRemaining = showEnergy ? getEnergyRemaining(world!.currentDay ?? 0, world!.currentPhaseIndex ?? 0) : 0
   const energyMax = showEnergy ? getMaxEnergyForDay(world!.currentDay ?? 0) : 0
   const narration = [lastCharMsg?.text, lastUserMsg?.text].filter(Boolean).join(' ')

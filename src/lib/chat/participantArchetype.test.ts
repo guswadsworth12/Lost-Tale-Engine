@@ -98,6 +98,18 @@ describe('archetypeGuidance', () => {
 })
 
 describe('participantRelationshipGuidance', () => {
+  it('frames a story participant through the whole scene instead of romantic competition', () => {
+    const line = participantRelationshipGuidance({
+      speakerName: 'Aiko', personaName: 'Kai', primaryName: 'Sumire', warmth: 75,
+      primaryCommitmentStatus: 'dating',
+      archetype: { archetype: 'rival', sourceText: 'rival — competing guild captain' },
+      emphasis: 'natural',
+    })
+    expect(line).toContain('respond to Sumire and others')
+    expect(line).toContain('competing guild captain')
+    expect(line).not.toContain('still-competing rivalry')
+    expect(line).not.toContain('same romantic warmth')
+  })
   it('gives a non-empty baseline even with no archetype authored — closing the "zero guidance" gap', () => {
     const line = participantRelationshipGuidance({ speakerName: 'Aiko', personaName: 'Kai', primaryName: 'Sumire', warmth: 20 })
     expect(line.length).toBeGreaterThan(0)

@@ -387,11 +387,11 @@ export function RelationshipPanel({
     }
   }
 
-  const overrideValue = (key: 'autoTrackRelationship' | 'autoSuggestChoices'): 'default' | 'on' | 'off' => {
+  const overrideValue = (key: 'autoTrackRelationship' | 'autoSuggestChoices' | 'showIntentChips' | 'showDateEventButton'): 'default' | 'on' | 'off' => {
     const v = chat.assistOverrides?.[key]
     return v === undefined ? 'default' : v ? 'on' : 'off'
   }
-  const setOverride = async (key: 'autoTrackRelationship' | 'autoSuggestChoices', value: 'default' | 'on' | 'off') => {
+  const setOverride = async (key: 'autoTrackRelationship' | 'autoSuggestChoices' | 'showIntentChips' | 'showDateEventButton', value: 'default' | 'on' | 'off') => {
     const next = { ...(chat.assistOverrides ?? {}) }
     if (value === 'default') delete next[key]
     else next[key] = value === 'on'
@@ -412,9 +412,8 @@ export function RelationshipPanel({
     else next.visualNovelMode = value === 'on'
     await chatsApi.update(chat.id, { assistOverrides: next })
   }
-  // Purely a display label (`NewChatDialog`'s Play style picker) — changing it later doesn't
-  // retroactively touch `assistOverrides`, same as switching a world's own template doesn't touch
-  // an already-created chat's overrides.
+  // A bound world's template controls prompt emphasis; otherwise this chat's play style does.
+  // Changing it does not rewrite existing assist overrides.
   const setChatMode = async (value: WorldTemplateId) => {
     await chatsApi.update(chat.id, { mode: value })
   }
@@ -1011,7 +1010,7 @@ export function RelationshipPanel({
           >
             <SelectField
               label="Play style"
-              hint="Just a label, shown in the header and chat list. It doesn't touch the toggles below."
+              hint="Controls romance emphasis when this chat has no bound world. A bound world's template takes priority. The toggles below remain as set."
               value={normalizeWorldTemplateId(chat.mode)}
               onChange={(e) => setChatMode(e.target.value as WorldTemplateId)}
             >
@@ -1038,6 +1037,26 @@ export function RelationshipPanel({
               onChange={(e) => setOverride('autoSuggestChoices', e.target.value as 'default' | 'on' | 'off')}
             >
               <option value="default">Use global default</option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </SelectField>
+            <SelectField
+              label="Show social intent chips"
+              hint="Flirt, tease, and other relationship shortcuts above the composer. Hidden by default in story worlds; romance still works without them."
+              value={overrideValue('showIntentChips')}
+              onChange={(e) => setOverride('showIntentChips', e.target.value as 'default' | 'on' | 'off')}
+            >
+              <option value="default">Use play style default</option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </SelectField>
+            <SelectField
+              label="Show date and day planner controls"
+              hint="Keeps dates available from More actions when enabled in a story world."
+              value={overrideValue('showDateEventButton')}
+              onChange={(e) => setOverride('showDateEventButton', e.target.value as 'default' | 'on' | 'off')}
+            >
+              <option value="default">Use play style default</option>
               <option value="on">On</option>
               <option value="off">Off</option>
             </SelectField>

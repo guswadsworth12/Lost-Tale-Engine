@@ -2,6 +2,7 @@ import { getRelationshipStats, computeWarmth, relationshipStageForWarmth, relati
 import { asymmetricPacingNote, relationshipPacingNote } from '@/lib/dating/momentum'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat, WorldCard } from '@/lib/types'
+import type { RomanceEmphasis } from '@/lib/world/worldTemplates'
 
 /**
  * Moved verbatim out of `useChatSession.ts` (no behavior change) so the headless outreach tick
@@ -25,6 +26,7 @@ export function buildRelationshipDescription(
   >,
   world: WorldCard | undefined,
   character: Character,
+  emphasis: RomanceEmphasis = 'focus',
 ): string | undefined {
   if (chat.affection === undefined) return undefined
   const primaryName = character.card.name
@@ -33,7 +35,7 @@ export function buildRelationshipDescription(
   const stage = relationshipStageForWarmth(warmth, relationshipMilestonesFor(world?.relationshipThresholds))
   const notes: string[] = []
   if (stats.trust >= 70) notes.push('a deep mutual trust has built up')
-  if (stats.chemistry >= 70) notes.push('there is a strong romantic spark')
+  if (stats.chemistry >= 70) notes.push(emphasis === 'focus' ? 'there is a strong romantic spark' : 'there is strong chemistry')
   if (stats.tension >= 60) notes.push('real unresolved tension between them')
   if (stats.comfort <= 20 && stage !== 'near_strangers') notes.push('things still feel a little unsettled between them')
   const giftTasteNote = buildGiftTasteNote(character)
@@ -54,24 +56,26 @@ export function buildRelationshipDescription(
       : undefined
   // Momentum: how fast (and which way) things have been moving recently, separate from where they
   // are — the "how quickly should this relationship be moving" the level-only lines can't give.
-  const pacingNote = relationshipPacingNote(primaryName, warmth, chat.momentum ?? 0, stats.tension)
+  const pacingNote = emphasis === 'focus' ? relationshipPacingNote(primaryName, warmth, chat.momentum ?? 0, stats.tension) : undefined
   // Item 2's asymmetric-pacing signal: who's actually been initiating lately, not just how fast
   // warmth is moving overall (that's `pacingNote` above). `{{user}}` is a real macro here — this
   // return value is one of the few `buildPrompt` fields that IS macro-substituted (see this file's
   // own doc comment on `giftTasteNote`), unlike ordinary `styleGuidance` strings.
-  const asymmetryNote = asymmetricPacingNote(primaryName, chat.initiativeBalance ?? 0)
+  const asymmetryNote = emphasis === 'focus' ? asymmetricPacingNote(primaryName, chat.initiativeBalance ?? 0) : undefined
   // `primaryName` is spelled out rather than left as a `{{char}}` macro — this stays about the
   // scene's primary/relationship-tracked character even in a group chat, where `{{char}}` would
   // otherwise resolve to whoever's currently speaking instead (see resolveSpeaker/buildCurrentPrompt).
   return [
-    `Relationship: {{user}} and ${primaryName} are at the "${formatRelationshipStage(stage)}" stage${notes.length ? `: ${notes.join('; ')}` : ''}.`,
+    emphasis === 'focus'
+      ? `Relationship: {{user}} and ${primaryName} are at the "${formatRelationshipStage(stage)}" stage${notes.length ? `: ${notes.join('; ')}` : ''}.`
+      : `{{user}} and ${primaryName}'s bond: ${notes.length ? notes.join('; ') : stage === 'near_strangers' ? 'they are still getting to know each other' : 'their trust and familiarity are shaped by their shared history'}.`,
     '(Let this colour tone, warmth, and what feels earned right now. Never state a number, "affection", or "stage" out loud.)',
     pacingNote,
     asymmetryNote,
     commitmentNote,
     warningNote,
     breakupNote,
-    giftTasteNote,
+    emphasis === 'focus' ? giftTasteNote : undefined,
   ]
     .filter(Boolean)
     .join('\n')

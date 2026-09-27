@@ -1,4 +1,11 @@
 export type WorldTemplateId = 'freeform' | 'visual_novel' | 'dating_sim'
+export type RomanceEmphasis = 'off' | 'natural' | 'focus'
+
+/** Dating is a campaign capability; the world template decides how often prompts foreground it. */
+export function romanceEmphasisFor(template: WorldTemplateId | undefined, datingEnabled: boolean | undefined): RomanceEmphasis {
+  if (datingEnabled === false) return 'off'
+  return normalizeWorldTemplateId(template) === 'dating_sim' ? 'focus' : 'natural'
+}
 
 /** Template ids retired from the picker but that may still be sitting on a world/chat created
  *  before the retirement — mapped to whichever still-offered template it now behaves as, so old
@@ -61,7 +68,7 @@ export const WORLD_TEMPLATES: WorldTemplateDef[] = [
   {
     id: 'visual_novel',
     label: 'Visual Novel',
-    blurb: 'A story-driven setting with scene backgrounds and time-of-day flavor, without the dating-sim economy. New chats here start with Visual Novel mode on by default; relationship tracking stays on too, since plenty of VN stories are romance-driven.',
+    blurb: 'A story-driven setting with scene backgrounds and time-of-day flavor. Romance can develop naturally; new chats keep relationship tracking on while leaving dating controls tucked away until enabled.',
     description: '',
     rules: 'Describe the setting cinematically. Establish where a scene is and what it looks like before dialogue.',
     disablesRelationshipAssists: false,
@@ -103,7 +110,9 @@ export function assistOverridesForTemplate(template: WorldTemplateId | undefined
   // presentation, unlike the other templates, where VN mode is a legitimate but unrelated choice
   // the user's own global default should keep deciding. `'auto'` rather than a hard `true`: it
   // still shouldn't force a blank void on a character/world with no art yet (`isVnReady`).
-  const vnOverride = normalizeWorldTemplateId(template) === 'visual_novel' ? { visualNovelMode: 'auto' as const } : {}
+  const vnOverride = normalizeWorldTemplateId(template) === 'visual_novel'
+    ? { visualNovelMode: 'auto' as const, slowBurnPacing: false, showIntentChips: false, showDateEventButton: false }
+    : {}
   const systemPromptOverride = def.systemPromptId ? { systemPromptId: def.systemPromptId } : {}
   return { ...relationshipOverride, ...vnOverride, ...systemPromptOverride }
 }

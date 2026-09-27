@@ -57,6 +57,26 @@ describe('Game Master prompt', () => {
     expect(system).toContain('GUIDED')
     expect(system).toContain('Never claim a die roll')
   })
+
+  it('does not delay an established discovery or reroll questions earned on a strong hit', () => {
+    const { system } = buildGmPrompt(ctx({ recordedMove: mixedRoll }))
+    expect(system).toContain('Established conditions are true when the player checks them')
+    expect(system).toContain('never conceal it to preserve a planned reveal')
+    expect(system).toContain('answer the player’s questions from that result without demanding another roll')
+  })
+
+  it('carries the story state and asks the GM to present a next situation after a scene pays off', () => {
+    const { system, user } = buildGmPrompt(ctx({
+      storySoFar: 'The party returned home.',
+      openThreads: ['A bridge report has not been checked.'],
+      activeObjective: 'Check the bridge — speak with the ferryman',
+    }))
+    expect(system).toContain('When a scene has paid off, close it or move to a concrete next situation')
+    expect(system).toContain('do not wait for the player to invent every lead')
+    expect(user).toContain('Story so far: The party returned home.')
+    expect(user).toContain('Open threads:\n- A bridge report has not been checked.')
+    expect(user).toContain('Current objective: Check the bridge — speak with the ferryman')
+  })
 })
 
 describe('Game Master decision validation', () => {

@@ -85,6 +85,9 @@ export interface GmContext {
   worldRules?: string
   gmNotes?: string
   scenario?: string
+  storySoFar?: string
+  openThreads?: string[]
+  activeObjective?: string
   canonFacts: string[]
   branchConsequences: string[]
   scenery: string
@@ -145,10 +148,12 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ...modeLines,
     ...moveLines,
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
+    'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
     'You may add at most one available character to the scene when an entrance follows naturally from the fiction. That character becomes eligible to speak on the next beat. Never add the player character.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
+    'Established conditions are true when the player checks them, even if the outline expected their discovery later. On a successful investigation, give truthful, actionable evidence within the declared scope; never conceal it to preserve a planned reveal. If a recorded result grants questions, answer the player’s questions from that result without demanding another roll. Describe what the character can observe, not their private interpretation or next choice.',
     'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
@@ -172,6 +177,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.worldRules?.trim() ? `World rules: ${ctx.worldRules.trim()}` : '',
     ctx.scenario?.trim() ? `Current scenario: ${ctx.scenario.trim()}` : '',
     ctx.gmNotes?.trim() ? `Storyteller-only continuity (do not disclose without an in-story cause): ${ctx.gmNotes.trim()}` : '',
+    ctx.storySoFar?.trim() ? `Story so far: ${ctx.storySoFar.trim()}` : '',
+    ctx.openThreads?.length ? `Open threads:\n${ctx.openThreads.map((t) => `- ${t}`).join('\n')}` : '',
+    ctx.activeObjective?.trim() ? `Current objective: ${ctx.activeObjective.trim()}` : '',
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',

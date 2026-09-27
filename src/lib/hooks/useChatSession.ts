@@ -15,6 +15,8 @@ import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { createChatBackend } from '@/lib/api/createChatBackend'
 import type { ChatBackend } from '@/lib/api/chatBackend'
 import { campaignPrompt } from '@/lib/world/campaign'
+import { romanceEmphasisFor } from '@/lib/world/worldTemplates'
+import { romancePromptPolicy } from '@/lib/prompt/romanceEmphasis'
 import {
   GM_NAME,
   GM_SPEAKER_ID,
@@ -641,6 +643,8 @@ export function useChatSession(chatId: string | null) {
       const factsLorebook = buildFactsLorebook(activeFacts).map((b) => ({ ...b, sourceKey: 'facts' }))
       const affection = freshChat.affection ?? 0
       const datingFeaturesEnabled = world?.campaign?.dating !== false
+      const romanceEmphasis = romanceEmphasisFor(world?.template ?? freshChat.mode, world?.campaign?.dating)
+      const romanceFocus = romanceEmphasis === 'focus'
       // One read of the char-reply count for the whole build — every turn-scoped window check below keys off it.
       const charReplyCount = countCharReplies(messages)
       // Time-of-day for the prompt's scene framing: a per-chat `scene.timePhase` override (set in the
@@ -845,6 +849,7 @@ export function useChatSession(chatId: string | null) {
           ? promptSceneOwner.scene
           : undefined
       const speakerSceneActive = !!promptScene
+      const romancePolicy = romancePromptPolicy(romanceEmphasis, speakerSceneActive, !!earlyEscalationLine, intimacyLevel === 'fade_to_black')
       // Physical continuity + phase-scaled sensory guidance while a scene is active.
       const intimacySceneLine = speakerSceneActive
         ? intimacySceneGuidance(speaker.card.name, promptScene!, speakerPace)
@@ -873,7 +878,8 @@ export function useChatSession(chatId: string | null) {
         : ''
       // Stock romance-writing tells, regardless of whether they've come up before in this chat (unlike `buildSlopAvoidanceNote`, which only catches this character's own repeats).
       const isRomanticOrIntimateMoment =
-        speakerSceneActive || isAfterglowActive(speakerTrack.afterglow ?? undefined, charReplyCount) || speakerStats.chemistry >= 70
+        speakerSceneActive || isAfterglowActive(speakerTrack.afterglow ?? undefined, charReplyCount) ||
+        (romanceFocus && speakerStats.chemistry >= 70)
       const recentSpeakerTurns = messages
         .filter((m) => m.role === 'char' && m.name === speaker.card.name)
         .slice(-SLOP_SCAN_TURNS)
@@ -978,7 +984,7 @@ export function useChatSession(chatId: string | null) {
         !impersonating &&
         world?.campaign?.relationships !== false && effectiveAssistFlag(freshChat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) &&
         speaker.id === character.id
-          ? buildRelationshipDescription(freshChat, world, character)
+          ? buildRelationshipDescription(freshChat, world, character, romanceEmphasis)
           : undefined
       // The non-primary counterpart to the line above, so another speaking participant doesn't borrow the primary's own romantic warmth.
       const participantGuidance =
@@ -997,6 +1003,7 @@ export function useChatSession(chatId: string | null) {
               // see `rivalCommitmentFraming`/`rivalJealousyIntensifier`'s own doc comments.
               primaryCommitmentStatus: freshChat.commitmentStatus,
               jealousyFlagActive: (freshChat.sceneFlags ?? []).includes('jealousy'),
+              emphasis: romanceEmphasis,
             })
           : undefined
       // Names back to the model the specific AI-prose tells and verbatim repeats this character
@@ -1057,16 +1064,17 @@ export function useChatSession(chatId: string | null) {
         : [
             ...guidance(emDashRule, true),
             ...guidance(markupRule, true),
+            ...guidance(romancePolicy.naturalGuidance, true),
             ...guidance(
-              datingFeaturesEnabled && effectiveAssistFlag(freshChat.assistOverrides?.slowBurnPacing, slowBurnPacing)
+              romancePolicy.proactive && effectiveAssistFlag(freshChat.assistOverrides?.slowBurnPacing, slowBurnPacing)
                 ? slowBurnPacingNote(speaker.card.name, speakerTrack.mood, speakerHoldingBackByPlan)
                 : '',
               true,
             ),
-            ...guidance(datingFeaturesEnabled ? intimacyGuidance(intimacyLevel) : '', true),
+            ...guidance(romancePolicy.intimacyContent ? intimacyGuidance(intimacyLevel) : '', true),
             ...guidance(vnProseLine, true),
-            ...guidance(datingFeaturesEnabled ? intimacyOptions : '', true),
-            ...guidance(datingFeaturesEnabled ? activityInitiativeGuidance : '', true),
+            ...guidance(romancePolicy.intimacyOptions ? intimacyOptions : '', true),
+            ...guidance(romancePolicy.proactive ? activityInitiativeGuidance : '', true),
             ...guidance(datingFeaturesEnabled ? afterglowLine : '', true),
             ...guidance(datingFeaturesEnabled ? explicitAftercareLine : '', true),
             // Character-mind texture, most- to least-valuable — dropped from the bottom of this
@@ -1080,7 +1088,7 @@ export function useChatSession(chatId: string | null) {
             ...guidance(datingFeaturesEnabled ? reciprocityLine : ''),
             ...guidance(datingFeaturesEnabled ? stockRomancePhrasingLine : ''),
             ...guidance(datingFeaturesEnabled ? escalationShapeLine : ''),
-            ...guidance(datingFeaturesEnabled ? intimacyAnticipationLine : ''),
+            ...guidance(romancePolicy.proactive ? intimacyAnticipationLine : ''),
             ...guidance(repeatNudge ?? ''),
             ...guidance(datingFeaturesEnabled ? earlyEscalationLine : ''),
             ...guidance(datingFeaturesEnabled ? intentLine : ''),
@@ -3011,6 +3019,11 @@ export function useChatSession(chatId: string | null) {
         worldRules: world.rules,
         gmNotes: [world.gmNotes, freshChat?.gmNotes].filter(Boolean).join('\n\n'),
         scenario: freshChat?.authorNote?.text,
+        storySoFar: freshChat?.summary,
+        openThreads: activeFacts.filter((f) => f.unresolved).map((f) => f.text),
+        activeObjective: activeObjective?.status === 'active'
+          ? [activeObjective.title, ...activeObjective.tasks.filter((t) => t.status === 'pending').map((t) => t.description)].join(' — ')
+          : undefined,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
         branchConsequences: branchConsequencesFrom(upTo),
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
@@ -3057,7 +3070,7 @@ export function useChatSession(chatId: string | null) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [character, chat, chatId, client, participantCharacters, persona, world, callableLore],
+    [activeFacts, activeObjective, character, chat, chatId, client, participantCharacters, persona, world, callableLore],
   )
 
   /** The GM rules, its turn is stored as its own message, then each chosen character agent replies in order. */

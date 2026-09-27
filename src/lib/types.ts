@@ -449,10 +449,9 @@ export interface Chat {
   parentChatId?: string
   /** The message (in the parent chat) this fork branched off from. */
   forkedFromMessageId?: string
-  /** Display-only "play style" label picked in `NewChatDialog` (defaults to the bound world's own
-   *  template, editable independently) — decouples "how I play this chat" from "did I bind a
-   *  world," per `WORLD_TEMPLATES`. Purely a label: it seeds `assistOverrides` once at creation
-   *  (`assistOverridesForTemplate`) but is never live-recomputed from it afterward. */
+  /** Play style picked in `NewChatDialog`. It seeds `assistOverrides` once at creation; for chats
+   *  without a bound world, it also selects prompt romance emphasis. A bound world's template
+   *  takes priority, and changing play style does not rewrite existing overrides. */
   mode?: WorldTemplateId
   /** Per-chat overrides for the global relationship-tracking/choice-suggestion toggles (Settings → Generation); unset falls back to the global default. Seeded once from the bound world's template at chat creation, not live-recomputed later. */
   assistOverrides?: {
@@ -472,8 +471,8 @@ export interface Chat {
      *  falls back to whether relationship tracking is active for this chat — the same condition
      *  `ChatWindow` already gated them on before this existed. */
     showIntentChips?: boolean
-    /** Whether the "Start a date or event" toolbar button shows at all. Unset means shown — only
-     *  Freeform/Slice-of-Life (whose own blurbs say "no romance mechanics") seed this off. */
+    /** Whether date/event controls show. Unset follows the world's template: shown for Dating Sim,
+     *  hidden for story templates until enabled in chat settings. */
     showDateEventButton?: boolean
   }
   /** 10f's proactive outreach bookkeeping — written every world-tick evaluation regardless of outcome, to avoid re-rolling on every app reopen. */

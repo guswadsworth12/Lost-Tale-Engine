@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { WORLD_TEMPLATES, assistOverridesForTemplate, getWorldTemplate, hiddenWorldTabs, normalizeWorldTemplateId } from './worldTemplates'
+import { WORLD_TEMPLATES, assistOverridesForTemplate, getWorldTemplate, hiddenWorldTabs, normalizeWorldTemplateId, romanceEmphasisFor } from './worldTemplates'
+
+describe('romanceEmphasisFor', () => {
+  it('keeps dating-sim prompts focused and story prompts natural when dating is available', () => {
+    expect(romanceEmphasisFor('dating_sim', true)).toBe('focus')
+    expect(romanceEmphasisFor('visual_novel', true)).toBe('natural')
+    expect(romanceEmphasisFor('freeform', true)).toBe('natural')
+    expect(romanceEmphasisFor(undefined, true)).toBe('focus')
+  })
+
+  it('honors the campaign dating switch in every template', () => {
+    for (const template of WORLD_TEMPLATES) expect(romanceEmphasisFor(template.id, false)).toBe('off')
+  })
+})
 
 describe('hiddenWorldTabs', () => {
   it('hides nothing for the dating_sim template — the full feature set', () => {
@@ -83,8 +96,13 @@ describe('assistOverridesForTemplate', () => {
     expect(assistOverridesForTemplate(undefined)).toEqual({})
   })
 
-  it("forces visualNovelMode to 'auto' for visual_novel only, since it is the one template whose whole premise is VN presentation", () => {
-    expect(assistOverridesForTemplate('visual_novel')).toEqual({ visualNovelMode: 'auto' })
+  it('keeps relationship tracking available but starts Visual Novel dating controls quiet', () => {
+    expect(assistOverridesForTemplate('visual_novel')).toEqual({
+      visualNovelMode: 'auto',
+      slowBurnPacing: false,
+      showIntentChips: false,
+      showDateEventButton: false,
+    })
     expect(assistOverridesForTemplate('dating_sim')).toEqual({})
     expect(assistOverridesForTemplate(undefined)).toEqual({})
   })
