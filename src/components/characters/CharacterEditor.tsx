@@ -31,6 +31,8 @@ import { Section } from '@/components/ui/Section'
 import { VrmModelField } from './VrmModelField'
 import { VoiceSampleField } from '@/components/settings/VoiceSampleField'
 import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
+import { CHARACTER_TAB_ALIASES } from '@/lib/ui/navigation'
+import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
@@ -86,13 +88,13 @@ function fixedFieldHint(base: ReactNode, value: string): ReactNode {
 }
 
 const TABS: EditorTab[] = [
-  { id: 'identity', label: 'Identity' },
-  { id: 'prompts', label: 'Prompts' },
-  { id: 'life', label: 'Life & background' },
-  { id: 'vn', label: 'Visual novel' },
-  { id: 'dating', label: 'Dating sim' },
-  { id: 'worldsim', label: 'World sim' },
-  { id: 'voice', label: 'Voice' },
+  { id: 'character', label: 'Character' },
+  { id: 'background', label: 'Background' },
+  { id: 'behavior', label: 'Behavior' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'relationships', label: 'Relationships' },
+  { id: 'world-life', label: 'World Life' },
+  { id: 'presentation', label: 'Presentation' },
   { id: 'advanced', label: 'Advanced' },
 ]
 
@@ -189,7 +191,7 @@ export function CharacterEditor({
   onSaved: (id: string) => void
   onDeleted: () => void
 }) {
-  const [tab, setTab] = useState('identity')
+  const [tab, setTab] = useState('character')
   const [form, setForm] = useState(character?.card ?? blankCharacterData())
   const [promptItems, setPromptItems] = useState<PromptItem[]>(character?.promptItems ?? [])
   const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
@@ -224,7 +226,7 @@ export function CharacterEditor({
   const globalTtsModel = useSettingsStore((s) => s.ttsModel)
   const usesOpenMayhemVoice = (voiceProvider || globalTtsProvider) === 'openmayhem'
   const usesLuxttsVoice = (voiceProvider || globalTtsProvider) === 'luxtts'
-  const { models: speechModels } = useOpenMayhemModels('AUDIO_SPEECH', tab === 'voice' && usesOpenMayhemVoice)
+  const { models: speechModels } = useOpenMayhemModels('AUDIO_SPEECH', tab === 'presentation' && usesOpenMayhemVoice)
   const [voiceId, setVoiceId] = useState(character?.voice?.voiceId ?? '')
   const [voiceSpeed, setVoiceSpeed] = useState<number | undefined>(character?.voice?.speed)
   const [verbalTics, setVerbalTics] = useState<string[]>(character?.voiceFingerprint?.verbalTics ?? [])
@@ -263,6 +265,7 @@ export function CharacterEditor({
   const [saving, setSaving] = useState(false)
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const editingWorld = worlds.find((w) => w.id === worldId)
+  const datingEnabled = modulesForWorld(editingWorld).dating
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
   useEffect(() => {
@@ -680,7 +683,7 @@ export function CharacterEditor({
           setForm((current) => ({ ...current, name: imported.name }))
           if (imported.avatarDataUrl) setAvatarDataUrl(imported.avatarDataUrl)
           setPromptItems(imported.promptItems)
-          setTab('prompts')
+          setTab('behavior')
           toastSuccess(`Imported ${imported.promptItems.length} TavernAI 2 prompt items for ${imported.name}.`)
           if (imported.disabledCount) toastInfo(`${imported.disabledCount} item(s) with TavernAI rules or macros are disabled for review.`)
           return
@@ -728,20 +731,20 @@ export function CharacterEditor({
   ]
 
   const tabs = TABS.map((t) => {
-    if (t.id === 'vn') return { ...t, badge: Object.keys(sprites).length }
-    if (t.id === 'advanced') return { ...t, badge: form.character_book?.entries.length ?? 0 }
+    if (t.id === 'presentation') return { ...t, badge: Object.keys(sprites).length }
+    if (t.id === 'knowledge') return { ...t, badge: form.character_book?.entries.length ?? 0 }
     return t
   })
 
   return (
     <EditorShell
       onBack={onDeleted}
-      backLabel="Characters"
+      backLabel="Cast"
       eyebrow={character ? 'Character' : 'New character'}
       title={form.name || 'Unnamed character'}
       tabs={tabs}
       activeTab={tab}
-      onTabChange={setTab}
+      onTabChange={(id) => setTab(CHARACTER_TAB_ALIASES[id as keyof typeof CHARACTER_TAB_ALIASES] ?? id)}
       footer={
         <>
           {character ? (
@@ -760,7 +763,7 @@ export function CharacterEditor({
         </>
       }
     >
-      {tab === 'identity' && (
+      {tab === 'character' && (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
             <FileButton onPick={(f) => handleImportFile(f[0])} accept=".json,.png">
@@ -913,7 +916,7 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'prompts' && (
+      {tab === 'behavior' && (
         <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. These items enter context only when this character speaks." surface="bare">
           <div className="mb-4">
             <FileButton onPick={(files) => handleImportFile(files[0])} accept=".json">
@@ -921,11 +924,16 @@ export function CharacterEditor({
             </FileButton>
           </div>
           <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
+        </Section>
+      )}
+
+      {tab === 'knowledge' && (
+        <Section title="Private memory" description="Only this character sees these notes when speaking. Keep secrets and promises here rather than in shared world canon." surface="bare">
           <TextAreaField label="Private memory" hint="Only this character sees these notes when speaking. Use this for beliefs, secrets, and promises that should not become shared world canon." value={privateMemory} onChange={(e) => setPrivateMemory(e.target.value)} rows={6} />
         </Section>
       )}
 
-      {tab === 'life' && (
+      {tab === 'background' && (
         <div className="space-y-10">
           <Section
             title="Life & background"
@@ -975,7 +983,7 @@ export function CharacterEditor({
                 value={boundaries.join(', ')}
                 onChange={(e) => setBoundaries(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
                 placeholder="won't tolerate being lied to"
-                hint="Informational for the model, not enforced. The one enforced opt-out is on the Dating sim tab."
+                hint="Informational for the model, not enforced. The dating opt-out is under Relationships when dating is enabled."
                 className="sm:col-span-2"
               />
             </div>
@@ -984,7 +992,11 @@ export function CharacterEditor({
               Allow the Game Master to add this character to scenes automatically
             </label>
           </Section>
+        </div>
+      )}
 
+      {tab === 'relationships' && (
+        <div className="space-y-10">
           <Section
             title="Social connections"
             description="Who this character knows and how. Reaches the model so it can reference them naturally in conversation."
@@ -1018,7 +1030,11 @@ export function CharacterEditor({
               )}
             />
           </Section>
+        </div>
+      )}
 
+      {tab === 'behavior' && (
+        <div className="mt-10 space-y-10">
           <Section
             title="Behavioral rules"
             description={'Structured "when X, she Y" / "never Z" contracts. Followed exactly as written, more precise than free-text personality. Good for desire, hesitation, and aftercare.'}
@@ -1064,14 +1080,14 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'vn' && (
+      {tab === 'presentation' && (
         <div className="space-y-10">
         {!worldId && (
           <p className="rounded-xl bg-bg-sunken px-4 py-3 text-xs text-text-muted">
             Sprites show in Visual Novel mode, but scene <em>backgrounds</em> come from a world. This character isn't
             bound to one, so VN scenes will fall back to a placeholder gradient. Pick a world in the{' '}
-            <button type="button" onClick={() => setTab('identity')} className="text-accent hover:underline">
-              Identity tab
+            <button type="button" onClick={() => setTab('character')} className="text-accent hover:underline">
+              Character tab
             </button>
             .
           </p>
@@ -1349,11 +1365,12 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'dating' && (
-        <div className="space-y-10">
+      {tab === 'relationships' && datingEnabled && (
+        <div className="mt-10 space-y-10">
+          <h2 className="text-sm font-semibold text-text">Dating</h2>
           <Section
             title="CG gallery"
-            description="Unlockable images shown in the Gallery tab. By warmth threshold, story beat, or (for endings) reaching Sweethearts."
+            description="Unlockable images shown in the Media view. By warmth threshold, story beat, or (for endings) reaching Sweethearts."
             surface="bare"
           >
             <ListEditor
@@ -1674,7 +1691,7 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'worldsim' && (
+      {tab === 'world-life' && (
         <div className="space-y-10">
           <Section
             title="Weather preferences"
@@ -1776,9 +1793,10 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'voice' && (
-        <Section
-          title="Voice"
+      {tab === 'presentation' && (
+        <div className="mt-10 space-y-10">
+          <Section
+            title="Voice"
           description="Leave blank to use the global voice. A provider override must match Settings → Voice, where its key and model are configured. OpenMayhem voices use that speech model."
           surface="bare"
         >
@@ -1813,9 +1831,6 @@ export function CharacterEditor({
             )}
           </div>
         </Section>
-      )}
-
-      {tab === 'voice' && (
         <Section
           title="Voice fingerprint"
           description="Concrete, recurring speech patterns. Not a general impression like personality, but the actual repeatable tells that make a line unmistakably theirs. Reaches the model every turn alongside their description and personality, plus a short standalone reminder of the single most important catchphrase/tic/register so it doesn't get diluted once a chat runs long."
@@ -1873,6 +1888,7 @@ export function CharacterEditor({
             />
           </div>
         </Section>
+        </div>
       )}
 
       {tab === 'advanced' && (
@@ -1987,8 +2003,12 @@ export function CharacterEditor({
             </div>
             <TextAreaField label="Creator notes" rows={2} value={form.creator_notes ?? ''} onChange={(e) => set('creator_notes', e.target.value)} />
           </Section>
+        </div>
+      )}
 
-          <Section title="Character lore" description="Lore that belongs to this character specifically. Travels with the card, unlike a standalone World Info book." surface="bare">
+      {tab === 'knowledge' && (
+        <div className="mt-10 space-y-10">
+          <Section title="Character lore" description="Lore that belongs to this character specifically. Travels with the card, unlike a standalone Lore book." surface="bare">
             <LorebookEditor
               book={form.character_book ?? { name: `${form.name} Lore`, entries: [], token_budget: 512, scan_depth: 8 }}
               onChange={(book) => set('character_book', book)}
