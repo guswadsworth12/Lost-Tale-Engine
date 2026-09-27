@@ -56,6 +56,7 @@ import { LiveRapport } from './LiveRapport'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
+import { GM_SPEAKER_ID } from '@/lib/world/gm'
 import { toSpeakableText } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
@@ -595,14 +596,15 @@ export function VNStage({
   // semantics (a second reply arriving mid-playback should cut in, not silently no-op as a "stop").
   const startSpeaking = async (rawText: string) => {
     stopSpeaking()
-    const text = toSpeakableText(rawText)
+    const gmNarration = !showUserAsCurrent && (lastCharMsg?.speakerId === GM_SPEAKER_ID || !!lastCharMsg?.gm)
+    const text = toSpeakableText(rawText, gmNarration)
     if (!text) return
     setSpeakState('loading')
     const controller = new AbortController()
     speakControllerRef.current = controller
     try {
       // Whoever is actually speaking this line; GM narration and the player's own line use the narrator/default voice.
-      const voiceOwner = showUserAsCurrent || lastCharMsg?.gm ? undefined : activeCgSource
+      const voiceOwner = showUserAsCurrent || gmNarration ? undefined : activeCgSource
       const override = voiceOwner?.voice
       const provider = override?.provider ?? ttsProvider
       if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {

@@ -29,4 +29,10 @@ describe('toSpeakableText', () => {
   it('returns an empty string for empty input', () => {
     expect(toSpeakableText('')).toBe('')
   })
+
+  it('removes Game Master labels from narrator speech while keeping the prose', () => {
+    expect(toSpeakableText('Game Master: The city comes back into view.\nGame Master: Home is waiting.', true))
+      .toBe('The city comes back into view. Home is waiting.')
+    expect(toSpeakableText('Game Master: Hello.')).toBe('Game Master: Hello.')
+  })
 })
