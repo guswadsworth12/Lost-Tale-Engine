@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { buildSceneInstruction, extractSceneTag } from '@/lib/vn/sceneTag'
+import { buildSceneInstruction, extractSceneTag, stripSceneTagForDisplay } from '@/lib/vn/sceneTag'
 
 describe('extractSceneTag', () => {
   it('parses expression, background and mood from a complete tag', () => {
     const { text, scene } = extractSceneTag('Hello there.\n<<scene:expression=happy,background=cafe,mood=cheerful>>')
     expect(text).toBe('Hello there.')
     expect(scene).toEqual({ expression: 'happy', background: 'cafe', mood: 'cheerful' })
+  })
+
+  it('removes complete and cut-off imported stage trailers from dialogue and the live display', () => {
+    const prose = 'She sets down her mug. \"Welcome home.\"'
+    const complete = `${prose}\n<stage>{\"speaker\":\"Mara\",\"expression\":\"Happy\"}</stage>`
+    const partial = `${prose}\n\n{\"speaker\":\"Mara\",\"expression\":\"Happy\",\"rel\":[`
+    expect(extractSceneTag(complete).text).toBe(prose)
+    expect(extractSceneTag(partial).text).toBe(prose)
+    expect(stripSceneTagForDisplay(partial)).toBe(prose)
   })
 
   it('still parses a legacy tag with no mood', () => {

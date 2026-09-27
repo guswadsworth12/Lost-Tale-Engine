@@ -1027,10 +1027,10 @@ export function useChatSession(chatId: string | null) {
         avoidEmDashes && !builtinSystemPrompt
           ? 'Never use em dashes (the — character) in your writing. Use a comma, period, or parentheses instead.'
           : ''
-      // Nothing in the default prompt states the *action* / "speech" convention — a strong model
-      // picks it up from the card's examples, a weak one drifts (bare narration, half-quoted lines).
-      // Only held to it when the card's own authored text already uses it.
-      const markupRule = usesActionMarkup(speaker.card)
+      // VN voice playback needs quoted speech. Imported multi-prompt cards often keep their
+      // examples in prompt items, leaving the standard card fields empty, so enforce the same
+      // format for every VN speaker even when card-field detection finds no examples.
+      const markupRule = isVisualNovel || usesActionMarkup(speaker.card)
         ? 'Put every action and piece of narration in *asterisks* and every line of spoken dialogue in "quotes". Close every mark you open: no half-quoted sentence, no narration sentence left bare between two quoted lines.'
         : ''
       // One line, tagged essential or not — replaces what used to be a flat `.filter(Boolean).join`

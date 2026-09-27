@@ -52,6 +52,9 @@ export function parseTavernAi2Card(value: unknown): TavernAi2CharacterImport | n
         item.hasRules ? 'TavernAI activation rule needs review' : '',
         item.contentAction && item.contentAction !== 'insert' ? 'TavernAI replacement rule needs review' : '',
         /<%[%\s\S]*?%>/.test(content) ? 'TavernAI macro is not executed here' : '',
+        /stage trailer/i.test(item.name ?? '') || /<stage>\s*\{\s*"speaker"/i.test(content)
+          ? 'TavernAI stage trailer is not used by this engine'
+          : '',
       ].filter(Boolean)
       const role = item.chatRolePlaceholder === 'user' ? 'user' : item.chatRolePlaceholder === 'ai' ? 'assistant' : 'system'
       return {

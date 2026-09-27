@@ -17,8 +17,17 @@ const TAG_PREFIX = '<<scene:'
 // end, and anchoring to `$` would leave the first as literal unstripped text.
 const TAG_RE = /\n?<<scene:([^>]*)>>/gi
 
+// Tavern-style cards may request a JSON stage trailer that this engine does not consume.
+// Cut even an unfinished trailer before it can appear as dialogue or prime the next turn.
+const LEGACY_STAGE_RE = /(?:^|\r?\n)\s*(?:<stage\b|\{\s*"speaker"\s*:)/i
+function stripLegacyStageTrailer(text: string): string {
+  const match = LEGACY_STAGE_RE.exec(text)
+  return match ? text.slice(0, match.index).trimEnd() : text
+}
+
 /** Pulls every `<<scene:...>>` directive out of a completed generation, using the LAST one for the actual metadata while stripping ALL of them from the returned text. */
 export function extractSceneTag(raw: string): { text: string; scene?: SceneTag } {
+  raw = stripLegacyStageTrailer(raw)
   let lastMatch: RegExpMatchArray | undefined
   for (const match of raw.matchAll(TAG_RE)) lastMatch = match
   if (!lastMatch) {
@@ -38,6 +47,7 @@ export function extractSceneTag(raw: string): { text: string; scene?: SceneTag }
 
 /** Hides an in-progress (or just-completed) scene tag from what's shown mid-stream, so it never flashes as visible dialogue. */
 export function stripSceneTagForDisplay(text: string): string {
+  text = stripLegacyStageTrailer(text)
   const idx = text.lastIndexOf('<')
   if (idx === -1) return text
   const tail = text.slice(idx)

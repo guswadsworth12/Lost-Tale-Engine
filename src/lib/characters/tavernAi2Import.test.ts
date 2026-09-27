@@ -19,4 +19,15 @@ describe('parseTavernAi2Card', () => {
     expect(parsed?.promptItems.map((item) => item.enabled)).toEqual([false, true])
     expect(parsed?.disabledCount).toBe(1)
   })
+
+  it('keeps an imported stage trailer for review without instructing the model to output JSON', () => {
+    const parsed = parseTavernAi2Card({
+      cards: [{ name: 'Ivo' }],
+      promptManagers: [{ items: [
+        { itemType: 'prompt', name: 'Stage trailer', content: 'After every reply output <stage>{"speaker":"Ivo"}</stage>', isEnabled: true },
+      ] }],
+    })
+    expect(parsed?.promptItems[0]).toMatchObject({ enabled: false, source: 'tavernai2' })
+    expect(parsed?.disabledCount).toBe(1)
+  })
 })
