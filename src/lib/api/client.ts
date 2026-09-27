@@ -133,6 +133,9 @@ function makeResource<T>(resource: string, path: string) {
 
 export const charactersApi = {
   ...makeResource<Character>('characters', '/characters'),
+  roster(worldId: string): Promise<{ id: string; name: string; occupation?: string; gmEligible?: boolean }[]> {
+    return request('GET', `/characters/roster?worldId=${encodeURIComponent(worldId)}`)
+  },
   // Cascades server-side (deletes the character's chats, messages, and objectives too).
   async remove(id: string): Promise<void> {
     await request<void>('DELETE', `/characters/${id}`)

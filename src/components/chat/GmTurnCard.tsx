@@ -10,6 +10,7 @@ import { adjudicationLabel } from '@/lib/world/gm'
 export const GmActionsContext = createContext<{
   decideProposal?: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => void
   nameOf?: (characterId: string) => string
+  openChat?: (chatId: string) => void
 }>({})
 
 const SOURCE_TONE = {
@@ -31,7 +32,7 @@ export function CampaignRollBadge({ message }: { message: StoredMessage }) {
 }
 
 export function GmTurnCard({ message }: { message: StoredMessage }) {
-  const { decideProposal, nameOf } = useContext(GmActionsContext)
+  const { decideProposal, nameOf, openChat } = useContext(GmActionsContext)
   const turn = message.gm
   if (!turn) return null
   const adj = turn.adjudication
@@ -52,6 +53,8 @@ export function GmTurnCard({ message }: { message: StoredMessage }) {
       )}
       {turn.fallback && <p className="text-warning">GM fallback: {turn.fallback}</p>}
       {turn.corrections?.map((c) => <p key={c}>Engine correction: {c}</p>)}
+      {!!turn.addCharacterIds?.length && <p>Entered scene: {turn.addCharacterIds.map((id) => nameOf?.(id) ?? id).join(', ')}</p>}
+      {turn.fork?.chatId && <p>New story branch: <button type="button" className="text-accent underline" onClick={() => openChat?.(turn.fork!.chatId!)}>{turn.fork.title}</button> — {turn.fork.reason}</p>}
       {turn.proposals.length > 0 && (
         <div className="space-y-1">
           <p className="font-medium text-text">Proposed lasting changes</p>

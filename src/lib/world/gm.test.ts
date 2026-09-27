@@ -115,6 +115,29 @@ describe('Game Master decision validation', () => {
     expect(many.speakerIds).toEqual(['ivo', 'hana'])
     expect(parseGmTurn('{"pacing":"cut","speakers":[]}', ctx(), ids).speakerIds).toEqual([])
   })
+
+  it('only adds available non-player characters and creates a fork when allowed', () => {
+    const context = ctx({ availableRoster: [{ id: 'mira', name: 'Mira Vale' }], canFork: true })
+    const turn = parseGmTurn(JSON.stringify({
+      speakers: ['Hana'], addCharacters: ['Wren', 'Mira Vale', 'Unknown'],
+      fork: { title: 'The road north', reason: 'The party split to follow two leads.' },
+    }), context, ids)
+    expect(turn.addCharacterIds).toEqual(['mira'])
+    expect(turn.speakerIds).toEqual(['hana'])
+    expect(turn.fork).toEqual({ title: 'The road north', reason: 'The party split to follow two leads.' })
+    expect(parseGmTurn('{"fork":{"title":"Another","reason":"Split"}}', ctx({ canFork: false }), ids).fork).toBeUndefined()
+  })
+
+  it('calls only listed lore and keeps storyteller notes in the GM prompt', () => {
+    const context = ctx({
+      gmNotes: 'Mira has a secret the others do not know.',
+      loreIndex: [{ id: 'bridge', title: 'The East Bridge' }, { id: 'guild', title: 'Guild History' }],
+    })
+    const prompt = buildGmPrompt(context)
+    expect(prompt.user).toContain('Storyteller-only continuity')
+    const turn = parseGmTurn('{"loreCalls":["The East Bridge","Unknown","Guild History"]}', context, ids)
+    expect(turn.loreCallIds).toEqual(['bridge', 'guild'])
+  })
 })
 
 describe('branch consequences', () => {

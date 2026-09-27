@@ -130,6 +130,8 @@ export interface CharacterCardV2 {
 export interface Character {
   id: string
   card: CharacterCardData
+  /** False keeps this card in the library while excluding it from the GM's automatic scene cast. */
+  gmEligible?: boolean
   /** Ordered prompt items for this character, including imported TavernAI 2 card prompts. */
   promptItems?: import('@/lib/prompt/items').PromptItem[]
   /** User-authored private memory available only when this character speaks. */

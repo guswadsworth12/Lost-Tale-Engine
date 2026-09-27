@@ -7,9 +7,9 @@ import type { CampaignConfig, PbtaRoll } from './campaign'
  * each character's own prompt (`useChatSession`'s `buildCurrentPrompt`), which is the only place
  * private lore, private memory, and card prompt items are assembled.
  *
- * What the GM is shown is deliberately public: character names and occupations, the shared world
- * text, confirmed canon, this branch's confirmed consequences, the scenery, and the transcript.
- * Nothing private reaches this prompt, so nothing private can leak through GM narration either.
+ * The GM sees public setting and an optional storyteller-only continuity note. Character private
+ * memory and prompt items never reach this prompt. The note may contain secrets the GM must pace
+ * without revealing them before the story earns that knowledge.
  *
  * Everything the GM decides is stored on its own chat message (`StoredMessage.gm`). Forks copy
  * messages and rewinds delete them, so the GM's record — including which consequences the player
@@ -54,6 +54,12 @@ export interface GmTurn {
   pacing: GmPacing
   /** Character agents to act this beat, in order. Never includes a player-controlled character. */
   speakerIds: string[]
+  /** Existing world characters brought into the scene for the next beat. */
+  addCharacterIds?: string[]
+  /** A new branch the GM decided this beat warrants. `chatId` is filled after the fork is saved. */
+  fork?: { title: string; reason: string; chatId?: string }
+  /** Public lorebook entries the GM called for the character agents on this beat. */
+  loreCallIds?: string[]
   adjudication?: GmAdjudication
   proposals: GmProposal[]
   /** The scenery line the GM was shown, kept for the inspector. */
@@ -75,12 +81,19 @@ export interface GmContext {
   worldName: string
   worldDescription?: string
   worldRules?: string
+  gmNotes?: string
+  scenario?: string
   canonFacts: string[]
   branchConsequences: string[]
   scenery: string
   timeOfDay?: string
   /** Character agents present — player-controlled characters already removed. */
   roster: GmRosterEntry[]
+  /** World characters available to enter, excluding the player's character and current cast. */
+  availableRoster?: GmRosterEntry[]
+  /** False when a nearby beat already forked this conversation. */
+  canFork?: boolean
+  loreIndex?: { id: string; title: string }[]
   playerName: string
   transcript: { speaker: string; text: string }[]
   playerAction: string
@@ -124,15 +137,22 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ...modeLines,
     ...moveLines,
     'Your job each beat: (1) adjudicate the player\'s declared action, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
+    'You may add at most one available character to the scene when an entrance follows naturally from the fiction. That character becomes eligible to speak on the next beat. Never add the player character.',
+    'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
+    'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
+    'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [character names], "adjudication": {"action": string, "move": string|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
+    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
   ].join('\n')
 
   const rosterLine = ctx.roster.length
     ? ctx.roster.map((r) => `- ${r.name}${r.occupation ? ` (${r.occupation})` : ''}`).join('\n')
     : '- (nobody else is present)'
+  const availableLine = ctx.availableRoster?.length
+    ? ctx.availableRoster.map((r) => `- ${r.name}${r.occupation ? ` (${r.occupation})` : ''}`).join('\n')
+    : '- (none)'
   const m = ctx.recordedMove
   const recorded = m
     ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
@@ -140,10 +160,15 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
     ctx.worldRules?.trim() ? `World rules: ${ctx.worldRules.trim()}` : '',
+    ctx.scenario?.trim() ? `Current scenario: ${ctx.scenario.trim()}` : '',
+    ctx.gmNotes?.trim() ? `Storyteller-only continuity (do not disclose without an in-story cause): ${ctx.gmNotes.trim()}` : '',
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
+    `Characters available to enter (add at most one, only if the scene calls for it):\n${availableLine}`,
+    `Fork allowed this beat: ${ctx.canFork === false ? 'no — a nearby beat already forked' : 'yes, if a distinct continuing branch is truly needed'}`,
+    ctx.loreIndex?.length ? `Callable public lorebook entries:\n${ctx.loreIndex.map((l) => `- ${l.title}`).join('\n')}` : '',
     ctx.transcript.length ? `Recent scene:\n${ctx.transcript.map((t) => `${t.speaker}: ${t.text}`).join('\n')}` : '',
     `${ctx.playerName}'s declared action: ${ctx.playerAction.trim() || '(no action, only waiting)'}`,
     recorded,
@@ -243,6 +268,27 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
   if (speakerIds.length > ctx.maxSpeakers) speakerIds.length = ctx.maxSpeakers
   if (!speakerIds.length && pacing !== 'cut') speakerIds.push(...defaultSpeakers(ctx))
 
+  const requestedAdd = Array.isArray(obj.addCharacters) ? obj.addCharacters.filter((s): s is string => typeof s === 'string') : []
+  const addCharacterIds: string[] = []
+  for (const name of requestedAdd) {
+    if (isPlayerCharacter(name, ctx.playerName)) continue
+    const hit = matchRosterName(name, ctx.availableRoster ?? [])
+    if (hit && !addCharacterIds.includes(hit.id)) addCharacterIds.push(hit.id)
+    if (addCharacterIds.length === 1) break
+  }
+  const requestedFork = obj.fork && typeof obj.fork === 'object' && !Array.isArray(obj.fork)
+    ? obj.fork as Record<string, unknown> : undefined
+  const forkTitle = str(requestedFork?.title, 100)
+  const forkReason = str(requestedFork?.reason, 300)
+  const fork = ctx.canFork !== false && forkTitle && forkReason ? { title: forkTitle, reason: forkReason } : undefined
+  const loreCallIds: string[] = []
+  for (const title of Array.isArray(obj.loreCalls) ? obj.loreCalls : []) {
+    if (typeof title !== 'string') continue
+    const hit = ctx.loreIndex?.find((l) => l.title.toLowerCase() === title.trim().toLowerCase())
+    if (hit && !loreCallIds.includes(hit.id)) loreCallIds.push(hit.id)
+    if (loreCallIds.length === 2) break
+  }
+
   const rawAdj = obj.adjudication && typeof obj.adjudication === 'object' ? obj.adjudication as Record<string, unknown> : undefined
   const claimedTier = rawAdj?.tier === 'strong' || rawAdj?.tier === 'mixed' || rawAdj?.tier === 'miss' ? rawAdj.tier : undefined
   let adjudication: GmAdjudication | undefined
@@ -278,6 +324,9 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     narration,
     pacing,
     speakerIds,
+    addCharacterIds: addCharacterIds.length ? addCharacterIds : undefined,
+    fork,
+    loreCallIds: loreCallIds.length ? loreCallIds : undefined,
     adjudication,
     proposals,
     scenery: ctx.scenery,

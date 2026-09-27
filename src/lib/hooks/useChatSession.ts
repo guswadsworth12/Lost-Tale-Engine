@@ -498,6 +498,13 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   ) ?? []
   const worldInfoBooks = useApiQuery('world-info-books', () => worldInfoBooksApi.list(), []) ?? []
+  const callableLore = useMemo(() => worldInfoBooks
+    .filter((book) => world && book.boundWorldIds?.includes(world.id) && !book.boundChatIds?.length && !book.boundCharacterIds?.length)
+    .flatMap((book) => book.book.entries.filter((entry) => entry.enabled && entry.content.trim()).map((entry) => ({
+      id: `${book.id}:${entry.id}`,
+      title: `${book.name} · ${entry.comment || entry.keys[0] || entry.id}`,
+      content: entry.content,
+    }))), [world, worldInfoBooks])
   const chatFacts = useApiQuery(
     'chat-facts',
     () => (chatId ? chatFactsApi.listByChat(chatId) : Promise.resolve([])),
@@ -2956,7 +2963,11 @@ export function useChatSession(chatId: string | null) {
       if (!world?.campaign || !character || !chatId) return null
       const freshChat = (await chatsApi.get(chatId)) ?? chat
       const playerName = persona?.name || 'You'
-      const cast = [character, ...participantCharacters].filter((c) => !isPlayerCharacter(c.card.name, playerName))
+      const fullRoster = await charactersApi.roster(world.id).catch(() =>
+        [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false })))
+      const presentIds = new Set([character.id, ...(freshChat?.participants ?? [])])
+      const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayerCharacter(c.name, playerName))
+      const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayerCharacter(c.name, playerName))
       const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
       const scenery = currentScenery(upTo, freshChat?.scene)
       const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
@@ -2966,11 +2977,16 @@ export function useChatSession(chatId: string | null) {
         worldName: world.name,
         worldDescription: world.description,
         worldRules: world.rules,
+        gmNotes: world.gmNotes,
+        scenario: freshChat?.authorNote?.text,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
         branchConsequences: branchConsequencesFrom(upTo),
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
         timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
-        roster: cast.map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation })),
+        roster: cast,
+        availableRoster: available,
+        canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
+        loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
         playerName,
         transcript: upTo.slice(-13, -1).filter((m) => m.text.trim()).map((m) => ({
           speaker: m.role === 'user' ? playerName : m.name,
@@ -3004,7 +3020,7 @@ export function useChatSession(chatId: string | null) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [character, chat, chatId, client, participantCharacters, persona, world],
+    [character, chat, chatId, client, participantCharacters, persona, world, callableLore],
   )
 
   /** The GM rules, its turn is stored as its own message, then each chosen character agent replies in order. */
@@ -3030,6 +3046,22 @@ export function useChatSession(chatId: string | null) {
         createdAt: startAt,
       }
       await messagesApi.create(gmMsg)
+      if (turn.addCharacterIds?.length) {
+        const fresh = await chatsApi.get(chatId)
+        if (fresh) {
+          const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])]
+          await chatsApi.update(chatId, { participants })
+        }
+      }
+      if (turn.fork) {
+        try {
+          const forked = await chatsApi.fork(chatId, gmMsg.id)
+          await chatsApi.update(forked.id, { title: turn.fork.title })
+          await messagesApi.update(gmMsg.id, { gm: { ...turn, fork: { ...turn.fork, chatId: forked.id } } })
+        } catch (e) {
+          await messagesApi.update(gmMsg.id, { gm: { ...turn, fork: undefined, corrections: [...(turn.corrections ?? []), `Could not create branch: ${errorMessage(e)}`] } })
+        }
+      }
       const playerName = persona?.name || 'You'
       let at = startAt + 1
       for (const speakerId of turn.speakerIds) {
@@ -3053,12 +3085,15 @@ export function useChatSession(chatId: string | null) {
           .map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
         await runGeneration(history, replyMsg.id, [], {
           speakerId: agent.id,
-          extraStyleGuidance: gmDirectionFor(turn, agent.card.name, playerName),
+          extraStyleGuidance: [
+            gmDirectionFor(turn, agent.card.name, playerName),
+            ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
+          ].join('\n\n'),
         })
         if (abortRef.current?.signal.aborted) break
       }
     },
-    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration],
+    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration, callableLore],
   )
 
   /** The player's answer to a GM proposal. A world-scope confirmation also becomes shared canon. */

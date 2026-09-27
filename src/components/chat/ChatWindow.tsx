@@ -394,6 +394,7 @@ export function ChatWindow({
       void decideGmProposal(messageId, proposalId, decision).catch((e) => toastError(errorMessage(e))),
     nameOf: (id: string) =>
       id === GM_SPEAKER_ID ? GM_NAME : [character, ...participantCharacters].find((c) => c?.id === id)?.card.name ?? id,
+    openChat: (id: string) => setActiveChatId(id),
   }
   const toolbarActions: ChatToolbarAction[] = [
     {

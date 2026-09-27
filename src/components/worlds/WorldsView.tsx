@@ -236,6 +236,7 @@ function WorldEditor({
   const [name, setName] = useState(base.name)
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
+  const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
   const [campaign, setCampaign] = useState<CampaignConfig>(base.campaign ?? { ...DEFAULT_CAMPAIGN })
   const [promptItems, setPromptItems] = useState<PromptItem[]>(base.promptItems ?? [])
   const [canonFacts, setCanonFacts] = useState<NonNullable<WorldCard['canonFacts']>>(base.canonFacts ?? [])
@@ -298,6 +299,7 @@ function WorldEditor({
       name,
       description,
       rules,
+      gmNotes,
       campaign,
       promptItems,
       canonFacts,
@@ -666,6 +668,7 @@ function WorldEditor({
               <Chip on={campaign.mode === 'mechanical'} onClick={() => setCampaign({ ...campaign, mode: 'mechanical' })}>Roll for outcomes</Chip>
             </div>
             <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a 2d6 move result before the narrator describes it. The player chooses when to roll.</p>
+            <TextAreaField label="Game Master continuity notes" hint="Only the Game Master sees these. Record secrets, relationship visibility, and future story threads here; character agents receive only what their own cards and public lore permit." rows={6} value={gmNotes} onChange={(e) => setGmNotes(e.target.value)} />
             <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.relationships} onChange={(e) => setCampaign({ ...campaign, relationships: e.target.checked, dating: e.target.checked && campaign.dating })} /> Use RP relationship scoring</label>
             <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.dating} disabled={!campaign.relationships} onChange={(e) => setCampaign({ ...campaign, dating: e.target.checked })} /> Enable dating features</label>
           </Section>

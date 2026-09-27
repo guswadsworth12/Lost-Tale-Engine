@@ -233,6 +233,7 @@ export function CharacterEditor({
   const [instructTemplateId, setInstructTemplateId] = useState(character?.instructTemplateId ?? '')
   const [replyLength, setReplyLength] = useState<ReplyLength>(character?.replyLength ?? 'auto')
   const [worldId, setWorldId] = useState(character?.worldId ?? '')
+  const [gmEligible, setGmEligible] = useState(character?.gmEligible !== false)
   const [occupation, setOccupation] = useState(character?.occupation ?? '')
   const [workplace, setWorkplace] = useState(character?.workplace ?? '')
   const [homeLocation, setHomeLocation] = useState(character?.homeLocation ?? '')
@@ -298,6 +299,7 @@ export function CharacterEditor({
     setWeatherHates(character?.weatherPreferences?.hates ?? [])
     setSchedule(character?.schedule ?? [])
     setWorldId(character?.worldId ?? '')
+    setGmEligible(character?.gmEligible !== false)
     setOccupation(character?.occupation ?? '')
     setWorkplace(character?.workplace ?? '')
     setHomeLocation(character?.homeLocation ?? '')
@@ -455,6 +457,7 @@ export function CharacterEditor({
       weatherPreferences,
       schedule: schedule.length ? schedule : null,
       worldId: worldId || null,
+      gmEligible,
       occupation: occupation.trim() || null,
       workplace: workplace.trim() || null,
       homeLocation: homeLocation.trim() || null,
@@ -958,6 +961,10 @@ export function CharacterEditor({
                 className="sm:col-span-2"
               />
             </div>
+            <label className="mt-3 flex items-center gap-2 text-sm text-text">
+              <input type="checkbox" checked={gmEligible} onChange={(e) => setGmEligible(e.target.checked)} />
+              Allow the Game Master to add this character to scenes automatically
+            </label>
           </Section>
 
           <Section

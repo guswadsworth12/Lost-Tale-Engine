@@ -538,6 +538,18 @@ app.get('/api/characters', (_req, res) => {
   res.json(characterStore.list({ orderBy: 'updatedAt DESC' }))
 })
 
+// Lightweight public cast list for the GM. Card prompts, private memories, and artwork never leave this route.
+app.get('/api/characters/roster', (req, res) => {
+  const worldId = typeof req.query.worldId === 'string' ? req.query.worldId : ''
+  if (!worldId) return res.status(400).json({ error: 'worldId is required' })
+  res.json(characterStore.list({ where: 'worldId = ?', params: [worldId] }).map((c) => ({
+    id: c.id,
+    name: (c.card as { name?: string } | undefined)?.name ?? '',
+    occupation: c.occupation,
+    gmEligible: c.gmEligible !== false,
+  })))
+})
+
 app.get('/api/characters/:id', (req, res) => {
   const row = characterStore.get(req.params.id)
   if (!row) return notFound(res)
