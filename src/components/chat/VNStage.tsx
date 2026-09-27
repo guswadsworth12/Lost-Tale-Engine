@@ -365,7 +365,10 @@ export function VNStage({
 
   const activeSwipe = lastCharMsg?.activeSwipe ?? 0
   const scene = lastCharMsg?.swipeScenes?.[activeSwipe] ?? lastCharMsg?.scene
-  const cast = character ? [character, ...(participantCharacters ?? [])] : (participantCharacters ?? [])
+  const loadedCast = character ? [character, ...(participantCharacters ?? [])] : (participantCharacters ?? [])
+  const cast = chat.scene?.presentCharacterIds
+    ? loadedCast.filter((member) => chat.scene!.presentCharacterIds!.includes(member.id))
+    : loadedCast
   // The Bond HUD follows whoever's actually speaking in a group scene, not always the primary.
   // Falls back to the primary if the stored speaker id isn't in the current cast (roster can
   // shrink after they last spoke).
@@ -900,7 +903,7 @@ export function VNStage({
               )}
             </div>
           )}
-          {world?.campaign?.relationships !== false && <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
+          {cast.length > 0 && world?.campaign?.relationships !== false && <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
             <div className="mb-1 flex min-w-0 items-center gap-1.5">
               <Heart size={11} strokeWidth={2.25} className="shrink-0 text-romance" fill="currentColor" fillOpacity={0.4} />
               <StageLabel variant="vn">

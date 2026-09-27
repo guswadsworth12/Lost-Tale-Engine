@@ -47,10 +47,12 @@ const POLICIES: { id: ScenePolicy; label: string; hint: string }[] = [
 
 export function ScenePanel({
   scene,
+  gmNotes,
   participantIds,
   otherCharacters,
   onClose,
   onSave,
+  onSaveGmNotes,
   onSaveParticipants,
   campaignAvailable = false,
   personaId = '',
@@ -66,12 +68,14 @@ export function ScenePanel({
   /** The Game Master policy needs a world campaign to adjudicate against. */
   campaignAvailable?: boolean
   scene: Scene | undefined
+  gmNotes?: string
   /** Who's currently in the roster (`Chat.participants`) besides the primary. */
   participantIds: string[]
   /** Every character that could be invited in — the primary is never in this list. */
   otherCharacters: { id: string; name: string }[]
   onClose: () => void
   onSave: (patch: Partial<Scene> | null) => Promise<void>
+  onSaveGmNotes?: (notes: string) => Promise<void>
   /** Previously there was no way to change `Chat.participants` after the chat was created at all —
    *  "a friend walks in" mid-scene, or someone leaving, meant abandoning the chat and starting a
    *  fresh one with the right roster from the start. */
@@ -83,6 +87,7 @@ export function ScenePanel({
   const [turnPolicy, setTurnPolicy] = useState<ScenePolicy>(scene?.turnPolicy ?? 'manual')
   const [participants, setParticipants] = useState<string[]>(participantIds)
   const [playAs, setPlayAs] = useState<string>(personaId)
+  const [privateNotes, setPrivateNotes] = useState(gmNotes ?? '')
   const [busy, setBusy] = useState(false)
 
   const toggleParticipant = (id: string) =>
@@ -95,6 +100,7 @@ export function ScenePanel({
     setBusy(true)
     try {
       if (participantsChanged) await onSaveParticipants(participants)
+      if (onSaveGmNotes && privateNotes !== (gmNotes ?? '')) await onSaveGmNotes(privateNotes)
       if (onSavePersona && playAs !== personaId) {
         const persona = await resolvePlayAs(playAs, personas)
         await onSavePersona(persona?.id ?? '')
@@ -146,6 +152,15 @@ export function ScenePanel({
           onChange={(e) => setAtmosphere(e.target.value)}
           placeholder="e.g. Tense, right after an argument"
         />
+        {campaignAvailable && onSaveGmNotes && (
+          <TextAreaField
+            label="Game Master notes for this story"
+            hint="Private to the Game Master. Character agents receive only what emerges in play."
+            rows={7}
+            value={privateNotes}
+            onChange={(e) => setPrivateNotes(e.target.value)}
+          />
+        )}
 
         <div className="mb-4">
           <span className="mb-1 block text-xs font-medium text-text-muted">Time of day</span>

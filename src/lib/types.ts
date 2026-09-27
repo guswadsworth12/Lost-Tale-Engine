@@ -185,6 +185,8 @@ export interface Scene {
   location?: string | null
   atmosphere?: string | null
   turnPolicy: ScenePolicy
+  /** Characters physically in the scene for GM turns. Unset keeps older chats' loaded roster behavior. */
+  presentCharacterIds?: string[]
   /** Round-robin bookkeeping: index into `[primaryId, ...participantIds]`. Read defensively (clamped/modulo) since the roster can shrink. */
   roundRobinIndex?: number
   /** Per-chat override of the shared `WorldCard` clock's time-of-day, so a chat that has narrated
@@ -399,6 +401,8 @@ export interface Chat {
   worldInfoState?: Record<string, { activeUntil?: number; blockedUntil?: number; activeAt?: number }>
   /** Per-chat steering note (SillyTavern's Author's Note) — see `AuthorNote`. */
   authorNote?: AuthorNote
+  /** Per-story secrets and pacing instructions for the Game Master only. Never sent to character agents. */
+  gmNotes?: string
   giftCoins?: number
   giftInventory?: Record<string, number>
   giftsGiven?: Record<string, number>

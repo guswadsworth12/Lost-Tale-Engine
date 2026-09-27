@@ -136,6 +136,7 @@ export function ChatWindow({
     previewPrompt,
     updateAuthorNote,
     updateScene,
+    updateGmNotes,
     updateParticipants,
     updateMemorySummary,
     continueMessage,
@@ -888,10 +889,12 @@ export function ChatWindow({
       {showScene && (
         <ScenePanel
           scene={chat.scene}
+          gmNotes={chat.gmNotes}
           participantIds={chat.participants ?? []}
           otherCharacters={otherCharacters.map((c) => ({ id: c.id, name: c.card.name }))}
           onClose={() => setShowScene(false)}
           onSave={updateScene}
+          onSaveGmNotes={updateGmNotes}
           onSaveParticipants={updateParticipants}
           campaignAvailable={!!world?.campaign}
           personaId={chat.personaId}

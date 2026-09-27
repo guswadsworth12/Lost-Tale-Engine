@@ -133,7 +133,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const system = [
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
     'You run the scene; you do not play the characters. Each character is voiced by their own separate agent after you decide.',
-    `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, choices, thoughts, or feelings, and never pick ${ctx.playerName} to act.`,
+    `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
     ...moveLines,
     'Your job each beat: (1) adjudicate the player\'s declared action, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',

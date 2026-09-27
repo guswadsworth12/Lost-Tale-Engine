@@ -619,6 +619,9 @@ export function useChatSession(chatId: string | null) {
       if (!speaker) return null
       // Fresh read — the reactive `chat` closure can be one render behind a summary update that just landed.
       const freshChat = (await chatsApi.get(chat.id)) ?? chat
+      const sceneRoster = freshChat.scene?.presentCharacterIds
+        ? roster.filter((member) => freshChat.scene!.presentCharacterIds!.includes(member.id))
+        : roster
       // Only the active speaker's private card lore enters this request. Other characters are
       // represented by their names and the public chat transcript, so secrets do not bleed across agents.
       const lorebooks: Lorebook[] = speaker.card.character_book
@@ -1156,7 +1159,7 @@ export function useChatSession(chatId: string | null) {
           currentOutfitId: currentOutfitFrom(messages),
         },
         affection,
-        participants: roster.length ? roster.map((c) => ({ name: c.card.name })) : undefined,
+        participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
     },
@@ -2261,6 +2264,14 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   )
 
+  const updateGmNotes = useCallback(
+    async (notes: string) => {
+      if (!chatId) return
+      await chatsApi.update(chatId, { gmNotes: notes.trim() || null })
+    },
+    [chatId],
+  )
+
   /** Location/atmosphere framing plus the group-chat turn policy. `null` clears it entirely; a partial patch merges onto whatever's already set. */
   const updateScene = useCallback(
     async (patch: Partial<Scene> | null) => {
@@ -2279,12 +2290,19 @@ export function useChatSession(chatId: string | null) {
   const updateParticipants = useCallback(
     async (ids: string[]) => {
       if (!chatId) return
+      const fresh = (await chatsApi.get(chatId)) ?? chat
+      const prior = fresh?.participants ?? []
+      const presentCharacterIds = fresh?.scene?.presentCharacterIds
+      const nextPresent = presentCharacterIds === undefined ? undefined : [
+        ...presentCharacterIds.filter((id) => id === fresh?.characterId || ids.includes(id)),
+        ...ids.filter((id) => !prior.includes(id) && !presentCharacterIds.includes(id)),
+      ]
       await chatsApi.update(chatId, {
         participants: ids,
-        scene: chat?.scene ? { ...chat.scene, roundRobinIndex: 0 } : chat?.scene,
+        scene: fresh?.scene ? { ...fresh.scene, roundRobinIndex: 0, ...(nextPresent ? { presentCharacterIds: nextPresent } : {}) } : fresh?.scene,
       })
     },
-    [chat?.scene, chatId],
+    [chat, chatId],
   )
 
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
@@ -2965,7 +2983,8 @@ export function useChatSession(chatId: string | null) {
       const playerName = persona?.name || 'You'
       const fullRoster = await charactersApi.roster(world.id).catch(() =>
         [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false })))
-      const presentIds = new Set([character.id, ...(freshChat?.participants ?? [])])
+      const loadedIds = [character.id, ...(freshChat?.participants ?? [])]
+      const presentIds = new Set(freshChat?.scene?.presentCharacterIds ?? loadedIds)
       const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayerCharacter(c.name, playerName))
       const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayerCharacter(c.name, playerName))
       const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
@@ -2977,7 +2996,7 @@ export function useChatSession(chatId: string | null) {
         worldName: world.name,
         worldDescription: world.description,
         worldRules: world.rules,
-        gmNotes: world.gmNotes,
+        gmNotes: [world.gmNotes, freshChat?.gmNotes].filter(Boolean).join('\n\n'),
         scenario: freshChat?.authorNote?.text,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
         branchConsequences: branchConsequencesFrom(upTo),
@@ -3050,7 +3069,10 @@ export function useChatSession(chatId: string | null) {
         const fresh = await chatsApi.get(chatId)
         if (fresh) {
           const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])]
-          await chatsApi.update(chatId, { participants })
+          const scene = fresh.scene?.presentCharacterIds
+            ? { ...fresh.scene, presentCharacterIds: [...new Set([...fresh.scene.presentCharacterIds, ...turn.addCharacterIds])] }
+            : fresh.scene
+          await chatsApi.update(chatId, { participants, scene })
         }
       }
       if (turn.fork) {
@@ -4140,6 +4162,7 @@ export function useChatSession(chatId: string | null) {
     previewPrompt,
     updateAuthorNote,
     updateScene,
+    updateGmNotes,
     updateParticipants,
     updateMemorySummary,
     continueMessage,
