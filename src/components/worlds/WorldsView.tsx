@@ -4,7 +4,7 @@ import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { worldsApi } from '@/lib/api/client'
 import type { CustomSceneFlag, GiftItem, GiftRarity, ItemDef, ItemEffect, RelationshipDimension, WorldCard } from '@/lib/types'
 import { fileToDataUrl } from '@/lib/characters/importExport'
-import { DEFAULT_BACKGROUNDS, DEFAULT_BACKGROUND_IDS, slugifyBackgroundId, type CustomBackground } from '@/lib/vn/backgrounds'
+import { SCENERY_SETS, backgroundCatalog, backgroundLabel, scenerySetFor, slugifyBackgroundId, type CustomBackground, type ScenerySetId } from '@/lib/vn/backgrounds'
 import { BGM_DEFAULT_KEY, SCENE_MOODS } from '@/lib/vn/moods'
 import { combinedSceneFlags, COMMITMENT_ORDER, formatCommitmentStatus, formatRelationshipStage, RELATIONSHIP_MILESTONES } from '@/lib/dating/stage'
 import { intimacyArousalWeight, type IntimacyCategory, type IntimacyUnlockable } from '@/lib/dating/intimacyCatalog'
@@ -248,6 +248,8 @@ function WorldEditor({
   const [backgroundsNight, setBackgroundsNight] = useState<Record<string, string>>(base.backgroundsNight ?? {})
   const [backgroundUnlocks, setBackgroundUnlocks] = useState<Record<string, number>>(base.backgroundUnlocks ?? {})
   const [customBackgrounds, setCustomBackgrounds] = useState<CustomBackground[]>(base.customBackgrounds ?? [])
+  const [scenerySet, setScenerySet] = useState<ScenerySetId>(scenerySetFor(base))
+  const catalog = backgroundCatalog({ scenerySet })
   /** The opening shot VN mode falls back to whenever a scene has no valid tag of its own. */
   const [defaultBackgroundId, setDefaultBackgroundId] = useState<string | undefined>(base.defaultBackgroundId)
   const [newBackgroundLabel, setNewBackgroundLabel] = useState('')
@@ -306,6 +308,7 @@ function WorldEditor({
       backgroundsNight,
       backgroundUnlocks,
       customBackgrounds,
+      scenerySet,
       // `null`, not `undefined` — see the `intimacyLevel` comment below on why a cleared nullable
       // field has to be sent explicitly rather than just omitted.
       defaultBackgroundId: defaultBackgroundId ?? null,
@@ -424,7 +427,7 @@ function WorldEditor({
    * `CharacterEditor.tsx`'s `handleBulkSpritePick`.
    */
   const handleBulkBackgroundPick = async (files: FileList) => {
-    const knownIds = new Set([...DEFAULT_BACKGROUND_IDS, ...customBackgrounds.map((b) => b.id)])
+    const knownIds = new Set([...catalog.map((b) => b.id), ...customBackgrounds.map((b) => b.id)])
     const matched: string[] = []
     const unmatched: string[] = []
     const dayUpdates: Record<string, string> = {}
@@ -479,7 +482,7 @@ function WorldEditor({
   const addCustomBackground = () => {
     const label = newBackgroundLabel.trim()
     if (!label) return
-    const existingIds = [...DEFAULT_BACKGROUND_IDS, ...customBackgrounds.map((b) => b.id)]
+    const existingIds = [...catalog.map((b) => b.id), ...customBackgrounds.map((b) => b.id)]
     setCustomBackgrounds((list) => [...list, { id: slugifyBackgroundId(label, existingIds), label }])
     setNewBackgroundLabel('')
   }
@@ -530,7 +533,11 @@ function WorldEditor({
   }, [hidden.join(','), tab])
 
   const allBackgrounds = [
-    ...DEFAULT_BACKGROUNDS.map((b) => ({ id: b.id, label: b.label, custom: false })),
+    ...catalog.map((b) => ({ id: b.id, label: b.label, custom: false })),
+    // Art already uploaded under another set's id stays visible and editable after switching sets.
+    ...Object.keys(backgrounds)
+      .filter((id) => !catalog.some((b) => b.id === id) && !customBackgrounds.some((b) => b.id === id))
+      .map((id) => ({ id, label: backgroundLabel(id), custom: false })),
     ...customBackgrounds.map((b) => ({ id: b.id, label: b.label, custom: true })),
   ]
 
@@ -724,12 +731,25 @@ function WorldEditor({
             tile switches it to a night variant, shown automatically once the world clock (Clock tab)
             reaches evening or night. Leave it unset to always show the day art.
           </p>
+          <div className="mb-4">
+            <div className="mb-1.5 text-sm text-text">Built-in places</div>
+            <div className="flex flex-wrap gap-2">
+              {SCENERY_SETS.map((set) => (
+                <Chip key={set.id} on={scenerySet === set.id} onClick={() => setScenerySet(set.id)}>
+                  {set.label}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-text-muted">
+              {SCENERY_SETS.find((set) => set.id === scenerySet)?.description} Your own places below are always offered too.
+            </p>
+          </div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <FileButton onPick={handleBulkBackgroundPick} accept="image/png,image/jpeg,image/webp" multiple>
               <Plus size={14} strokeWidth={2} />
               Bulk upload by filename
             </FileButton>
-            <span className="text-[11px] text-text-muted">e.g. classroom_day.png + classroom_night.png → Classroom</span>
+            <span className="text-[11px] text-text-muted">e.g. {catalog[0]?.id ?? 'guild-hall'}_day.png + {catalog[0]?.id ?? 'guild-hall'}_night.png → {catalog[0]?.label ?? 'Guild hall'}</span>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {allBackgrounds.map((bg) => (

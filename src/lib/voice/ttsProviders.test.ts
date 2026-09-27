@@ -122,8 +122,23 @@ describe('synthesizeSpeech', () => {
 
   it('every provider has a label, including the unimplemented one', () => {
     expect(Object.keys(TTS_PROVIDER_LABELS).sort()).toEqual(
-      ['alibaba', 'azure', 'elevenlabs', 'koboldcpp', 'openai-compatible', 'openmayhem'].sort(),
+      ['alibaba', 'azure', 'elevenlabs', 'koboldcpp', 'luxtts', 'openai-compatible', 'openmayhem'].sort(),
     )
+  })
+
+  it('sends LuxTTS through the app server with the sample and speed, never a key', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['wav']) } as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    await synthesizeSpeech({ provider: 'luxtts', voice: 'abc.wav', speed: 0.85, apiKey: 'ignored' }, 'Hello there', '')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/tts/luxtts')
+    expect(JSON.parse(init.body)).toEqual({ text: 'Hello there', reference: 'abc.wav', speed: 0.85 })
+    expect(JSON.stringify(init.headers)).not.toContain('ignored')
+  })
+
+  it("surfaces the LuxTTS relay's own error message", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({ error: 'LuxTTS returned HTTP 500.' }) } as unknown as Response))
+    await expect(synthesizeSpeech({ provider: 'luxtts', voice: '' }, 'Hi', '')).rejects.toThrow('LuxTTS returned HTTP 500.')
   })
 
   it('surfaces a non-ok response as a descriptive error including the status code', async () => {

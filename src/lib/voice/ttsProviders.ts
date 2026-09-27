@@ -3,7 +3,7 @@
 
 import { speakOpenMayhem } from '../api/openMayhemMedia'
 
-export type TtsProviderId = 'koboldcpp' | 'openai-compatible' | 'elevenlabs' | 'azure' | 'alibaba' | 'openmayhem'
+export type TtsProviderId = 'koboldcpp' | 'openai-compatible' | 'elevenlabs' | 'azure' | 'alibaba' | 'openmayhem' | 'luxtts'
 
 export interface TtsConfig {
   provider: TtsProviderId
@@ -14,15 +14,39 @@ export interface TtsConfig {
   region?: string
   voice: string
   model?: string
+  /** Speaking rate, 0.5–2. Only LuxTTS reads it today. */
+  speed?: number
 }
 
 export const TTS_PROVIDER_LABELS: Record<TtsProviderId, string> = {
+  luxtts: 'LuxTTS (your voice server)',
   openmayhem: 'OpenMayhem (hosted)',
   koboldcpp: 'KoboldCpp (local)',
   'openai-compatible': 'OpenAI-compatible (incl. local Kokoro)',
   elevenlabs: 'ElevenLabs',
   azure: 'Microsoft / Azure Speech',
   alibaba: 'Alibaba Cloud Model Studio',
+}
+
+/** Providers that need no browser-side key, so a character may override to them freely. */
+export const SERVER_SIDE_TTS: TtsProviderId[] = ['luxtts']
+
+/**
+ * LuxTTS goes through this app's server (`server/luxtts.ts`), which holds the server address and
+ * token. `voice` is a voice-sample file from Settings → Voice; blank uses the server's default.
+ */
+async function speakLuxtts(text: string, voice: string, speed: number | undefined, signal?: AbortSignal): Promise<Blob> {
+  const res = await fetch('/api/tts/luxtts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, reference: voice || undefined, speed }),
+    signal,
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error || `LuxTTS request failed (${res.status})`)
+  }
+  return res.blob()
 }
 
 async function speakOpenAiCompatible(baseUrl: string, apiKey: string | undefined, text: string, voice: string): Promise<Blob> {
@@ -88,6 +112,8 @@ export async function synthesizeSpeech(config: TtsConfig, text: string, koboldBa
   const region = config.region?.trim()
 
   switch (config.provider) {
+    case 'luxtts':
+      return speakLuxtts(trimmed, voice, config.speed, signal)
     case 'openmayhem':
       return speakOpenMayhem(apiKey || '', config.model || '', trimmed, voice, signal)
     case 'koboldcpp':

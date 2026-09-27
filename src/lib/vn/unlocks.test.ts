@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Character, CharacterCardData } from '@/lib/characters/cardSpec'
 import type { WorldCard } from '@/lib/types'
 import { DEFAULT_EXPRESSION_IDS } from '@/lib/vn/expressions'
-import { DEFAULT_BACKGROUND_IDS } from '@/lib/vn/backgrounds'
+import { ADVENTURE_BACKGROUNDS, DEFAULT_BACKGROUND_IDS } from '@/lib/vn/backgrounds'
 import { getUnlockedBackgroundIds, getUnlockedExpressionIds } from './unlocks'
 
 function character(overrides: Partial<Character> = {}, card: Partial<CharacterCardData> = {}): Character {
@@ -37,12 +37,16 @@ describe('getUnlockedExpressionIds', () => {
 })
 
 describe('getUnlockedBackgroundIds', () => {
-  it('offers the built-in default ids when the world has no custom backgrounds at all', () => {
-    expect(getUnlockedBackgroundIds(undefined, 0)).toEqual(DEFAULT_BACKGROUND_IDS)
-  })
-
   const world = (overrides: Partial<WorldCard> = {}): WorldCard =>
     ({ id: 'w1', name: 'World', description: '', lorebook: { entries: [] }, createdAt: 0, updatedAt: 0, ...overrides }) as WorldCard
+
+  it("offers the world's scenery set (adventure unless chosen otherwise) when it has no art at all", () => {
+    expect(getUnlockedBackgroundIds(undefined, 0)).toEqual(ADVENTURE_BACKGROUNDS.map((b) => b.id))
+    expect(getUnlockedBackgroundIds(world({ scenerySet: 'modern-school' }), 0)).toEqual(DEFAULT_BACKGROUND_IDS)
+    expect(getUnlockedBackgroundIds(world({ template: 'dating_sim' }), 0)).toEqual(DEFAULT_BACKGROUND_IDS)
+    expect(getUnlockedBackgroundIds(world({ scenerySet: 'custom-only', customBackgrounds: [{ id: 'my-keep', label: 'My keep' }] }), 0)).toEqual(['my-keep'])
+  })
+
 
   it('offers only backgrounds unlocked at the given affection', () => {
     const w = world({ backgrounds: { cafe: 'a', bedroom: 'b' }, backgroundUnlocks: { bedroom: 85 } })
@@ -50,7 +54,7 @@ describe('getUnlockedBackgroundIds', () => {
   })
 
   it('falls back to the full default list when nothing is unlocked yet', () => {
-    const w = world({ backgrounds: { bedroom: 'a' }, backgroundUnlocks: { bedroom: 85 } })
+    const w = world({ scenerySet: 'modern-school', backgrounds: { bedroom: 'a' }, backgroundUnlocks: { bedroom: 85 } })
     expect(getUnlockedBackgroundIds(w, 0)).toEqual(DEFAULT_BACKGROUND_IDS)
   })
 })

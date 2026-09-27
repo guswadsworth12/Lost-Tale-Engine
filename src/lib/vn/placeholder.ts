@@ -155,10 +155,67 @@ const PALETTES: Record<string, ScenePalette> = {
     light: 'rgb(160 130 255 / 0.35)',
     lightPos: 'ellipse 80% 55% at 50% 22%',
   },
+  // Firelit stone and timber — guild halls, taverns, castle interiors.
+  'torch-light': {
+    sky: '#5a3b28',
+    ground: '#24170f',
+    light: 'rgb(255 170 90 / 0.5)',
+    lightPos: 'ellipse 60% 55% at 30% 30%',
+    night: { sky: '#3a2419', ground: '#170e09', light: 'rgb(255 150 70 / 0.45)' },
+  },
+  // Underground: caves, dungeons, crypts. Dark by day as well as by night.
+  'deep-dark': {
+    sky: '#1e2226',
+    ground: '#0b0d0f',
+    light: 'rgb(170 190 200 / 0.18)',
+    lightPos: 'ellipse 50% 40% at 50% 10%',
+  },
+  'snow-light': {
+    sky: '#c9d6e3',
+    ground: '#e8eef3',
+    light: 'rgb(255 255 255 / 0.5)',
+    night: { sky: '#223047', ground: '#56657a', light: 'rgb(180 200 240 / 0.25)' },
+  },
+  'desert-light': {
+    sky: '#e6b872',
+    ground: '#b98446',
+    light: 'rgb(255 236 180 / 0.6)',
+    night: { sky: '#1f2340', ground: '#4a3a33', light: 'rgb(200 200 255 / 0.2)' },
+  },
 }
 
 /** Every background id in `backgrounds.ts`, mapped to the lighting environment it lives in. */
 const BACKGROUND_PALETTE: Record<string, string> = {
+  // adventure set
+  'guild-hall': 'torch-light',
+  tavern: 'torch-light',
+  'inn-room': 'bedroom-light',
+  'town-square': 'outdoor-day',
+  market: 'outdoor-day',
+  'cobbled-street': 'outdoor-day',
+  harbor: 'beach-light',
+  bridge: 'outdoor-day',
+  garden: 'forest-light',
+  'castle-hall': 'torch-light',
+  'throne-room': 'torch-light',
+  study: 'wood-light',
+  temple: 'shrine-light',
+  infirmary: 'clinical-light',
+  'training-grounds': 'outdoor-day',
+  'open-road': 'outdoor-day',
+  'forest-clearing': 'forest-light',
+  riverbank: 'forest-light',
+  lakeshore: 'beach-light',
+  'mountain-pass': 'sunset-light',
+  snowfield: 'snow-light',
+  desert: 'desert-light',
+  'ship-deck': 'beach-light',
+  campfire: 'night-festival',
+  cave: 'deep-dark',
+  'ancient-ruins': 'sunset-light',
+  dungeon: 'deep-dark',
+  battlefield: 'sunset-light',
+  // modern-school set
   classroom: 'classroom-light',
   'school-hallway': 'hall-light',
   'school-rooftop': 'sunset-light',

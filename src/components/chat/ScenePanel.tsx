@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import type { Scene, ScenePolicy } from '@/lib/types'
+import type { Persona, Scene, ScenePolicy } from '@/lib/types'
 import type { DayPhase } from '@/lib/world/calendar'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { TextAreaField } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { PlayAsSelect, resolvePlayAs } from '@/components/personas/PlayAsSelect'
+import type { Character } from '@/lib/characters/cardSpec'
 
 const TIME_OF_DAY: { value: DayPhase | 'clock'; label: string }[] = [
   { value: 'clock', label: 'World clock' },
@@ -51,7 +53,16 @@ export function ScenePanel({
   onSave,
   onSaveParticipants,
   campaignAvailable = false,
+  personaId = '',
+  personas = [],
+  characters = [],
+  onSavePersona,
 }: {
+  /** Who the player plays as (a persona id). Any character can be picked, TavernAI-style. */
+  personaId?: string
+  personas?: Persona[]
+  characters?: Character[]
+  onSavePersona?: (personaId: string) => Promise<void>
   /** The Game Master policy needs a world campaign to adjudicate against. */
   campaignAvailable?: boolean
   scene: Scene | undefined
@@ -71,6 +82,7 @@ export function ScenePanel({
   const [timeOfDay, setTimeOfDay] = useState<DayPhase | 'clock'>(scene?.timePhase ?? 'clock')
   const [turnPolicy, setTurnPolicy] = useState<ScenePolicy>(scene?.turnPolicy ?? 'manual')
   const [participants, setParticipants] = useState<string[]>(participantIds)
+  const [playAs, setPlayAs] = useState<string>(personaId)
   const [busy, setBusy] = useState(false)
 
   const toggleParticipant = (id: string) =>
@@ -83,6 +95,10 @@ export function ScenePanel({
     setBusy(true)
     try {
       if (participantsChanged) await onSaveParticipants(participants)
+      if (onSavePersona && playAs !== personaId) {
+        const persona = await resolvePlayAs(playAs, personas)
+        await onSavePersona(persona?.id ?? '')
+      }
       await onSave(payload)
       onClose()
     } finally {
@@ -144,6 +160,16 @@ export function ScenePanel({
             Auto-follows what you narrate ("the next morning", "at lunch"); the weekday still comes from the world clock.
           </p>
         </div>
+
+        {onSavePersona && (
+          <PlayAsSelect
+            className="mb-3"
+            value={playAs}
+            onChange={setPlayAs}
+            personas={personas}
+            characters={characters}
+          />
+        )}
 
         <div className="mb-3">
           <span className="mb-1 block text-xs font-medium text-text-muted">Turn policy</span>

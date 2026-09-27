@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ImagePlus } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { personasApi } from '@/lib/api/client'
+import { charactersApi, personasApi } from '@/lib/api/client'
 import type { Persona } from '@/lib/types'
 import { fileToDataUrl } from '@/lib/characters/importExport'
 import { TextAreaField, TextField } from '@/components/ui/Field'
@@ -26,7 +26,8 @@ export function PersonasView() {
       description={
         <>
           A persona is who you play as in a chat: your name and a short description, used as{' '}
-          {'{{user}}'} context. Pick one when starting a chat.
+          {'{{user}}'} context. Any character can be your persona too: link one and its name and
+          portrait follow the card. Pick who you play as when starting a chat, or change it in the Scene panel.
         </>
       }
       actions={
@@ -50,6 +51,11 @@ export function PersonasView() {
               </div>
             )}
             <div className="truncate text-center text-sm font-medium text-text">{p.name}</div>
+            {p.characterId && (
+              <div className="mt-1 text-center text-[10px] uppercase tracking-wide text-accent">
+                {p.characterMissing ? 'Character deleted' : 'Character'}
+              </div>
+            )}
           </button>
         ))}
         {personas.length === 0 && (
@@ -71,16 +77,21 @@ export function PersonasView() {
 }
 
 function PersonaEditor({ persona, onDone }: { persona: Persona | null; onDone: () => void }) {
+  const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
+  const [characterId, setCharacterId] = useState(persona?.characterId ?? '')
+  const linked = characters.find((c) => c.id === characterId)
   const [name, setName] = useState(persona?.name ?? '')
-  const [description, setDescription] = useState(persona?.description ?? '')
+  // A linked persona's server-resolved description may be the card's own; only the persona's own text is editable.
+  const [description, setDescription] = useState(persona?.characterId && persona.description === linked?.card.description ? '' : persona?.description ?? '')
   const [avatarDataUrl, setAvatarDataUrl] = useState(persona?.avatarDataUrl)
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     setSaving(true)
     try {
-      if (persona) await personasApi.update(persona.id, { name, description, avatarDataUrl })
-      else await personasApi.create({ name, description, avatarDataUrl })
+      const link = { characterId: characterId || null }
+      if (persona) await personasApi.update(persona.id, characterId ? { description, ...link } : { name, description, avatarDataUrl, ...link })
+      else await personasApi.create(characterId ? { description, characterId } : { name, description, avatarDataUrl })
     } catch (e) {
       toastError(errorMessage(e))
       return
@@ -108,7 +119,7 @@ function PersonaEditor({ persona, onDone }: { persona: Persona | null; onDone: (
       onBack={onDone}
       backLabel="Personas"
       eyebrow={persona ? 'Persona' : 'New persona'}
-      title={name || 'Unnamed persona'}
+      title={linked?.card.name || name || 'Unnamed persona'}
       footer={
         <>
           {persona ? (
@@ -118,12 +129,38 @@ function PersonaEditor({ persona, onDone }: { persona: Persona | null; onDone: (
           ) : (
             <span />
           )}
-          <Button variant="primary" onClick={save} disabled={!name.trim() || saving}>
+          <Button variant="primary" onClick={save} disabled={(!characterId && !name.trim()) || saving}>
             {saving ? 'Saving…' : persona ? 'Save changes' : 'Create persona'}
           </Button>
         </>
       }
     >
+      <label className="block">
+        <span className="mb-1 block text-xs text-text-muted">Play as a character</span>
+        <select
+          value={characterId}
+          onChange={(e) => setCharacterId(e.target.value)}
+          className="w-full rounded-xl bg-bg-sunken px-3 py-2 text-sm text-text outline-none ring-1 ring-transparent focus:ring-accent/40"
+        >
+          <option value="">No, this is my own persona</option>
+          {[...characters].sort((a, b) => a.card.name.localeCompare(b.card.name)).map((c) => (
+            <option key={c.id} value={c.id}>{c.card.name}</option>
+          ))}
+        </select>
+        <span className="mt-1 block text-[11px] text-text-muted">
+          A linked persona takes the character's name and portrait. Other characters only see the public description below, never the character's private prompts or memory.
+        </span>
+      </label>
+      {linked ? (
+        <div className="flex items-center gap-4">
+          {linked.avatarDataUrl ? (
+            <img src={linked.avatarDataUrl} alt="" className="h-24 w-24 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-bg-sunken text-2xl text-text-muted">{linked.card.name.slice(0, 1)}</div>
+          )}
+          <div className="text-lg font-medium text-text">{linked.card.name}</div>
+        </div>
+      ) : (
       <div className="flex items-start gap-4">
         <label
           className="portrait-frame group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-full border border-dashed border-border bg-bg-sunken"
@@ -148,9 +185,13 @@ function PersonaEditor({ persona, onDone }: { persona: Persona | null; onDone: (
           <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
       </div>
+      )}
       <TextAreaField
-        label="Description"
-        hint={`Who you are in this chat. Appearance, background, traits. Used as {{user}} context.`}
+        label={linked ? 'Public description' : 'Description'}
+        placeholder={linked?.card.description || undefined}
+        hint={linked
+          ? "What other characters can know about you. Leave blank to use the card's own description."
+          : `Who you are in this chat. Appearance, background, traits. Used as {{user}} context.`}
         rows={6}
         value={description}
         onChange={(e) => setDescription(e.target.value)}

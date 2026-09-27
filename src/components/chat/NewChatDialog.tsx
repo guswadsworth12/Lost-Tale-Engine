@@ -7,6 +7,7 @@ import { WORLD_TEMPLATES, getWorldTemplate, normalizeWorldTemplateId, type World
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { Modal } from '@/components/ui/Modal'
+import { PlayAsSelect, resolvePlayAs } from '@/components/personas/PlayAsSelect'
 
 export function NewChatDialog({
   onCreated,
@@ -73,9 +74,9 @@ export function NewChatDialog({
   const doCreate = async () => {
     if (!character) return
     // Resolve the persona: an existing pick, or a fresh one minted from the inline name/description.
-    let resolvedPersonaId = personaId
-    let persona = personas.find((p) => p.id === personaId)
-    if (noPersonas && personaName.trim()) {
+    let persona = await resolvePlayAs(personaId, personas)
+    let resolvedPersonaId = persona?.id ?? ''
+    if (noPersonas && !personaId && personaName.trim()) {
       persona = await personasApi.create({
         name: personaName.trim(),
         description: personaDescription.trim(),
@@ -173,9 +174,16 @@ export function NewChatDialog({
           <p className="mt-1.5 text-xs text-text-muted">{getWorldTemplate(mode).blurb}</p>
         </div>
 
-        {noPersonas ? (
+        <PlayAsSelect
+          className="mb-3"
+          value={personaId}
+          onChange={setPersonaId}
+          personas={personas}
+          characters={characters.filter((c) => c.id !== characterId)}
+        />
+        {noPersonas && !personaId ? (
           <div className="mb-4">
-            <label className="mb-1 block text-xs text-text-muted">Chatting as</label>
+            <label className="mb-1 block text-xs text-text-muted">Or make a persona</label>
             <input
               value={personaName}
               onChange={(e) => setPersonaName(e.target.value)}
@@ -195,21 +203,7 @@ export function NewChatDialog({
             </p>
           </div>
         ) : (
-          <>
-            <label className="mb-1 block text-xs text-text-muted">Persona</label>
-            <select
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-              className="mb-4 w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-base text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40 sm:py-2 sm:text-sm"
-            >
-              <option value="">Default (You)</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </>
+          <div className="mb-1" />
         )}
 
         {starters.length > 0 && (

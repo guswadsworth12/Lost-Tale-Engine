@@ -55,7 +55,7 @@ import { SakuraPetals } from './SakuraPetals'
 import { LiveRapport } from './LiveRapport'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
-import { synthesizeSpeech } from '@/lib/voice/ttsProviders'
+import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { toSpeakableText } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
@@ -598,17 +598,23 @@ export function VNStage({
     const controller = new AbortController()
     speakControllerRef.current = controller
     try {
-      if (character?.voice?.provider && character.voice.provider !== ttsProvider) {
+      // Whoever is actually speaking this line; GM narration and the player's own line use the narrator/default voice.
+      const voiceOwner = showUserAsCurrent || lastCharMsg?.gm ? undefined : activeCgSource
+      const override = voiceOwner?.voice
+      const provider = override?.provider ?? ttsProvider
+      if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
         throw new Error('This character overrides the voice provider. Select that provider in Settings → Voice first, or use the global default for this character.')
       }
       const blob = await synthesizeSpeech(
         {
-          provider: character?.voice?.provider ?? ttsProvider,
+          provider,
           apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey,
           model: ttsModel,
           baseUrl: ttsBaseUrl,
           region: ttsRegion,
-          voice: character?.voice?.voiceId || ttsVoice,
+          // A character's own voice id only means something on the provider it was chosen for.
+          voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
+          speed: override?.speed,
         },
         text,
         koboldBaseUrl,
@@ -649,7 +655,7 @@ export function VNStage({
   }
   // Swiping to a different line, or leaving the message entirely, cuts off whatever was playing —
   // it no longer matches what's on screen.
-  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemApiKey, ttsApiKey, ttsBaseUrl, ttsRegion, character?.voice?.provider, character?.voice?.voiceId])
+  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemApiKey, ttsApiKey, ttsBaseUrl, ttsRegion, activeCgSource?.voice?.provider, activeCgSource?.voice?.voiceId])
   const [autoVoice, setAutoVoice] = useState(false)
 
   // Every message id this component instance has watched stream in live — its text already

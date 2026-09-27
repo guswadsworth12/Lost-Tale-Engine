@@ -23,8 +23,9 @@ import {
   X,
 } from 'lucide-react'
 import { useChatSession } from '@/lib/hooks/useChatSession'
+import { BrandWordmark } from '@/components/ui/BrandMark'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, personasApi, worldsApi } from '@/lib/api/client'
 import { IconButton } from '@/components/ui/IconButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { scrollToMessage } from '@/lib/scrollToMessage'
@@ -181,6 +182,7 @@ export function ChatWindow({
   const dismissFirstReplyTip = useSettingsStore((s) => s.dismissFirstReplyTip)
   // Only used for the Scene panel's invite picker, not the roster itself (`participantCharacters`).
   const allCharacters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
+  const allPersonas = useApiQuery('personas', () => personasApi.list(), []) ?? []
   const otherCharacters = character ? allCharacters.filter((c) => c.id !== character.id) : allCharacters
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showInspector, setShowInspector] = useState(false)
@@ -331,9 +333,9 @@ export function ChatWindow({
   if (!chatId || !chat) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <MessageCircle size={40} strokeWidth={1.25} className="text-text-muted" />
-        <p className="text-xl font-medium text-text">Pick a character to start a conversation</p>
-        <p className="text-sm text-text-muted">Or create a new one. You can even ask the model to write it for you.</p>
+        <BrandWordmark size={44} className="mb-2" />
+        <p className="text-xl font-medium text-text">Pick a story to continue</p>
+        <p className="text-sm text-text-muted">Or start a new one from the chats list. Every tale needs a first line.</p>
       </div>
     )
   }
@@ -891,6 +893,12 @@ export function ChatWindow({
           onSave={updateScene}
           onSaveParticipants={updateParticipants}
           campaignAvailable={!!world?.campaign}
+          personaId={chat.personaId}
+          personas={allPersonas}
+          characters={allCharacters.filter((c) => c.id !== character?.id && !(chat.participants ?? []).includes(c.id))}
+          onSavePersona={async (personaId) => {
+            await chatsApi.update(chat.id, { personaId })
+          }}
         />
       )}
       {showCampaignMove && world?.campaign && (

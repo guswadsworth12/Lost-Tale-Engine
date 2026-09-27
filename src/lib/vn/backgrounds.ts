@@ -5,9 +5,8 @@ export interface BackgroundOption {
   label: string
 }
 
-/** Default scene locations offered to every world so the LLM has somewhere to place the moment even
- *  with no custom art uploaded. Each can optionally have a night-lighting variant — see
- *  `WorldCard.backgroundsNight` and `calendar.ts`'s `isNightPhase`. */
+/** The modern-school catalog: the original dating-sim locations. Only worlds that choose the
+ *  `modern-school` scenery set (or dating-sim worlds by default) offer these. */
 export const DEFAULT_BACKGROUNDS: BackgroundOption[] = [
   // school
   { id: 'classroom', label: 'Classroom' },
@@ -47,6 +46,68 @@ export const DEFAULT_BACKGROUNDS: BackgroundOption[] = [
 ]
 
 export const DEFAULT_BACKGROUND_IDS = DEFAULT_BACKGROUNDS.map((b) => b.id)
+
+/** Adventure / fantasy locations — the engine's default catalog for story and campaign worlds. */
+export const ADVENTURE_BACKGROUNDS: BackgroundOption[] = [
+  // settlements
+  { id: 'guild-hall', label: 'Guild hall' },
+  { id: 'tavern', label: 'Tavern' },
+  { id: 'inn-room', label: 'Inn room' },
+  { id: 'town-square', label: 'Town square' },
+  { id: 'market', label: 'Market' },
+  { id: 'cobbled-street', label: 'Cobbled street' },
+  { id: 'harbor', label: 'Harbor' },
+  { id: 'bridge', label: 'Bridge' },
+  { id: 'rooftop', label: 'Rooftop' },
+  { id: 'garden', label: 'Garden' },
+  { id: 'festival', label: 'Festival' },
+  // halls of power and learning
+  { id: 'castle-hall', label: 'Castle hall' },
+  { id: 'throne-room', label: 'Throne room' },
+  { id: 'library', label: 'Library' },
+  { id: 'study', label: 'Study' },
+  { id: 'temple', label: 'Temple' },
+  { id: 'infirmary', label: 'Infirmary' },
+  { id: 'training-grounds', label: 'Training grounds' },
+  { id: 'bedroom', label: 'Bedroom' },
+  // the road
+  { id: 'open-road', label: 'Open road' },
+  { id: 'forest', label: 'Forest' },
+  { id: 'forest-clearing', label: 'Forest clearing' },
+  { id: 'riverbank', label: 'Riverbank' },
+  { id: 'lakeshore', label: 'Lakeshore' },
+  { id: 'beach', label: 'Beach' },
+  { id: 'mountain-pass', label: 'Mountain pass' },
+  { id: 'snowfield', label: 'Snowfield' },
+  { id: 'desert', label: 'Desert' },
+  { id: 'ship-deck', label: 'Ship deck' },
+  { id: 'campfire', label: 'Campfire' },
+  // danger
+  { id: 'cave', label: 'Cave' },
+  { id: 'ancient-ruins', label: 'Ancient ruins' },
+  { id: 'dungeon', label: 'Dungeon' },
+  { id: 'battlefield', label: 'Battlefield' },
+]
+
+export type ScenerySetId = 'adventure' | 'modern-school' | 'custom-only'
+
+export const SCENERY_SETS: { id: ScenerySetId; label: string; description: string; places: BackgroundOption[] }[] = [
+  { id: 'adventure', label: 'Adventure', description: 'Guild halls, taverns, roads, ruins, and wilds.', places: ADVENTURE_BACKGROUNDS },
+  { id: 'modern-school', label: 'Modern school', description: 'Classrooms, city streets, and home life.', places: DEFAULT_BACKGROUNDS },
+  { id: 'custom-only', label: 'My places only', description: 'Only the locations you add to this world.', places: [] },
+]
+
+/** Which built-in catalog a world offers. Unset: dating-sim worlds keep the school set, everything else is an adventure. */
+export function scenerySetFor(world: { scenerySet?: ScenerySetId; template?: string; campaign?: unknown } | undefined): ScenerySetId {
+  if (world?.scenerySet) return world.scenerySet
+  return world?.template === 'dating_sim' && !world.campaign ? 'modern-school' : 'adventure'
+}
+
+/** The built-in places a world offers (before its own custom places and uploads). */
+export function backgroundCatalog(world: Parameters<typeof scenerySetFor>[0]): BackgroundOption[] {
+  const id = scenerySetFor(world)
+  return SCENERY_SETS.find((set) => set.id === id)?.places ?? ADVENTURE_BACKGROUNDS
+}
 
 /**
  * A world-specific scene location beyond the 12 defaults — e.g. "the abandoned shrine" or "her
@@ -102,6 +163,32 @@ const BACKGROUND_ALIASES: Record<string, string[]> = {
   kitchen: ['the stove', 'the counter top', 'countertop', 'the fridge', 'cooking', 'the kettle'],
   shower: ['the bathroom', 'bath tub', 'bathtub', 'under the water', 'the steam'],
   office: ['the desk job', 'her office', 'his office', 'meeting room', 'the cubicle', 'break room', 'overtime'],
+  'guild-hall': ['the guild', 'guildhall', 'guild house', 'request board', 'job board', 'the mission board'],
+  tavern: ['the bar', 'alehouse', 'taproom', 'the barkeep', 'tankard', 'mead hall'],
+  'inn-room': ['the inn', 'rented room', 'room at the inn', 'the innkeeper'],
+  'town-square': ['the square', 'plaza', 'the fountain square', 'town center'],
+  market: ['the stalls', 'bazaar', 'marketplace', 'merchant stalls', 'vendors'],
+  'cobbled-street': ['cobblestones', 'the cobbles', 'the lane', 'narrow street', 'alleyway'],
+  harbor: ['the docks', 'the pier', 'the wharf', 'the port', 'moored ships'],
+  'castle-hall': ['the castle', 'great hall', 'the keep', 'banquet hall'],
+  'throne-room': ['the throne', 'royal court', 'audience chamber'],
+  study: ['the study', 'writing desk', 'the scriptorium'],
+  temple: ['the altar', 'sanctuary', 'cathedral', 'the chapel'],
+  infirmary: ['the healers', 'sickbed', 'the medic', 'infirmary cot'],
+  'training-grounds': ['training yard', 'sparring ring', 'the practice field', 'drill yard'],
+  'open-road': ['the road', 'the highway', 'the trail', 'a dirt road', 'crossroads'],
+  'forest-clearing': ['a clearing', 'the glade'],
+  riverbank: ['the river', 'the stream', 'river bank'],
+  lakeshore: ['the lake', 'lakeside', 'the lake shore'],
+  'mountain-pass': ['the mountains', 'the pass', 'cliff path', 'the summit'],
+  snowfield: ['the snow', 'snowdrift', 'frozen plain', 'the tundra'],
+  desert: ['the dunes', 'the sands', 'the wastes'],
+  'ship-deck': ['the deck', 'aboard the ship', 'the mast', 'the helm'],
+  campfire: ['the fire', 'the camp', 'around the fire', 'bedrolls'],
+  cave: ['the cavern', 'the grotto', 'cave mouth'],
+  'ancient-ruins': ['the ruins', 'crumbling stone', 'old ruins'],
+  dungeon: ['the cells', 'the crypt', 'underground passage', 'the catacombs'],
+  battlefield: ['the battle', 'the front line', 'the field of battle'],
 }
 
 /** Whole-word (or whole-phrase) containment, so "cafe" doesn't fire inside "cafeteria" and "park" doesn't fire inside "parking". */
@@ -142,7 +229,9 @@ export function matchBackgroundKeyword(text: string, candidates: { id: string; l
  *  one. Falls back to the raw id (title-cased) for one that's been removed from both lists since it
  *  was set, rather than showing nothing. */
 export function backgroundLabel(id: string, world?: { customBackgrounds?: CustomBackground[] }): string {
-  const found = DEFAULT_BACKGROUNDS.find((b) => b.id === id) ?? world?.customBackgrounds?.find((b) => b.id === id)
+  const found = world?.customBackgrounds?.find((b) => b.id === id)
+    ?? ADVENTURE_BACKGROUNDS.find((b) => b.id === id)
+    ?? DEFAULT_BACKGROUNDS.find((b) => b.id === id)
   if (found) return found.label
   return id.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }

@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { BrandMark, BrandWordmark } from '@/components/ui/BrandMark'
 
 export type ViewId = 'chat' | 'assistant' | 'characters' | 'worlds' | 'personas' | 'worldinfo' | 'gallery' | 'settings'
 
@@ -51,6 +52,13 @@ export function Sidebar({
         expanded ? 'md:w-40 md:px-2' : 'md:w-14 md:items-center md:px-1.5'
       }`}
     >
+      <div
+        className={`mb-3 hidden md:flex ${expanded ? 'md:px-2 md:pt-1' : 'md:justify-center'}`}
+        title="Lost Tales Engine"
+        aria-label="Lost Tales Engine"
+      >
+        {expanded ? <BrandWordmark size={24} /> : <BrandMark size={26} className="text-accent" />}
+      </div>
       {onOpenPalette && (
         <button
           onClick={onOpenPalette}

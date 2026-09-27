@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { MessageCircle, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
+import { BrandWordmark } from '@/components/ui/BrandMark'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatsApi } from '@/lib/api/client'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
@@ -251,7 +252,7 @@ export function WelcomeView({
   return (
     <div className="flex flex-1 items-center justify-center overflow-y-auto p-8">
       <div className="w-full max-w-lg py-10">
-        <MessageCircle size={30} strokeWidth={1.25} className="mb-4 text-accent" />
+        <BrandWordmark size={40} className="mb-6" />
         <h1 className="font-display text-2xl text-text">Welcome to Lost Tales Engine</h1>
         <p className="mt-1.5 text-sm text-text-muted">
           A local-first storytelling engine. Bring your own model, running locally or through a hosted

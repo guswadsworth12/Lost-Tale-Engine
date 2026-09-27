@@ -24,8 +24,13 @@ import type { GiftLogEntry, ReciprocityCue } from '@/lib/dating/gifts'
 export interface Persona {
   id: string
   name: string
+  /** Public description other characters may know. For a linked persona, blank falls back to the card's description. */
   description: string
   avatarDataUrl?: string
+  /** Play as this character: name and portrait follow the card (server-resolved). Private prompts and memory are never used. */
+  characterId?: string
+  /** Set by the server when the linked character has been deleted; the persona keeps its last name. */
+  characterMissing?: boolean
   createdAt: number
 }
 
@@ -513,6 +518,8 @@ export interface WorldCard {
    *  background tag of its own (no model connected, the model omitted `<<scene:>>`, or it picked
    *  a still-locked one), so VN mode never opens on a bare placeholder gradient. */
   defaultBackgroundId?: string
+  /** Which built-in location catalog this world offers (`vn/backgrounds.ts`'s `SCENERY_SETS`). Unset picks by template. */
+  scenerySet?: import('@/lib/vn/backgrounds').ScenerySetId
   /** World-authored scene locations beyond the 12 built-ins — see `CustomBackground`. */
   customBackgrounds?: CustomBackground[]
   /** Background-music URLs keyed by scene mood id (`src/lib/vn/moods.ts`), plus a `default` key. VN mode only. */

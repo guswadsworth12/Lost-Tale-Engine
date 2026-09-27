@@ -51,7 +51,7 @@ describe('resolveSceneBackground', () => {
   it('reads the narration itself when there is no tag, event or established location', () => {
     const out = resolveSceneBackground({
       chat: chat(),
-      world: world(),
+      world: world({ scenerySet: 'modern-school' }),
       affection: 0,
       narration: 'The classroom is empty by the time you get there, the last of the light going orange.',
     })
@@ -61,7 +61,7 @@ describe('resolveSceneBackground', () => {
   it('recognises a place by an alias the prose actually uses, not just its formal label', () => {
     const out = resolveSceneBackground({
       chat: chat(),
-      world: world(),
+      world: world({ scenerySet: 'modern-school' }),
       affection: 0,
       narration: 'She is waiting by the lockers, bag over one shoulder.',
     })
@@ -98,11 +98,18 @@ describe('resolveSceneBackground', () => {
   it('still recognises a built-in location in a world that has uploaded art of its own', () => {
     const out = resolveSceneBackground({
       chat: chat(),
-      world: world({ backgrounds: { 'her-bookshop': 'shop.png' } }),
+      world: world({ scenerySet: 'modern-school', backgrounds: { 'her-bookshop': 'shop.png' } }),
       affection: 0,
       narration: 'They sit together in the park at dusk.',
     })
     expect(out).toMatchObject({ id: 'park', source: 'text' })
     expect(out.url).toBeUndefined()
+  })
+
+  it('an adventure world reads adventure places from prose and never offers school ones', () => {
+    const adventure = world({ template: 'freeform' })
+    expect(resolveSceneBackground({ chat: chat(), world: adventure, affection: 0, narration: 'Mud on the cobbles; the barkeep slides a tankard over.' }))
+      .toMatchObject({ id: 'tavern', source: 'text' })
+    expect(resolveSceneBackground({ chat: chat(), world: adventure, affection: 0, narration: 'The classroom is empty.' }).id).toBeUndefined()
   })
 })

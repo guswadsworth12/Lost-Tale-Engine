@@ -8,7 +8,7 @@
  */
 
 import type { Chat, WorldCard } from '@/lib/types'
-import { backgroundLabel, matchBackgroundKeyword, DEFAULT_BACKGROUNDS } from '@/lib/vn/backgrounds'
+import { backgroundCatalog, backgroundLabel, matchBackgroundKeyword } from '@/lib/vn/backgrounds'
 import { getUnlockedBackgroundIds } from '@/lib/vn/unlocks'
 import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 
@@ -52,7 +52,7 @@ function candidates(world: WorldCard | undefined, affection: number): { id: stri
   const rows = ids.map((id) => ({ id, label: customLabels.get(id) ?? backgroundLabel(id, world) }))
   // A world with uploaded art narrows `getUnlockedBackgroundIds` to just those ids; the defaults are
   // still legitimate *places* to recognise in prose, they just have no photo behind them.
-  for (const d of DEFAULT_BACKGROUNDS) if (!seen.has(d.id)) rows.push(d)
+  for (const d of backgroundCatalog(world)) if (!seen.has(d.id)) rows.push(d)
   return rows
 }
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { FileButton } from '@/components/ui/FileButton'
 import { TextField } from '@/components/ui/Field'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { DEFAULT_BACKGROUNDS, backgroundLabel, slugifyBackgroundId } from '@/lib/vn/backgrounds'
+import { backgroundCatalog, backgroundLabel, slugifyBackgroundId } from '@/lib/vn/backgrounds'
 import { sceneGradient } from '@/lib/vn/placeholder'
 import type { SceneryChoice, SceneryVariant } from '@/lib/vn/scenery'
 import { fileToDataUrl } from '@/lib/characters/importExport'
@@ -40,7 +40,7 @@ export function SceneryPicker({
 
   // Places with art first — those are what the stage can actually show — then the rest of the catalog.
   const places = useMemo(() => {
-    const ids = new Set([...Object.keys(world.backgrounds ?? {}), ...(world.customBackgrounds ?? []).map((b) => b.id), ...DEFAULT_BACKGROUNDS.map((b) => b.id)])
+    const ids = new Set([...Object.keys(world.backgrounds ?? {}), ...(world.customBackgrounds ?? []).map((b) => b.id), ...backgroundCatalog(world).map((b) => b.id)])
     return [...ids]
       .map((id) => ({ id, label: backgroundLabel(id, world), day: world.backgrounds?.[id], night: world.backgroundsNight?.[id] }))
       .sort((a, b) => Number(!!b.day) - Number(!!a.day))

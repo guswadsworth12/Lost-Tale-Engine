@@ -20,6 +20,7 @@ import {
   worldStore,
   avatarsDir,
 } from './db.ts'
+import { addVoiceSample, listVoiceSamples, luxttsSpeak, luxttsStatus } from './luxtts.ts'
 import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
@@ -505,6 +506,30 @@ function normalizeRelationshipThresholds(raw: unknown) {
 
 // ---- Characters ----
 
+// ---- LuxTTS voice relay (server/luxtts.ts) ----
+
+app.get('/api/voice-samples', (_req, res) => {
+  res.json(listVoiceSamples())
+})
+
+app.post('/api/voice-samples', (req, res) => {
+  res.status(201).json(addVoiceSample(req.body.label, req.body.dataUrl))
+})
+
+app.get('/api/tts/luxtts/status', async (_req, res) => {
+  res.json(await luxttsStatus())
+})
+
+app.post('/api/tts/luxtts', async (req, res) => {
+  try {
+    const { audio, contentType } = await luxttsSpeak(req.body ?? {})
+    res.type(contentType).send(audio)
+  } catch (e) {
+    const status = (e as { status?: number }).status ?? 502
+    res.status(status).json({ error: e instanceof Error ? e.message : 'LuxTTS request failed' })
+  }
+})
+
 app.get('/api/vrm-library', (_req, res) => {
   res.json(listVrmLibrary())
 })
@@ -650,27 +675,55 @@ app.delete('/api/characters/:id', (req, res) => {
 
 // ---- Personas ----
 
+/**
+ * A persona linked to a character (TavernAI-style "play as any character") takes that card's name
+ * and portrait live. Its description stays the persona's own public blurb, falling back to the
+ * card's description — never the character's private prompts or memory, which would otherwise
+ * reach every other character's prompt as `{{user}}` context.
+ */
+function resolvePersona(row: Record<string, unknown>) {
+  if (typeof row.characterId !== 'string') return row
+  const character = characterStore.get(row.characterId)
+  if (!character) return { ...row, characterMissing: true }
+  const card = (character.card ?? {}) as Record<string, unknown>
+  const own = typeof row.description === 'string' ? row.description.trim() : ''
+  return {
+    ...row,
+    name: (typeof card.name === 'string' && card.name) || row.name,
+    avatarDataUrl: character.avatarDataUrl ?? row.avatarDataUrl,
+    description: own || (typeof card.description === 'string' ? card.description : ''),
+  }
+}
+
+function linkedCharacterId(raw: unknown): string | undefined {
+  return typeof raw === 'string' && characterStore.get(raw) ? raw : undefined
+}
+
 app.get('/api/personas', (_req, res) => {
-  res.json(personaStore.list({ orderBy: 'createdAt' }))
+  res.json(personaStore.list({ orderBy: 'createdAt' }).map(resolvePersona))
 })
 
 app.get('/api/personas/:id', (req, res) => {
   const row = personaStore.get(req.params.id)
   if (!row) return notFound(res)
-  res.json(row)
+  res.json(resolvePersona(row))
 })
 
 app.post('/api/personas', (req, res) => {
   const id = newId()
   const avatarDataUrl = resolveAvatar('personas', id, req.body.avatarDataUrl)
+  const characterId = linkedCharacterId(req.body.characterId)
+  if (req.body.characterId && !characterId) return res.status(400).json({ error: 'That character no longer exists.' })
+  const linkedName = characterId ? ((characterStore.get(characterId)?.card as Record<string, unknown> | undefined)?.name as string | undefined) : undefined
   const created = personaStore.insert({
     id,
-    name: req.body.name,
+    name: req.body.name || linkedName || 'You',
     description: req.body.description,
     avatarDataUrl,
+    characterId,
     createdAt: Date.now(),
   })
-  res.status(201).json(created)
+  res.status(201).json(resolvePersona(created))
 })
 
 app.put('/api/personas/:id', (req, res) => {
@@ -680,8 +733,12 @@ app.put('/api/personas/:id', (req, res) => {
   if ('name' in req.body) patch.name = req.body.name
   if ('description' in req.body) patch.description = req.body.description
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('personas', id, req.body.avatarDataUrl)
+  if ('characterId' in req.body) {
+    patch.characterId = linkedCharacterId(req.body.characterId)
+    if (req.body.characterId && !patch.characterId) return res.status(400).json({ error: 'That character no longer exists.' })
+  }
   const updated = personaStore.update(id, patch)
-  res.json(updated)
+  res.json(updated && resolvePersona(updated))
 })
 
 app.delete('/api/personas/:id', (req, res) => {
@@ -1086,6 +1143,7 @@ app.post('/api/worlds', (req, res) => {
     description: req.body.description,
     rules: req.body.rules,
     template: req.body.template ?? undefined,
+    scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined,
     lorebook: req.body.lorebook,
     avatarDataUrl,
     backgrounds,
@@ -1111,6 +1169,7 @@ app.put('/api/worlds/:id', (req, res) => {
   const existing = worldStore.get(id)
   if (!existing) return notFound(res)
   const patch: Record<string, unknown> = { ...req.body, updatedAt: Date.now() }
+  if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('canonFacts' in req.body) patch.canonFacts = normalizeCanonFacts(req.body.canonFacts)

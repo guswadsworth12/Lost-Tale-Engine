@@ -29,6 +29,7 @@ import { Toggle } from '@/components/ui/Toggle'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
 import { VrmModelField } from './VrmModelField'
+import { VoiceSampleField } from '@/components/settings/VoiceSampleField'
 import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
@@ -220,8 +221,10 @@ export function CharacterEditor({
   const globalTtsProvider = useSettingsStore((s) => s.ttsProvider)
   const globalTtsModel = useSettingsStore((s) => s.ttsModel)
   const usesOpenMayhemVoice = (voiceProvider || globalTtsProvider) === 'openmayhem'
+  const usesLuxttsVoice = (voiceProvider || globalTtsProvider) === 'luxtts'
   const { models: speechModels } = useOpenMayhemModels('AUDIO_SPEECH', tab === 'voice' && usesOpenMayhemVoice)
   const [voiceId, setVoiceId] = useState(character?.voice?.voiceId ?? '')
+  const [voiceSpeed, setVoiceSpeed] = useState<number | undefined>(character?.voice?.speed)
   const [verbalTics, setVerbalTics] = useState<string[]>(character?.voiceFingerprint?.verbalTics ?? [])
   const [catchphrases, setCatchphrases] = useState<string[]>(character?.voiceFingerprint?.catchphrases ?? [])
   const [dialectNotes, setDialectNotes] = useState(character?.voiceFingerprint?.dialectNotes ?? '')
@@ -283,6 +286,7 @@ export function CharacterEditor({
     setRelationshipStarters(character?.relationshipStarters ?? [])
     setVoiceProvider(character?.voice?.provider ?? '')
     setVoiceId(character?.voice?.voiceId ?? '')
+    setVoiceSpeed(character?.voice?.speed)
     setVerbalTics(character?.voiceFingerprint?.verbalTics ?? [])
     setCatchphrases(character?.voiceFingerprint?.catchphrases ?? [])
     setDialectNotes(character?.voiceFingerprint?.dialectNotes ?? '')
@@ -320,7 +324,7 @@ export function CharacterEditor({
   // Sent as `null`, not `undefined`, when empty: JSON.stringify drops `undefined`-valued keys
   // entirely, so an `undefined` here would make the update request omit the field altogether and
   // silently leave the character's previous value in place instead of actually clearing it.
-  const voice = voiceProvider || voiceId.trim() ? { provider: voiceProvider || undefined, voiceId: voiceId.trim() || undefined } : null
+  const voice = voiceProvider || voiceId.trim() || voiceSpeed ? { provider: voiceProvider || undefined, voiceId: voiceId.trim() || undefined, speed: voiceSpeed } : null
   const voiceFingerprint =
     verbalTics.length || catchphrases.length || dialectNotes.trim() || sentenceRhythm.trim()
       ? {
@@ -1762,12 +1766,26 @@ export function CharacterEditor({
                 </option>
               ))}
             </SelectField>
-            {usesOpenMayhemVoice ? <OpenMayhemVoiceField model={speechModels?.find((m) => m.id === globalTtsModel)} value={voiceId} onChange={setVoiceId} label="Voice / speaker ID override" placeholder="Use global voice" /> : <TextField
+            {usesLuxttsVoice ? <VoiceSampleField label="Voice sample" value={voiceId} onChange={setVoiceId} blankLabel="Use the narrator/default voice" uploadLabel={form.name} previewText={`This is ${form.name || 'me'}. Shall we begin?`} /> : usesOpenMayhemVoice ? <OpenMayhemVoiceField model={speechModels?.find((m) => m.id === globalTtsModel)} value={voiceId} onChange={setVoiceId} label="Voice / speaker ID override" placeholder="Use global voice" /> : <TextField
               label="Voice / speaker ID override"
               value={voiceId}
               onChange={(e) => setVoiceId(e.target.value)}
               placeholder="Leave blank to use the global voice"
             />}
+            {usesLuxttsVoice && (
+              <NumberField
+                label="Speaking speed"
+                min={0.5}
+                max={2}
+                step={0.05}
+                value={voiceSpeed ?? 1}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  setVoiceSpeed(Number.isFinite(v) && v !== 1 ? Math.max(0.5, Math.min(2, v)) : undefined)
+                }}
+                hint="1 is normal. LuxTTS only."
+              />
+            )}
           </div>
         </Section>
       )}

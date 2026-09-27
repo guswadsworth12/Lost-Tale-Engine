@@ -9,6 +9,7 @@ import { listKoboldSpeakers, synthesizeSpeech, TTS_PROVIDER_LABELS, type TtsProv
 import { TextField } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { Section } from '@/components/ui/Section'
+import { VoiceSampleField } from './VoiceSampleField'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 
@@ -121,6 +122,22 @@ export function VoiceSettings() {
             <OpenMayhemVoiceField model={models?.find((m) => m.id === ttsModel)} value={ttsVoice} onChange={(voice) => setVoiceConfig({ ttsVoice: voice })} />
             <p className="my-3 text-xs text-text-muted">Testing and reading lines aloud generate billed speech jobs. Visual Novel mode uses this model and voice; character voice overrides must be supported by this model. Stop requests cancellation; work already done may still be billed.</p>
           </>}
+
+          {ttsProvider === 'luxtts' && (
+            <>
+              <p className="mb-2 text-xs text-text-muted">
+                Clones voices on your own LuxTTS server. Its address and token live in this app's
+                <code className="mx-1">.env</code>(<code>LUXTTS_URL</code>, <code>LUXTTS_TOKEN</code>), never in the browser. Each
+                character can have their own sample on its Voice tab; this one reads narration and anyone without one.
+              </p>
+              <VoiceSampleField
+                label="Narrator and default voice"
+                value={ttsVoice}
+                onChange={(file) => setVoiceConfig({ ttsVoice: file })}
+                uploadLabel="Narrator"
+              />
+            </>
+          )}
 
           {ttsProvider === 'koboldcpp' && (
             <>
