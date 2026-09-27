@@ -30,6 +30,9 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
+import { DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, campaignFileFrom, parseCampaignFile, type CampaignConfig, type PbtaMove } from '@/lib/world/campaign'
+import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
+import type { PromptItem } from '@/lib/prompt/items'
 
 const GIFT_RARITIES: GiftRarity[] = ['common', 'uncommon', 'rare', 'epic']
 const RELATIONSHIP_DELTA_DIMENSIONS: ('affection' | RelationshipDimension)[] = [
@@ -56,6 +59,7 @@ function blankWorld(template?: WorldTemplateId): Omit<WorldCard, 'id' | 'created
     rules: def?.rules ?? '',
     lorebook: { name: '', entries: [], token_budget: 512, scan_depth: 8 },
     template,
+    campaign: { ...DEFAULT_CAMPAIGN },
   }
 }
 
@@ -207,6 +211,8 @@ export function WorldsView({
 
 const WORLD_TABS: EditorTab[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'campaign', label: 'Campaign' },
+  { id: 'prompts', label: 'Prompts' },
   { id: 'lore', label: 'Lore' },
   { id: 'scenes', label: 'Scenes' },
   { id: 'dating', label: 'Dating sim' },
@@ -230,6 +236,11 @@ function WorldEditor({
   const [name, setName] = useState(base.name)
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
+  const [campaign, setCampaign] = useState<CampaignConfig>(base.campaign ?? { ...DEFAULT_CAMPAIGN })
+  const [promptItems, setPromptItems] = useState<PromptItem[]>(base.promptItems ?? [])
+  const [canonFacts, setCanonFacts] = useState<NonNullable<WorldCard['canonFacts']>>(base.canonFacts ?? [])
+  const [openedCanonIds] = useState(() => new Set((base.canonFacts ?? []).map((fact) => fact.id)))
+  const [newCanonFact, setNewCanonFact] = useState('')
   const [template, setTemplate] = useState<WorldTemplateId>(normalizeWorldTemplateId(base.template))
   const [lorebook, setLorebook] = useState(base.lorebook)
   const [avatarDataUrl, setAvatarDataUrl] = useState(base.avatarDataUrl)
@@ -285,6 +296,9 @@ function WorldEditor({
       name,
       description,
       rules,
+      campaign,
+      promptItems,
+      canonFacts,
       template,
       lorebook,
       avatarDataUrl,
@@ -309,7 +323,13 @@ function WorldEditor({
       triggers,
     }
     try {
-      if (world) await worldsApi.update(world.id, payload)
+      if (world) {
+        // A chat can commit a world fact while this editor is open. Keep those new facts when
+        // saving unrelated world settings, while respecting removals made in this editor.
+        const latest = await worldsApi.get(world.id)
+        const addedElsewhere = (latest?.canonFacts ?? []).filter((fact) => !openedCanonIds.has(fact.id))
+        await worldsApi.update(world.id, { ...payload, canonFacts: [...canonFacts, ...addedElsewhere] })
+      }
       else await worldsApi.create(payload)
     } catch (e) {
       toastError(errorMessage(e))
@@ -595,6 +615,84 @@ function WorldEditor({
             </div>
           </div>
         </div>
+      )}
+
+      {tab === 'campaign' && (
+        <div className="space-y-6">
+          <Section title="Story rules" description="Choose how outcomes are decided for this world. Existing chats in this world use these settings." surface="bare">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setCampaign({ ...STARTER_PBTA_CAMPAIGN, moves: STARTER_PBTA_CAMPAIGN.moves.map((move) => ({ ...move })) })}>
+                Load starter PbtA moves
+              </Button>
+              <FileButton
+                accept=".json,application/json"
+                title="Replace these rules with a campaign file exported from this or another world"
+                onPick={async (files) => {
+                  try {
+                    setCampaign(parseCampaignFile(await files[0].text()))
+                    toastSuccess('Campaign loaded. Save the world to keep it.')
+                  } catch (e) {
+                    toastError(errorMessage(e))
+                  }
+                }}
+              >
+                Import campaign file
+              </FileButton>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const url = URL.createObjectURL(new Blob([campaignFileFrom(campaign)], { type: 'application/json' }))
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${campaign.ruleset.replace(/[^a-z0-9-_ ]/gi, '').trim() || 'campaign'}.campaign.json`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+              >
+                Export campaign file
+              </Button>
+            </div>
+            <TextField label="Ruleset" value={campaign.ruleset} onChange={(e) => setCampaign({ ...campaign, ruleset: e.target.value })} />
+            <TextField label="Version or edition" value={campaign.edition ?? ''} onChange={(e) => setCampaign({ ...campaign, edition: e.target.value })} />
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Chip on={campaign.mode === 'guided'} onClick={() => setCampaign({ ...campaign, mode: 'guided' })}>Guided outcomes</Chip>
+              <Chip on={campaign.mode === 'mechanical'} onClick={() => setCampaign({ ...campaign, mode: 'mechanical' })}>Roll for outcomes</Chip>
+            </div>
+            <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a 2d6 move result before the narrator describes it. The player chooses when to roll.</p>
+            <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.relationships} onChange={(e) => setCampaign({ ...campaign, relationships: e.target.checked, dating: e.target.checked && campaign.dating })} /> Use RP relationship scoring</label>
+            <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.dating} disabled={!campaign.relationships} onChange={(e) => setCampaign({ ...campaign, dating: e.target.checked })} /> Enable dating features</label>
+          </Section>
+          <Section title="Moves" description="These are editable campaign moves. Write the trigger and the consequence for each result tier." surface="bare">
+            <div className="space-y-4">
+              {campaign.moves.map((move, index) => {
+                const update = (patch: Partial<PbtaMove>) => setCampaign({ ...campaign, moves: campaign.moves.map((entry) => entry.id === move.id ? { ...entry, ...patch } : entry) })
+                return <div key={move.id} className="rounded-xl border border-border bg-bg-sunken p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm text-text">Move {index + 1}</strong><Button variant="secondary" onClick={() => setCampaign({ ...campaign, moves: campaign.moves.filter((entry) => entry.id !== move.id) })}>Remove</Button></div>
+                  <TextField label="Name" value={move.name} onChange={(e) => update({ name: e.target.value })} />
+                  <TextField label="When you..." value={move.trigger} onChange={(e) => update({ trigger: e.target.value })} />
+                  <TextField label="Stat" value={move.stat} onChange={(e) => update({ stat: e.target.value })} />
+                  <TextAreaField label="10+ result" value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
+                  <TextAreaField label="7–9 result" value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
+                  <TextAreaField label="6 or less result" value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
+                </div>
+              })}
+              <Button variant="secondary" onClick={() => setCampaign({ ...campaign, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: 'Resolve', strong: '', mixed: '', miss: '' }] })}>Add move</Button>
+            </div>
+          </Section>
+          <Section title="World canon" description="Confirmed facts shared by every chat in this world. Add only events that truly happened in the campaign." surface="bare">
+            <div className="space-y-2">
+              {canonFacts.map((fact) => <div key={fact.id} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm text-text"><span className="flex-1">{fact.text}</span><button type="button" className="text-danger" aria-label="Remove world fact" onClick={() => setCanonFacts(canonFacts.filter((item) => item.id !== fact.id))}>Remove</button></div>)}
+              <TextAreaField label="New canon fact" value={newCanonFact} onChange={(e) => setNewCanonFact(e.target.value)} rows={2} />
+              <Button variant="secondary" disabled={!newCanonFact.trim()} onClick={() => { setCanonFacts([...canonFacts, { id: newId(), text: newCanonFact.trim(), createdAt: Date.now() }]); setNewCanonFact('') }}>Add fact</Button>
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {tab === 'prompts' && (
+        <Section title="World prompts" description="Ordered instructions shared by every character in this world." surface="bare">
+          <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
+        </Section>
       )}
 
       {tab === 'lore' && (

@@ -10,9 +10,10 @@
 import type { Chat, WorldCard } from '@/lib/types'
 import { backgroundLabel, matchBackgroundKeyword, DEFAULT_BACKGROUNDS } from '@/lib/vn/backgrounds'
 import { getUnlockedBackgroundIds } from '@/lib/vn/unlocks'
+import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 
 /** Where a resolved background came from — surfaced in the stage's location caption so a guessed place reads as a guess. */
-export type BackgroundSource = 'tag' | 'event' | 'location' | 'text' | 'world-default' | 'locked-tag' | 'none'
+export type BackgroundSource = 'manual' | 'tag' | 'event' | 'location' | 'text' | 'world-default' | 'locked-tag' | 'none'
 
 export interface ResolvedBackground {
   /** The chosen background id, or undefined when nothing anywhere suggested a place. */
@@ -33,6 +34,8 @@ export interface ResolveBackgroundParams {
   narration?: string
   /** World clock is dark, so prefer `backgroundsNight` art. */
   night?: boolean
+  /** The player's in-chat scenery choice (`vn/scenery.ts`). A pinned background outranks every tag. */
+  scenery?: SceneryChoice
 }
 
 /** An id is only usable if the world hasn't gated it behind more affection than the player has. */
@@ -54,13 +57,17 @@ function candidates(world: WorldCard | undefined, affection: number): { id: stri
 }
 
 export function resolveSceneBackground(params: ResolveBackgroundParams): ResolvedBackground {
-  const { taggedBackground, chat, world, affection, narration, night } = params
+  const { taggedBackground, chat, world, affection, narration, scenery } = params
+  const night = sceneryIsNight(scenery, !!params.night)
 
   const withArt = (id: string | undefined, source: BackgroundSource): ResolvedBackground => {
     if (!id) return { source: 'none' }
     const url = (night && world?.backgroundsNight?.[id]) || world?.backgrounds?.[id] || undefined
     return { id, url, source }
   }
+
+  // 0. The player pinned this place from the in-chat picker. Model tags don't move it (see `vn/scenery.ts`).
+  if (scenery?.backgroundId) return withArt(scenery.backgroundId, 'manual')
 
   // 1. What the model tagged this very line with, whenever it's a place the player can actually see.
   if (unlocked(taggedBackground, world, affection)) return withArt(taggedBackground, 'tag')

@@ -169,9 +169,11 @@ export interface RelationshipTrack {
 /**
  * Group-chat turn policy — who replies next. `manual`: the Composer's "reply as" picker decides.
  * `round_robin`: cycles the primary + every participant in order. `director`: a judge call picks
- * who'd respond. `mention`: an `@Name` routes to them, else falls back to the primary.
+ * who'd respond. `mention`: an `@Name` routes to them, else falls back to the primary. `gm`: the
+ * campaign's game master (`world/gm.ts`) adjudicates the player's action, narrates, and chooses
+ * which character agents act in order — only offered when the chat's world has a campaign.
  */
-export type ScenePolicy = 'manual' | 'round_robin' | 'director' | 'mention'
+export type ScenePolicy = 'manual' | 'round_robin' | 'director' | 'mention' | 'gm'
 
 export interface Scene {
   /** `null` clears just this field via `updateScene`'s partial-patch merge. */
@@ -185,6 +187,8 @@ export interface Scene {
    *  manually in the Scene panel or auto-detected from the player's narration; `null`/unset falls
    *  back to the world clock. Day-of-week still comes from the world clock. */
   timePhase?: DayPhase | null
+  /** Scenery chosen before the chat had any messages. Later choices live on messages (`vn/scenery.ts`). */
+  scenery?: import('@/lib/vn/scenery').SceneryChoice | null
 }
 
 /** A discrete, durable fact about the user worth recalling later, distinct from `Chat.summary`'s lossy rolling prose. Fed into the prompt as a synthetic lorebook entry (`useChatSession.ts`'s `buildCurrentPrompt`). */
@@ -334,6 +338,12 @@ export interface StoredMessage extends ChatMessage {
   continuityFlag?: string | null
   /** Snapshot of this message right before its most recent "Continue" appended a segment — lets the player undo it (restore this) or regenerate just that segment (re-continue from here). Cleared on a fresh generation/swipe/edit; `null` clears it. */
   continueUndo?: { text: string; rawText?: string; scene?: SceneTag } | null
+  /** Set on a Game Master turn (`world/gm.ts`): the GM's full decision, including proposals and the player's confirmations. */
+  gm?: import('@/lib/world/gm').GmTurn
+  /** A PbtA move the player rolled with this (user) message. Binding on the GM turn that follows. */
+  campaignRoll?: import('@/lib/world/gm').RecordedMove
+  /** A scenery choice the player made while this was the latest message of the branch (`vn/scenery.ts`). */
+  scenery?: import('@/lib/vn/scenery').SceneryChoice
 }
 
 /** 10b: how a player meant a tagged line. Labels/judge behavior live in `src/lib/dating/intent.ts`. */
@@ -479,6 +489,12 @@ export interface WorldInfoBook {
 export interface WorldCard {
   id: string
   name: string
+  /** Optional storytelling campaign configuration; unset worlds keep Lost Tales Engine behavior. */
+  campaign?: import('@/lib/world/campaign').CampaignConfig
+  /** Ordered setting prompts shared by everyone in this world. */
+  promptItems?: import('@/lib/prompt/items').PromptItem[]
+  /** Player-confirmed facts shared across every chat using this world. */
+  canonFacts?: { id: string; text: string; createdAt: number; sourceChatId?: string }[]
   /** Setting, tone, general facts — always included in the prompt for any character in this world. */
   description: string
   /** Hard constraints (magic system, tech level, taboos) the model should never contradict. */

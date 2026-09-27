@@ -7,6 +7,7 @@ import { applyRegexScripts } from '@/lib/text/regexScripts'
 import type { RegexScript } from '@/lib/types'
 import type { InstructTemplate } from './instructTemplates'
 import { DEFAULT_SYSTEM_PROMPT, IMPERSONATION_SYSTEM_PROMPT } from './systemPrompts'
+import { renderPromptItems, type PromptItem } from './items'
 
 export { DEFAULT_SYSTEM_PROMPT }
 export type { SystemPromptPreset } from './systemPrompts'
@@ -59,6 +60,10 @@ export interface ChatMessage {
 
 export interface PromptBuildInput {
   character: CharacterCardData
+  /** Ordered authored prompts belonging only to the active speaker. */
+  characterPromptItems?: PromptItem[]
+  /** Ordered setting prompts shared by speakers in this world. */
+  worldPromptItems?: PromptItem[]
   /** Pre-built life-context/voice note from `Character` fields not on the portable `CharacterCardData`. Folded into the identity block. */
   characterProfile?: string
   personaName: string
@@ -176,6 +181,8 @@ export interface PromptBuildResult {
   /** `systemText` and `conversationText` are the same two pieces joined into `prompt`, exposed separately for a hosted chat-completion backend that wants a proper system/user pair instead of one flat string. */
   systemText: string
   conversationText: string
+  /** Native chat roles for hosted backends, including imported user/assistant examples. */
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[]
 }
 
 export { estimateTokens }
@@ -194,7 +201,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
   const sections = { ...DEFAULT_PROMPT_SECTIONS, ...input.promptSections }
 
   const macroCtx = { charName: character.name || 'Character', userName: personaName || 'User' }
-  const sub = (text: string | undefined) => substituteMacros(text ?? '', macroCtx)
+  const sub = (text: string | undefined) => substituteMacros((text ?? '').replace(/\{\{this_card\}\}/gi, macroCtx.charName), macroCtx)
 
   // Honor the deepest scan_depth requested by any book; never narrower than the default.
   const effectiveScanDepth = lorebooks.reduce((max, b) => Math.max(max, b.scan_depth ?? 0), scanDepth)
@@ -223,6 +230,14 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     input.characterProfile?.trim() ? sub(input.characterProfile) : '',
   ].filter(Boolean)
   const descriptionBlock = descriptionParts.join('\n')
+  const characterPromptBlock = sub(['system', 'user', 'assistant'].map((role) => renderPromptItems(input.characterPromptItems, role as PromptItem['role'])).filter(Boolean).join('\n\n'))
+  const worldPromptBlock = sub(['system', 'user', 'assistant'].map((role) => renderPromptItems(input.worldPromptItems, role as PromptItem['role'])).filter(Boolean).join('\n\n'))
+  const rolePromptItems = [
+    ...(sections.world ? input.worldPromptItems ?? [] : []),
+    ...(sections.description ? input.characterPromptItems ?? [] : []),
+  ].filter((item) => item.enabled && !item.importWarning && item.content.trim())
+    .map((item) => ({ role: item.role, content: sub(item.content.trim()) }))
+  const rolePromptText = rolePromptItems.map((item) => `[${item.role} prompt item]\n${item.content}`).join('\n\n')
 
   const participantsBlock =
     input.participants && input.participants.length > 0
@@ -275,7 +290,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
   // Wrap everything above the chat history in the template's system/opening turn markers (a no-op for `plain-chat`).
   const fixedInner = fixedSections.join('\n\n')
   const fixedText = fixedInner ? `${template.systemPrefix}${fixedInner}${template.systemSuffix}` : ''
-  const fixedTokens = await countTokens(fixedText)
+  const fixedTokens = await countTokens([fixedText, rolePromptText].filter(Boolean).join('\n\n'))
   const authorNoteAtDepthTokens =
     authorNoteText && authorNotePosition === 'at_depth' ? await countTokens(authorNoteText) : 0
 
@@ -400,7 +415,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
   const historyText = includedTurns.map((t) => t.text).join('')
   const tailParts = [historyText, postHistoryBlock].filter(Boolean)
   const tail = tailParts.length ? `${tailParts.join('\n\n')}\n\n${genCue}` : genCue
-  const prompt = [fixedText, tail].filter(Boolean).join('\n\n')
+  const prompt = [fixedText, rolePromptText, tail].filter(Boolean).join('\n\n')
   const tokensUsed =
     fixedTokens + postHistoryTokens + genCueTokens + includedTurns.reduce((sum, t) => sum + t.tokens, 0)
 
@@ -411,9 +426,12 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
       { id: 'system', label: 'System prompt', text: sections.system ? systemBlock : '' },
       { id: 'summary', label: 'Long-term memory summary', text: sections.summary ? summaryBlock : '' },
       { id: 'world', label: 'World / setting description', text: sections.world ? worldBlock : '' },
+      { id: 'worldPromptItems', label: 'World prompt items', text: sections.world ? worldPromptBlock : '' },
       { id: 'worldMoment', label: 'World right now (time, weather, scene)', text: worldMomentBlock },
       { id: 'worldInfo', label: 'World info (activated lore)', text: worldInfoBlock },
       { id: 'description', label: 'Character description', text: sections.description ? descriptionBlock : '' },
+      { id: 'characterPromptItems', label: 'Character prompt items', text: sections.description ? characterPromptBlock : '' },
+      { id: 'rolePromptItems', label: 'User / assistant prompt items', text: rolePromptText },
       { id: 'participants', label: 'Other participants roster', text: sections.participants ? participantsBlock : '' },
       { id: 'persona', label: 'Persona description', text: sections.persona ? personaBlock : '' },
       { id: 'examples', label: 'Example messages', text: exampleBlock },
@@ -443,6 +461,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     worldInfoState,
     systemText: fixedText,
     conversationText: tail,
+    messages: [{ role: 'system', content: fixedText }, ...rolePromptItems, { role: 'user', content: tail }],
   }
 }
 

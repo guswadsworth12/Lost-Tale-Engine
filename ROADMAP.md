@@ -1,4 +1,4 @@
-# RP Suite Roadmap
+# Lost Tales Engine Roadmap
 
 Living to-do list for turning this SillyTavern-style local RP client into a modern
 visual-novel/anime-inspired RP + dating-sim suite. Checked items are implemented and

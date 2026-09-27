@@ -298,7 +298,7 @@ export class OpenAICompatibleClient implements ChatBackend {
         if (model.availability === 'offline') return { ok: false, detail: 'This model has no providers online. Choose another model or check again later.' }
         return { ok: true, detail: 'Catalog reachable. Your key and credit are checked on your first reply; this check spends no credit.' }
       } catch {
-        return { ok: false, detail: 'Could not load the OpenMayhem catalog through the RP Suite server.' }
+        return { ok: false, detail: 'Could not load the OpenMayhem catalog through the Lost Tales Engine server.' }
       }
     }
     const trimmed = this.baseUrl.replace(/\/+$/, '')

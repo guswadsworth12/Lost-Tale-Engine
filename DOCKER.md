@@ -1,4 +1,4 @@
-# Running RP Suite in Docker
+# Running Lost Tales Engine in Docker
 
 The image runs the whole app from one Node process — the Express API and the built client on a
 single port (3001 by default). Your text/image model backend (KoboldCpp, LM Studio, an API

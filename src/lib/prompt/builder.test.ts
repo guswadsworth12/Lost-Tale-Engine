@@ -32,6 +32,23 @@ function baseInput(overrides: Partial<PromptBuildInput> = {}): PromptBuildInput 
 }
 
 describe('buildPrompt — instruct template affixes', () => {
+  it('keeps enabled prompt items in order and preserves native chat roles', async () => {
+    const result = await buildPrompt(baseInput({
+      worldPromptItems: [{ id: '1', name: 'world', content: 'World rule for {{this_card}}', role: 'system', enabled: true }],
+      characterPromptItems: [
+        { id: '2', name: 'example user', content: 'Ask gently', role: 'user', enabled: true },
+        { id: '3', name: 'example reply', content: 'I need time.', role: 'assistant', enabled: true },
+        { id: '4', name: 'disabled', content: 'Do not include', role: 'system', enabled: false },
+      ],
+    }))
+    expect(result.messages.slice(1, 4)).toEqual([
+      { role: 'system', content: 'World rule for Aria' },
+      { role: 'user', content: 'Ask gently' },
+      { role: 'assistant', content: 'I need time.' },
+    ])
+    expect(result.prompt).not.toContain('Do not include')
+  })
+
   it('wraps the whole fixed block (system + description) in the template system markers', async () => {
     const result = await buildPrompt(
       baseInput({

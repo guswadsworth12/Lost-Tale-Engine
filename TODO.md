@@ -1,4 +1,4 @@
-# RP Suite — TODO
+# Lost Tales Engine — TODO
 
 A prioritized, actionable list from a full codebase re-read (Sept 2026) plus a competitor/genre
 survey. Complements `ROADMAP.md` (which is now mostly a changelog): this is the "what next and why"

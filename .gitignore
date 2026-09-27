@@ -5,6 +5,7 @@ dist-ssr
 .DS_Store
 .env
 .env.*
+!.env.example
 
 # Your actual character/chat/world data — lives on disk now, not in the browser.
 data/

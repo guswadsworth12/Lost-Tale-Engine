@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { Chip } from '@/components/ui/Chip'
 import { Section } from '@/components/ui/Section'
+import { VrmModelField } from './VrmModelField'
 import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
@@ -44,6 +45,9 @@ import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { getGiftCatalog } from '@/lib/dating/gifts'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
+import type { PromptItem } from '@/lib/prompt/items'
+import { parseTavernAi2Card } from '@/lib/characters/tavernAi2Import'
+import { PromptItemsEditor } from './PromptItemsEditor'
 import { OpenMayhemVoiceField } from '@/components/settings/OpenMayhemVoiceField'
 import { maximumImmersionChecklist, maximumImmersionSamplerParams, maximumImmersionSystemPrompt } from '@/lib/prompt/immersionPreset'
 import {
@@ -81,6 +85,7 @@ function fixedFieldHint(base: ReactNode, value: string): ReactNode {
 
 const TABS: EditorTab[] = [
   { id: 'identity', label: 'Identity' },
+  { id: 'prompts', label: 'Prompts' },
   { id: 'life', label: 'Life & background' },
   { id: 'vn', label: 'Visual novel' },
   { id: 'dating', label: 'Dating sim' },
@@ -184,6 +189,9 @@ export function CharacterEditor({
 }) {
   const [tab, setTab] = useState('identity')
   const [form, setForm] = useState(character?.card ?? blankCharacterData())
+  const [promptItems, setPromptItems] = useState<PromptItem[]>(character?.promptItems ?? [])
+  const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
+  const [modelOverride, setModelOverride] = useState(character?.modelOverride ?? '')
   const [avatarDataUrl, setAvatarDataUrl] = useState(character?.avatarDataUrl)
   const [sprites, setSprites] = useState<Record<string, string>>(character?.sprites ?? {})
   const [spriteUnlocks, setSpriteUnlocks] = useState<Record<string, number>>(character?.spriteUnlocks ?? {})
@@ -191,6 +199,7 @@ export function CharacterEditor({
   const [customExpressions, setCustomExpressions] = useState<CustomExpression[]>(character?.customExpressions ?? [])
   const [newExpressionLabel, setNewExpressionLabel] = useState('')
   const [outfits, setOutfits] = useState<Outfit[]>(character?.outfits ?? [])
+  const [vrm, setVrm] = useState<Character['vrm']>(character?.vrm)
   /** Which wardrobe state the sprite grid below is currently editing. Purely editor-local — never saved. */
   const [activeOutfit, setActiveOutfit] = useState<string>(BASE_OUTFIT_ID)
   const [newOutfitLabel, setNewOutfitLabel] = useState('')
@@ -252,6 +261,10 @@ export function CharacterEditor({
 
   useEffect(() => {
     setForm(character?.card ?? blankCharacterData())
+    setPromptItems(character?.promptItems ?? [])
+    setPrivateMemory(character?.privateMemory ?? '')
+    setModelOverride(character?.modelOverride ?? '')
+    setVrm(character?.vrm)
     setAvatarDataUrl(character?.avatarDataUrl)
     setSprites(character?.sprites ?? {})
     setSpriteVariants(character?.spriteVariants ?? {})
@@ -413,6 +426,10 @@ export function CharacterEditor({
     setSaving(true)
     const payload = {
       card: form,
+      promptItems,
+      privateMemory,
+      modelOverride: modelOverride.trim() || null,
+      vrm: vrm ?? null,
       avatarDataUrl,
       sprites,
       spriteUnlocks,
@@ -641,6 +658,18 @@ export function CharacterEditor({
 
   const handleImportFile = async (file: File) => {
     try {
+      if (file.name.toLowerCase().endsWith('.json')) {
+        const imported = parseTavernAi2Card(JSON.parse(await file.text()))
+        if (imported) {
+          setForm((current) => ({ ...current, name: imported.name }))
+          if (imported.avatarDataUrl) setAvatarDataUrl(imported.avatarDataUrl)
+          setPromptItems(imported.promptItems)
+          setTab('prompts')
+          toastSuccess(`Imported ${imported.promptItems.length} TavernAI 2 prompt items for ${imported.name}.`)
+          if (imported.disabledCount) toastInfo(`${imported.disabledCount} item(s) with TavernAI rules or macros are disabled for review.`)
+          return
+        }
+      }
       applyImport(await importCharacterFile(file))
     } catch (e) {
       toastError(errorMessage(e))
@@ -857,6 +886,18 @@ export function CharacterEditor({
             onChange={(e) => set('mes_example', e.target.value)}
           />
         </div>
+      )}
+
+      {tab === 'prompts' && (
+        <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. These items enter context only when this character speaks." surface="bare">
+          <div className="mb-4">
+            <FileButton onPick={(files) => handleImportFile(files[0])} accept=".json">
+              Import TavernAI 2 card prompts
+            </FileButton>
+          </div>
+          <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
+          <TextAreaField label="Private memory" hint="Only this character sees these notes when speaking. Use this for beliefs, secrets, and promises that should not become shared world canon." value={privateMemory} onChange={(e) => setPrivateMemory(e.target.value)} rows={6} />
+        </Section>
       )}
 
       {tab === 'life' && (
@@ -1260,6 +1301,8 @@ export function CharacterEditor({
             </Button>
           </div>
         </Section>
+
+        <VrmModelField value={vrm} onChange={setVrm} />
 
         <Section
           title="Sound effects"
@@ -1854,6 +1897,12 @@ export function CharacterEditor({
                 </optgroup>
               )}
             </SelectField>
+            <TextField
+              label="Speaker model override"
+              hint="For the configured OpenAI-compatible or NovelAI provider. Leave blank to use the global model. Each character keeps its own prompt and context."
+              value={modelOverride}
+              onChange={(e) => setModelOverride(e.target.value)}
+            />
             <SelectField
               label="Reply length"
               hint={

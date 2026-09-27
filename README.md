@@ -1,4 +1,8 @@
-# RP Suite
+# Lost Tales Engine
+
+A story engine forked from [RP Suite](https://github.com/pnotisdev/rp): TavernAI-style ordered prompts, separate character agents, a Game Master, and optional TTRPG rulesets. See [docs/CAMPAIGN_ENGINE.md](docs/CAMPAIGN_ENGINE.md).
+
+Your characters, chats, worlds and art are never part of this repository: they live in `data/` (git-ignored), or in any folder you name with `LOST_TALES_DATA_DIR` in a git-ignored `.env` (see `.env.example`).
 
 A roleplay client that runs entirely on your own machine, built around a dating sim rather than bolted onto one.
 
@@ -12,7 +16,7 @@ The catch with letting a model score its own relationship is that it will happil
 
 The interface stays out of the way: one accent colour, a lot of empty space, and the dense settings hidden until you go looking for them.
 
-Characters, chats, worlds and personas live in a SQLite file under `data/`, alongside the real image and audio files they reference. Local model inference can stay on your machine; choosing a hosted provider sends prompts to that provider. RP Suite itself requires no account and has no telemetry.
+Characters, chats, worlds and personas live in a SQLite file under `data/`, alongside the real image and audio files they reference. Local model inference can stay on your machine; choosing a hosted provider sends prompts to that provider. Lost Tales Engine itself requires no account and has no telemetry.
 
 ## Setup
 
@@ -55,13 +59,13 @@ Each chat backend reports its connection state in the header. The chat connectio
 
 ### OpenMayhem
 
-Choose **OpenAI-compatible → OpenMayhem** in Settings → Connection, or select OpenMayhem in the welcome screen's cloud provider list. The setup links take you to account creation, the current free-credit offer when available, and API key creation. Claim credits on OpenMayhem, create a key with Chat permission, paste it into RP Suite, and choose a model from the live catalog.
+Choose **OpenAI-compatible → OpenMayhem** in Settings → Connection, or select OpenMayhem in the welcome screen's cloud provider list. The setup links take you to account creation, the current free-credit offer when available, and API key creation. Claim credits on OpenMayhem, create a key with Chat permission, paste it into Lost Tales Engine, and choose a model from the live catalog.
 
-OpenMayhem uses `https://api.openmayhem.ai/v1`. Requests pass through RP Suite's local server because the hosted API currently restricts browser origins. The server forwards your key without storing it. Replies and background scoring both use your credit. The free-credit amount and availability come from OpenMayhem, and eligibility/verification are handled there.
+OpenMayhem uses `https://api.openmayhem.ai/v1`. Requests pass through Lost Tales Engine's local server because the hosted API currently restricts browser origins. The server forwards your key without storing it. Replies and background scoring both use your credit. The free-credit amount and availability come from OpenMayhem, and eligibility/verification are handled there.
 
 The connection check reads the public catalog without spending credit; it does **not** validate your key or balance. Those are checked on your first inference request. See [OpenMayhem integration notes](OPENMAYHEM.md) for behavior, research, and validation limits.
 
-For images and speech, choose **OpenMayhem** in **Settings > Images** and **Settings > Voice**. One OpenMayhem key is shared across chat, images and voice. Enable Chat, Images, Audio Speech and Workflows permissions for the features you use. The image picker includes **Z-Image Turbo**, **Krea 2 Turbo** and **Krea 2 Quality** when available. Krea uses its base model and published preset without additional LoRAs; RP Suite handles the workflow automatically. Voice options also come from the selected model. The image preview and voice test perform real, billed generation.
+For images and speech, choose **OpenMayhem** in **Settings > Images** and **Settings > Voice**. One OpenMayhem key is shared across chat, images and voice. Enable Chat, Images, Audio Speech and Workflows permissions for the features you use. The image picker includes **Z-Image Turbo**, **Krea 2 Turbo** and **Krea 2 Quality** when available. Krea uses its base model and published preset without additional LoRAs; Lost Tales Engine handles the workflow automatically. Voice options also come from the selected model. The image preview and voice test perform real, billed generation.
 
 All three model lists load every catalog page and refresh every 30 seconds and on window focus. Only compatible models with available, non-stale providers are selectable. New models using supported image/chat/speech interfaces or supported Krea base-image workflow metadata appear automatically; other workflow families need an adapter. Images use model sampling defaults and slot dimensions adapted to its limits. Stop requests media-job cancellation; completed work may still cost credit. Generated assets saved to a character or world remain stored locally.
 

@@ -93,7 +93,7 @@ export function VoiceSettings() {
     <SettingsPage>
       <Section
         title="Voice (text-to-speech)"
-        description="Read a character's lines aloud from Visual Novel mode. Keys are stored in this browser. OpenMayhem uses RP Suite's local relay; other providers are contacted directly."
+        description="Read a character's lines aloud from Visual Novel mode. Keys are stored in this browser. OpenMayhem uses Lost Tales Engine's local relay; other providers are contacted directly."
       >
           <label className="mb-3 block">
             <span className="mb-1 block text-xs font-medium text-text-muted">Provider</span>

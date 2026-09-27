@@ -14,7 +14,11 @@ export function useSpriteCrossfade(src: string | undefined) {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
-    if (src === displaySrc) return
+    // A→B→A inside one fade cancels B's timer below; without this the sprite would stay faded out.
+    if (src === displaySrc) {
+      setVisible(true)
+      return
+    }
     setVisible(false)
     const t = setTimeout(() => {
       setDisplaySrc(src)

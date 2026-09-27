@@ -38,7 +38,7 @@ export function nodeIsSupported() {
 /** Abort with an actionable message if this Node can't run the app. */
 export function requireNode() {
   if (nodeIsSupported()) return
-  fail(`RP Suite needs Node ${MIN_NODE.join('.')} or newer — you have ${process.versions.node}.`, [
+  fail(`Lost Tales Engine needs Node ${MIN_NODE.join('.')} or newer — you have ${process.versions.node}.`, [
     "The server runs TypeScript directly and stores data in Node's built-in SQLite,",
     'both of which need a recent Node. Node 24 LTS is what this is developed against.',
     '',

@@ -130,6 +130,12 @@ export interface CharacterCardV2 {
 export interface Character {
   id: string
   card: CharacterCardData
+  /** Ordered prompt items for this character, including imported TavernAI 2 card prompts. */
+  promptItems?: import('@/lib/prompt/items').PromptItem[]
+  /** User-authored private memory available only when this character speaks. */
+  privateMemory?: string
+  /** Model id for this speaker on the configured hosted provider. Empty uses the global model. */
+  modelOverride?: string
   avatarDataUrl?: string
   /** The world this character lives in, if any. */
   worldId?: string
@@ -140,6 +146,10 @@ export interface Character {
   spriteUnlocks?: Record<string, number>
   /** Item 11: extra alternate art per sprite key, keyed the same way as `sprites` — `resolveExpressionSprite` picks one of `[sprites[key], ...spriteVariants[key]]` per showing, for visual variety on a slot that's used a lot. */
   spriteVariants?: Record<string, string[]>
+  /** Content hash per sprite key, written by the sprite-library importer so a re-run skips unchanged art. */
+  spriteSources?: Record<string, string>
+  /** Optional 3D model for Visual Novel mode (`vn/vrm.ts`). The 2D sprites stay the fallback. */
+  vrm?: { url: string; enabled: boolean; label?: string }
   /** Wardrobe states beyond the base look (vn/outfits.ts); the base outfit is implicit. */
   outfits?: Outfit[]
   /** Expression slots beyond the built-in default set (vn/expressions.ts). */

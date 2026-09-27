@@ -63,6 +63,8 @@ export function MessageLog({
           const avatarDataUrl =
             m.role !== 'char'
               ? persona?.avatarDataUrl
+              : m.gm
+                ? undefined // the GM has no portrait; its initials avatar keeps it visibly distinct from the cast
               : !m.speakerId
                 ? character?.avatarDataUrl
                 : (participantCharacters.find((c) => c.id === m.speakerId)?.avatarDataUrl ?? character?.avatarDataUrl)

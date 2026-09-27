@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export const dataDir = path.resolve(__dirname, '..', 'data')
+// A git-ignored `.env` at the project root can keep user data outside the code checkout
+// (`LOST_TALES_DATA_DIR=/path/to/data`). Variables already set in the environment win over it.
+const envFile = path.resolve(__dirname, '..', '.env')
+if (fs.existsSync(envFile)) process.loadEnvFile(envFile)
+const configuredDataDir = process.env.LOST_TALES_DATA_DIR || process.env.RP_DATA_DIR
+export const dataDir = configuredDataDir ? path.resolve(configuredDataDir) : path.resolve(__dirname, '..', 'data')
 export const avatarsDir = path.join(dataDir, 'avatars')
 fs.mkdirSync(avatarsDir, { recursive: true })
 

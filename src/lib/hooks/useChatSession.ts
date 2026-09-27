@@ -12,6 +12,24 @@ import { collectImageBase64, composeMessageText, type PendingAttachment } from '
 import { makeGenKey } from '@/lib/api/kobold'
 import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithTimeout'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { createChatBackend } from '@/lib/api/createChatBackend'
+import type { ChatBackend } from '@/lib/api/chatBackend'
+import { campaignPrompt } from '@/lib/world/campaign'
+import {
+  GM_NAME,
+  GM_SPEAKER_ID,
+  branchConsequencesFrom,
+  buildGmPrompt,
+  formatGmMessage,
+  gmDirectionFor,
+  isPlayerCharacter,
+  parseGmTurn,
+  fallbackGmTurn,
+  type GmContext,
+  type GmTurn,
+  type RecordedMove,
+} from '@/lib/world/gm'
+import { currentScenery, describeScenery, pinnedSceneryGuidance, sceneryIsNight } from '@/lib/vn/scenery'
 import { BUILTIN_SYSTEM_PROMPTS, buildPrompt, estimateTokens, type ChatMessage, type StyleGuidanceItem } from '@/lib/prompt/builder'
 import { countTokensCached } from '@/lib/tokenCache'
 import { SUMMARY_MAX_LENGTH, summarizeMessages } from '@/lib/prompt/summarize'
@@ -78,6 +96,7 @@ import {
   getEnergyRemaining,
   getWeather,
   PHASES,
+  isNightPhase,
   spendEnergy,
 } from '@/lib/world/calendar'
 import { dateEventCardForActivity, type DayPlannerActivity } from '@/lib/world/dayPlanner'
@@ -400,6 +419,10 @@ export function useChatSession(chatId: string | null) {
   const sampler = useSettingsStore((s) => s.sampler)
   const reasoningTokenReserve = useSettingsStore((s) => s.reasoningTokenReserve)
   const chatBackend = useSettingsStore((s) => s.chatBackend)
+  const baseUrl = useSettingsStore((s) => s.baseUrl)
+  const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
+  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
+  const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
   const chatCompletionSampler = useSettingsStore((s) => s.chatCompletionSampler)
   const instructTemplateId = useSettingsStore((s) => s.instructTemplateId)
   const autoSummarize = useSettingsStore((s) => s.autoSummarize)
@@ -422,6 +445,7 @@ export function useChatSession(chatId: string | null) {
   const promptSections = useSettingsStore((s) => s.promptSections)
   const setActiveChatId = useSettingsStore((s) => s.setActiveChatId)
   const client = useChatBackendClient()
+  const activeGenerationClientRef = useRef<ChatBackend | null>(null)
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
   const chat = useApiQuery('chats', () => (chatId ? chatsApi.get(chatId) : Promise.resolve(undefined)), [chatId])
@@ -532,7 +556,7 @@ export function useChatSession(chatId: string | null) {
       )
   }, [])
   // Fixed order so the strip doesn't reshuffle as tasks finish at different times.
-  const assistActivity = ['relationship', 'rapport', 'choices', 'tasks', 'summary', 'vision']
+  const assistActivity = ['gm', 'relationship', 'rapport', 'choices', 'tasks', 'summary', 'vision']
     .map((k) => assistTasks[k])
     .filter((label): label is string => !!label)
 
@@ -588,15 +612,16 @@ export function useChatSession(chatId: string | null) {
       if (!speaker) return null
       // Fresh read — the reactive `chat` closure can be one render behind a summary update that just landed.
       const freshChat = (await chatsApi.get(chat.id)) ?? chat
-      // Every character in the scene contributes their own lore, not just whoever's speaking. `sourceKey` keeps sticky/cooldown state stable turn to turn.
-      const lorebooks: Lorebook[] = [speaker, ...roster]
-        .filter((c) => !!c.card.character_book)
-        .map((c) => ({ ...c.card.character_book!, sourceKey: `char:${c.id}` }))
+      // Only the active speaker's private card lore enters this request. Other characters are
+      // represented by their names and the public chat transcript, so secrets do not bleed across agents.
+      const lorebooks: Lorebook[] = speaker.card.character_book
+        ? [{ ...speaker.card.character_book, sourceKey: `char:${speaker.id}` }]
+        : []
       const boundBooks = worldInfoBooks
         .filter((b) =>
           bookAppliesToChat(b, {
             chatId: freshChat.id,
-            characterId: character.id,
+            characterId: speaker.id,
             worldId: character.worldId,
           }),
         )
@@ -604,6 +629,7 @@ export function useChatSession(chatId: string | null) {
       const worldLorebook = world?.lorebook ? [{ ...world.lorebook, sourceKey: `world:${world.id}` }] : []
       const factsLorebook = buildFactsLorebook(activeFacts).map((b) => ({ ...b, sourceKey: 'facts' }))
       const affection = freshChat.affection ?? 0
+      const datingFeaturesEnabled = world?.campaign?.dating !== false
       // One read of the char-reply count for the whole build — every turn-scoped window check below keys off it.
       const charReplyCount = countCharReplies(messages)
       // Time-of-day for the prompt's scene framing: a per-chat `scene.timePhase` override (set in the
@@ -616,8 +642,11 @@ export function useChatSession(chatId: string | null) {
       // the clock advances or the scene moves, and would otherwise invalidate the KV cache for
       // every history token behind it each time it did.
       const worldDescriptionLines = world
-        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : ''].filter(Boolean)
+        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign ? campaignPrompt(world.campaign) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
         : []
+      // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
+      const branchMessages = await messagesApi.listByChat(freshChat.id)
+      const branchConsequences = branchConsequencesFrom(branchMessages)
       const worldMomentLines = [
         ...(world
           ? [
@@ -647,6 +676,8 @@ export function useChatSession(chatId: string | null) {
         // Location/atmosphere framing, independent of whether this chat has a bound World.
         freshChat.scene?.location ? `Scene location: ${freshChat.scene.location}` : '',
         freshChat.scene?.atmosphere ? `Scene atmosphere: ${freshChat.scene.atmosphere}` : '',
+        pinnedSceneryGuidance(currentScenery(branchMessages, freshChat.scene), world),
+        branchConsequences.length ? `Established in this story so far:\n${branchConsequences.map((c) => `- ${c}`).join('\n')}` : '',
       ].filter(Boolean)
       const worldDescription = worldDescriptionLines.length > 0 ? worldDescriptionLines.join('\n') : undefined
       const worldMoment = worldMomentLines.length > 0 ? worldMomentLines.join('\n') : undefined
@@ -932,13 +963,13 @@ export function useChatSession(chatId: string | null) {
       // Only meaningful when the primary is actually speaking — it's specific to {{user}}'s relationship with the primary.
       const relationshipDescription =
         !impersonating &&
-        effectiveAssistFlag(freshChat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) &&
+        world?.campaign?.relationships !== false && effectiveAssistFlag(freshChat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) &&
         speaker.id === character.id
           ? buildRelationshipDescription(freshChat, world, character)
           : undefined
       // The non-primary counterpart to the line above, so another speaking participant doesn't borrow the primary's own romantic warmth.
       const participantGuidance =
-        !impersonating && speaker.id !== character.id
+        datingFeaturesEnabled && !impersonating && speaker.id !== character.id
           ? participantRelationshipGuidance({
               speakerName: speaker.card.name,
               personaName: persona?.name || 'You',
@@ -1014,17 +1045,17 @@ export function useChatSession(chatId: string | null) {
             ...guidance(emDashRule, true),
             ...guidance(markupRule, true),
             ...guidance(
-              effectiveAssistFlag(freshChat.assistOverrides?.slowBurnPacing, slowBurnPacing)
+              datingFeaturesEnabled && effectiveAssistFlag(freshChat.assistOverrides?.slowBurnPacing, slowBurnPacing)
                 ? slowBurnPacingNote(speaker.card.name, speakerTrack.mood, speakerHoldingBackByPlan)
                 : '',
               true,
             ),
-            ...guidance(intimacyGuidance(intimacyLevel), true),
+            ...guidance(datingFeaturesEnabled ? intimacyGuidance(intimacyLevel) : '', true),
             ...guidance(vnProseLine, true),
-            ...guidance(intimacyOptions, true),
-            ...guidance(activityInitiativeGuidance, true),
-            ...guidance(afterglowLine, true),
-            ...guidance(explicitAftercareLine, true),
+            ...guidance(datingFeaturesEnabled ? intimacyOptions : '', true),
+            ...guidance(datingFeaturesEnabled ? activityInitiativeGuidance : '', true),
+            ...guidance(datingFeaturesEnabled ? afterglowLine : '', true),
+            ...guidance(datingFeaturesEnabled ? explicitAftercareLine : '', true),
             // Character-mind texture, most- to least-valuable — dropped from the bottom of this
             // run first (see `buildPrompt`'s drop loop), so mood (closest to voice) survives longest.
             ...guidance(moodLine),
@@ -1032,23 +1063,23 @@ export function useChatSession(chatId: string | null) {
             ...guidance(beliefsLine),
             ...guidance(expectationsLine),
             ...guidance(plansLine),
-            ...guidance(rebuffLine),
-            ...guidance(reciprocityLine),
-            ...guidance(stockRomancePhrasingLine),
-            ...guidance(escalationShapeLine),
-            ...guidance(intimacyAnticipationLine),
+            ...guidance(datingFeaturesEnabled ? rebuffLine : ''),
+            ...guidance(datingFeaturesEnabled ? reciprocityLine : ''),
+            ...guidance(datingFeaturesEnabled ? stockRomancePhrasingLine : ''),
+            ...guidance(datingFeaturesEnabled ? escalationShapeLine : ''),
+            ...guidance(datingFeaturesEnabled ? intimacyAnticipationLine : ''),
             ...guidance(repeatNudge ?? ''),
-            ...guidance(earlyEscalationLine),
-            ...guidance(intentLine),
+            ...guidance(datingFeaturesEnabled ? earlyEscalationLine : ''),
+            ...guidance(datingFeaturesEnabled ? intentLine : ''),
             ...guidance(fearLine),
             ...guidance(desireLine),
-            ...guidance(priorityLine),
+            ...guidance(datingFeaturesEnabled ? priorityLine : ''),
             // Back to essential: mechanics, safety guards, and concrete engine state.
             ...guidance(agencyGuardLine, true),
             ...guidance(sceneContinuityLine, true),
-            ...guidance(intimacySceneLine, true),
-            ...guidance(explicitSceneLine, true),
-            ...guidance(intimacyConsentTensionLine, true),
+            ...guidance(datingFeaturesEnabled ? intimacySceneLine : '', true),
+            ...guidance(datingFeaturesEnabled ? explicitSceneLine : '', true),
+            ...guidance(datingFeaturesEnabled ? intimacyConsentTensionLine : '', true),
             ...guidance(sceneNudge, true),
             ...guidance(scheduleConflictLine, true),
             ...guidance(triggerStyleLine, true),
@@ -1058,14 +1089,16 @@ export function useChatSession(chatId: string | null) {
             ...guidance(styleGuidanceNote.trim(), true),
             ...guidance(slopAvoidance ?? '', true),
             ...guidance(expressionRepeatLine, true),
-            ...guidance(sceneStateLine, true),
+            ...guidance(datingFeaturesEnabled ? sceneStateLine : '', true),
             ...guidance(opts?.extraStyleGuidance ?? '', true),
           ]
 
       const contextBudget = sampler.max_context_length - sampler.max_length - 32
       return buildPrompt({
         character: speaker.card,
-        characterProfile: buildCharacterProfileNote(speaker),
+        characterPromptItems: speaker.promptItems,
+        worldPromptItems: world?.promptItems,
+        characterProfile: [buildCharacterProfileNote(speaker), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : ''].filter(Boolean).join('\n\n'),
         personaName: persona?.name || 'You',
         personaDescription: persona?.description || '',
         globalSystemPrompt,
@@ -1116,9 +1149,7 @@ export function useChatSession(chatId: string | null) {
           currentOutfitId: currentOutfitFrom(messages),
         },
         affection,
-        participants: roster.length
-          ? roster.map((c) => ({ name: c.card.name, description: c.card.description, personality: c.card.personality }))
-          : undefined,
+        participants: roster.length ? roster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
     },
@@ -2437,6 +2468,10 @@ export function useChatSession(chatId: string | null) {
       if (!character || !chat) return
       const { active: speaker } = resolveSpeaker(opts?.speakerId)
       if (!speaker) return
+      const replyClient = speaker.modelOverride && chatBackend !== 'koboldcpp'
+        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendApiKey, chatBackendModel: speaker.modelOverride })
+        : client
+      activeGenerationClientRef.current = replyClient
       // Relationship tracking/rapport stay scoped to the primary; choice suggestions apply to anyone.
       const isPrimarySpeaker = speaker.id === character.id
       // Hard max_length ceiling from this speaker's reply-length band, so a terse character stays
@@ -2505,17 +2540,14 @@ export function useChatSession(chatId: string | null) {
           const builtForStats = built
           let newText = ''
           try {
-            newText = await client.generateStream(
+            newText = await replyClient.generateStream(
               {
                 ...generationParams,
                 max_length: effectiveMaxLength,
                 stop_sequence: stopSequence,
                 prompt: built.prompt,
                 // KoboldClient ignores this; OpenAICompatibleClient uses it for a proper system/user split.
-                messages: [
-                  { role: 'system', content: built.systemText },
-                  { role: 'user', content: built.conversationText },
-                ],
+                messages: built.messages,
                 genkey,
                 images: images.length ? images : undefined,
               },
@@ -2538,16 +2570,13 @@ export function useChatSession(chatId: string | null) {
           } catch (streamErr) {
             // Some builds/proxies block SSE — fall back to non-streaming.
             console.warn('Streaming generation failed, falling back to non-streaming:', streamErr)
-            newText = await client.generate(
+            newText = await replyClient.generate(
               {
                 ...generationParams,
                 max_length: effectiveMaxLength,
                 stop_sequence: stopSequence,
                 prompt: built.prompt,
-                messages: [
-                  { role: 'system', content: built.systemText },
-                  { role: 'user', content: built.conversationText },
-                ],
+                messages: built.messages,
                 genkey,
                 images: images.length ? images : undefined,
               },
@@ -2805,7 +2834,7 @@ export function useChatSession(chatId: string | null) {
         const shouldRunRelationshipJudge = !targetMsgForJudgeGate?.failed && !targetMsgForJudgeGate?.relationshipJudged
         // Scores whichever character actually spoke, not only the primary. Task-detection, when also due, rides along in this same judge call instead of a second request.
         let tasksHandledByMerge = false
-        if (effectiveAssistFlag(chat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) && !inLiveDate && shouldRunRelationshipJudge) {
+        if (world?.campaign?.relationships !== false && effectiveAssistFlag(chat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) && !inLiveDate && shouldRunRelationshipJudge) {
           const latestIntent = opts?.intent ?? [...messages].reverse().find((m) => m.role === 'user')?.intent
           // Marked judged NOW, while the caller still holds the generation lock — not inside the
           // fire-and-forget assist below, which finishes seconds later after the lock is released.
@@ -2880,6 +2909,7 @@ export function useChatSession(chatId: string | null) {
           await messagesApi.update(targetMessageId, { text: '', failed: true })
         }
       } finally {
+        activeGenerationClientRef.current = null
         setIsGenerating(false)
         setStreamingText('')
         setGeneratingMessageId(null)
@@ -2888,6 +2918,11 @@ export function useChatSession(chatId: string | null) {
     [
       applyCompletedTasks,
       autoDetectTasks,
+      baseUrl,
+      chatBackend,
+      chatBackendBaseUrl,
+      chatBackendApiKey,
+      chatBackendModel,
       autoSummarize,
       autoSuggestChoices,
       autoTrackRelationship,
@@ -2911,11 +2946,163 @@ export function useChatSession(chatId: string | null) {
     ],
   )
 
+  /**
+   * One Game Master decision (`world/gm.ts`) for the branch as it stands after `playerMsg`. Reads the
+   * branch fresh from the server, gives the GM only public context, and validates its answer against
+   * the recorded roll. Never throws: a backend failure becomes a deterministic fallback turn.
+   */
+  const decideGmTurn = useCallback(
+    async (branch: StoredMessage[], playerMsg: StoredMessage): Promise<GmTurn | null> => {
+      if (!world?.campaign || !character || !chatId) return null
+      const freshChat = (await chatsApi.get(chatId)) ?? chat
+      const playerName = persona?.name || 'You'
+      const cast = [character, ...participantCharacters].filter((c) => !isPlayerCharacter(c.card.name, playerName))
+      const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
+      const scenery = currentScenery(upTo, freshChat?.scene)
+      const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
+      const night = sceneryIsNight(scenery, isNightPhase(world.currentPhaseIndex))
+      const ctx: GmContext = {
+        campaign: world.campaign,
+        worldName: world.name,
+        worldDescription: world.description,
+        worldRules: world.rules,
+        canonFacts: (world.canonFacts ?? []).map((f) => f.text),
+        branchConsequences: branchConsequencesFrom(upTo),
+        scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
+        timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
+        roster: cast.map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation })),
+        playerName,
+        transcript: upTo.slice(-13, -1).filter((m) => m.text.trim()).map((m) => ({
+          speaker: m.role === 'user' ? playerName : m.name,
+          text: m.text.slice(0, 800),
+        })),
+        playerAction: playerMsg.text,
+        recordedMove: playerMsg.campaignRoll,
+        maxSpeakers: 3,
+      }
+      const { system, user } = buildGmPrompt(ctx)
+      try {
+        const raw = await generateWithTimeout(
+          client,
+          {
+            max_length: 700,
+            max_context_length: await client.getEffectiveMaxContext(8192),
+            temperature: 0.7,
+            top_p: 0.95,
+            rep_pen: 1.05,
+            jsonOutput: true,
+            prompt: `${system}\n\n${user}`,
+            messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          },
+          'Game Master',
+          abortRef.current?.signal,
+          assistShaping,
+        )
+        return parseGmTurn(raw, ctx)
+      } catch (e) {
+        return fallbackGmTurn(ctx, `GM model call failed: ${errorMessage(e)}`)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [character, chat, chatId, client, participantCharacters, persona, world],
+  )
+
+  /** The GM rules, its turn is stored as its own message, then each chosen character agent replies in order. */
+  const runGmBeat = useCallback(
+    async (playerMsg: StoredMessage, startAt: number) => {
+      if (!chatId || !character) return
+      setAssistTasks((t) => ({ ...t, gm: 'Game Master is ruling' }))
+      let turn: GmTurn | null
+      try {
+        turn = await decideGmTurn(await messagesApi.listByChat(chatId), playerMsg)
+      } finally {
+        setAssistTasks(({ gm: _gm, ...rest }) => rest)
+      }
+      if (!turn) return
+      const gmMsg: StoredMessage = {
+        id: newId(),
+        chatId,
+        role: 'char',
+        name: GM_NAME,
+        speakerId: GM_SPEAKER_ID,
+        text: formatGmMessage(turn),
+        gm: turn,
+        createdAt: startAt,
+      }
+      await messagesApi.create(gmMsg)
+      const playerName = persona?.name || 'You'
+      let at = startAt + 1
+      for (const speakerId of turn.speakerIds) {
+        const agent = speakerId === character.id ? character : participantCharacters.find((c) => c.id === speakerId)
+        if (!agent || isPlayerCharacter(agent.card.name, playerName)) continue
+        const replyMsg: StoredMessage = {
+          id: newId(),
+          chatId,
+          role: 'char',
+          name: agent.card.name,
+          speakerId: agent.id !== character.id ? agent.id : undefined,
+          text: '',
+          createdAt: at++,
+          swipes: [],
+          activeSwipe: 0,
+        }
+        await messagesApi.create(replyMsg)
+        // Each agent hears the GM and whoever already answered this beat — the public transcript only.
+        const history: ChatMessage[] = (await messagesApi.listByChat(chatId))
+          .filter((m) => m.id !== replyMsg.id)
+          .map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
+        await runGeneration(history, replyMsg.id, [], {
+          speakerId: agent.id,
+          extraStyleGuidance: gmDirectionFor(turn, agent.card.name, playerName),
+        })
+        if (abortRef.current?.signal.aborted) break
+      }
+    },
+    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration],
+  )
+
+  /** The player's answer to a GM proposal. A world-scope confirmation also becomes shared canon. */
+  const decideGmProposal = useCallback(
+    async (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => {
+      const msg = await messagesApi.get(messageId)
+      const proposal = msg?.gm?.proposals.find((p) => p.id === proposalId)
+      if (!msg?.gm || !proposal || proposal.status !== 'pending') return
+      const proposals = msg.gm.proposals.map((p) => (p.id === proposalId ? { ...p, status: decision, decidedAt: Date.now() } : p))
+      await messagesApi.update(messageId, { gm: { ...msg.gm, proposals } })
+      if (decision === 'confirmed' && proposal.scope === 'world' && world) {
+        const fresh = await worldsApi.get(world.id)
+        if (fresh) {
+          await worldsApi.update(world.id, {
+            canonFacts: [...(fresh.canonFacts ?? []), { id: newId(), text: proposal.text, createdAt: Date.now(), sourceChatId: chatId ?? undefined }],
+          })
+        }
+      }
+    },
+    [chatId, world],
+  )
+
+  /** Records the player's scenery choice on the latest message of this branch (see `vn/scenery.ts`). */
+  const setScenery = useCallback(
+    async (choice: { backgroundId: string | null; variant: 'auto' | 'day' | 'night' }) => {
+      if (!chatId) return
+      const scenery = { ...choice, setAt: Date.now() }
+      const branch = await messagesApi.listByChat(chatId)
+      const last = branch[branch.length - 1]
+      if (last) {
+        await messagesApi.update(last.id, { scenery })
+      } else {
+        const fresh = await chatsApi.get(chatId)
+        await chatsApi.update(chatId, { scene: { turnPolicy: 'manual', ...fresh?.scene, scenery } })
+      }
+    },
+    [chatId],
+  )
+
   const sendUserMessage = useCallback(
     async (
       text: string,
       attachments: PendingAttachment[] = [],
-      opts?: { choice?: ChoiceOption; intent?: MessageIntent; intimacyOptionId?: string },
+      opts?: { choice?: ChoiceOption; intent?: MessageIntent; intimacyOptionId?: string; campaignRoll?: RecordedMove },
     ) => {
       if (!chatId || !beginGeneration()) return
       try {
@@ -3110,6 +3297,7 @@ export function useChatSession(chatId: string | null) {
             : undefined,
           scene: intimateOutfit ? { outfit: intimateOutfit } : undefined,
           images: storedImages.length ? storedImages : undefined,
+          campaignRoll: opts?.campaignRoll,
           createdAt: now,
         }
         await messagesApi.create(userMsg)
@@ -3131,6 +3319,10 @@ export function useChatSession(chatId: string | null) {
         // Who actually replies, per the chat's turn policy — `manual` keeps the "reply as" choice above; the others need a roster to pick from.
         let speaker = giftTarget
         const turnPolicy = freshChat.scene?.turnPolicy ?? 'manual'
+        if (turnPolicy === 'gm' && world?.campaign) {
+          await runGmBeat(userMsg, now + 1)
+          return
+        }
         if (turnPolicy !== 'manual' && character && participantCharacters.length > 0) {
           const roster = rosterFrom(character, participantCharacters)
           if (turnPolicy === 'round_robin') {
@@ -3190,7 +3382,7 @@ export function useChatSession(chatId: string | null) {
         endGeneration()
       }
     },
-    [beginGeneration, character, chatId, client, endGeneration, messages, participantCharacters, persona, reducedAudio, replyAsCharacterId, resolveSpeaker, runGeneration, world],
+    [beginGeneration, character, chatId, client, endGeneration, messages, participantCharacters, persona, reducedAudio, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
   )
 
   const regenerate = useCallback(
@@ -3201,6 +3393,13 @@ export function useChatSession(chatId: string | null) {
       if (!beginGeneration()) return
       try {
         const priorMessages = messages.slice(0, idx)
+        // A GM turn re-rules the same player action in place; the agents who answered keep their lines.
+        if (messages[idx].gm) {
+          const playerMsg = [...priorMessages].reverse().find((m) => m.role === 'user')
+          const turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
+          if (turn) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
+          return
+        }
         const historyForPrompt: ChatMessage[] = priorMessages.map((m) => ({
           id: m.id,
           role: m.role,
@@ -3208,13 +3407,17 @@ export function useChatSession(chatId: string | null) {
           text: m.text,
         }))
         await messagesApi.update(messageId, { text: '', failed: false, boundaryFlag: null, povFlag: null, explicitQualityFlag: null, continuityFlag: null })
+        // An agent reply inside a GM beat keeps the GM's ruling as its steer on a regenerate too.
+        const beatStart = [...priorMessages].reverse().find((m) => m.role === 'user' || m.gm)
+        const speakerCard = messages[idx].speakerId ? participantCharacters.find((c) => c.id === messages[idx].speakerId) : character
+        const gmSteer = beatStart?.gm && speakerCard ? gmDirectionFor(beatStart.gm, speakerCard.card.name, persona?.name || 'You') : undefined
         // Keeps whoever originally spoke — switching speaker is a distinct, explicit edit action.
-        await runGeneration(historyForPrompt, messageId, latestImages(priorMessages), { speakerId: messages[idx].speakerId })
+        await runGeneration(historyForPrompt, messageId, latestImages(priorMessages), { speakerId: messages[idx].speakerId, extraStyleGuidance: gmSteer })
       } finally {
         endGeneration()
       }
     },
-    [beginGeneration, endGeneration, messages, runGeneration],
+    [beginGeneration, character, decideGmTurn, endGeneration, messages, participantCharacters, persona, runGeneration],
   )
 
   /**
@@ -3330,6 +3533,8 @@ export function useChatSession(chatId: string | null) {
   const canContinue =
     messages.length > 0 &&
     messages[messages.length - 1].role === 'char' &&
+    // A GM turn is a ruling, not prose to extend in some character's voice.
+    !messages[messages.length - 1].gm &&
     !!messages[messages.length - 1].text.trim()
 
   const canUndoLastContinue =
@@ -3867,7 +4072,7 @@ export function useChatSession(chatId: string | null) {
 
   const abortGeneration = useCallback(async () => {
     abortRef.current?.abort()
-    if (genKeyRef.current) await client.abort(genKeyRef.current)
+    if (genKeyRef.current) await (activeGenerationClientRef.current ?? client).abort(genKeyRef.current)
     setIsGenerating(false)
   }, [client])
 
@@ -3893,6 +4098,8 @@ export function useChatSession(chatId: string | null) {
     editMessage,
     deleteMessage,
     rewindToMessage,
+    decideGmProposal,
+    setScenery,
     togglePinMessage,
     abortGeneration,
     previewPrompt,

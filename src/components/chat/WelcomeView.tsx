@@ -252,9 +252,9 @@ export function WelcomeView({
     <div className="flex flex-1 items-center justify-center overflow-y-auto p-8">
       <div className="w-full max-w-lg py-10">
         <MessageCircle size={30} strokeWidth={1.25} className="mb-4 text-accent" />
-        <h1 className="font-display text-2xl text-text">Welcome to RP Suite</h1>
+        <h1 className="font-display text-2xl text-text">Welcome to Lost Tales Engine</h1>
         <p className="mt-1.5 text-sm text-text-muted">
-          A local-first roleplay client. Bring your own model, running locally or through a hosted
+          A local-first storytelling engine. Bring your own model, running locally or through a hosted
           API key. Two steps and you're talking.
         </p>
 

@@ -162,7 +162,7 @@ export function ConnectionSettings() {
             <HostedConnectionStatus status={hostedStatus.status} detail={hostedStatus.detail} recheck={() => { reloadModels(); hostedStatus.recheck() }} />
             <p className="mt-2 text-xs text-text-muted">
               Keys are stored in this browser. {isOpenMayhem(chatBackendBaseUrl)
-                ? 'OpenMayhem requests pass through your RP Suite server, which forwards the key without saving it.'
+                ? 'OpenMayhem requests pass through your Lost Tales Engine server, which forwards the key without saving it.'
                 : 'Requests are sent directly to the base URL above.'} Token counts fall back to an estimate for this backend (no
               shared tokenizer endpoint); context size is read from the provider's model list when
               it publishes one, otherwise it falls back too. Temperature, top P, penalties and

@@ -4,6 +4,7 @@ import type { StoredMessage } from '@/lib/types'
 import { useSettingsStore, type AvatarShape } from '@/lib/store/useSettingsStore'
 import { messageAnchorId } from '@/lib/scrollToMessage'
 import { renderMessageText } from '@/lib/text/messageText'
+import { CampaignRollBadge, GmTurnCard } from './GmTurnCard'
 import type { SfxConfig } from '@/lib/text/messageSegments'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { intentSpec } from '@/lib/dating/intent'
@@ -379,6 +380,12 @@ export const MessageBubble = memo(function MessageBubble({
       {message.intimacyAction.label}
     </span>
   ) : null
+  const campaignExtras = message.gm || message.campaignRoll ? (
+    <>
+      <CampaignRollBadge message={message} />
+      <GmTurnCard message={message} />
+    </>
+  ) : null
   const anchorId = messageAnchorId(message.id)
   const highlightClass = isHighlighted ? 'bg-accent/10' : ''
 
@@ -405,6 +412,7 @@ export const MessageBubble = memo(function MessageBubble({
             </>
           )}
         </span>
+        {campaignExtras}
         <span className={`ml-2 transition-opacity ${steering ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>{meta}</span>
       </div>
     )
@@ -427,6 +435,7 @@ export const MessageBubble = memo(function MessageBubble({
           >
             {imageStrip}
             {textBlock}
+            {campaignExtras}
           </div>
           <div className="flex items-center gap-1.5">
             {pinBadge}
@@ -460,6 +469,7 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
         {imageStrip}
         {textBlock}
+        {campaignExtras}
         {metaHoverable}
       </div>
     </div>

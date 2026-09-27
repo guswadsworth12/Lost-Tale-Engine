@@ -1,0 +1,159 @@
+import { useEffect, useRef } from 'react'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
+import { VRM_EMOTIONS, speakingMouth, vrmEmotionWeights, type VrmEmotion } from '@/lib/vn/vrm'
+
+/**
+ * One cast member rendered from a VRM model on its own transparent canvas, framed full-height so it
+ * stands in the same slot a 2D sprite would. Loaded lazily by `VNStage` (three.js is only fetched
+ * once a character actually has a model enabled); any load or WebGL failure calls `onError`, and the
+ * stage falls back to the character's 2D sprite.
+ */
+export default function VrmFigure({
+  url,
+  label,
+  expression,
+  speaking,
+  onError,
+}: {
+  url: string
+  label: string
+  expression: string
+  speaking: boolean
+  onError: (error: unknown) => void
+}) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  // Read by the render loop every frame, so expression/speaking changes never rebuild the scene.
+  const liveRef = useRef({ expression, speaking })
+  liveRef.current = { expression, speaking }
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    } catch (e) {
+      onErrorRef.current(e)
+      return
+    }
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.domElement.style.width = '100%'
+    renderer.domElement.style.height = '100%'
+    host.appendChild(renderer.domElement)
+
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(20, 1, 0.1, 50)
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.4))
+    const key = new THREE.DirectionalLight(0xffffff, 1.6)
+    key.position.set(0.6, 1.8, 2.5)
+    scene.add(key)
+
+    let vrm: VRM | undefined
+    let disposed = false
+    let raf = 0
+    const timer = new THREE.Timer()
+    const weights: Record<VrmEmotion, number> = { happy: 0, angry: 0, sad: 0, relaxed: 0, surprised: 0 }
+    let nextBlink = 1.5 + Math.random() * 3
+    let blinkStart = -1
+
+    // Fit the whole figure: height drives the distance, and a narrow slot pulls the camera back
+    // further so the arms never clip.
+    const frame = () => {
+      if (!vrm) return
+      const box = new THREE.Box3().setFromObject(vrm.scene)
+      const size = box.getSize(new THREE.Vector3())
+      const centerY = (box.min.y + box.max.y) / 2
+      const halfFov = THREE.MathUtils.degToRad(camera.fov / 2)
+      const byHeight = (size.y * 0.54) / Math.tan(halfFov)
+      const byWidth = (size.x * 0.54) / (Math.tan(halfFov) * camera.aspect)
+      camera.position.set(0, centerY, Math.max(byHeight, byWidth) + size.z)
+      camera.lookAt(0, centerY, 0)
+      camera.updateProjectionMatrix()
+    }
+    const resize = () => {
+      const w = host.clientWidth
+      const h = host.clientHeight
+      if (!w || !h) return
+      renderer.setSize(w, h, false)
+      camera.aspect = w / h
+      frame()
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(host)
+
+    const loader = new GLTFLoader()
+    loader.register((parser) => new VRMLoaderPlugin(parser))
+    loader
+      .loadAsync(url)
+      .then((gltf) => {
+        const loaded = gltf.userData.vrm as VRM | undefined
+        if (disposed) {
+          if (loaded) VRMUtils.deepDispose(loaded.scene)
+          return
+        }
+        if (!loaded) throw new Error('This file is a glTF model but not a VRM.')
+        VRMUtils.removeUnnecessaryVertices(gltf.scene)
+        VRMUtils.rotateVRM0(loaded)
+        // Out of the T-pose: arms rest at the sides.
+        const leftArm = loaded.humanoid.getNormalizedBoneNode('leftUpperArm')
+        const rightArm = loaded.humanoid.getNormalizedBoneNode('rightUpperArm')
+        if (leftArm) leftArm.rotation.z = -1.2
+        if (rightArm) rightArm.rotation.z = 1.2
+        loaded.update(0)
+        vrm = loaded
+        scene.add(loaded.scene)
+        resize()
+      })
+      .catch((e) => {
+        if (!disposed) onErrorRef.current(e)
+      })
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      timer.update()
+      const dt = Math.min(timer.getDelta(), 0.1)
+      const t = timer.getElapsed()
+      if (vrm) {
+        const manager = vrm.expressionManager
+        const target = vrmEmotionWeights(liveRef.current.expression)
+        for (const e of VRM_EMOTIONS) {
+          weights[e] += (target[e] - weights[e]) * Math.min(1, dt * 8)
+          manager?.setValue(e, weights[e])
+        }
+        manager?.setValue('aa', speakingMouth(liveRef.current.speaking, t))
+        if (blinkStart < 0 && t > nextBlink) blinkStart = t
+        const blinkPhase = blinkStart < 0 ? 1 : (t - blinkStart) / 0.16
+        manager?.setValue('blink', blinkPhase < 1 ? Math.sin(blinkPhase * Math.PI) : 0)
+        if (blinkPhase >= 1 && blinkStart >= 0) {
+          blinkStart = -1
+          nextBlink = t + 2 + Math.random() * 4
+        }
+        const spine = vrm.humanoid.getNormalizedBoneNode('spine')
+        if (spine) spine.rotation.z = Math.sin(t * 0.9) * 0.015
+        const chest = vrm.humanoid.getNormalizedBoneNode('chest')
+        if (chest) chest.rotation.x = Math.sin(t * 1.6) * 0.01
+        vrm.update(dt)
+      }
+      renderer.render(scene, camera)
+    }
+    tick()
+
+    return () => {
+      disposed = true
+      cancelAnimationFrame(raf)
+      timer.dispose()
+      observer.disconnect()
+      if (vrm) VRMUtils.deepDispose(vrm.scene)
+      renderer.dispose()
+      renderer.forceContextLoss()
+      renderer.domElement.remove()
+    }
+  }, [url])
+
+  return <div ref={hostRef} role="img" aria-label={`${label} (3D model)`} className="h-full w-full" data-testid="vrm-figure" />
+}

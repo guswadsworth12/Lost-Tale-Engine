@@ -28,8 +28,13 @@ const POLICIES: { id: ScenePolicy; label: string; hint: string }[] = [
   },
   {
     id: 'director',
-    label: 'AI director',
-    hint: 'A quick read of the scene picks whoever would naturally respond. Falls back to the primary if it can’t decide.',
+    label: 'AI speaker pick',
+    hint: 'A quick read of the scene picks whoever would naturally respond. It only chooses a speaker; it does not run the scene. Falls back to the primary if it can’t decide.',
+  },
+  {
+    id: 'gm',
+    label: 'Game Master',
+    hint: 'A GM agent adjudicates your declared action with the campaign’s mode, narrates the result, paces the scene, picks who acts (up to three, never your character), and proposes lasting consequences for you to confirm.',
   },
   {
     id: 'mention',
@@ -45,7 +50,10 @@ export function ScenePanel({
   onClose,
   onSave,
   onSaveParticipants,
+  campaignAvailable = false,
 }: {
+  /** The Game Master policy needs a world campaign to adjudicate against. */
+  campaignAvailable?: boolean
   scene: Scene | undefined
   /** Who's currently in the roster (`Chat.participants`) besides the primary. */
   participantIds: string[]
@@ -140,7 +148,7 @@ export function ScenePanel({
         <div className="mb-3">
           <span className="mb-1 block text-xs font-medium text-text-muted">Turn policy</span>
           <div className="flex flex-col gap-1.5">
-            {POLICIES.map((p) => (
+            {POLICIES.filter((p) => p.id !== 'gm' || campaignAvailable || turnPolicy === 'gm').map((p) => (
               <label
                 key={p.id}
                 className="flex cursor-pointer items-start gap-2.5 rounded-xl bg-bg-sunken px-3 py-2.5 text-sm"

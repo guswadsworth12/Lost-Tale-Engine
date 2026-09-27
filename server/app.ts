@@ -20,7 +20,7 @@ import {
   worldStore,
   avatarsDir,
 } from './db.ts'
-import { removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
+import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
@@ -43,6 +43,80 @@ app.use('/avatars', express.static(avatarsDir))
 
 function notFound(res: express.Response) {
   res.status(404).json({ error: 'Not found' })
+}
+
+function normalizePromptItems(raw: unknown) {
+  if (!Array.isArray(raw)) return undefined
+  const items = raw.slice(0, 200)
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id.trim() ? item.id : newId(),
+      name: typeof item.name === 'string' ? item.name.slice(0, 200) : 'Prompt item',
+      content: typeof item.content === 'string' ? item.content.slice(0, 100_000) : '',
+      role: item.role === 'user' || item.role === 'assistant' ? item.role : 'system',
+      enabled: item.enabled === true,
+      importWarning: typeof item.importWarning === 'string' ? item.importWarning.slice(0, 500) : undefined,
+      source: item.source === 'tavernai2' ? 'tavernai2' : undefined,
+    }))
+  return items.length ? items : undefined
+}
+
+/** `Character.spriteSources`: sprite key -> sha256 of the art the library importer last wrote there. */
+function normalizeSpriteSources(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return undefined
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter(([key, hash]) => /^[a-z0-9][a-z0-9-]{0,89}$/i.test(key) && typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash))
+  return entries.length ? Object.fromEntries(entries) as Record<string, string> : undefined
+}
+
+/** `Character.vrm`: an optional 3D model for VN mode. `null` clears it. */
+function normalizeVrm(id: string, raw: unknown) {
+  if (!raw || typeof raw !== 'object') return undefined
+  const value = raw as Record<string, unknown>
+  const url = resolveCharacterModel(id, value.url)
+  if (!url) return undefined
+  return {
+    url,
+    enabled: value.enabled !== false,
+    label: typeof value.label === 'string' ? value.label.trim().slice(0, 200) || undefined : undefined,
+  }
+}
+
+function normalizeCampaign(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return undefined
+  const value = raw as Record<string, unknown>
+  const ruleset = typeof value.ruleset === 'string' ? value.ruleset.trim().slice(0, 200) : ''
+  return {
+    ruleset: ruleset || 'Custom',
+    edition: typeof value.edition === 'string' ? value.edition.trim().slice(0, 100) : undefined,
+    mode: value.mode === 'mechanical' ? 'mechanical' : 'guided',
+    resolver: 'pbta',
+    relationships: value.relationships === true,
+    dating: value.dating === true && value.relationships === true,
+    moves: Array.isArray(value.moves) ? value.moves.slice(0, 100)
+      .filter((move): move is Record<string, unknown> => !!move && typeof move === 'object')
+      .map((move) => ({
+        id: typeof move.id === 'string' && move.id.trim() ? move.id.slice(0, 100) : newId(),
+        name: typeof move.name === 'string' ? move.name.slice(0, 200) : '',
+        trigger: typeof move.trigger === 'string' ? move.trigger.slice(0, 2000) : '',
+        stat: typeof move.stat === 'string' ? move.stat.slice(0, 100) : '',
+        strong: typeof move.strong === 'string' ? move.strong.slice(0, 4000) : '',
+        mixed: typeof move.mixed === 'string' ? move.mixed.slice(0, 4000) : '',
+        miss: typeof move.miss === 'string' ? move.miss.slice(0, 4000) : '',
+      })) : [],
+  }
+}
+
+function normalizeCanonFacts(raw: unknown) {
+  if (!Array.isArray(raw)) return undefined
+  return raw.slice(0, 500)
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && typeof item.text === 'string' && !!item.text.trim())
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id.trim() ? item.id.slice(0, 100) : newId(),
+      text: (item.text as string).trim().slice(0, 4000),
+      createdAt: typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : Date.now(),
+      sourceChatId: typeof item.sourceChatId === 'string' ? item.sourceChatId.slice(0, 100) : undefined,
+    }))
 }
 
 function normalizeCustomExpressions(raw: unknown) {
@@ -431,6 +505,10 @@ function normalizeRelationshipThresholds(raw: unknown) {
 
 // ---- Characters ----
 
+app.get('/api/vrm-library', (_req, res) => {
+  res.json(listVrmLibrary())
+})
+
 app.get('/api/characters', (_req, res) => {
   res.json(characterStore.list({ orderBy: 'updatedAt DESC' }))
 })
@@ -451,6 +529,11 @@ app.post('/api/characters', (req, res) => {
   const created = characterStore.insert({
     id,
     card: req.body.card,
+    promptItems: normalizePromptItems(req.body.promptItems),
+    privateMemory: typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined,
+    modelOverride: typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined,
+    vrm: normalizeVrm(id, req.body.vrm),
+    spriteSources: normalizeSpriteSources(req.body.spriteSources),
     avatarDataUrl,
     sprites,
     spriteVariants,
@@ -497,11 +580,16 @@ app.put('/api/characters/:id', (req, res) => {
   if (!characterStore.get(id)) return notFound(res)
   const patch: Record<string, unknown> = { updatedAt: Date.now() }
   if ('card' in req.body) patch.card = req.body.card
+  if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
+  if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
+  if ('modelOverride' in req.body) patch.modelOverride = typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined
   if ('worldId' in req.body) patch.worldId = req.body.worldId || undefined
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
   if ('sprites' in req.body) patch.sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
   if ('spriteVariants' in req.body) patch.spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, req.body.spriteVariants)
   if ('spriteUnlocks' in req.body) patch.spriteUnlocks = req.body.spriteUnlocks ?? {}
+  if ('spriteSources' in req.body) patch.spriteSources = normalizeSpriteSources(req.body.spriteSources)
+  if ('vrm' in req.body) patch.vrm = normalizeVrm(id, req.body.vrm)
   if ('outfits' in req.body) patch.outfits = normalizeOutfits(req.body.outfits)
   if ('customExpressions' in req.body) patch.customExpressions = normalizeCustomExpressions(req.body.customExpressions)
   if ('giftPreferences' in req.body) patch.giftPreferences = req.body.giftPreferences ?? {}
@@ -992,6 +1080,9 @@ app.post('/api/worlds', (req, res) => {
   const created = worldStore.insert({
     id,
     name: req.body.name,
+    campaign: normalizeCampaign(req.body.campaign),
+    promptItems: normalizePromptItems(req.body.promptItems),
+    canonFacts: normalizeCanonFacts(req.body.canonFacts),
     description: req.body.description,
     rules: req.body.rules,
     template: req.body.template ?? undefined,
@@ -1020,6 +1111,9 @@ app.put('/api/worlds/:id', (req, res) => {
   const existing = worldStore.get(id)
   if (!existing) return notFound(res)
   const patch: Record<string, unknown> = { ...req.body, updatedAt: Date.now() }
+  if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
+  if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
+  if ('canonFacts' in req.body) patch.canonFacts = normalizeCanonFacts(req.body.canonFacts)
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)
   if ('backgrounds' in req.body) patch.backgrounds = resolveAvatarMap('worlds', 'backgrounds', id, req.body.backgrounds)
   if ('backgroundsNight' in req.body) patch.backgroundsNight = resolveWorldBackgroundsNightMap(id, req.body.backgroundsNight)

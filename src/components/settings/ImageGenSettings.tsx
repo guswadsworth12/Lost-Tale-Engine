@@ -148,7 +148,7 @@ export function ImageGenSettings() {
         )}
 
         <p className="mt-2 text-xs text-text-muted">
-          {imageBackend === 'openmayhem' ? 'Images are downloaded into RP Suite, so saved assets remain available after OpenMayhem artifacts expire.' : imageBackend === 'novelai-image'
+          {imageBackend === 'openmayhem' ? 'Images are downloaded into Lost Tales Engine, so saved assets remain available after OpenMayhem artifacts expire.' : imageBackend === 'novelai-image'
             ? 'Keys are stored only in this browser and sent directly to NovelAI. Never through any other server.'
             : 'Requests go straight from this browser to the server URL above. Never through any other server.'}
         </p>

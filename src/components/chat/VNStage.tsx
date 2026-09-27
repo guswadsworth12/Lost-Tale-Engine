@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -10,6 +10,7 @@ import {
   Heart,
   History,
   Loader2,
+  MapPin,
   Play,
   RotateCcw,
   Star,
@@ -63,6 +64,7 @@ import { currentOutfitFrom } from '@/lib/vn/outfits'
 import { vnArtHint } from '@/lib/vn/artHint'
 import { getWorldTemplate } from '@/lib/world/worldTemplates'
 import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/world/calendar'
+import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 
 /**
  * Visual-novel presentation of a chat: full-bleed scene background, each cast member's sprite
@@ -76,6 +78,9 @@ import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/worl
  * writes — the same frame, in the same place, with the nameplate and the accent rail switched over
  * to their persona so it is never ambiguous whose line is being composed.
  */
+
+// three.js + three-vrm only load once some cast member actually has a VRM model enabled.
+const VrmFigure = lazy(() => import('./VrmFigure'))
 
 // Petals only make sense outdoors.
 const OUTDOOR_BACKGROUNDS = new Set([
@@ -120,7 +125,16 @@ function VNCharacterSprite({
   slotClass,
   onClick,
   phase,
+  vrmUrl,
+  expression,
+  speaking,
 }: {
+  /** Optional 3D model; the sprite below stays the fallback while it loads or if it fails. */
+  vrmUrl?: string
+  /** Expression id the model shows (the sprite already resolved its own art from it). */
+  expression?: string
+  /** True while this member's reply is streaming, for the model's mouth. */
+  speaking?: boolean
   spriteUrl: string | undefined
   name: string
   /** Identity hue matching this speaker's nameplate. */
@@ -135,8 +149,10 @@ function VNCharacterSprite({
   phase?: 'entering' | 'exiting'
 }) {
   const { displaySrc, visible, fadeMs } = useSpriteCrossfade(spriteUrl)
+  const [vrmFailed, setVrmFailed] = useState<string | null>(null)
+  const use3d = !!vrmUrl && vrmFailed !== vrmUrl
 
-  const inner = displaySrc ? (
+  const spriteInner = displaySrc ? (
     <img
       src={displaySrc}
       alt={name}
@@ -163,7 +179,24 @@ function VNCharacterSprite({
     </div>
   )
 
-  const showingPlaceholder = !displaySrc
+  const inner = use3d ? (
+    <Suspense fallback={spriteInner}>
+      <VrmFigure
+        url={vrmUrl!}
+        label={name}
+        expression={expression ?? 'neutral'}
+        speaking={!!speaking}
+        onError={(e) => {
+          console.warn(`VRM for ${name} failed to load; showing the 2D sprite instead.`, e)
+          setVrmFailed(vrmUrl!)
+        }}
+      />
+    </Suspense>
+  ) : (
+    spriteInner
+  )
+
+  const showingPlaceholder = !displaySrc && !use3d
 
   return (
     <div
@@ -252,6 +285,10 @@ interface VNStageProps {
   autoAdvance?: boolean
   onToggleAutoAdvance?: () => void
   onAutoAdvanceFire?: () => void
+  /** The player's scenery choice on this branch (`vn/scenery.ts`) — a pinned place outranks scene tags. */
+  scenery?: SceneryChoice
+  /** Opens the in-chat scenery picker from the stage's location chip. */
+  onOpenScenery?: () => void
 }
 
 export function VNStage({
@@ -284,6 +321,8 @@ export function VNStage({
   autoAdvance = false,
   onToggleAutoAdvance,
   onAutoAdvanceFire,
+  scenery,
+  onOpenScenery,
 }: VNStageProps) {
   const [showLog, setShowLog] = useState(false)
   // Universal VN convention: hides everything but the background/sprites/CG, restored by clicking
@@ -395,6 +434,9 @@ export function VNStage({
       avatarUrl: member.avatarDataUrl,
       hue: nameplateHue(member.id || member.card.name),
       spriteUrl,
+      vrmUrl: member.vrm?.enabled ? member.vrm.url : undefined,
+      expression: isActive ? expression : 'neutral',
+      speaking: isActive && isStreamingThis,
       isActive,
       onClick: canPickSpeaker ? () => onSelectSpeaker!(member.id === character?.id ? null : member.id) : undefined,
     }
@@ -447,12 +489,12 @@ export function VNStage({
   // Every fallback for "where is this scene" lives in `resolveSceneBackground` — including reading
   // the narration itself, which is what stops a chat's opening messages (a static greeting carries
   // no `<<scene:>>` tag at all) from landing on an unplaced void.
-  const night = isNightPhase(world?.currentPhaseIndex)
+  const night = sceneryIsNight(scenery, isNightPhase(world?.currentPhaseIndex))
   // The day-planner's action budget, surfaced here too — it used to live only inside the "Plan your
   // day" modal, so knowing whether there was still room for another activity today meant actually
   // opening it. Same visibility gate `ChatWindow`'s own day-planner toolbar button uses, so the
   // readout never claims a budget exists for a mode/character that has opted the whole mechanic out.
-  const showEnergy = !!world && !character?.dateModeOptOut && chat.assistOverrides?.showDateEventButton !== false
+  const showEnergy = !!world && world.campaign?.dating !== false && !character?.dateModeOptOut && chat.assistOverrides?.showDateEventButton !== false
   const energyRemaining = showEnergy ? getEnergyRemaining(world!.currentDay ?? 0, world!.currentPhaseIndex ?? 0) : 0
   const energyMax = showEnergy ? getMaxEnergyForDay(world!.currentDay ?? 0) : 0
   const narration = [lastCharMsg?.text, lastUserMsg?.text].filter(Boolean).join(' ')
@@ -463,6 +505,7 @@ export function VNStage({
     affection,
     narration,
     night,
+    scenery,
   })
   const sceneBackground = resolvedBackground.id
   const backgroundUrl = resolvedBackground.url
@@ -851,7 +894,7 @@ export function VNStage({
               )}
             </div>
           )}
-          <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
+          {world?.campaign?.relationships !== false && <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
             <div className="mb-1 flex min-w-0 items-center gap-1.5">
               <Heart size={11} strokeWidth={2.25} className="shrink-0 text-romance" fill="currentColor" fillOpacity={0.4} />
               <StageLabel variant="vn">
@@ -862,7 +905,7 @@ export function VNStage({
               <span className="shrink-0 text-white/90">{warmth}</span>
             </div>
             <StageMeter value={warmth} variant="vn" className="w-28 max-w-full" />
-          </StageRow>
+          </StageRow>}
           {showEnergy && (
             // Same "N/M actions" budget the Day Planner modal shows, surfaced here too — knowing
             // whether there's still room for another activity today used to mean actually opening
@@ -928,6 +971,18 @@ export function VNStage({
               </button>
               <span className="h-4 w-px bg-white/15 md:hidden" />
             </>
+          )}
+          {onOpenScenery && (
+            <button
+              onClick={onOpenScenery}
+              title={`Scenery: ${sceneBackground ? backgroundLabel(sceneBackground, world) : 'unplaced'}${scenery?.backgroundId ? ' (pinned)' : ''}. Click to change`}
+              aria-label="Change scenery"
+              className={`flex h-7 max-w-[11rem] items-center gap-1 rounded-full px-2 text-[11px] transition-colors hover:bg-white/15 ${scenery?.backgroundId ? 'text-accent' : 'text-white/85 hover:text-white'}`}
+            >
+              <MapPin size={13} strokeWidth={2} className="shrink-0" />
+              <span className="truncate">{sceneBackground ? backgroundLabel(sceneBackground, world) : 'Scenery'}</span>
+              <span className="shrink-0 text-white/50">{night ? '· night' : '· day'}</span>
+            </button>
           )}
           {topBarExtra}
           <span className="h-4 w-px bg-white/15" />
@@ -1061,6 +1116,9 @@ export function VNStage({
                   slotClass={slotClass}
                   onClick={m.onClick}
                   phase={enteringIds.has(m.id) ? 'entering' : undefined}
+                  vrmUrl={m.vrmUrl}
+                  expression={m.expression}
+                  speaking={m.speaking}
                 />
               ))}
             </div>

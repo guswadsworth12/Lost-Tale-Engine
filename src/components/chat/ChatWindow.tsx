@@ -7,10 +7,12 @@ import {
   Clapperboard,
   Download,
   Drama,
+  Dices,
   GitFork,
   Heart,
   MessageCircle,
   NotebookPen,
+  MapPin,
   ScrollText,
   Search,
   SlidersHorizontal,
@@ -22,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useChatSession } from '@/lib/hooks/useChatSession'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
 import { IconButton } from '@/components/ui/IconButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { scrollToMessage } from '@/lib/scrollToMessage'
@@ -68,6 +70,16 @@ import { DirectorPanel } from './DirectorPanel'
 import { TuningPanel } from './TuningPanel'
 import { ReactivePortrait } from './ReactivePortrait'
 import { ScenePanel } from './ScenePanel'
+import { CampaignMovePanel } from './CampaignMovePanel'
+import { formatPbtaRoll } from '@/lib/world/campaign'
+import { SceneryPicker } from './SceneryPicker'
+import { GmActionsContext } from './GmTurnCard'
+import { currentScenery } from '@/lib/vn/scenery'
+import { backgroundLabel } from '@/lib/vn/backgrounds'
+import { GM_NAME, GM_SPEAKER_ID } from '@/lib/world/gm'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { TextAreaField } from '@/components/ui/Field'
 import { nextRoundRobinSpeaker, rosterFrom } from '@/lib/chat/scene'
 import { resolveExpressionSprite } from '@/lib/vn/expressions'
 import { currentOutfitFrom } from '@/lib/vn/outfits'
@@ -116,6 +128,8 @@ export function ChatWindow({
     editMessage,
     deleteMessage,
     rewindToMessage,
+    decideGmProposal,
+    setScenery,
     togglePinMessage,
     abortGeneration,
     previewPrompt,
@@ -177,6 +191,11 @@ export function ChatWindow({
   const [showRelationship, setShowRelationship] = useState(false)
   const [showAuthorNote, setShowAuthorNote] = useState(false)
   const [showScene, setShowScene] = useState(false)
+  const [showCampaignMove, setShowCampaignMove] = useState(false)
+  const [showScenery, setShowScenery] = useState(false)
+  const [showWorldFact, setShowWorldFact] = useState(false)
+  const [worldFactText, setWorldFactText] = useState('')
+  const [savingWorldFact, setSavingWorldFact] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showPinned, setShowPinned] = useState(false)
   const [showBag, setShowBag] = useState(false)
@@ -367,13 +386,45 @@ export function ChatWindow({
 
   // Built once, rendered as the header toolbar (tone="chrome") or folded into VNStage's overlay (tone="glass").
   const toolbarTone = resolvedVisualNovelMode ? 'glass' : 'chrome'
+  const scenery = currentScenery(messages, chat.scene)
+  const gmActions = {
+    decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
+      void decideGmProposal(messageId, proposalId, decision).catch((e) => toastError(errorMessage(e))),
+    nameOf: (id: string) =>
+      id === GM_SPEAKER_ID ? GM_NAME : [character, ...participantCharacters].find((c) => c?.id === id)?.card.name ?? id,
+  }
   const toolbarActions: ChatToolbarAction[] = [
     {
       key: 'relationship',
       icon: Heart,
       label: 'Relationship',
       priority: 'primary',
+      hidden: world?.campaign?.relationships === false,
       onClick: () => setShowRelationship(true),
+    },
+    {
+      key: 'campaign-move',
+      icon: Dices,
+      label: 'Resolve a campaign move',
+      priority: 'primary',
+      hidden: world?.campaign?.mode !== 'mechanical' || !world.campaign.moves.length,
+      onClick: () => setShowCampaignMove(true),
+    },
+    {
+      key: 'scenery',
+      icon: MapPin,
+      label: scenery?.backgroundId ? `Scenery: ${backgroundLabel(scenery.backgroundId, world)} (pinned)` : 'Scenery: follows the story',
+      priority: 'primary',
+      active: !!scenery?.backgroundId,
+      hidden: !world,
+      onClick: () => setShowScenery(true),
+    },
+    {
+      key: 'world-fact',
+      icon: NotebookPen,
+      label: 'Record a world fact',
+      hidden: !world,
+      onClick: () => setShowWorldFact(true),
     },
     {
       key: 'tuning',
@@ -400,7 +451,7 @@ export function ChatWindow({
       // An author-level opt-out, or this chat's own mode saying "no romance mechanics" — either
       // way hidden entirely rather than just disabled. Never hides a genuinely active event,
       // though, even if the mode override would otherwise say no — nothing to strand the user with.
-      hidden: !!character?.dateModeOptOut || (chat.assistOverrides?.showDateEventButton === false && !chat.activeEvent),
+      hidden: world?.campaign?.dating === false || !!character?.dateModeOptOut || (chat.assistOverrides?.showDateEventButton === false && !chat.activeEvent),
       onClick: () => setShowEvent(true),
     },
     {
@@ -411,7 +462,7 @@ export function ChatWindow({
       // Same "romance-flavored surface" bucket the event button already opts out of — this just
       // leads into the same scored-hangout machinery through a different door — plus no bound
       // world at all, since there's no clock/energy to plan around without one.
-      hidden: !world || !!character?.dateModeOptOut || chat.assistOverrides?.showDateEventButton === false,
+      hidden: !world || world.campaign?.dating === false || !!character?.dateModeOptOut || chat.assistOverrides?.showDateEventButton === false,
       onClick: () => setShowDayPlanner(true),
     },
     {
@@ -518,8 +569,8 @@ export function ChatWindow({
   // global default) — unless the mode itself has its own opinion (`showIntentChips`), which wins
   // either way (e.g. a Freeform chat where the player later turned relationship tracking back on
   // for some other reason still doesn't want "Flirt/Tease" chips; that vocabulary is genre, not tracking).
-  const relationshipTrackingActive = chat?.assistOverrides?.autoTrackRelationship ?? autoTrackRelationship
-  const showIntentChips = (chat?.assistOverrides?.showIntentChips ?? relationshipTrackingActive) && !isGenerating && !!character
+  const relationshipTrackingActive = world?.campaign?.relationships !== false && (chat?.assistOverrides?.autoTrackRelationship ?? autoTrackRelationship)
+  const showIntentChips = relationshipTrackingActive && (chat?.assistOverrides?.showIntentChips ?? relationshipTrackingActive) && !isGenerating && !!character
   const liveDateActive = isLiveScene(chat?.activeEvent)
 
   const AUTO_ADVANCE_MAX_TURNS = 5
@@ -593,7 +644,9 @@ export function ChatWindow({
   // Once a non-'manual' policy is active, the composer's "reply as" picker gives way to a read-only hint.
   const turnPolicy = chat.scene?.turnPolicy ?? 'manual'
   const turnPolicyHint =
-    turnPolicy === 'manual' || participantCharacters.length === 0
+    turnPolicy === 'gm'
+      ? 'The Game Master rules on your action and picks who acts'
+      : turnPolicy === 'manual' || participantCharacters.length === 0
       ? undefined
       : turnPolicy === 'round_robin'
         ? (() => {
@@ -602,7 +655,7 @@ export function ChatWindow({
             return next ? `Next: ${roster.find((r) => r.id === next.id)?.name}` : undefined
           })()
         : turnPolicy === 'director'
-          ? 'AI director picks who replies'
+          ? 'AI picks who replies'
           : 'Type @Name to address them'
 
   // `fillHeight` only in VN's inline input mode, where the composer *is* the dialogue box's body
@@ -645,6 +698,7 @@ export function ChatWindow({
     // overflow-hidden is load-bearing: TuningPanel's closed (translate-x-full) state still counts
     // toward scrollWidth without it, causing a permanent horizontal scrollbar. Panels that need to
     // escape this box use position: fixed instead, which plain overflow doesn't clip.
+    <GmActionsContext.Provider value={gmActions}>
     <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden">
       {showFirstReplyTip && (
         // `fixed` (not `absolute`) so it floats consistently above whichever layout is active
@@ -694,7 +748,7 @@ export function ChatWindow({
                 <span className="truncate">{character?.card.name ?? '…'}</span>
                 {parentChatLink && <span className="shrink-0 text-xs font-normal text-text-muted">{parentChatLink}</span>}
               </div>
-              <div className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
+              {world?.campaign?.relationships !== false && <div className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
                 {liveDateActive && chat.rapport ? (
                   // Warmth is frozen during a live scene, so show the qualitative rapport read instead.
                   <LiveRapport read={chat.rapport} label={chat?.activeEvent?.kind === 'hangout' ? 'Live hangout' : 'Live date'} />
@@ -706,7 +760,7 @@ export function ChatWindow({
                     <span className="shrink-0 tabular-nums text-text">{warmth}</span>
                   </>
                 )}
-              </div>
+              </div>}
               <div className="hidden min-w-0 items-center gap-1.5 text-[11px] text-text-muted/80 sm:flex">
                 <span className="shrink-0">as {persona?.name ?? 'You'}</span>
                 {chat.mode && (
@@ -836,7 +890,45 @@ export function ChatWindow({
           onClose={() => setShowScene(false)}
           onSave={updateScene}
           onSaveParticipants={updateParticipants}
+          campaignAvailable={!!world?.campaign}
         />
+      )}
+      {showCampaignMove && world?.campaign && (
+        <CampaignMovePanel
+          campaign={world.campaign}
+          onClose={() => setShowCampaignMove(false)}
+          onSubmit={(roll, action) =>
+            // Under the GM the dice ride structurally on the player's turn and the GM rules on them;
+            // otherwise the formatted result stays in the text so the replying character sees it.
+            turnPolicy === 'gm'
+              ? sendUserMessage(action, [], { campaignRoll: { ...roll, action } })
+              : sendUserMessage(formatPbtaRoll(roll, action), [], { campaignRoll: { ...roll, action } })
+          }
+        />
+      )}
+      {showScenery && world && (
+        <SceneryPicker
+          world={world}
+          current={scenery}
+          shownBackgroundId={scenery?.backgroundId ?? [...messages].reverse().find((m) => m.scene?.background)?.scene?.background}
+          onChoose={setScenery}
+          onClose={() => setShowScenery(false)}
+        />
+      )}
+      {showWorldFact && world && (
+        <Modal title="Record world canon" description="This fact becomes true across every chat in this world. Use it for lasting story consequences you want all characters to inherit." onClose={() => setShowWorldFact(false)}>
+          <TextAreaField label="What happened?" value={worldFactText} onChange={(event) => setWorldFactText(event.target.value)} rows={4} />
+          <Button variant="primary" disabled={!worldFactText.trim() || savingWorldFact} onClick={async () => {
+            setSavingWorldFact(true)
+            try {
+              const fresh = await worldsApi.get(world.id)
+              if (!fresh) throw new Error('World no longer exists')
+              await worldsApi.update(world.id, { canonFacts: [...(fresh.canonFacts ?? []), { id: crypto.randomUUID(), text: worldFactText.trim(), createdAt: Date.now(), sourceChatId: chat.id }] })
+              setWorldFactText('')
+              setShowWorldFact(false)
+            } catch (error) { toastError(errorMessage(error)) } finally { setSavingWorldFact(false) }
+          }}>{savingWorldFact ? 'Saving…' : 'Record fact'}</Button>
+        </Modal>
       )}
       {showSearch && (
         <SearchPanel
@@ -954,6 +1046,8 @@ export function ChatWindow({
           autoAdvance={autoAdvance}
           onToggleAutoAdvance={() => setAutoAdvance((v) => !v)}
           onAutoAdvanceFire={handleAutoAdvanceFire}
+          scenery={scenery}
+          onOpenScenery={world ? () => setShowScenery(true) : undefined}
         />
       ) : (
         <>
@@ -989,5 +1083,6 @@ export function ChatWindow({
         </>
       )}
     </div>
+    </GmActionsContext.Provider>
   )
 }

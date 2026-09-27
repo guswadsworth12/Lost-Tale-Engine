@@ -133,7 +133,7 @@ export async function openMayhemRequestBody(body: Record<string, unknown>): Prom
     )) throw new KoboldApiError(`The selected OpenMayhem model does not support ${key}=${value}. Adjust Settings → Generation.`)
     result[key] = value
   }
-  if (!('max_tokens' in result)) throw new KoboldApiError('This OpenMayhem model does not support RP Suite’s response token limit.')
+  if (!('max_tokens' in result)) throw new KoboldApiError('This OpenMayhem model does not support Lost Tales Engine’s response token limit.')
   if (contracts.every((c) => c.attributes.thinking_mode?.enumValues?.includes('disabled'))) {
     result.thinking_mode = 'disabled'
   }

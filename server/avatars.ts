@@ -234,3 +234,42 @@ function resolveMediaMap(
   )
   return result
 }
+
+// A VRM is a glTF binary; 100MB covers every VRoid export seen in practice and stays under the
+// JSON body limit once base64-encoded.
+const MAX_MODEL_BYTES = 100 * 1024 * 1024
+const OWN_MODEL_URL_RE = /^\/avatars\/(characters\/[0-9a-f-]{36}\/model\.vrm|vrm-library\/[A-Za-z0-9 _.()-]+\.vrm)(\?t=\d+)?$/i
+
+/** Where dropped-in .vrm files are picked up from and listed for any character to use. */
+export const vrmLibraryDir = path.join(avatarsDir, 'vrm-library')
+
+/** Every .vrm in the shared library, for the character editor's model picker. */
+export function listVrmLibrary(): { name: string; url: string; bytes: number }[] {
+  if (!fs.existsSync(vrmLibraryDir)) return []
+  return fs.readdirSync(vrmLibraryDir)
+    .filter((f) => f.toLowerCase().endsWith('.vrm') && OWN_MODEL_URL_RE.test(`/avatars/vrm-library/${f}`))
+    .map((f) => ({ name: f, url: `/avatars/vrm-library/${encodeURIComponent(f)}`, bytes: fs.statSync(path.join(vrmLibraryDir, f)).size }))
+}
+
+/**
+ * Resolves `Character.vrm.url`: a fresh `data:` upload is checked for the glTF binary header and
+ * written to `characters/<id>/model.vrm`; an existing value must be one of this server's own model
+ * paths (an earlier upload or a library file), never an arbitrary URL.
+ */
+export function resolveCharacterModel(id: string, value: unknown): string | undefined {
+  if (!UUID_RE.test(id)) throw new Error('Invalid id')
+  if (typeof value !== 'string' || !value) return undefined
+  if (!value.startsWith('data:')) {
+    if (OWN_MODEL_URL_RE.test(decodeURIComponent(value))) return value
+    throw new Error('A VRM model must be an uploaded file or a file from the VRM library.')
+  }
+  const match = value.match(/^data:[^;,]*;base64,(.+)$/s)
+  if (!match) throw new Error('Malformed VRM data URL.')
+  if (Math.floor((match[1].length * 3) / 4) > MAX_MODEL_BYTES) throw new Error('VRM model is too large (max 100MB).')
+  const buffer = Buffer.from(match[1], 'base64')
+  if (buffer.length < 12 || buffer.toString('latin1', 0, 4) !== 'glTF') throw new Error('That file is not a VRM (glTF binary) model.')
+  const dir = entityDir('characters', id)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'model.vrm'), buffer)
+  return `/avatars/characters/${id}/model.vrm?t=${Date.now()}`
+}
