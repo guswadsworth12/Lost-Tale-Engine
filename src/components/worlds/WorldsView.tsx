@@ -11,7 +11,8 @@ import { intimacyArousalWeight, type IntimacyCategory, type IntimacyUnlockable }
 import { BODY_REGIONS } from '@/lib/dating/arousal'
 import { BUILT_IN_KINKS } from '@/lib/dating/kinks'
 import { advancePhase, getCalendarInfo, getEnergyRemaining, getMaxEnergyForDay, getWeather, describeWeather, PHASES } from '@/lib/world/calendar'
-import { WORLD_TEMPLATES, getWorldTemplate, hiddenWorldTabs, normalizeWorldTemplateId, type WorldTemplateId } from '@/lib/world/worldTemplates'
+import { WORLD_TEMPLATES, getWorldTemplate, modulesForWorld, normalizeWorldTemplateId, type WorldModuleChoices, type WorldModules, type WorldTemplateId } from '@/lib/world/worldTemplates'
+import { WORLD_TAB_ALIASES } from '@/lib/ui/navigation'
 import { newId } from '@/lib/id'
 import { NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
 import type { IntimacyDetailLevel } from '@/lib/store/useSettingsStore'
@@ -59,7 +60,7 @@ function blankWorld(template?: WorldTemplateId): Omit<WorldCard, 'id' | 'created
     rules: def?.rules ?? '',
     lorebook: { name: '', entries: [], token_budget: 512, scan_depth: 8 },
     template,
-    campaign: { ...DEFAULT_CAMPAIGN },
+    campaign: { ...DEFAULT_CAMPAIGN, relationships: template === 'dating_sim' || template === 'visual_novel', dating: template === 'dating_sim' },
   }
 }
 
@@ -110,7 +111,7 @@ export function WorldsView({
 }: {
   /** Deep-link into this world's editor on mount (the command palette's "jump to a world"). */
   initialWorldId?: string | null
-  /** Paired with `initialWorldId` — also land on this specific tab (the Relationship panel's "Customize" link jumping straight to 'dating'). Ignored without `initialWorldId`. */
+  /** Paired with `initialWorldId` — old editor tab ids are accepted for deep links. */
   initialTab?: string | null
   onConsumedInitial?: () => void
 } = {}) {
@@ -211,13 +212,39 @@ export function WorldsView({
 
 const WORLD_TABS: EditorTab[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'campaign', label: 'Campaign' },
-  { id: 'prompts', label: 'Prompts' },
-  { id: 'lore', label: 'Lore' },
-  { id: 'scenes', label: 'Scenes' },
-  { id: 'dating', label: 'Dating sim' },
-  { id: 'clock', label: 'Clock' },
+  { id: 'story-rules', label: 'Story Rules' },
+  { id: 'canon', label: 'Canon' },
+  { id: 'locations', label: 'Locations' },
+  { id: 'simulation', label: 'Simulation' },
+  { id: 'relationships', label: 'Relationships' },
+  { id: 'presentation', label: 'Presentation' },
+  { id: 'advanced', label: 'Advanced' },
 ]
+
+export function worldEditorTabs(modules: WorldModules, canonCount: number): EditorTab[] {
+  return WORLD_TABS.filter((tab) =>
+    (tab.id !== 'story-rules' || !!modules.campaignRules) &&
+    (tab.id !== 'simulation' || modules.worldSimulation) &&
+    (tab.id !== 'relationships' || modules.relationships) &&
+    (tab.id !== 'presentation' || modules.visualNovel),
+  ).map((tab) => tab.id === 'canon' ? { ...tab, badge: canonCount } : tab)
+}
+
+export function changeWorldModule<K extends keyof WorldModuleChoices>(
+  modules: WorldModuleChoices,
+  campaign: CampaignConfig,
+  key: K,
+  value: WorldModuleChoices[K],
+): { modules: WorldModuleChoices; campaign: CampaignConfig } {
+  const nextModules = { ...modules, [key]: value }
+  if (key === 'campaignRules' && value) return { modules: nextModules, campaign: { ...campaign, mode: value as CampaignConfig['mode'] } }
+  if (key === 'relationships') {
+    if (!value) nextModules.dating = false
+    return { modules: nextModules, campaign: { ...campaign, relationships: !!value, dating: !!value && campaign.dating } }
+  }
+  if (key === 'dating') return { modules: nextModules, campaign: { ...campaign, dating: !!value } }
+  return { modules: nextModules, campaign }
+}
 
 function WorldEditor({
   world,
@@ -232,12 +259,13 @@ function WorldEditor({
   onDone: () => void
 }) {
   const base = world ?? { id: '', createdAt: 0, updatedAt: 0, ...blankWorld(initialTemplate) }
-  const [tab, setTab] = useState(initialTab ?? 'overview')
+  const [tab, setTab] = useState<string>(() => WORLD_TAB_ALIASES[initialTab as keyof typeof WORLD_TAB_ALIASES] ?? initialTab ?? 'overview')
   const [name, setName] = useState(base.name)
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
   const [campaign, setCampaign] = useState<CampaignConfig>(base.campaign ?? { ...DEFAULT_CAMPAIGN })
+  const [modules, setModules] = useState<WorldModuleChoices>(base.modules ?? {})
   const [promptItems, setPromptItems] = useState<PromptItem[]>(base.promptItems ?? [])
   const [canonFacts, setCanonFacts] = useState<NonNullable<WorldCard['canonFacts']>>(base.canonFacts ?? [])
   const [openedCanonIds] = useState(() => new Set((base.canonFacts ?? []).map((fact) => fact.id)))
@@ -301,6 +329,7 @@ function WorldEditor({
       rules,
       gmNotes,
       campaign,
+      modules,
       promptItems,
       canonFacts,
       template,
@@ -523,16 +552,18 @@ function WorldEditor({
     onDone()
   }
 
-  const hidden = hiddenWorldTabs(template)
-  const tabs = WORLD_TABS.filter((t) => (t.id !== 'clock' || world) && !hidden.includes(t.id)).map((t) =>
-    t.id === 'lore' ? { ...t, badge: lorebook.entries.length } : t,
-  )
+  const effectiveModules = modulesForWorld({ template, campaign, modules })
+  const tabs = worldEditorTabs(effectiveModules, lorebook.entries.length + canonFacts.length)
 
-  // Switching to a narrower template can hide the tab currently open (e.g. away from "Dating sim") —
-  // fall back to Overview rather than leaving the editor showing a tab no longer in the strip.
+  const setModule = <K extends keyof WorldModuleChoices>(key: K, value: WorldModuleChoices[K]) => {
+    const next = changeWorldModule(modules, campaign, key, value)
+    setModules(next.modules)
+    setCampaign(next.campaign)
+  }
+
   useEffect(() => {
-    if (!tabs.some((t) => t.id === tab)) setTab('overview')
-  }, [hidden.join(','), tab])
+    if (!tabs.some((entry) => entry.id === tab)) setTab('overview')
+  }, [tab, effectiveModules.campaignRules, effectiveModules.worldSimulation, effectiveModules.relationships, effectiveModules.visualNovel])
 
   const allBackgrounds = [
     ...catalog.map((b) => ({ id: b.id, label: b.label, custom: false })),
@@ -611,9 +642,7 @@ function WorldEditor({
           <div>
             <div className="mb-1.5 text-sm text-text">Template</div>
             <p className="mb-2 text-xs text-text-muted">
-              Which tabs this world shows. Gifts/items/thresholds ("Dating sim") and the world clock
-              ("Clock") aren't every setting's business. Switching doesn't touch anything you've already
-              entered on a hidden tab.
+              Sets the starting style and romance emphasis. The module switches below choose which tools this world uses; switching one off keeps its saved content.
             </p>
             <div className="flex flex-wrap gap-2">
               {WORLD_TEMPLATES.map((t) => (
@@ -623,14 +652,28 @@ function WorldEditor({
               ))}
             </div>
           </div>
+          <Section title="World modules" description="Choose the tools this world uses. Turning one off keeps its settings for later." surface="bare">
+            <SelectField label="Story rules" value={effectiveModules.campaignRules || 'off'} onChange={(e) => setModule('campaignRules', e.target.value === 'off' ? false : e.target.value as CampaignConfig['mode'])}>
+              <option value="off">Off</option>
+              <option value="guided">Guided outcomes</option>
+              <option value="mechanical">Roll for outcomes</option>
+            </SelectField>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.relationships} onChange={(e) => setModule('relationships', e.target.checked)} /> Relationships</label>
+              <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Dating tools</label>
+              <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.visualNovel} onChange={(e) => setModule('visualNovel', e.target.checked)} /> Visual novel presentation</label>
+              <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.worldSimulation} onChange={(e) => setModule('worldSimulation', e.target.checked)} /> World simulation</label>
+            </div>
+            <p className="mt-3 text-xs text-text-muted">Romance emphasis: {effectiveModules.romanceEmphasis}. Change the template or dating tools to adjust it.</p>
+          </Section>
         </div>
       )}
 
-      {tab === 'campaign' && (
+      {tab === 'story-rules' && (
         <div className="space-y-6">
           <Section title="Story rules" description="Choose how outcomes are decided for this world. Existing chats in this world use these settings." surface="bare">
             <div className="mb-4 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => setCampaign({ ...STARTER_PBTA_CAMPAIGN, moves: STARTER_PBTA_CAMPAIGN.moves.map((move) => ({ ...move })) })}>
+              <Button variant="secondary" onClick={() => { setCampaign({ ...STARTER_PBTA_CAMPAIGN, moves: STARTER_PBTA_CAMPAIGN.moves.map((move) => ({ ...move })) }); setModules((current) => ({ ...current, campaignRules: STARTER_PBTA_CAMPAIGN.mode, relationships: false, dating: false })) }}>
                 Load starter PbtA moves
               </Button>
               <FileButton
@@ -638,7 +681,9 @@ function WorldEditor({
                 title="Replace these rules with a campaign file exported from this or another world"
                 onPick={async (files) => {
                   try {
-                    setCampaign(parseCampaignFile(await files[0].text()))
+                    const next = parseCampaignFile(await files[0].text())
+                    setCampaign(next)
+                    setModules((current) => ({ ...current, campaignRules: next.mode, relationships: next.relationships, dating: next.dating }))
                     toastSuccess('Campaign loaded. Save the world to keep it.')
                   } catch (e) {
                     toastError(errorMessage(e))
@@ -664,13 +709,13 @@ function WorldEditor({
             <TextField label="Ruleset" value={campaign.ruleset} onChange={(e) => setCampaign({ ...campaign, ruleset: e.target.value })} />
             <TextField label="Version or edition" value={campaign.edition ?? ''} onChange={(e) => setCampaign({ ...campaign, edition: e.target.value })} />
             <div className="mb-4 flex flex-wrap gap-2">
-              <Chip on={campaign.mode === 'guided'} onClick={() => setCampaign({ ...campaign, mode: 'guided' })}>Guided outcomes</Chip>
-              <Chip on={campaign.mode === 'mechanical'} onClick={() => setCampaign({ ...campaign, mode: 'mechanical' })}>Roll for outcomes</Chip>
+              <Chip on={campaign.mode === 'guided'} onClick={() => setModule('campaignRules', 'guided')}>Guided outcomes</Chip>
+              <Chip on={campaign.mode === 'mechanical'} onClick={() => setModule('campaignRules', 'mechanical')}>Roll for outcomes</Chip>
             </div>
             <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a 2d6 move result before the narrator describes it. The player chooses when to roll.</p>
             <TextAreaField label="Game Master continuity notes" hint="Only the Game Master sees these. Record secrets, relationship visibility, and future story threads here; character agents receive only what their own cards and public lore permit." rows={6} value={gmNotes} onChange={(e) => setGmNotes(e.target.value)} />
-            <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.relationships} onChange={(e) => setCampaign({ ...campaign, relationships: e.target.checked, dating: e.target.checked && campaign.dating })} /> Use RP relationship scoring</label>
-            <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={campaign.dating} disabled={!campaign.relationships} onChange={(e) => setCampaign({ ...campaign, dating: e.target.checked })} /> Enable dating features</label>
+            <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.relationships} onChange={(e) => setModule('relationships', e.target.checked)} /> Use RP relationship scoring</label>
+            <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Enable dating features</label>
           </Section>
           <Section title="Moves" description="These are editable campaign moves. Write the trigger and the consequence for each result tier." surface="bare">
             <div className="space-y-4">
@@ -689,23 +734,17 @@ function WorldEditor({
               <Button variant="secondary" onClick={() => setCampaign({ ...campaign, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: 'Resolve', strong: '', mixed: '', miss: '' }] })}>Add move</Button>
             </div>
           </Section>
-          <Section title="World canon" description="Confirmed facts shared by every chat in this world. Add only events that truly happened in the campaign." surface="bare">
-            <div className="space-y-2">
-              {canonFacts.map((fact) => <div key={fact.id} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm text-text"><span className="flex-1">{fact.text}</span><button type="button" className="text-danger" aria-label="Remove world fact" onClick={() => setCanonFacts(canonFacts.filter((item) => item.id !== fact.id))}>Remove</button></div>)}
-              <TextAreaField label="New canon fact" value={newCanonFact} onChange={(e) => setNewCanonFact(e.target.value)} rows={2} />
-              <Button variant="secondary" disabled={!newCanonFact.trim()} onClick={() => { setCanonFacts([...canonFacts, { id: newId(), text: newCanonFact.trim(), createdAt: Date.now() }]); setNewCanonFact('') }}>Add fact</Button>
-            </div>
-          </Section>
         </div>
       )}
 
-      {tab === 'prompts' && (
+      {tab === 'advanced' && (
         <Section title="World prompts" description="Ordered instructions shared by every character in this world." surface="bare">
           <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
         </Section>
       )}
 
-      {tab === 'lore' && (
+      {tab === 'canon' && (
+        <div className="space-y-8">
         <Section
           title="World lore"
           description="Keyword- or always-on entries about this setting, shared by every character living here."
@@ -717,9 +756,17 @@ function WorldEditor({
             aiContext={{ name, description, extra: rules ? `World rules: ${rules}` : undefined }}
           />
         </Section>
+          <Section title="World canon" description="Confirmed facts shared by every chat in this world. Add only events that truly happened in the campaign." surface="bare">
+            <div className="space-y-2">
+              {canonFacts.map((fact) => <div key={fact.id} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm text-text"><span className="flex-1">{fact.text}</span><button type="button" className="text-danger" aria-label="Remove world fact" onClick={() => setCanonFacts(canonFacts.filter((item) => item.id !== fact.id))}>Remove</button></div>)}
+              <TextAreaField label="New canon fact" value={newCanonFact} onChange={(e) => setNewCanonFact(e.target.value)} rows={2} />
+              <Button variant="secondary" disabled={!newCanonFact.trim()} onClick={() => { setCanonFacts([...canonFacts, { id: newId(), text: newCanonFact.trim(), createdAt: Date.now() }]); setNewCanonFact('') }}>Add fact</Button>
+            </div>
+          </Section>
+        </div>
       )}
 
-      {tab === 'scenes' && (
+      {tab === 'locations' && (
         <div className="space-y-10">
         <Section
           title="Scene backgrounds"
@@ -870,7 +917,11 @@ function WorldEditor({
             </Button>
           </div>
         </Section>
+        </div>
+      )}
 
+      {tab === 'presentation' && (
+        <div className="space-y-8">
         <Section
           title="Background music"
           description="One looping track per scene mood, for Visual Novel mode. The model tags each reply's mood; the matching track crossfades in. “Default” plays whenever nothing more specific applies. Set at least that one. Turn playback on with the volume slider in Settings → Appearance."
@@ -919,7 +970,7 @@ function WorldEditor({
         </div>
       )}
 
-      {tab === 'dating' && (
+      {tab === 'relationships' && (
         <div className="space-y-10">
           <Section
             title="Relationship thresholds"
@@ -941,6 +992,11 @@ function WorldEditor({
             </div>
           </Section>
 
+          {effectiveModules.dating && <div className="space-y-8">
+            <div>
+              <h3 className="text-base font-medium text-text">Dating tools</h3>
+              <p className="text-xs text-text-muted">Gift, intimacy, item, and scene options are preserved if you switch dating off.</p>
+            </div>
           <Section
             title="Content rating"
             description="How explicit intimate scenes get written for characters living here, and which intimate actions the Relationship panel offers. Overrides the global Settings value. So a wholesome world and an explicit one can sit side by side without touching Settings between chats."
@@ -1219,6 +1275,12 @@ function WorldEditor({
             />
           </Section>
 
+          </div>}
+        </div>
+      )}
+
+      {tab === 'simulation' && (
+        <div className="space-y-8">
           <Section
             title="Custom scene flags"
             description="Branching-memory beats beyond the built-in four (first date, confession, jealousy, promise). Each needs a description. That's the AI classifier's bar for firing it."
@@ -1332,11 +1394,7 @@ function WorldEditor({
               </Button>
             </div>
           </Section>
-        </div>
-      )}
-
-      {tab === 'clock' && world && (
-        <Section
+          {world && <Section
           title="World clock"
           description="Shared by every chat in this world. Advancing it moves every character's mood and weather forward. A manual authoring step that doesn't spend an action."
         >
@@ -1363,7 +1421,8 @@ function WorldEditor({
               </>
             )
           })()}
-        </Section>
+        </Section>}
+        </div>
       )}
     </EditorShell>
   )
