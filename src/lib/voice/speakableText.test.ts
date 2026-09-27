@@ -43,3 +43,16 @@ it('splits long narration into bounded clips without losing words', () => {
   expect(clips.every((clip) => clip.length <= 45)).toBe(true)
   expect(clips.join(' ')).toBe(text)
 })
+
+it('keeps short replies together instead of splitting a quoted phrase at 120 characters', () => {
+  const text = '"You brought something for both of us, huh?" "All right, then. Let\'s see if you learned how to pack light before rescuing Aveline from whatever you\'ve dragged back this time."'
+  expect(splitSpeechText(text)).toEqual([text])
+})
+
+it('splits longer replies at sentence endings and preserves every word', () => {
+  const text = 'A long sentence fills the hall with all the noise of a crowded table. '.repeat(6).trim()
+  const clips = splitSpeechText(text)
+  expect(clips.length).toBeGreaterThan(1)
+  expect(clips.every((clip) => clip.endsWith('.'))).toBe(true)
+  expect(clips.join(' ')).toBe(text)
+})

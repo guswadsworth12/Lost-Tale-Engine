@@ -629,10 +629,18 @@ export function VNStage({
         speed: override?.speed,
       }
       const parts = provider === 'luxtts' ? splitSpeechText(text) : [text]
-      for (const part of parts) {
+      // Prepare one clip ahead while the current one plays, so sentence boundaries do not
+      // acquire an extra synthesis-length pause. Capture errors immediately while prefetching.
+      const prepare = (part: string) => synthesizeSpeech(config, part, koboldBaseUrl, controller.signal)
+        .then((blob) => ({ blob, error: null }), (error: unknown) => ({ blob: null, error }))
+      let next = prepare(parts[0])
+      for (let index = 0; index < parts.length; index++) {
         setSpeakState('loading')
-        const blob = await synthesizeSpeech(config, part, koboldBaseUrl, controller.signal)
+        const result = await next
+        if (result.blob === null) throw result.error
+        const blob = result.blob
         controller.signal.throwIfAborted()
+        if (index + 1 < parts.length) next = prepare(parts[index + 1])
         const url = URL.createObjectURL(blob)
         const audio = new Audio(url)
         audio.hidden = true
