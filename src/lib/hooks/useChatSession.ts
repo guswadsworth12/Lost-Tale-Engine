@@ -15,7 +15,7 @@ import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { createChatBackend } from '@/lib/api/createChatBackend'
 import type { ChatBackend } from '@/lib/api/chatBackend'
 import { campaignPrompt } from '@/lib/world/campaign'
-import { romanceEmphasisFor } from '@/lib/world/worldTemplates'
+import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { romancePromptPolicy } from '@/lib/prompt/romanceEmphasis'
 import {
   GM_NAME,
@@ -642,8 +642,8 @@ export function useChatSession(chatId: string | null) {
       const worldLorebook = world?.lorebook ? [{ ...world.lorebook, sourceKey: `world:${world.id}` }] : []
       const factsLorebook = buildFactsLorebook(activeFacts).map((b) => ({ ...b, sourceKey: 'facts' }))
       const affection = freshChat.affection ?? 0
-      const datingFeaturesEnabled = world?.campaign?.dating !== false
-      const romanceEmphasis = romanceEmphasisFor(world?.template ?? freshChat.mode, world?.campaign?.dating)
+      const modules = modulesForWorld(world ?? { template: freshChat.mode })
+      const romanceEmphasis = modules.romanceEmphasis
       const romanceFocus = romanceEmphasis === 'focus'
       // One read of the char-reply count for the whole build — every turn-scoped window check below keys off it.
       const charReplyCount = countCharReplies(messages)
@@ -657,7 +657,7 @@ export function useChatSession(chatId: string | null) {
       // the clock advances or the scene moves, and would otherwise invalidate the KV cache for
       // every history token behind it each time it did.
       const worldDescriptionLines = world
-        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign ? campaignPrompt(world.campaign) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
+        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign ? campaignPrompt({ ...world.campaign, relationships: modules.relationships, dating: modules.dating }) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
@@ -849,7 +849,7 @@ export function useChatSession(chatId: string | null) {
           ? promptSceneOwner.scene
           : undefined
       const speakerSceneActive = !!promptScene
-      const romancePolicy = romancePromptPolicy(romanceEmphasis, speakerSceneActive, !!earlyEscalationLine, intimacyLevel === 'fade_to_black')
+      const romancePolicy = romancePromptPolicy(romanceEmphasis, speakerSceneActive)
       // Physical continuity + phase-scaled sensory guidance while a scene is active.
       const intimacySceneLine = speakerSceneActive
         ? intimacySceneGuidance(speaker.card.name, promptScene!, speakerPace)
@@ -982,13 +982,13 @@ export function useChatSession(chatId: string | null) {
       // Only meaningful when the primary is actually speaking — it's specific to {{user}}'s relationship with the primary.
       const relationshipDescription =
         !impersonating &&
-        world?.campaign?.relationships !== false && effectiveAssistFlag(freshChat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) &&
+        modules.relationships && effectiveAssistFlag(freshChat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) &&
         speaker.id === character.id
           ? buildRelationshipDescription(freshChat, world, character, romanceEmphasis)
           : undefined
       // The non-primary counterpart to the line above, so another speaking participant doesn't borrow the primary's own romantic warmth.
       const participantGuidance =
-        datingFeaturesEnabled && !impersonating && speaker.id !== character.id
+        modules.relationships && !impersonating && speaker.id !== character.id
           ? participantRelationshipGuidance({
               speakerName: speaker.card.name,
               personaName: persona?.name || 'You',
@@ -1075,8 +1075,8 @@ export function useChatSession(chatId: string | null) {
             ...guidance(vnProseLine, true),
             ...guidance(romancePolicy.intimacyOptions ? intimacyOptions : '', true),
             ...guidance(romancePolicy.proactive ? activityInitiativeGuidance : '', true),
-            ...guidance(datingFeaturesEnabled ? afterglowLine : '', true),
-            ...guidance(datingFeaturesEnabled ? explicitAftercareLine : '', true),
+            ...guidance(romancePolicy.aftercare ? afterglowLine : '', true),
+            ...guidance(romancePolicy.aftercare ? explicitAftercareLine : '', true),
             // Character-mind texture, most- to least-valuable — dropped from the bottom of this
             // run first (see `buildPrompt`'s drop loop), so mood (closest to voice) survives longest.
             ...guidance(moodLine),
@@ -1084,23 +1084,23 @@ export function useChatSession(chatId: string | null) {
             ...guidance(beliefsLine),
             ...guidance(expectationsLine),
             ...guidance(plansLine),
-            ...guidance(datingFeaturesEnabled ? rebuffLine : ''),
-            ...guidance(datingFeaturesEnabled ? reciprocityLine : ''),
-            ...guidance(datingFeaturesEnabled ? stockRomancePhrasingLine : ''),
-            ...guidance(datingFeaturesEnabled ? escalationShapeLine : ''),
+            ...guidance(romancePolicy.guards ? rebuffLine : ''),
+            ...guidance(romancePolicy.guards ? reciprocityLine : ''),
+            ...guidance(romancePolicy.guards ? stockRomancePhrasingLine : ''),
+            ...guidance(romancePolicy.proactive ? escalationShapeLine : ''),
             ...guidance(romancePolicy.proactive ? intimacyAnticipationLine : ''),
             ...guidance(repeatNudge ?? ''),
-            ...guidance(datingFeaturesEnabled ? earlyEscalationLine : ''),
-            ...guidance(datingFeaturesEnabled ? intentLine : ''),
+            ...guidance(romancePolicy.proactive ? earlyEscalationLine : ''),
+            ...guidance(romancePolicy.proactive ? intentLine : ''),
             ...guidance(fearLine),
             ...guidance(desireLine),
-            ...guidance(datingFeaturesEnabled ? priorityLine : ''),
+            ...guidance(romancePolicy.proactive ? priorityLine : ''),
             // Back to essential: mechanics, safety guards, and concrete engine state.
             ...guidance(agencyGuardLine, true),
             ...guidance(sceneContinuityLine, true),
-            ...guidance(datingFeaturesEnabled ? intimacySceneLine : '', true),
-            ...guidance(datingFeaturesEnabled ? explicitSceneLine : '', true),
-            ...guidance(datingFeaturesEnabled ? intimacyConsentTensionLine : '', true),
+            ...guidance(romancePolicy.scene ? intimacySceneLine : '', true),
+            ...guidance(romancePolicy.scene ? explicitSceneLine : '', true),
+            ...guidance(romancePolicy.scene ? intimacyConsentTensionLine : '', true),
             ...guidance(sceneNudge, true),
             ...guidance(scheduleConflictLine, true),
             ...guidance(triggerStyleLine, true),
@@ -1110,7 +1110,7 @@ export function useChatSession(chatId: string | null) {
             ...guidance(styleGuidanceNote.trim(), true),
             ...guidance(slopAvoidance ?? '', true),
             ...guidance(expressionRepeatLine, true),
-            ...guidance(datingFeaturesEnabled ? sceneStateLine : '', true),
+            ...guidance(romancePolicy.scene ? sceneStateLine : '', true),
             ...guidance(opts?.extraStyleGuidance ?? '', true),
           ]
 
@@ -2880,7 +2880,7 @@ export function useChatSession(chatId: string | null) {
         const shouldRunRelationshipJudge = !targetMsgForJudgeGate?.failed && !targetMsgForJudgeGate?.relationshipJudged
         // Scores whichever character actually spoke, not only the primary. Task-detection, when also due, rides along in this same judge call instead of a second request.
         let tasksHandledByMerge = false
-        if (world?.campaign?.relationships !== false && effectiveAssistFlag(chat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) && !inLiveDate && shouldRunRelationshipJudge) {
+        if (modulesForWorld(world ?? { template: chat.mode }).relationships && effectiveAssistFlag(chat.assistOverrides?.autoTrackRelationship, autoTrackRelationship) && !inLiveDate && shouldRunRelationshipJudge) {
           const latestIntent = opts?.intent ?? [...messages].reverse().find((m) => m.role === 'user')?.intent
           // Marked judged NOW, while the caller still holds the generation lock — not inside the
           // fire-and-forget assist below, which finishes seconds later after the lock is released.

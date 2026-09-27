@@ -98,6 +98,17 @@ describe('archetypeGuidance', () => {
 })
 
 describe('participantRelationshipGuidance', () => {
+  it('keeps authored group dynamics without dating steering when dating is off', () => {
+    const line = participantRelationshipGuidance({
+      speakerName: 'Aiko', personaName: 'Kai', primaryName: 'Sumire', warmth: 75,
+      primaryCommitmentStatus: 'dating', jealousyFlagActive: true,
+      archetype: { archetype: 'rival', sourceText: 'competing guild captain' }, emphasis: 'off',
+    })
+    expect(line).toContain('competing guild captain')
+    expect(line).toContain('respond to Sumire and others')
+    expect(line).not.toMatch(/romantic|dating|jealousy|still-competing rivalry/i)
+  })
+
   it('frames a story participant through the whole scene instead of romantic competition', () => {
     const line = participantRelationshipGuidance({
       speakerName: 'Aiko', personaName: 'Kai', primaryName: 'Sumire', warmth: 75,
