@@ -657,7 +657,7 @@ export function useChatSession(chatId: string | null) {
       // the clock advances or the scene moves, and would otherwise invalidate the KV cache for
       // every history token behind it each time it did.
       const worldDescriptionLines = world
-        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign ? campaignPrompt({ ...world.campaign, relationships: modules.relationships, dating: modules.dating }) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
+        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign && modules.campaignRules ? campaignPrompt({ ...world.campaign, mode: modules.campaignRules, relationships: modules.relationships, dating: modules.dating }, modules.romanceEmphasis) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)

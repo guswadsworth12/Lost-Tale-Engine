@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER_PBTA_CAMPAIGN, campaignFileFrom, formatPbtaRoll, parseCampaignFile, resolvePbtaRoll } from './campaign'
+import { STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, formatPbtaRoll, parseCampaignFile, resolvePbtaRoll } from './campaign'
+
+describe('campaign prompt emphasis', () => {
+  it('keeps focus guidance and leaves natural/off turns free of campaign romance steering', () => {
+    const dating = { ...STARTER_PBTA_CAMPAIGN, relationships: true, dating: true }
+    expect(campaignPrompt(dating, 'focus')).toContain('Dating can arise from character choices')
+    expect(campaignPrompt(dating, 'natural')).not.toMatch(/Dating can arise|Romance may occur/)
+    expect(campaignPrompt({ ...dating, dating: false }, 'off')).not.toMatch(/Dating can arise|Romance may occur/)
+  })
+})
 
 describe('PbtA move resolver', () => {
   const move = STARTER_PBTA_CAMPAIGN.moves[0]

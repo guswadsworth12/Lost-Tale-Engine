@@ -1,3 +1,5 @@
+import type { RomanceEmphasis } from './worldTemplates'
+
 export interface CampaignConfig {
   ruleset: string
   edition?: string
@@ -127,14 +129,14 @@ export const DEFAULT_CAMPAIGN: CampaignConfig = {
   moves: [],
 }
 
-export function campaignPrompt(config: CampaignConfig): string {
+export function campaignPrompt(config: CampaignConfig, romanceEmphasis: RomanceEmphasis = config.dating ? 'focus' : 'off'): string {
   const lines = [
     `Campaign ruleset: ${config.ruleset}${config.edition ? ` (${config.edition})` : ''}.`,
     config.mode === 'guided'
       ? 'Resolution mode: guided. Use the named ruleset as story guidance. Do not invent a die roll or claim a mechanical result.'
       : 'Resolution mode: mechanical. Respect the recorded move result. Do not invent a die roll, change its total, or award resources in narration.',
     config.relationships ? '' : 'Relationships develop through the story without automatic relationship scoring.',
-    config.dating ? 'Dating can arise from character choices, with consent and established relationships respected.' : 'Romance may occur in the story, but dating game systems are off.',
+    romanceEmphasis === 'focus' && config.dating ? 'Dating can arise from character choices, with consent and established relationships respected.' : '',
   ]
   if (config.mode === 'mechanical' && config.moves.length) {
     lines.push('Available moves:')
