@@ -2291,12 +2291,8 @@ export function useChatSession(chatId: string | null) {
     async (ids: string[]) => {
       if (!chatId) return
       const fresh = (await chatsApi.get(chatId)) ?? chat
-      const prior = fresh?.participants ?? []
       const presentCharacterIds = fresh?.scene?.presentCharacterIds
-      const nextPresent = presentCharacterIds === undefined ? undefined : [
-        ...presentCharacterIds.filter((id) => id === fresh?.characterId || ids.includes(id)),
-        ...ids.filter((id) => !prior.includes(id) && !presentCharacterIds.includes(id)),
-      ]
+      const nextPresent = presentCharacterIds?.filter((id) => id === fresh?.characterId || ids.includes(id))
       await chatsApi.update(chatId, {
         participants: ids,
         scene: fresh?.scene ? { ...fresh.scene, roundRobinIndex: 0, ...(nextPresent ? { presentCharacterIds: nextPresent } : {}) } : fresh?.scene,
