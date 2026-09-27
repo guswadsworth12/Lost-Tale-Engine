@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Sidebar, type ViewId } from '@/components/layout/Sidebar'
+import { Sidebar } from '@/components/layout/Sidebar'
+import type { ViewId } from '@/lib/ui/navigation'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { KeyboardShortcutsSheet } from '@/components/layout/KeyboardShortcutsSheet'
 import { ChatsPanel } from '@/components/chat/ChatsPanel'
@@ -7,9 +8,8 @@ import { ChatWindow } from '@/components/chat/ChatWindow'
 import { GlobalBgm } from '@/components/chat/GlobalBgm'
 import { WelcomeView } from '@/components/chat/WelcomeView'
 import { AssistantView } from '@/components/assistant/AssistantView'
-import { CharactersView } from '@/components/characters/CharactersView'
+import { CastView } from '@/components/cast/CastView'
 import { WorldsView } from '@/components/worlds/WorldsView'
-import { PersonasView } from '@/components/personas/PersonasView'
 import { WorldInfoView } from '@/components/worldinfo/WorldInfoView'
 import { GalleryView } from '@/components/gallery/GalleryView'
 import { SettingsView } from '@/components/settings/SettingsView'
@@ -25,54 +25,37 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 /** The chat tab: the full-screen Welcome screen on a fresh install, otherwise the panel + window. */
 function ChatSurface({
   activeChatId,
-  onSelect,
   onNavigate,
   onNavigateToWorld,
+  playing,
+  onPlay,
+  onBack,
 }: {
   activeChatId: string | null
-  onSelect: (id: string | null) => void
   onNavigate: (view: ViewId) => void
   onNavigateToWorld: (worldId: string, tab?: string) => void
+  playing: boolean
+  onPlay: (id: string | null) => void
+  onBack: () => void
 }) {
   const chats = useApiQuery('chats', () => chatsApi.list(), [])
-  // Below `md` there's only room for one of the chat list / the active chat at a time — this is
-  // purely which one a phone-width viewport is currently showing, never touched at `md` and up,
-  // where both render side by side regardless of it (see the responsive classes below).
-  const [mobileListOpen, setMobileListOpen] = useState(!activeChatId)
-
   if (chats === undefined) return <div className="flex-1" />
   if (chats.length === 0) {
-    return <WelcomeView onStarted={onSelect} onNavigate={onNavigate} />
+    return <WelcomeView onStarted={onPlay} onNavigate={onNavigate} />
   }
 
-  return (
-    <>
-      <div className={`${mobileListOpen ? 'flex' : 'hidden'} w-full md:flex md:w-auto`}>
-        <ChatsPanel
-          activeChatId={activeChatId}
-          onSelect={(id) => {
-            onSelect(id)
-            setMobileListOpen(false)
-          }}
-        />
-      </div>
-      <div className={`${mobileListOpen ? 'hidden' : 'flex'} w-full min-w-0 flex-1 md:flex`}>
-        <ChatWindow
-          chatId={activeChatId}
-          onBack={() => setMobileListOpen(true)}
-          onOpenSettings={() => onNavigate('settings')}
-          onNavigateToWorld={onNavigateToWorld}
-        />
-      </div>
-    </>
-  )
+  if (!playing || !activeChatId) return <ChatsPanel activeChatId={activeChatId} onSelect={onPlay} />
+
+  return <ChatWindow chatId={activeChatId} onBack={onBack}
+    onOpenSettings={() => onNavigate('settings')} onNavigateToWorld={onNavigateToWorld} />
 }
 
 export default function App() {
   useApplyTheme()
   useOutreachTick()
   useAutoContextLength()
-  const [view, setView] = useState<ViewId>('chat')
+  const [view, setView] = useState<ViewId>('stories')
+  const [playing, setPlaying] = useState(false)
   const activeChatId = useSettingsStore((s) => s.activeChatId)
   const setActiveChatId = useSettingsStore((s) => s.setActiveChatId)
   const [showPalette, setShowPalette] = useState(false)
@@ -82,6 +65,15 @@ export default function App() {
   const [pendingCharacterId, setPendingCharacterId] = useState<string | null>(null)
   const [pendingWorldId, setPendingWorldId] = useState<string | null>(null)
   const [pendingWorldTab, setPendingWorldTab] = useState<string | null>(null)
+  const navigate = (next: ViewId) => {
+    setView(next)
+    if (next === 'stories') setPlaying(false)
+  }
+  const play = (id: string | null) => {
+    setActiveChatId(id)
+    setView('stories')
+    setPlaying(Boolean(id))
+  }
   // The Relationship panel's "Customize in World editor" link — same deep-link shape as the
   // command palette's `onSelectWorld` below, just also landing on a specific tab (e.g. 'dating'
   // for the gift/intimacy catalogs) instead of always the world's overview.
@@ -114,7 +106,7 @@ export default function App() {
 
   return (
     <div className="flex h-full w-full flex-col md:flex-row">
-      <Sidebar view={view} onChange={setView} onOpenPalette={() => setShowPalette(true)} />
+      <Sidebar view={view} onChange={navigate} onOpenPalette={() => setShowPalette(true)} />
       {/* The mobile bottom nav is `fixed`, out of normal flow — this padding keeps it from
           covering the last bit of content. No-op at `md` and up, where the rail is a sibling
           taking its own column width instead.
@@ -126,12 +118,13 @@ export default function App() {
           itself; this is the wrapper one level up that the earlier mobile pass didn't happen to
           stress with tall-enough content to catch. */}
       <div className="flex min-h-0 flex-1 min-w-0 pb-14 md:pb-0">
-        {view === 'chat' && (
-          <ChatSurface activeChatId={activeChatId} onSelect={setActiveChatId} onNavigate={setView} onNavigateToWorld={navigateToWorld} />
+        {view === 'stories' && (
+          <ChatSurface activeChatId={activeChatId} onNavigate={navigate} onNavigateToWorld={navigateToWorld}
+            playing={playing} onPlay={play} onBack={() => setPlaying(false)} />
         )}
-        {view === 'assistant' && <AssistantView />}
-        {view === 'characters' && (
-          <CharactersView initialCharacterId={pendingCharacterId} onConsumedInitial={() => setPendingCharacterId(null)} />
+        {view === 'writer' && <AssistantView />}
+        {view === 'cast' && (
+          <CastView initialCharacterId={pendingCharacterId} onConsumedInitial={() => setPendingCharacterId(null)} />
         )}
         {view === 'worlds' && (
           <WorldsView
@@ -143,9 +136,8 @@ export default function App() {
             }}
           />
         )}
-        {view === 'personas' && <PersonasView />}
-        {view === 'worldinfo' && <WorldInfoView />}
-        {view === 'gallery' && <GalleryView />}
+        {view === 'lore' && <WorldInfoView />}
+        {view === 'media' && <GalleryView />}
         {view === 'settings' && <SettingsView />}
       </div>
       {/* App-level so a world's music keeps playing across view switches. Mounted in every view:
@@ -156,14 +148,11 @@ export default function App() {
       {showPalette && (
         <CommandPalette
           onClose={() => setShowPalette(false)}
-          onNavigateView={setView}
-          onSelectChat={(id) => {
-            setActiveChatId(id)
-            setView('chat')
-          }}
+          onNavigateView={navigate}
+          onSelectChat={play}
           onSelectCharacter={(id) => {
             setPendingCharacterId(id)
-            setView('characters')
+            setView('cast')
           }}
           onSelectWorld={(id) => {
             setPendingWorldId(id)

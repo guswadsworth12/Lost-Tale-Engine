@@ -9,7 +9,7 @@ interface PaletteResult {
   key: string
   label: string
   sublabel?: string
-  group: 'View' | 'Chat' | 'Character' | 'World'
+  group: 'View' | 'Story' | 'Cast' | 'World'
   onSelect: () => void
 }
 
@@ -62,7 +62,7 @@ export function CommandPalette({
 
     // An empty query is a quick "jump to a section" default — searching the whole library on top
     // of that would be a wall of everything, not a shortcut.
-    if (!q) return views.slice(0, MAX_PER_GROUP)
+    if (!q) return views
 
     const chatResults: PaletteResult[] = chats
       .filter((c) => c.title.toLowerCase().includes(q) || (charName(c.characterId) ?? '').toLowerCase().includes(q))
@@ -71,7 +71,7 @@ export function CommandPalette({
         key: `chat-${c.id}`,
         label: c.title,
         sublabel: charName(c.characterId),
-        group: 'Chat',
+        group: 'Story',
         onSelect: () => onSelectChat(c.id),
       }))
 
@@ -81,7 +81,7 @@ export function CommandPalette({
       .map((c) => ({
         key: `character-${c.id}`,
         label: c.card.name,
-        group: 'Character',
+        group: 'Cast',
         onSelect: () => onSelectCharacter(c.id),
       }))
 
@@ -146,7 +146,7 @@ export function CommandPalette({
               setActiveIndex(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Jump to a character, chat, world, or section…"
+            placeholder="Jump to a story, cast member, world, or section…"
             className="w-full bg-transparent text-sm text-text outline-none placeholder:text-text-muted/60"
           />
         </div>
@@ -162,7 +162,7 @@ export function CommandPalette({
             return (
               <div key={group} className="mb-1">
                 <div className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-                  {group === 'View' ? 'Sections' : `${group}s`}
+                  {group === 'View' ? 'Sections' : group}
                 </div>
                 {groupResults.map((r) => {
                   runningIndex++
