@@ -683,7 +683,7 @@ export function CharacterEditor({
           setForm((current) => ({ ...current, name: imported.name }))
           if (imported.avatarDataUrl) setAvatarDataUrl(imported.avatarDataUrl)
           setPromptItems(imported.promptItems)
-          setTab('behavior')
+          setTab('advanced')
           toastSuccess(`Imported ${imported.promptItems.length} TavernAI 2 prompt items for ${imported.name}.`)
           if (imported.disabledCount) toastInfo(`${imported.disabledCount} item(s) with TavernAI rules or macros are disabled for review.`)
           return
@@ -872,17 +872,6 @@ export function CharacterEditor({
             actions={<RegenerateFieldButton character={form} fieldKey="description" onResult={(t) => set('description', t)} />}
           />
           <TextAreaField
-            label="Personality"
-            hint={fixedFieldHint(
-              'How they speak, act, and feel. The more specific, the more the model imitates their voice.',
-              form.personality,
-            )}
-            rows={3}
-            value={form.personality}
-            onChange={(e) => set('personality', e.target.value)}
-            actions={<RegenerateFieldButton character={form} fieldKey="personality" onResult={(t) => set('personality', t)} />}
-          />
-          <TextAreaField
             label="Scenario"
             hint={fixedFieldHint('The situation the chat starts in.', form.scenario)}
             rows={2}
@@ -903,28 +892,7 @@ export function CharacterEditor({
             value={(form.alternate_greetings ?? []).join('\n')}
             onChange={(e) => set('alternate_greetings', e.target.value.split('\n').filter(Boolean))}
           />
-          <TextAreaField
-            label="Example messages"
-            hint={fixedFieldHint(
-              'Few-shot dialogue examples, e.g. <START>\\n{{user}}: ...\\n{{char}}: ...',
-              form.mes_example,
-            )}
-            rows={4}
-            value={form.mes_example}
-            onChange={(e) => set('mes_example', e.target.value)}
-          />
         </div>
-      )}
-
-      {tab === 'behavior' && (
-        <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. These items enter context only when this character speaks." surface="bare">
-          <div className="mb-4">
-            <FileButton onPick={(files) => handleImportFile(files[0])} accept=".json">
-              Import TavernAI 2 card prompts
-            </FileButton>
-          </div>
-          <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
-        </Section>
       )}
 
       {tab === 'knowledge' && (
@@ -1034,7 +1002,30 @@ export function CharacterEditor({
       )}
 
       {tab === 'behavior' && (
-        <div className="mt-10 space-y-10">
+        <div className="space-y-10">
+          <Section title="Personality & examples" description="How this character behaves and speaks across scenes." surface="bare">
+            <TextAreaField
+              label="Personality"
+              hint={fixedFieldHint(
+                'How they speak, act, and feel. The more specific, the more the model imitates their voice.',
+                form.personality,
+              )}
+              rows={3}
+              value={form.personality}
+              onChange={(e) => set('personality', e.target.value)}
+              actions={<RegenerateFieldButton character={form} fieldKey="personality" onResult={(t) => set('personality', t)} />}
+            />
+            <TextAreaField
+              label="Example messages"
+              hint={fixedFieldHint(
+                'Few-shot dialogue examples, e.g. <START>\\n{{user}}: ...\\n{{char}}: ...',
+                form.mes_example,
+              )}
+              rows={4}
+              value={form.mes_example}
+              onChange={(e) => set('mes_example', e.target.value)}
+            />
+          </Section>
           <Section
             title="Behavioral rules"
             description={'Structured "when X, she Y" / "never Z" contracts. Followed exactly as written, more precise than free-text personality. Good for desire, hesitation, and aftercare.'}
@@ -1915,6 +1906,15 @@ export function CharacterEditor({
                 </li>
               ))}
             </ul>
+          </Section>
+
+          <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. These items enter context only when this character speaks." surface="bare">
+            <div className="mb-4">
+              <FileButton onPick={(files) => handleImportFile(files[0])} accept=".json">
+                Import TavernAI 2 card prompts
+              </FileButton>
+            </div>
+            <PromptItemsEditor items={promptItems} onChange={setPromptItems} />
           </Section>
 
           <Section title="Prompt overrides" description="Replaces or reinforces the default instruction sent to the model for this character." surface="bare">
