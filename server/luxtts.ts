@@ -38,7 +38,7 @@ function call(pathname: string, init: RequestInit = {}, timeoutMs = 180_000) {
   return fetch(base + pathname, {
     ...init,
     headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(init.headers as Record<string, string> | undefined) },
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(init.signal ? [init.signal] : [])]),
   })
 }
 
@@ -103,7 +103,7 @@ export async function luxttsStatus() {
 }
 
 /** Speaks `text` in the voice of `reference` (a sample file), pushing the sample to the server if it hasn't seen it. */
-export async function luxttsSpeak(input: { text: unknown; reference?: unknown; speed?: unknown }): Promise<{ audio: Buffer; contentType: string }> {
+export async function luxttsSpeak(input: { text: unknown; reference?: unknown; speed?: unknown }, signal?: AbortSignal): Promise<{ audio: Buffer; contentType: string }> {
   const { base, defaultReference } = config()
   if (!base) throw Object.assign(new Error('LuxTTS is not configured. Set LUXTTS_URL in .env.'), { status: 503 })
   const text = typeof input.text === 'string' ? input.text.trim().slice(0, 5000) : ''
@@ -112,15 +112,22 @@ export async function luxttsSpeak(input: { text: unknown; reference?: unknown; s
   if (requested && !SAMPLE_RE.test(requested)) throw Object.assign(new Error('Unknown voice sample.'), { status: 400 })
   const local = requested ? path.join(voiceSamplesDir, requested) : ''
   const speed = Math.max(0.5, Math.min(2, Number(input.speed) || 1))
-  const speak = () =>
-    call('/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, reference: requested || null, speed }) })
-  let r = await speak()
-  if (r.status === 404 && requested && fs.existsSync(local)) {
-    const put = await call(`/references/${requested}`, { method: 'PUT', headers: { 'content-type': 'audio/wav' }, body: fs.readFileSync(local) })
-    if (!put.ok) throw Object.assign(new Error(`LuxTTS rejected the voice sample (HTTP ${put.status}).`), { status: 502 })
-    r = await speak()
+  try {
+    const speak = () =>
+      call('/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, reference: requested || null, speed }), signal }, 60_000)
+    let r = await speak()
+    if (r.status === 404 && requested && fs.existsSync(local)) {
+      const put = await call(`/references/${requested}`, { method: 'PUT', headers: { 'content-type': 'audio/wav' }, body: fs.readFileSync(local), signal })
+      if (!put.ok) throw Object.assign(new Error(`LuxTTS rejected the voice sample (HTTP ${put.status}).`), { status: 502 })
+      r = await speak()
+    }
+    if (r.status === 404) throw Object.assign(new Error('No voice sample chosen, and the LuxTTS server has no default voice. Pick a sample in Settings → Voice.'), { status: 502 })
+    if (!r.ok) throw Object.assign(new Error(`LuxTTS returned HTTP ${r.status}.`), { status: 502 })
+    return { audio: Buffer.from(await r.arrayBuffer()), contentType: r.headers.get('content-type') || 'audio/wav' }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw Object.assign(new Error('LuxTTS timed out generating this line. Try it again.'), { status: 504 })
+    }
+    throw error
   }
-  if (r.status === 404) throw Object.assign(new Error('No voice sample chosen, and the LuxTTS server has no default voice. Pick a sample in Settings → Voice.'), { status: 502 })
-  if (!r.ok) throw Object.assign(new Error(`LuxTTS returned HTTP ${r.status}.`), { status: 502 })
-  return { audio: Buffer.from(await r.arrayBuffer()), contentType: r.headers.get('content-type') || 'audio/wav' }
 }

@@ -521,12 +521,19 @@ app.get('/api/tts/luxtts/status', async (_req, res) => {
 })
 
 app.post('/api/tts/luxtts', async (req, res) => {
+  const controller = new AbortController()
+  const disconnect = () => { if (!res.writableEnded) controller.abort() }
+  res.on('close', disconnect)
   try {
-    const { audio, contentType } = await luxttsSpeak(req.body ?? {})
-    res.type(contentType).send(audio)
+    const { audio, contentType } = await luxttsSpeak(req.body ?? {}, controller.signal)
+    if (!controller.signal.aborted) res.type(contentType).send(audio)
   } catch (e) {
-    const status = (e as { status?: number }).status ?? 502
-    res.status(status).json({ error: e instanceof Error ? e.message : 'LuxTTS request failed' })
+    if (!controller.signal.aborted) {
+      const status = (e as { status?: number }).status ?? 502
+      res.status(status).json({ error: e instanceof Error ? e.message : 'LuxTTS request failed' })
+    }
+  } finally {
+    res.off('close', disconnect)
   }
 })
 
