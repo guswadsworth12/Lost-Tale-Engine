@@ -35,6 +35,7 @@ import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { GenerateExpressionSetDialog } from './GenerateExpressionSetDialog'
+import { AvatarCropDialog } from './AvatarCropDialog'
 import { errorMessage, toastError, toastInfo, toastSuccess } from '@/lib/store/useToastStore'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { TTS_PROVIDER_LABELS, type TtsProviderId } from '@/lib/voice/ttsProviders'
@@ -194,6 +195,7 @@ export function CharacterEditor({
   const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
   const [modelOverride, setModelOverride] = useState(character?.modelOverride ?? '')
   const [avatarDataUrl, setAvatarDataUrl] = useState(character?.avatarDataUrl)
+  const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null)
   const [sprites, setSprites] = useState<Record<string, string>>(character?.sprites ?? {})
   const [spriteUnlocks, setSpriteUnlocks] = useState<Record<string, number>>(character?.spriteUnlocks ?? {})
   const [spriteVariants, setSpriteVariants] = useState<Record<string, string[]>>(character?.spriteVariants ?? {})
@@ -270,6 +272,7 @@ export function CharacterEditor({
     setModelOverride(character?.modelOverride ?? '')
     setVrm(character?.vrm)
     setAvatarDataUrl(character?.avatarDataUrl)
+    setAvatarCropSource(null)
     setSprites(character?.sprites ?? {})
     setSpriteVariants(character?.spriteVariants ?? {})
     setSpriteUnlocks(character?.spriteUnlocks ?? {})
@@ -502,15 +505,21 @@ export function CharacterEditor({
   }
 
   const handleAvatarPick = async (file: File) => {
-    if (file.type === 'image/png') {
-      try {
-        applyImport(await importCharacterFile(file))
-        return
-      } catch {
-        // not an embedded card, just use it as a plain avatar image
+    try {
+      if (file.type === 'image/png') {
+        try {
+          const imported = await importCharacterFile(file)
+          applyImport(imported)
+          if (imported.avatarDataUrl) setAvatarCropSource(imported.avatarDataUrl)
+          return
+        } catch {
+          // not an embedded card, just use it as a plain avatar image
+        }
       }
+      setAvatarCropSource(await fileToDataUrl(file))
+    } catch (error) {
+      toastError(errorMessage(error))
     }
-    setAvatarDataUrl(await fileToDataUrl(file))
   }
 
   /**
@@ -818,16 +827,25 @@ export function CharacterEditor({
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleAvatarPick(e.target.files[0])}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void handleAvatarPick(file)
+                    e.target.value = ''
+                  }}
                 />
               </label>
               <div className="absolute -bottom-1.5 -right-1.5">
                 <GenerateImageButton
                   label="Generate avatar with AI"
                   initialPrompt={form.description ? `portrait of ${form.name || 'a character'}, ${form.description}`.slice(0, 300) : ''}
-                  onGenerated={setAvatarDataUrl}
+                  onGenerated={setAvatarCropSource}
                 />
               </div>
+              {avatarDataUrl && (
+                <button type="button" onClick={() => setAvatarCropSource(avatarDataUrl)} className="mt-2 text-xs text-accent hover:underline">
+                  Crop avatar
+                </button>
+              )}
             </div>
             <div className="flex-1 space-y-0">
               <TextField label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} />
@@ -2023,6 +2041,16 @@ export function CharacterEditor({
           initialPrompt={form.description ? `portrait of ${form.name || 'a character'}, ${form.description}`.slice(0, 300) : ''}
           onGenerated={(expressionId, dataUrl) => setSprites((s) => ({ ...s, [expressionId]: dataUrl }))}
           onClose={() => setShowExpressionSetDialog(false)}
+        />
+      )}
+      {avatarCropSource && (
+        <AvatarCropDialog
+          source={avatarCropSource}
+          onApply={(cropped) => {
+            setAvatarDataUrl(cropped)
+            setAvatarCropSource(null)
+          }}
+          onClose={() => setAvatarCropSource(null)}
         />
       )}
     </EditorShell>
