@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitSpeechText, toSpeakableText } from './speakableText'
+import { splitSpeechText, splitVoiceSegments, toSpeakableText } from './speakableText'
 
 describe('toSpeakableText', () => {
   it('strips an action wrapped in asterisks, leaving surrounding dialogue', () => {
@@ -55,4 +55,28 @@ it('splits longer replies at sentence endings and preserves every word', () => {
   expect(clips.length).toBeGreaterThan(1)
   expect(clips.every((clip) => clip.endsWith('.'))).toBe(true)
   expect(clips.join(' ')).toBe(text)
+})
+
+describe('splitVoiceSegments', () => {
+  it('routes actions and bare narration to the narrator while keeping quoted dialogue with the character', () => {
+    expect(splitVoiceSegments('*Maelin sets down her mug.* "Welcome home." She smiles. "Sit with us."')).toEqual([
+      { role: 'narrator', text: 'Maelin sets down her mug.' },
+      { role: 'character', text: 'Welcome home.' },
+      { role: 'narrator', text: 'She smiles.' },
+      { role: 'character', text: 'Sit with us.' },
+    ])
+  })
+
+  it('speaks GM story prose without reading labels or judgment tags', () => {
+    expect(splitVoiceSegments('Game Master: Valenne comes into view.\nGame Master: Home is waiting.', true)).toEqual([
+      { role: 'narrator', text: 'Valenne comes into view. Home is waiting.' },
+    ])
+    expect(splitVoiceSegments('[GM judgment (guided, not a rules result)] The gifts are received.', true)).toEqual([
+      { role: 'narrator', text: 'The gifts are received.' },
+    ])
+  })
+
+  it('does not send an internal GM no-op marker to LuxTTS', () => {
+    expect(splitVoiceSegments('[The GM lets the moment play out.]', true)).toEqual([])
+  })
 })

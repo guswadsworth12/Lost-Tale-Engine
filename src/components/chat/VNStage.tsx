@@ -57,7 +57,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
-import { splitSpeechText, toSpeakableText } from '@/lib/voice/speakableText'
+import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
 import { resolveExpressionSprite } from '@/lib/vn/expressions'
@@ -382,6 +382,8 @@ export function VNStage({
       : lastCharMsg?.failed
         ? '⚠ Generation failed. Try regenerating (⟲) from the log.'
         : lastCharMsg?.text || (messages.length === 0 ? 'Say hello to begin the scene…' : '')
+  const silentGmNote = !!lastCharMsg && (lastCharMsg.speakerId === GM_SPEAKER_ID || !!lastCharMsg.gm)
+    && splitVoiceSegments(displayText, true).length === 0
 
   const activeSwipe = lastCharMsg?.activeSwipe ?? 0
   const scene = lastCharMsg?.swipeScenes?.[activeSwipe] ?? lastCharMsg?.scene
@@ -605,8 +607,8 @@ export function VNStage({
   const startSpeaking = async (rawText: string) => {
     stopSpeaking()
     const gmNarration = !showUserAsCurrent && (lastCharMsg?.speakerId === GM_SPEAKER_ID || !!lastCharMsg?.gm)
-    const text = toSpeakableText(rawText, gmNarration)
-    if (!text) return
+    const segments = splitVoiceSegments(rawText, showUserAsCurrent || gmNarration)
+    if (!segments.length) return
     setSpeakState('loading')
     const controller = new AbortController()
     speakControllerRef.current = controller
@@ -618,29 +620,38 @@ export function VNStage({
       if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
         throw new Error('This character overrides the voice provider. Select that provider in Settings → Voice first, or use the global default for this character.')
       }
-      const config = {
-        provider,
+      const narratorConfig = {
+        provider: ttsProvider,
         apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey,
         model: ttsModel,
         baseUrl: ttsBaseUrl,
         region: ttsRegion,
+        voice: ttsVoice,
+      }
+      const characterConfig = {
+        ...narratorConfig,
+        provider,
         // A character's own voice id only means something on the provider it was chosen for.
         voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
         speed: override?.speed,
       }
-      const parts = provider === 'luxtts' ? splitSpeechText(text) : [text]
+      const clips = segments.flatMap((segment) => {
+        const config = segment.role === 'narrator' ? narratorConfig : characterConfig
+        const parts = config.provider === 'luxtts' ? splitSpeechText(segment.text) : [segment.text]
+        return parts.map((text) => ({ text, config }))
+      })
       // Prepare one clip ahead while the current one plays, so sentence boundaries do not
       // acquire an extra synthesis-length pause. Capture errors immediately while prefetching.
-      const prepare = (part: string) => synthesizeSpeech(config, part, koboldBaseUrl, controller.signal)
+      const prepare = (clip: (typeof clips)[number]) => synthesizeSpeech(clip.config, clip.text, koboldBaseUrl, controller.signal)
         .then((blob) => ({ blob, error: null }), (error: unknown) => ({ blob: null, error }))
-      let next = prepare(parts[0])
-      for (let index = 0; index < parts.length; index++) {
+      let next = prepare(clips[0])
+      for (let index = 0; index < clips.length; index++) {
         setSpeakState('loading')
         const result = await next
         if (result.blob === null) throw result.error
         const blob = result.blob
         controller.signal.throwIfAborted()
-        if (index + 1 < parts.length) next = prepare(parts[index + 1])
+        if (index + 1 < clips.length) next = prepare(clips[index + 1])
         const url = URL.createObjectURL(blob)
         const audio = new Audio(url)
         audio.hidden = true
@@ -857,9 +868,10 @@ export function VNStage({
             {canSwipe && <span className="mx-1 h-4 w-px bg-white/15" />}
             <button
               onClick={speakLine}
-              title={speakState === 'idle' ? 'Read this line aloud' : speakState === 'loading' ? 'Loading…' : 'Stop'}
-              aria-label={speakState === 'idle' ? 'Read this line aloud' : 'Stop reading aloud'}
-              className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/10 ${speakState !== 'idle' ? 'text-accent' : 'text-white/70'}`}
+              disabled={silentGmNote}
+              title={silentGmNote ? 'This GM note has no narration to read' : speakState === 'idle' ? 'Read this line aloud' : speakState === 'loading' ? 'Loading…' : 'Stop'}
+              aria-label={silentGmNote ? 'No narration in this GM note' : speakState === 'idle' ? 'Read this line aloud' : 'Stop reading aloud'}
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/10 disabled:opacity-30 ${speakState !== 'idle' ? 'text-accent' : 'text-white/70'}`}
             >
               {speakState === 'loading' ? (
                 <Loader2 size={14} strokeWidth={2} className="animate-spin" />
