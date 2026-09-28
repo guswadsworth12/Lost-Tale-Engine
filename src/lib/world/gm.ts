@@ -22,6 +22,9 @@ export const GM_NAME = 'Game Master'
 /** A PbtA move result the player rolled, stored on the user message that declared it. */
 export interface RecordedMove extends PbtaRoll {
   action: string
+  /** Keeps the modifier's origin auditable after a sheet changes later. */
+  modifierSource?: 'sheet' | 'manual'
+  sheetStatId?: string
 }
 
 export type GmPacing = 'linger' | 'advance' | 'cut'

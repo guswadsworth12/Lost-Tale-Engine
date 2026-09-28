@@ -33,6 +33,7 @@ import { VoiceSampleField } from '@/components/settings/VoiceSampleField'
 import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
 import { CHARACTER_TAB_ALIASES } from '@/lib/ui/navigation'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
+import { campaignStats } from '@/lib/world/campaign'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
@@ -89,6 +90,7 @@ function fixedFieldHint(base: ReactNode, value: string): ReactNode {
 
 const TABS: EditorTab[] = [
   { id: 'character', label: 'Character' },
+  { id: 'sheet', label: 'Sheet' },
   { id: 'background', label: 'Background' },
   { id: 'behavior', label: 'Behavior' },
   { id: 'knowledge', label: 'Knowledge' },
@@ -243,6 +245,7 @@ export function CharacterEditor({
   const [instructTemplateId, setInstructTemplateId] = useState(character?.instructTemplateId ?? '')
   const [replyLength, setReplyLength] = useState<ReplyLength>(character?.replyLength ?? 'auto')
   const [worldId, setWorldId] = useState(character?.worldId ?? '')
+  const [sheetStats, setSheetStats] = useState<Record<string, number>>(character?.sheet?.stats ?? {})
   const [gmEligible, setGmEligible] = useState(character?.gmEligible !== false)
   const [playerOnly, setPlayerOnly] = useState(character ? character.playerOnly === true : initialPlayerOnly)
   const [playerDescription, setPlayerDescription] = useState(character?.playerDescription ?? '')
@@ -273,6 +276,7 @@ export function CharacterEditor({
   const [saving, setSaving] = useState(false)
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const editingWorld = worlds.find((w) => w.id === worldId)
+  const sheetFields = editingWorld?.campaign ? campaignStats(editingWorld.campaign) : []
   const datingEnabled = modulesForWorld(editingWorld).dating
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
@@ -313,6 +317,7 @@ export function CharacterEditor({
     setWeatherHates(character?.weatherPreferences?.hates ?? [])
     setSchedule(character?.schedule ?? [])
     setWorldId(character?.worldId ?? '')
+    setSheetStats(character?.sheet?.stats ?? {})
     setGmEligible(character?.gmEligible !== false)
     setPlayerOnly(character ? character.playerOnly === true : initialPlayerOnly)
     setPlayerDescription(character?.playerDescription ?? '')
@@ -473,6 +478,7 @@ export function CharacterEditor({
       weatherPreferences,
       schedule: schedule.length ? schedule : null,
       worldId: worldId || null,
+      sheet: sheetFields.length ? { worldId, stats: Object.fromEntries(sheetFields.map(({ id }) => [id, sheetStats[id] ?? 0])) } : character?.worldId === worldId ? character?.sheet ?? null : null,
       gmEligible,
       playerOnly,
       // Always sent, as a string: the server treats '' as "cleared, fall back to the description".
@@ -865,7 +871,7 @@ export function CharacterEditor({
             </div>
             <div className="flex-1 space-y-0">
               <TextField label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} />
-              <SelectField label="World" value={worldId} onChange={(e) => setWorldId(e.target.value)}>
+              <SelectField label="World" value={worldId} onChange={(e) => { setWorldId(e.target.value); if (e.target.value !== worldId) setSheetStats({}) }}>
                 <option value="">No world (standalone)</option>
                 {worlds.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -927,6 +933,30 @@ export function CharacterEditor({
             />
           </Section>
         </div>
+      )}
+      {tab === 'sheet' && (
+        <Section title="Character sheet" description="These stats are the modifiers added to 2d6 when this character makes a campaign move." surface="bare">
+          {!worldId ? <p className="text-sm text-text-muted">Choose a world on the Character tab to fill in a sheet.</p>
+            : !editingWorld?.campaign ? <p className="text-sm text-text-muted">This world has no story rules. Add stats in its Story Rules tab first.</p>
+            : sheetFields.length === 0 ? <p className="text-sm text-text-muted">This world has no stats yet. Add them in its Story Rules tab first.</p>
+            : sheetFields.map((stat) => (
+              <NumberField
+                key={stat.id}
+                label={stat.name}
+                hint={stat.description || 'Modifier for moves using this stat.'}
+                min={-5}
+                max={5}
+                step={1}
+                value={sheetStats[stat.id] ?? 0}
+                onChange={(event) => {
+                  const value = Number(event.target.value)
+                  if (Number.isInteger(value) && value >= -5 && value <= 5) {
+                    setSheetStats((current) => ({ ...current, [stat.id]: value }))
+                  }
+                }}
+              />
+            ))}
+        </Section>
       )}
 
       {tab === 'knowledge' && (

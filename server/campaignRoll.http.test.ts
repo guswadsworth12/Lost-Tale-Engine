@@ -53,6 +53,8 @@ describe('server-owned roll HTTP API', () => {
     const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' }
     const world = await call('/api/worlds', 'POST', { name: 'Test world', description: '', lorebook: { entries: [] }, campaign })
     expect(world.status).toBe(201)
+    expect(world.body.campaign.stats[0]).toMatchObject({ id: 'nerve', name: 'Nerve' })
+    expect(world.body.campaign.moves[0].statId).toBe('nerve')
     const lead = await call('/api/characters', 'POST', { card: { name: 'Lead' }, worldId: world.body.id })
     const player = await call('/api/characters', 'POST', { card: { name: 'Player' }, worldId: world.body.id, playerOnly: true })
     expect(lead.status).toBe(201)
@@ -81,5 +83,16 @@ describe('server-owned roll HTTP API', () => {
     expect((await call(`/api/messages/${request.messageId}`, 'PUT', { campaignRoll: { ...roll, tier: 'strong' } })).status).toBe(409)
     expect((await call(`/api/messages/${request.messageId}`, 'PUT', { text: 'Changed after rolling' })).status).toBe(400)
     expect((await call(`/api/messages/${request.messageId}`, 'GET')).body).toEqual(first.body)
+
+    const savedSheet = await call(`/api/characters/${player.body.id}`, 'PUT', { sheet: { worldId: world.body.id, stats: { nerve: 2, wits: 0, heart: 1, grit: -1 } } })
+    expect(savedSheet.body.sheet.stats.nerve).toBe(2)
+    const sheetRequest = { ...request, messageId: 'sheet-roll', modifier: 2 }
+    expect((await call(route, 'POST', { ...sheetRequest, modifier: -5 })).status).toBe(409)
+    const sheetRoll = await call(route, 'POST', sheetRequest)
+    expect(sheetRoll.status).toBe(201)
+    expect(sheetRoll.body.campaignRoll.modifier).toBe(2)
+    expect(sheetRoll.body.campaignRoll).toMatchObject({ modifierSource: 'sheet', sheetStatId: 'nerve' })
+    expect(sheetRoll.body.campaignRoll.total).toBe(sheetRoll.body.campaignRoll.dice[0] + sheetRoll.body.campaignRoll.dice[1] + 2)
+    expect((await call(route, 'POST', sheetRequest)).body).toEqual(sheetRoll.body)
   })
 })

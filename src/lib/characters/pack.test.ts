@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BRANCHING_SCENARIO } from '@/lib/dating/scenarios'
 import type { ScenarioGraph } from '@/lib/dating/intimacyStages'
+import { STARTER_PBTA_CAMPAIGN } from '@/lib/world/campaign'
 
 // `importCharacterPack` talks to the local API, so the two resources it creates are stubbed and the
 // calls inspected. What's under test is the scenario half: a malformed scene shape must never load,
@@ -23,7 +24,7 @@ vi.mock('@/lib/api/client', () => ({
   },
 }))
 
-const { importCharacterPack } = await import('./pack')
+const { buildCharacterPack, importCharacterPack } = await import('./pack')
 
 /** A minimal pack carrying a world with the given scene shapes. */
 const packWith = (scenarios: unknown[]) =>
@@ -84,5 +85,21 @@ describe('importCharacterPack — bundled scene shapes', () => {
     const result = await importCharacterPack(worldless)
     expect(result.rejectedScenarios).toEqual([])
     expect(result.world).toBeUndefined()
+  })
+})
+
+describe('character pack campaign sheets', () => {
+  it('keeps the sheet, campaign stat definitions, and new world binding together', async () => {
+    const pack = await buildCharacterPack({
+      id: 'player-1', card: { name: 'Player' }, playerOnly: true,
+      sheet: { worldId: 'old-world', stats: { nerve: 2 } },
+    } as never, {
+      id: 'old-world', name: 'Test world', description: '', lorebook: { entries: [] },
+      campaign: STARTER_PBTA_CAMPAIGN,
+    } as never)
+    await importCharacterPack(pack)
+    expect(created.world?.campaign).toEqual(STARTER_PBTA_CAMPAIGN)
+    expect(created.character?.playerOnly).toBe(true)
+    expect(created.character?.sheet).toEqual({ worldId: 'world-1', stats: { nerve: 2 } })
   })
 })

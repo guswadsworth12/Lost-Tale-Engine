@@ -28,7 +28,7 @@ import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
 import { createCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
-import type { CampaignConfig } from '../src/lib/world/campaign.ts'
+import { normalizeCampaignStats, normalizeCharacterSheet, sheetModifier, statForMove, type CampaignConfig, type CharacterSheet } from '../src/lib/world/campaign.ts'
 
 /**
  * Express app: REST routes for characters, personas, chats/messages, world info books, sampler
@@ -110,6 +110,7 @@ function normalizeCampaign(raw: unknown) {
     resolver: 'pbta',
     relationships: value.relationships === true,
     dating: value.dating === true && value.relationships === true,
+    ...(Array.isArray(value.stats) ? { stats: normalizeCampaignStats(value.stats) ?? [] } : {}),
     moves: Array.isArray(value.moves) ? value.moves.slice(0, 100)
       .filter((move): move is Record<string, unknown> => !!move && typeof move === 'object')
       .map((move) => ({
@@ -117,6 +118,7 @@ function normalizeCampaign(raw: unknown) {
         name: typeof move.name === 'string' ? move.name.slice(0, 200) : '',
         trigger: typeof move.trigger === 'string' ? move.trigger.slice(0, 2000) : '',
         stat: typeof move.stat === 'string' ? move.stat.slice(0, 100) : '',
+        ...(typeof move.statId === 'string' && move.statId.trim() ? { statId: move.statId.slice(0, 100) } : {}),
         strong: typeof move.strong === 'string' ? move.strong.slice(0, 4000) : '',
         mixed: typeof move.mixed === 'string' ? move.mixed.slice(0, 4000) : '',
         miss: typeof move.miss === 'string' ? move.miss.slice(0, 4000) : '',
@@ -600,6 +602,7 @@ app.post('/api/characters', (req, res) => {
     modelOverride: typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined,
     playerOnly: req.body.playerOnly === true || undefined,
     playerDescription: normalizePlayerDescription(req.body.playerDescription),
+    sheet: normalizeCharacterSheet(req.body.sheet),
     vrm: normalizeVrm(id, req.body.vrm),
     spriteSources: normalizeSpriteSources(req.body.spriteSources),
     avatarDataUrl,
@@ -653,6 +656,7 @@ app.put('/api/characters/:id', (req, res) => {
   if ('modelOverride' in req.body) patch.modelOverride = typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined
   if ('playerOnly' in req.body) patch.playerOnly = req.body.playerOnly === true || undefined
   if ('playerDescription' in req.body) patch.playerDescription = normalizePlayerDescription(req.body.playerDescription)
+  if ('sheet' in req.body) patch.sheet = normalizeCharacterSheet(req.body.sheet)
   if ('worldId' in req.body) patch.worldId = req.body.worldId || undefined
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
   if ('sprites' in req.body) patch.sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
@@ -996,9 +1000,23 @@ app.post('/api/chats/:id/roll', (req, res) => {
   if (campaign?.mode !== 'mechanical') return res.status(400).json({ error: 'This chat has no mechanical campaign.' })
   const move = campaign.moves.find((entry) => entry.id === moveId)
   if (!move) return res.status(400).json({ error: 'That campaign move is no longer available.' })
-  const now = Date.now()
-  const roll = createCampaignRoll(move, modifier as number, [randomInt(1, 7), randomInt(1, 7)], action, newId(), now)
   const player = typeof chat.playerCharacterId === 'string' ? characterStore.get(chat.playerCharacterId) : undefined
+  const sheet = player?.sheet as CharacterSheet | undefined
+  const sheetStat = sheet ? statForMove(campaign, move) : undefined
+  if (sheet) {
+    if (player?.worldId !== world?.id) return res.status(400).json({ error: 'The player sheet belongs to a different world.' })
+    if (sheet.worldId && sheet.worldId !== world?.id) return res.status(400).json({ error: 'The player sheet was built for a different world. Save it again in Cast.' })
+    if (!sheetStat) return res.status(400).json({ error: 'This move has no character sheet stat. Assign one in the world editor.' })
+    const savedModifier = sheetModifier(campaign, move, sheet)
+    if (savedModifier === undefined) return res.status(400).json({ error: `Set ${sheetStat.name} on the player character sheet before rolling.` })
+    if (modifier !== savedModifier) return res.status(409).json({ error: `The ${sheetStat.name} modifier changed. Reopen the roll panel and try again.` })
+  }
+  const now = Date.now()
+  const roll = {
+    ...createCampaignRoll(move, modifier as number, [randomInt(1, 7), randomInt(1, 7)], action, newId(), now),
+    modifierSource: sheet ? 'sheet' : 'manual',
+    ...(sheetStat ? { sheetStatId: sheetStat.id } : {}),
+  }
   const card = player?.card as Record<string, unknown> | undefined
   const name = typeof card?.name === 'string' && card.name.trim() ? card.name : 'You'
   try {

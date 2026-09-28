@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, formatPbtaRoll, parseCampaignFile, resolvePbtaRoll } from './campaign'
+import { STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCharacterSheet, parseCampaignFile, resolvePbtaRoll, sheetModifier, statForMove } from './campaign'
 
 describe('campaign prompt emphasis', () => {
   it('keeps focus guidance and leaves natural/off turns free of campaign romance steering', () => {
@@ -23,6 +23,23 @@ describe('PbtA move resolver', () => {
     expect(() => resolvePbtaRoll(move, 0, [0, 6])).toThrow()
     expect(formatPbtaRoll({ ...resolvePbtaRoll(move, 2, [6, 2]), id: 'roll-1', createdAt: 1 }, 'Shield Hana'))
       .toContain('Dice: 6 + 2 + 2 Nerve = 10 (10+ strong hit)')
+  })
+})
+
+describe('campaign character sheets', () => {
+  it('links starter moves to stable sheet stats and uses the saved modifier', () => {
+    const move = STARTER_PBTA_CAMPAIGN.moves[0]
+    expect(statForMove(STARTER_PBTA_CAMPAIGN, move)).toMatchObject({ id: 'nerve', name: 'Nerve' })
+    expect(sheetModifier(STARTER_PBTA_CAMPAIGN, move, { stats: { nerve: 2 } })).toBe(2)
+    expect(sheetModifier(STARTER_PBTA_CAMPAIGN, move, { stats: {} })).toBeUndefined()
+    expect(sheetModifier(STARTER_PBTA_CAMPAIGN, move, { stats: { nerve: 8 } })).toBeUndefined()
+  })
+
+  it('derives fields for old worlds and cleans invalid imported sheet values', () => {
+    const legacy = { ...STARTER_PBTA_CAMPAIGN, stats: undefined, moves: STARTER_PBTA_CAMPAIGN.moves.map(({ statId: _id, ...move }) => move) }
+    expect(campaignStats(legacy).map((stat) => stat.id)).toEqual(['legacy:nerve', 'legacy:wits', 'legacy:heart', 'legacy:grit'])
+    expect(sheetModifier(legacy, legacy.moves[0], { stats: { 'legacy:nerve': -1 } })).toBe(-1)
+    expect(normalizeCharacterSheet({ stats: { nerve: 2, bad: 9, fraction: 1.5 } })).toEqual({ stats: { nerve: 2 } })
   })
 })
 

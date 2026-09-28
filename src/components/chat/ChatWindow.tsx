@@ -130,6 +130,7 @@ export function ChatWindow({
     chat,
     character,
     persona,
+    playerCharacter,
     world,
     participantCharacters,
     replyAsCharacterId,
@@ -1047,6 +1048,9 @@ export function ChatWindow({
       {showCampaignMove && world?.campaign && (
         <CampaignMovePanel
           campaign={world.campaign}
+          sheet={playerCharacter?.sheet}
+          sheetWorldMismatch={!!playerCharacter?.sheet && (playerCharacter.worldId !== world.id || !!playerCharacter.sheet.worldId && playerCharacter.sheet.worldId !== world.id)}
+          playerName={playerCharacter?.card.name}
           pendingCheck={pendingCheck ?? undefined}
           onClose={() => { setShowCampaignMove(false); setPendingCheck(null) }}
           onSubmit={async (moveId, modifier, action, messageId) => {

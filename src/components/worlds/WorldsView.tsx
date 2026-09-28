@@ -31,7 +31,7 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
-import { DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, campaignFileFrom, parseCampaignFile, type CampaignConfig, type PbtaMove } from '@/lib/world/campaign'
+import { DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
 import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
 import type { PromptItem } from '@/lib/prompt/items'
 
@@ -255,6 +255,21 @@ export function initialWorldEditorModules(world: Pick<WorldCard, 'template' | 'c
   return {
     campaign: { ...DEFAULT_CAMPAIGN, relationships: effective.relationships, dating: effective.dating },
     modules: { ...world.modules, campaignRules: effective.campaignRules },
+  }
+}
+
+/** Keep move references and display labels in sync when a sheet field changes. */
+export function setCampaignSheetStats(campaign: CampaignConfig, stats: CampaignStat[]): CampaignConfig {
+  const nextById = new Map(stats.map((stat) => [stat.id, stat]))
+  return {
+    ...campaign,
+    stats,
+    moves: campaign.moves.map((move) => {
+      const linked = statForMove(campaign, move)
+      if (!linked) return move
+      const next = nextById.get(linked.id)
+      return { ...move, statId: next?.id, stat: next?.name ?? '' }
+    }),
   }
 }
 
@@ -567,6 +582,22 @@ function WorldEditor({
 
   const effectiveModules = modulesForWorld({ template, campaign, modules })
   const tabs = worldEditorTabs(effectiveModules, lorebook.entries.length + canonFacts.length)
+  const sheetStats = campaignStats(campaign)
+  const sheetNames = sheetStats.map((stat) => stat.name.trim().toLowerCase())
+  const sheetStatsValid = sheetStats.length <= 30 && sheetNames.every(Boolean) && new Set(sheetNames).size === sheetNames.length
+
+  const addSheetStat = () => {
+    if (sheetStats.length >= 30) return
+    let number = sheetStats.length + 1
+    while (sheetNames.includes(`stat ${number}`)) number++
+    setCampaign(setCampaignSheetStats(campaign, [...sheetStats, { id: newId(), name: `Stat ${number}` }]))
+  }
+
+  const updateSheetStat = (id: string, patch: Partial<CampaignStat>) =>
+    setCampaign(setCampaignSheetStats(campaign, sheetStats.map((stat) => stat.id === id ? { ...stat, ...patch } : stat)))
+
+  const removeSheetStat = (id: string) =>
+    setCampaign(setCampaignSheetStats(campaign, sheetStats.filter((stat) => stat.id !== id)))
 
   const setModule = <K extends keyof WorldModuleChoices>(key: K, value: WorldModuleChoices[K]) => {
     const next = changeWorldModule(modules, campaign, key, value)
@@ -605,7 +636,7 @@ function WorldEditor({
           ) : (
             <span />
           )}
-          <Button variant="primary" onClick={save} disabled={!name.trim() || saving}>
+          <Button variant="primary" onClick={save} disabled={!name.trim() || !sheetStatsValid || saving}>
             {saving ? 'Saving…' : world ? 'Save changes' : 'Create world'}
           </Button>
         </>
@@ -730,21 +761,38 @@ function WorldEditor({
             <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.relationships} onChange={(e) => setModule('relationships', e.target.checked)} /> Use RP relationship scoring</label>
             <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Enable dating features</label>
           </Section>
+          <Section title="Character sheet builder" description="Define the stats characters in this world can have. Set each character’s modifier on their sheet, then choose which stat each move rolls." surface="bare">
+            <div className="space-y-3">
+              {sheetStats.map((stat) => <div key={stat.id} className="rounded-xl border border-border bg-bg-sunken p-4">
+                <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm text-text">Sheet stat</strong><Button variant="secondary" onClick={() => removeSheetStat(stat.id)}>Remove</Button></div>
+                <TextField label="Name" maxLength={100} value={stat.name} onChange={(e) => updateSheetStat(stat.id, { name: e.target.value })} />
+                <TextField label="Description (optional)" maxLength={500} value={stat.description ?? ''} onChange={(e) => updateSheetStat(stat.id, { description: e.target.value })} />
+              </div>)}
+              {!sheetStatsValid && <p className="text-xs text-danger">Give each stat a unique, nonempty name before saving.</p>}
+              <Button variant="secondary" disabled={sheetStats.length >= 30} onClick={addSheetStat}>Add stat{sheetStats.length >= 30 ? ' (maximum 30)' : ''}</Button>
+            </div>
+          </Section>
           <Section title="Moves" description="These are editable campaign moves. Write the trigger and the consequence for each result tier." surface="bare">
             <div className="space-y-4">
               {campaign.moves.map((move, index) => {
-                const update = (patch: Partial<PbtaMove>) => setCampaign({ ...campaign, moves: campaign.moves.map((entry) => entry.id === move.id ? { ...entry, ...patch } : entry) })
+                const update = (patch: Partial<PbtaMove>) => setCampaign({ ...campaign, stats: sheetStats, moves: campaign.moves.map((entry) => entry.id === move.id ? { ...entry, ...patch } : entry) })
                 return <div key={move.id} className="rounded-xl border border-border bg-bg-sunken p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm text-text">Move {index + 1}</strong><Button variant="secondary" onClick={() => setCampaign({ ...campaign, moves: campaign.moves.filter((entry) => entry.id !== move.id) })}>Remove</Button></div>
+                  <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm text-text">Move {index + 1}</strong><Button variant="secondary" onClick={() => setCampaign({ ...campaign, stats: sheetStats, moves: campaign.moves.filter((entry) => entry.id !== move.id) })}>Remove</Button></div>
                   <TextField label="Name" value={move.name} onChange={(e) => update({ name: e.target.value })} />
                   <TextField label="When you..." value={move.trigger} onChange={(e) => update({ trigger: e.target.value })} />
-                  <TextField label="Stat" value={move.stat} onChange={(e) => update({ stat: e.target.value })} />
+                  <SelectField label="Roll with stat" value={statForMove(campaign, move)?.id ?? ''} onChange={(e) => {
+                    const stat = sheetStats.find((entry) => entry.id === e.target.value)
+                    update({ statId: stat?.id, stat: stat?.name ?? '' })
+                  }}>
+                    <option value="">Choose a sheet stat</option>
+                    {sheetStats.map((stat) => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
+                  </SelectField>
                   <TextAreaField label="10+ result" value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
                   <TextAreaField label="7–9 result" value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
                   <TextAreaField label="6 or less result" value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
                 </div>
               })}
-              <Button variant="secondary" onClick={() => setCampaign({ ...campaign, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: 'Resolve', strong: '', mixed: '', miss: '' }] })}>Add move</Button>
+              <Button variant="secondary" onClick={() => setCampaign({ ...campaign, stats: sheetStats, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: sheetStats[0]?.name ?? '', statId: sheetStats[0]?.id, strong: '', mixed: '', miss: '' }] })}>Add move</Button>
             </div>
           </Section>
         </div>

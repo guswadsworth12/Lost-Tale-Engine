@@ -1013,9 +1013,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. Roll 2d6 plus a modifier; the recorded result is shown on your turn and the Game Master rules on it. If the GM identifies a move after you describe an action, play pauses at **Roll required**. Roll that move or withdraw the action before continuing. If a saved roll is still waiting after a reload, use **Resolve recorded roll**. If the GM could not rule on an unrolled action, retry its ruling or withdraw the action.',
+            text: 'Build stats in **World → Story Rules → Character sheet builder**, assign a stat to each move, then set each character’s values in **Cast → Sheet**. When a story has a player character with a sheet, rolls use that saved modifier and the server checks it. Older stories without a sheet can still enter a modifier manually. With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. If the GM identifies a move after you describe an action, play pauses at **Roll required**. Roll that move or withdraw the action before continuing. A saved roll can be resumed with **Resolve recorded roll**.',
           },
-          { kind: 'note', text: 'A failed check shows the recorded miss outcome and cannot be turned into success by GM narration or a proposed fact. The app does not yet calculate modifiers from a character sheet or apply other ruleset resources automatically.' },
+          { kind: 'note', text: 'A failed check shows the recorded miss outcome and cannot be turned into success by GM narration or a proposed fact. Character sheet values currently cover 2d6 move modifiers from −5 to +5; other ruleset resources are not applied automatically.' },
         ],
       },
       {

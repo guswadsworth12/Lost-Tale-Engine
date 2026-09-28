@@ -29,7 +29,7 @@ export function CampaignRollBadge({ message }: { message: StoredMessage }) {
   return (
     <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] ${failed ? 'bg-danger/10 text-danger' : 'bg-accent/10 text-accent'}`}>
       <Dices size={12} strokeWidth={2} />
-      {failed ? 'Failed check · ' : ''}{roll.moveName}: {roll.dice[0]} + {roll.dice[1]} {roll.modifier >= 0 ? '+' : '−'} {Math.abs(roll.modifier)} {roll.stat} = {roll.total} ({roll.tier})
+      {failed ? 'Failed check · ' : ''}{roll.moveName}: {roll.dice[0]} + {roll.dice[1]} {roll.modifier >= 0 ? '+' : '−'} {Math.abs(roll.modifier)} {roll.stat} = {roll.total} ({roll.tier}){roll.modifierSource === 'sheet' ? ' · sheet' : ''}
     </div>
   )
 }

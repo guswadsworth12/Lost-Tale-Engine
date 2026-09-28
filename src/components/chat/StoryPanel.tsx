@@ -9,11 +9,12 @@ import { PHASES } from '@/lib/world/calendar'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import { StoryScenes } from '@/components/story/StoryScenes'
+import { campaignStats } from '@/lib/world/campaign'
 
-export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'canon' | 'notes' | 'rules'
+export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'sheet' | 'canon' | 'notes' | 'rules'
 const TABS: { id: StoryTab; label: string }[] = [
   { id: 'scene', label: 'Scene' }, { id: 'scenes', label: 'Scenes' }, { id: 'goals', label: 'Goals' }, { id: 'people', label: 'People' },
-  { id: 'canon', label: 'Canon' }, { id: 'notes', label: 'Notes' }, { id: 'rules', label: 'Scene Rules' },
+  { id: 'sheet', label: 'Sheet' }, { id: 'canon', label: 'Canon' }, { id: 'notes', label: 'Notes' }, { id: 'rules', label: 'Scene Rules' },
 ]
 const POLICIES: { id: ScenePolicy; label: string }[] = [
   { id: 'manual', label: 'Manual' }, { id: 'round_robin', label: 'Round robin' },
@@ -65,7 +66,7 @@ export function StoryPanel({
   /** Opens the whole-story reader (`StoryTranscript`). Omitted hides the button. */
   onReadStory?: () => void
 }) {
-  const { chat, world, character, participantCharacters, messages, activeObjective } = session
+  const { chat, world, character, playerCharacter, participantCharacters, messages, activeObjective } = session
   const [location, setLocation] = useState(setting.location ?? '')
   const [atmosphere, setAtmosphere] = useState(setting.atmosphere ?? '')
   const [goalTitle, setGoalTitle] = useState('')
@@ -88,6 +89,10 @@ export function StoryPanel({
   const pinnedMessages = messages.filter((message) => message.pinned)
   const currentScene = scenes?.find((scene) => scene.id === (currentSceneId ?? chat.id)) ?? chat
   const canEndScene = !!onEndScene && !currentScene.endedAt && !chat.endedAt
+  const sheetFields = world?.campaign?.mode === 'mechanical' ? campaignStats(world.campaign) : []
+  const sheetWorldMismatch = !!playerCharacter?.sheet && !!world && (
+    playerCharacter.worldId !== world.id || (!!playerCharacter.sheet.worldId && playerCharacter.sheet.worldId !== world.id)
+  )
   const panel = <section className="flex h-full w-full min-w-0 flex-col border-l border-border bg-bg-elevated md:w-80" aria-label="Story panel">
     <div className="flex items-center justify-between border-b border-border px-4 py-3">
       <strong className="font-display text-sm text-text">Story</strong>
@@ -97,7 +102,7 @@ export function StoryPanel({
       </div>
     </div>
     <div role="tablist" aria-label="Story sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2 py-2">
-      {TABS.map((entry) => <button key={entry.id} role="tab" aria-selected={tab === entry.id} onClick={() => onTabChange(entry.id)}
+      {TABS.filter((entry) => entry.id !== 'sheet' || world?.campaign?.mode === 'mechanical').map((entry) => <button key={entry.id} role="tab" aria-selected={tab === entry.id} onClick={() => onTabChange(entry.id)}
         className={`shrink-0 rounded-lg px-2 py-1.5 text-xs ${tab === entry.id ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-bg-sunken hover:text-text'}`}>
         {entry.label}{entry.id === 'canon' && proposals.length > 0 ? ` · ${proposals.length}` : ''}
       </button>)}
@@ -137,6 +142,13 @@ export function StoryPanel({
           return <div key={member.id} className="rounded-xl border border-border p-3"><h3 className="font-medium">{member.card.name}</h3><p className="mt-1 text-xs text-text-muted">{modules.relationships ? `Connection · ${warmth}` : 'In this story'}</p>{modules.relationships && <div className="mt-2 flex flex-wrap gap-1.5">{Object.entries(getRelationshipStats(track)).map(([dimension, value]) => <span key={dimension} className="rounded-md bg-bg-sunken px-2 py-1 text-[11px] text-text-muted">{dimension[0].toUpperCase() + dimension.slice(1)} {value}</span>)}</div>}</div>
         })}
         {datingToolsVisible && <div className="flex flex-wrap gap-2"><button className={actionClass} onClick={onOpenRelationship}>Dating details</button><button className={actionClass} onClick={onOpenBag}>Bag and gifts</button></div>}
+      </>}
+      {tab === 'sheet' && <>
+        <div><h3 className="font-medium">{playerCharacter?.card.name ?? 'Player character'} sheet</h3><p className="mt-1 text-xs text-text-muted">These saved modifiers are used for 2d6 campaign rolls.</p></div>
+        {!playerCharacter ? <p className="text-xs text-text-muted">Choose a player character in Scene Rules, then fill in their Sheet tab in Cast.</p>
+          : !playerCharacter.sheet ? <p className="text-xs text-text-muted">This character has no sheet yet. Set their stats in Cast → Sheet; rolls use a manual modifier until then.</p>
+          : sheetWorldMismatch ? <p className="text-xs text-text-muted">This sheet belongs to another world. Bind the player character to this world and save their Sheet tab in Cast.</p>
+          : sheetFields.map((stat) => <div key={stat.id} className="flex items-center justify-between gap-3 rounded-lg bg-bg-sunken px-3 py-2"><div><strong className="text-sm">{stat.name}</strong>{stat.description && <p className="text-xs text-text-muted">{stat.description}</p>}</div><span className="font-mono text-sm">{typeof playerCharacter.sheet?.stats[stat.id] === 'number' ? `${playerCharacter.sheet.stats[stat.id] >= 0 ? '+' : ''}${playerCharacter.sheet.stats[stat.id]}` : '—'}</span></div>)}
       </>}
       {tab === 'canon' && <>
         <h3 className="font-medium">Confirmed world facts</h3>

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CAMPAIGN } from '@/lib/world/campaign'
+import { DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, statForMove } from '@/lib/world/campaign'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { WORLD_TAB_ALIASES } from '@/lib/ui/navigation'
-import { changeWorldModule, initialWorldEditorModules, worldEditorTabs } from './WorldsView'
+import { changeWorldModule, initialWorldEditorModules, setCampaignSheetStats, worldEditorTabs } from './WorldsView'
 
 describe('world editor modules', () => {
   it('keeps a campaign-less legacy world’s effective modules when opened and saved', () => {
@@ -41,5 +41,28 @@ describe('world editor modules', () => {
     expect(changeWorldModule(reenabled.modules, reenabled.campaign, 'dating', true).campaign.dating).toBe(true)
     expect(changeWorldModule({}, campaign, 'campaignRules', false).campaign.mode).toBe(campaign.mode)
     expect(changeWorldModule({}, campaign, 'campaignRules', 'mechanical').campaign.mode).toBe('mechanical')
+  })
+
+  it('turns legacy move labels into stable sheet references and keeps them synced on rename or removal', () => {
+    const legacy = { ...DEFAULT_CAMPAIGN, moves: [
+      { id: 'a', name: 'Act', trigger: '', stat: 'Nerve', strong: '', mixed: '', miss: '' },
+      { id: 'b', name: 'React', trigger: '', stat: 'nerve', strong: '', mixed: '', miss: '' },
+    ] }
+    const named = setCampaignSheetStats(legacy, [{ id: 'legacy:nerve', name: 'Resolve' }])
+    expect(named.moves.map((move) => [move.statId, move.stat])).toEqual([
+      ['legacy:nerve', 'Resolve'], ['legacy:nerve', 'Resolve'],
+    ])
+    expect(statForMove(named, named.moves[0])?.name).toBe('Resolve')
+
+    const removed = setCampaignSheetStats(named, [])
+    expect(removed.moves.map((move) => [move.statId, move.stat])).toEqual([[undefined, ''], [undefined, '']])
+    expect(statForMove(removed, removed.moves[0])).toBeUndefined()
+  })
+
+  it('preserves starter stat ids when renaming a sheet field', () => {
+    const renamed = setCampaignSheetStats(STARTER_PBTA_CAMPAIGN, STARTER_PBTA_CAMPAIGN.stats!.map((stat) =>
+      stat.id === 'nerve' ? { ...stat, name: 'Bravery' } : stat))
+    expect(renamed.moves[0]).toMatchObject({ statId: 'nerve', stat: 'Bravery' })
+    expect(renamed.moves[1]).toMatchObject({ statId: 'wits', stat: 'Wits' })
   })
 })

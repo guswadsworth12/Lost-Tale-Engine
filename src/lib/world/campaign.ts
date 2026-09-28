@@ -8,7 +8,22 @@ export interface CampaignConfig {
   resolver: 'pbta'
   relationships: boolean
   dating: boolean
+  /** World-authored fields for each character's sheet. Older campaigns derive these from moves. */
+  stats?: CampaignStat[]
   moves: PbtaMove[]
+}
+
+export interface CampaignStat {
+  id: string
+  name: string
+  description?: string
+}
+
+export interface CharacterSheet {
+  /** The world whose stat ids these values were assigned against. */
+  worldId?: string
+  /** Values are PbtA modifiers from -5 to +5, keyed by stable world stat id. */
+  stats: Record<string, number>
 }
 
 export interface PbtaMove {
@@ -16,6 +31,8 @@ export interface PbtaMove {
   name: string
   trigger: string
   stat: string
+  /** Stable reference to a sheet field; old moves still resolve by their stat label. */
+  statId?: string
   strong: string
   mixed: string
   miss: string
@@ -46,12 +63,67 @@ export const STARTER_PBTA_CAMPAIGN: CampaignConfig = {
   resolver: 'pbta',
   relationships: false,
   dating: false,
-  moves: [
-    { id: 'take-a-risk', name: 'Take a Risk', trigger: 'you act despite real danger or pressure', stat: 'Nerve', strong: 'You do it cleanly.', mixed: 'You do it, but the GM names a cost, a complication, or a worse position.', miss: 'Things go wrong; the GM says how and asks what you do.' },
-    { id: 'look-closer', name: 'Look Closer', trigger: 'you study a person, place, or situation for what matters', stat: 'Wits', strong: 'Ask two questions; the GM answers honestly.', mixed: 'Ask one question; the GM answers honestly.', miss: 'You learn something, but at a bad moment or with a wrong assumption.' },
-    { id: 'lend-a-hand', name: 'Lend a Hand', trigger: 'you help someone who is already acting', stat: 'Heart', strong: 'They take +1 to their roll.', mixed: 'They take +1, and you share whatever it costs them.', miss: 'Your help makes things harder for both of you.' },
-    { id: 'push-through', name: 'Push Through', trigger: 'you force your way past something by effort alone', stat: 'Grit', strong: 'You get through with nothing lost.', mixed: 'You get through, but choose: hurt, spent, or noticed.', miss: 'You are stopped, and the GM makes it hurt.' },
+  stats: [
+    { id: 'nerve', name: 'Nerve', description: 'Courage under pressure.' },
+    { id: 'wits', name: 'Wits', description: 'Observation and quick thinking.' },
+    { id: 'heart', name: 'Heart', description: 'Empathy and connection.' },
+    { id: 'grit', name: 'Grit', description: 'Endurance and persistence.' },
   ],
+  moves: [
+    { id: 'take-a-risk', name: 'Take a Risk', trigger: 'you act despite real danger or pressure', stat: 'Nerve', statId: 'nerve', strong: 'You do it cleanly.', mixed: 'You do it, but the GM names a cost, a complication, or a worse position.', miss: 'Things go wrong; the GM says how and asks what you do.' },
+    { id: 'look-closer', name: 'Look Closer', trigger: 'you study a person, place, or situation for what matters', stat: 'Wits', statId: 'wits', strong: 'Ask two questions; the GM answers honestly.', mixed: 'Ask one question; the GM answers honestly.', miss: 'You learn something, but at a bad moment or with a wrong assumption.' },
+    { id: 'lend-a-hand', name: 'Lend a Hand', trigger: 'you help someone who is already acting', stat: 'Heart', statId: 'heart', strong: 'They take +1 to their roll.', mixed: 'They take +1, and you share whatever it costs them.', miss: 'Your help makes things harder for both of you.' },
+    { id: 'push-through', name: 'Push Through', trigger: 'you force your way past something by effort alone', stat: 'Grit', statId: 'grit', strong: 'You get through with nothing lost.', mixed: 'You get through, but choose: hurt, spent, or noticed.', miss: 'You are stopped, and the GM makes it hurt.' },
+  ],
+}
+
+/** Old worlds had only free-text move stats. Give them stable derived fields until edited. */
+export function campaignStats(campaign: CampaignConfig): CampaignStat[] {
+  if (campaign.stats) return campaign.stats
+  const names = new Map<string, string>()
+  for (const move of campaign.moves) {
+    const name = move.stat.trim()
+    if (name && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name)
+  }
+  return [...names].map(([key, name]) => ({ id: `legacy:${key}`, name }))
+}
+
+export function statForMove(campaign: CampaignConfig, move: PbtaMove): CampaignStat | undefined {
+  const stats = campaignStats(campaign)
+  if (move.statId) return stats.find((stat) => stat.id === move.statId)
+  return stats.find((stat) => stat.name.toLowerCase() === move.stat.trim().toLowerCase())
+}
+
+export function sheetModifier(campaign: CampaignConfig, move: PbtaMove, sheet: CharacterSheet | undefined): number | undefined {
+  const stat = statForMove(campaign, move)
+  const value = stat && sheet?.stats[stat.id]
+  return typeof value === 'number' && Number.isInteger(value) && value >= -5 && value <= 5 ? value : undefined
+}
+
+/** Sanitize imported sheet fields; absent legacy sheets remain absent. */
+export function normalizeCharacterSheet(raw: unknown): CharacterSheet | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const stats = (raw as { stats?: unknown }).stats
+  if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return undefined
+  const worldId = (raw as { worldId?: unknown }).worldId
+  return { ...(typeof worldId === 'string' && worldId.trim() ? { worldId: worldId.slice(0, 100) } : {}), stats: Object.fromEntries(Object.entries(stats).slice(0, 50).filter(([id, value]) =>
+    id.length > 0 && id.length <= 100 && Number.isInteger(value) && (value as number) >= -5 && (value as number) <= 5)) }
+}
+
+export function normalizeCampaignStats(raw: unknown): CampaignStat[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const ids = new Set<string>()
+  const names = new Set<string>()
+  return raw.slice(0, 30).flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const value = entry as Record<string, unknown>
+    const name = text(value.name, 100)
+    const id = text(value.id, 100) || `legacy:${name.toLowerCase()}`
+    if (!name || ids.has(id) || names.has(name.toLowerCase())) return []
+    ids.add(id)
+    names.add(name.toLowerCase())
+    return [{ id, name, description: text(value.description, 500) || undefined }]
+  })
 }
 
 export const CAMPAIGN_FILE_FORMAT = 'lost-tales-campaign'
@@ -84,6 +156,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
     resolver: 'pbta',
     relationships,
     dating: relationships && v.dating === true,
+    ...(Array.isArray(v.stats) ? { stats: normalizeCampaignStats(v.stats) ?? [] } : {}),
     moves: v.moves.slice(0, 100)
       .filter((m): m is Record<string, unknown> => !!m && typeof m === 'object' && !!text((m as Record<string, unknown>).name, 200))
       .map((m, i) => ({
@@ -91,6 +164,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
         name: text(m.name, 200),
         trigger: text(m.trigger, 2000),
         stat: text(m.stat, 100),
+        ...(text(m.statId, 100) ? { statId: text(m.statId, 100) } : {}),
         strong: text(m.strong, 4000),
         mixed: text(m.mixed, 4000),
         miss: text(m.miss, 4000),

@@ -16,6 +16,8 @@ export interface CharacterPackV1 {
   version: typeof PACK_VERSION
   character: {
     card: CharacterCardData
+    playerOnly?: boolean
+    sheet?: Character['sheet']
     avatarDataUrl?: string
     sprites?: Record<string, string>
     spriteUnlocks?: Record<string, number>
@@ -63,6 +65,8 @@ export interface CharacterPackV1 {
     /** Scene shapes the world ships (`dating/scenarios.ts`). Validated on import; a malformed one is dropped, not loaded. */
     scenarios?: WorldCard['scenarios']
     relationshipThresholds?: WorldCard['relationshipThresholds']
+    campaign?: WorldCard['campaign']
+    modules?: WorldCard['modules']
   }
 }
 
@@ -102,6 +106,8 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
     version: PACK_VERSION,
     character: {
       card: character.card,
+      playerOnly: character.playerOnly,
+      sheet: character.sheet,
       avatarDataUrl,
       sprites,
       spriteUnlocks: character.spriteUnlocks,
@@ -154,6 +160,8 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
       customSceneFlags: world.customSceneFlags,
       scenarios: world.scenarios,
       relationshipThresholds: world.relationshipThresholds,
+      campaign: world.campaign,
+      modules: world.modules,
     }
   }
 
@@ -231,10 +239,14 @@ export async function importCharacterPack(
       // was rejected, and why, is returned above rather than swallowed here.
       scenarios,
       relationshipThresholds: pack.world.relationshipThresholds,
+      campaign: pack.world.campaign,
+      modules: pack.world.modules,
     })
   }
   const character = await charactersApi.create({
     card: pack.character.card,
+    playerOnly: pack.character.playerOnly,
+    sheet: pack.character.sheet ? { ...pack.character.sheet, worldId: world?.id ?? pack.character.sheet.worldId } : undefined,
     avatarDataUrl: pack.character.avatarDataUrl,
     sprites: pack.character.sprites,
     spriteUnlocks: pack.character.spriteUnlocks,
