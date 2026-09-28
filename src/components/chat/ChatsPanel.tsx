@@ -7,6 +7,7 @@ import { createChat } from '@/lib/chat/createChat'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
 import { PHASES } from '@/lib/world/calendar'
+import { modulesForWorld } from '@/lib/world/worldTemplates'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat, WorldCard } from '@/lib/types'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
@@ -20,8 +21,9 @@ function StoryPreview({ chat, world }: { chat: Chat; world?: WorldCard }) {
   const objective = useApiQuery('objectives', () => objectivesApi.getActive(chat.id), [chat.id])
   const location = sceneSettingFrom(messages, chat.scene, (id) => backgroundLabel(id, world)).location
   const lastLine = [...messages].reverse().find((m) => (m.role === 'char' || m.role === 'user') && m.text.trim())?.text
-  const phase = chat.scene?.timePhase ?? (world ? PHASES[world.currentPhaseIndex ?? 0] : undefined)
-  const day = world ? `Day ${(world.currentDay ?? 0) + 1}` : undefined
+  const usesClock = !!world && modulesForWorld(world).worldSimulation
+  const phase = usesClock ? chat.scene?.timePhase ?? PHASES[world!.currentPhaseIndex ?? 0] : undefined
+  const day = usesClock ? `Day ${(world!.currentDay ?? 0) + 1}` : undefined
   return (
     <>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
@@ -93,7 +95,8 @@ export function ChatsPanel({
     setBusyId(chat.id)
     try {
       const world = worlds.find((w) => w.id === character.worldId)
-      const fresh = await createChat({ character, world, personaId: chat.personaId, mode: chat.mode, client })
+      const player = chat.playerCharacterId ? charFor(chat.playerCharacterId) : undefined
+      const fresh = await createChat({ character, world, player, participantIds: chat.participants, mode: chat.mode, client })
       onSelect(fresh.id)
     } catch (e) { toastError(errorMessage(e)) }
     finally { setBusyId(null) }
@@ -117,9 +120,9 @@ export function ChatsPanel({
   }
 
   return (
-    <div className="w-full flex-1 overflow-y-auto p-4 sm:p-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
+      <div className="mx-auto min-w-0 max-w-5xl">
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">Play</div>
             <h1 className="mt-1 font-display text-2xl text-text">Stories</h1>
@@ -129,16 +132,17 @@ export function ChatsPanel({
             <Plus size={15} /> Start a story
           </Button>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {chats.map((chat) => {
             const character = charFor(chat.characterId)
             const cast = [character, ...(chat.participants ?? []).map(charFor)].filter((c): c is Character => Boolean(c))
+            const player = chat.playerCharacterId ? charFor(chat.playerCharacterId) : undefined
             const world = worlds.find((w) => w.id === character?.worldId)
             const isRenaming = renamingId === chat.id
             const isMenuOpen = menuForId === chat.id
             const isBusy = busyId === chat.id
             return (
-              <div key={chat.id} className="relative rounded-2xl border border-border bg-bg-elevated p-4 themed-shadow">
+              <div key={chat.id} className="relative min-w-0 rounded-2xl border border-border bg-bg-elevated p-4 themed-shadow">
                 <div role="button" tabIndex={isBusy ? -1 : 0} aria-disabled={isBusy} aria-label={`Open ${chat.title}`}
                   onClick={() => !isRenaming && !isBusy && onSelect(chat.id)}
                   onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!isBusy) onSelect(chat.id) } }}
@@ -156,7 +160,7 @@ export function ChatsPanel({
                   </div>
                   <StoryPreview chat={chat} world={world} />
                   <div className="mt-4 flex items-center justify-between gap-2 text-xs text-text-muted">
-                    <span className="truncate">{cast.length ? cast.map((c) => c.card.name).join(', ') : 'Cast unavailable'}</span>
+                    <span className="truncate">{cast.length ? cast.map((c) => c.card.name).join(', ') : 'Cast unavailable'}{player && ` · You: ${player.card.name}`}</span>
                     <span className="shrink-0">{isBusy ? 'Working…' : `Played ${new Date(chat.updatedAt).toLocaleDateString()}`}</span>
                   </div>
                 </div>

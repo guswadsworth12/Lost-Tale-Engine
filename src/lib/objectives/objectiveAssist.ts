@@ -55,17 +55,17 @@ export async function generateTasks(
   return parsed.filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
 }
 
-/** Proposes a plausible objective for this roleplay, grounded in the character and persona. */
+/** Proposes a plausible objective for this roleplay, grounded in the character and the card the user plays. */
 export async function suggestObjective(
   client: ChatBackend,
   character: AiLoreSubject,
-  persona: AiLoreSubject,
+  player: AiLoreSubject,
   assist?: AssistShaping,
 ): Promise<{ title: string; description: string }> {
   const prompt = [
     'You are helping plan a roleplay chat between two participants.',
     `Character: ${character.name}${character.description ? `. ${character.description}` : ''}${character.personality ? `. Personality: ${character.personality}` : ''}`,
-    `User's persona: ${persona.name}${persona.description ? `. ${persona.description}` : ''}`,
+    `The user plays: ${player.name}${player.description ? `. ${player.description}` : ''}`,
     'Propose one plausible, interesting objective for this roleplay to work toward. It should fit both characters and be able to develop naturally over several exchanges.',
     'Output ONLY a minified JSON object shaped exactly {"title": "short objective name", "description": "1-2 sentences of context"}. No markdown fences, no commentary.',
     'JSON:',

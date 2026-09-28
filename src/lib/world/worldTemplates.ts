@@ -123,7 +123,7 @@ export function getWorldTemplate(id: WorldTemplateId | undefined): WorldTemplate
 
 /** `Chat.assistOverrides` to seed a brand-new chat with, derived from the bound world's template —
  *  `{}` (no override, inherit the global default) for a template that doesn't disable them. */
-export function assistOverridesForTemplate(template: WorldTemplateId | undefined): {
+export function assistOverridesForTemplate(templateOrWorld: WorldTemplateId | Pick<WorldCard, 'template' | 'campaign' | 'modules'> | undefined): {
   autoTrackRelationship?: boolean
   autoSuggestChoices?: boolean
   visualNovelMode?: boolean | 'auto'
@@ -132,20 +132,23 @@ export function assistOverridesForTemplate(template: WorldTemplateId | undefined
   showIntentChips?: boolean
   showDateEventButton?: boolean
 } {
+  const template = typeof templateOrWorld === 'object' ? templateOrWorld.template : templateOrWorld
+  const modules = modulesForWorld(typeof templateOrWorld === 'object' ? templateOrWorld : { template })
   const def = getWorldTemplate(template)
-  // Every one of these four rides on the same "no romance mechanics" opinion the template's own
-  // blurb already states — slow-burn pacing, intent chips (Flirt/Tease/…), and the date/event
-  // button are all romance-flavored surface, same reasoning as the relationship-assist pair.
-  const relationshipOverride = def.disablesRelationshipAssists
+  // If a world disables dating or relationships, seed the same quiet defaults as freeform.
+  const relationshipOverride = def.disablesRelationshipAssists || !modules.relationships || !modules.dating
     ? { autoTrackRelationship: false, autoSuggestChoices: false, slowBurnPacing: false, showIntentChips: false, showDateEventButton: false }
+    : {}
+  const naturalOverride = modules.romanceEmphasis === 'natural'
+    ? { slowBurnPacing: false, showIntentChips: false, showDateEventButton: false }
     : {}
   // Only Visual Novel forces a *display mode* opinion — its whole premise is scene-background
   // presentation, unlike the other templates, where VN mode is a legitimate but unrelated choice
   // the user's own global default should keep deciding. `'auto'` rather than a hard `true`: it
   // still shouldn't force a blank void on a character/world with no art yet (`isVnReady`).
-  const vnOverride = normalizeWorldTemplateId(template) === 'visual_novel'
-    ? { visualNovelMode: 'auto' as const, slowBurnPacing: false, showIntentChips: false, showDateEventButton: false }
+  const vnOverride = modules.visualNovel && normalizeWorldTemplateId(template) === 'visual_novel'
+    ? { visualNovelMode: 'auto' as const }
     : {}
   const systemPromptOverride = def.systemPromptId ? { systemPromptId: def.systemPromptId } : {}
-  return { ...relationshipOverride, ...vnOverride, ...systemPromptOverride }
+  return { ...relationshipOverride, ...naturalOverride, ...vnOverride, ...systemPromptOverride }
 }

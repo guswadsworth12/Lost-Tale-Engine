@@ -40,6 +40,7 @@ function avatarHtml(dataUrl: string | undefined, initials: string): string {
 export async function buildChatTranscriptHtml(opts: {
   chat: Chat
   character?: Character
+  /** The player's public view: `playerViewOf` of the story's `playerCharacterId` card (`useChatSession().persona`). Omitted, the player is "You". */
   persona?: Persona
   messages: StoredMessage[]
   regexScripts?: RegexScript[]

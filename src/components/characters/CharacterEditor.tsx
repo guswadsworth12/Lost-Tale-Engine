@@ -186,12 +186,18 @@ export function CharacterEditor({
   character,
   onSaved,
   onDeleted,
+  initialTab,
+  initialPlayerOnly = false,
 }: {
   character: Character | null
   onSaved: (id: string) => void
   onDeleted: () => void
+  /** Opens on this tab instead of Character (Media's "Edit CGs" lands on Relationships). */
+  initialTab?: string
+  /** For a new card only: start with "You only" on (Cast's "New player character"). */
+  initialPlayerOnly?: boolean
 }) {
-  const [tab, setTab] = useState('character')
+  const [tab, setTab] = useState(initialTab ?? 'character')
   const [form, setForm] = useState(character?.card ?? blankCharacterData())
   const [promptItems, setPromptItems] = useState<PromptItem[]>(character?.promptItems ?? [])
   const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
@@ -238,6 +244,8 @@ export function CharacterEditor({
   const [replyLength, setReplyLength] = useState<ReplyLength>(character?.replyLength ?? 'auto')
   const [worldId, setWorldId] = useState(character?.worldId ?? '')
   const [gmEligible, setGmEligible] = useState(character?.gmEligible !== false)
+  const [playerOnly, setPlayerOnly] = useState(character ? character.playerOnly === true : initialPlayerOnly)
+  const [playerDescription, setPlayerDescription] = useState(character?.playerDescription ?? '')
   const [occupation, setOccupation] = useState(character?.occupation ?? '')
   const [workplace, setWorkplace] = useState(character?.workplace ?? '')
   const [homeLocation, setHomeLocation] = useState(character?.homeLocation ?? '')
@@ -306,6 +314,8 @@ export function CharacterEditor({
     setSchedule(character?.schedule ?? [])
     setWorldId(character?.worldId ?? '')
     setGmEligible(character?.gmEligible !== false)
+    setPlayerOnly(character ? character.playerOnly === true : initialPlayerOnly)
+    setPlayerDescription(character?.playerDescription ?? '')
     setOccupation(character?.occupation ?? '')
     setWorkplace(character?.workplace ?? '')
     setHomeLocation(character?.homeLocation ?? '')
@@ -464,6 +474,9 @@ export function CharacterEditor({
       schedule: schedule.length ? schedule : null,
       worldId: worldId || null,
       gmEligible,
+      playerOnly,
+      // Always sent, as a string: the server treats '' as "cleared, fall back to the description".
+      playerDescription: playerDescription.trim(),
       occupation: occupation.trim() || null,
       workplace: workplace.trim() || null,
       homeLocation: homeLocation.trim() || null,
@@ -740,7 +753,7 @@ export function CharacterEditor({
     <EditorShell
       onBack={onDeleted}
       backLabel="Cast"
-      eyebrow={character ? 'Character' : 'New character'}
+      eyebrow={character ? (playerOnly ? 'Player character' : 'Character') : playerOnly ? 'New player character' : 'New character'}
       title={form.name || 'Unnamed character'}
       tabs={tabs}
       activeTab={tab}
@@ -892,6 +905,27 @@ export function CharacterEditor({
             value={(form.alternate_greetings ?? []).join('\n')}
             onChange={(e) => set('alternate_greetings', e.target.value.split('\n').filter(Boolean))}
           />
+
+          <Section
+            title="Playing this character"
+            description="Any card can be played in a story. These settings shape what happens when you play this one."
+            surface="bare"
+          >
+            <Toggle
+              checked={playerOnly}
+              onChange={setPlayerOnly}
+              label="You only"
+              description="Only you play this card. The AI never voices it, and it stays out of cast pickers and the Game Master's scene cast."
+            />
+            <TextAreaField
+              label="How others see you"
+              hint="What other characters know about this card when you play it. Leave blank to use the description. Its private notes and memory are never shared while you play it."
+              rows={3}
+              value={playerDescription}
+              placeholder={form.description ? 'Blank: other characters see the description above.' : undefined}
+              onChange={(e) => setPlayerDescription(e.target.value)}
+            />
+          </Section>
         </div>
       )}
 
@@ -955,9 +989,10 @@ export function CharacterEditor({
                 className="sm:col-span-2"
               />
             </div>
-            <label className="mt-3 flex items-center gap-2 text-sm text-text">
-              <input type="checkbox" checked={gmEligible} onChange={(e) => setGmEligible(e.target.checked)} />
+            <label className={`mt-3 flex items-center gap-2 text-sm ${playerOnly ? 'text-text-muted' : 'text-text'}`}>
+              <input type="checkbox" checked={gmEligible && !playerOnly} disabled={playerOnly} onChange={(e) => setGmEligible(e.target.checked)} />
               Allow the Game Master to add this character to scenes automatically
+              {playerOnly && <span className="text-xs">(off while “You only” is on, under Character)</span>}
             </label>
           </Section>
         </div>

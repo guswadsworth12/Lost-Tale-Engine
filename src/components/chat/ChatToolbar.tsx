@@ -90,13 +90,15 @@ export function ChatToolbar({ tone, actions }: { tone: 'chrome' | 'glass'; actio
       ))}
       {menuItems.length > 0 && (
         <div ref={menuRef} className={`relative ${overflow.length === 0 ? 'sm:hidden' : ''}`}>
-          <IconButton
-            tone={tone}
-            icon={MoreHorizontal}
-            title="More actions"
-            active={open || overflowActive}
+          <button
+            type="button"
+            data-tour="tools-menu"
+            title="Tools"
+            aria-label="Tools"
+            aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-          />
+            className={`flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition-colors ${glass ? 'text-white/85 hover:bg-white/15' : 'text-text-muted hover:bg-bg-sunken hover:text-text'} ${open || overflowActive ? 'text-accent' : ''}`}
+          ><MoreHorizontal size={17} /><span className="hidden sm:inline">Tools</span></button>
           {open && (
             <div
               className={`absolute right-0 top-full z-50 mt-1.5 min-w-[15rem] overflow-hidden rounded-xl border py-1 ${menuClass}`}

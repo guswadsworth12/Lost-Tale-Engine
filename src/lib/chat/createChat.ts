@@ -30,8 +30,8 @@ export function availableGreetings(character: Character): string[] {
 export interface CreateChatOptions {
   character: Character
   world: WorldCard | undefined
-  personaId: string
-  personaName?: string
+  /** The card you play. Any card works; omitted, the story's player is just "You". */
+  player?: Pick<Character, 'id' | 'card'>
   participantIds?: string[]
   startingAffection?: number
   summary?: string
@@ -47,13 +47,15 @@ export interface CreateChatOptions {
 
 /**
  * The one place a chat actually gets created — `NewChatDialog`'s full picker flow and
- * `ChatsPanel`'s one-click "New chat, same character & persona" (section 14's "chat management
+ * `ChatsPanel`'s one-click "New with same cast and player" (section 14's "chat management
  * basics") both call this, so the starting-state fields (gift coins, starting inventory, assist
  * overrides, warmth-derived stage) can't drift between the two entry points the way they would as
  * two independently-maintained copies.
  */
 export async function createChat(opts: CreateChatOptions): Promise<Chat> {
-  const { character, world, personaId, personaName, participantIds, startingAffection = 0, summary, greetingIndex = 0, client, mode } = opts
+  const { character, world, player, startingAffection = 0, summary, greetingIndex = 0, client, mode } = opts
+  // The card you play is never also AI-voiced in the same story.
+  const participantIds = opts.participantIds?.filter((id) => id !== player?.id && id !== character.id)
 
   // A starter describes existing closeness, not built-up conflict or a curiosity spike, so it only
   // seeds the four warmth-composing dimensions — curiosity/tension stay at a neutral 0.
@@ -70,7 +72,7 @@ export async function createChat(opts: CreateChatOptions): Promise<Chat> {
   const chat = await chatsApi.create({
     characterId: character.id,
     participants: participantIds?.length ? participantIds : undefined,
-    personaId,
+    playerCharacterId: player?.id,
     title: character.card.name,
     affection: startingAffection,
     relationshipStats: startingStats,
@@ -82,12 +84,12 @@ export async function createChat(opts: CreateChatOptions): Promise<Chat> {
     unlockedGalleryIds: [],
     summary,
     mode: resolvedMode,
-    assistOverrides: assistOverridesForTemplate(resolvedMode),
+    assistOverrides: assistOverridesForTemplate(world ? { ...world, template: resolvedMode } : resolvedMode),
   })
 
   const greetings = availableGreetings(character)
   if (greetingIndex >= 0 && greetings.length > 0) {
-    const macroCtx = { charName: character.card.name, userName: personaName || 'You' }
+    const macroCtx = { charName: character.card.name, userName: player?.card.name || 'You' }
     const rendered = greetings.map((g) => substituteMacros(g, macroCtx))
     const activeSwipe = Math.min(greetingIndex, rendered.length - 1)
     const greetingMessage = await messagesApi.create({

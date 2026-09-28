@@ -1,200 +1,338 @@
-import { useMemo, useState } from 'react'
-import { charactersApi, chatsApi, personasApi, worldsApi } from '@/lib/api/client'
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
+import { ChevronLeft, ChevronRight, Lock } from 'lucide-react'
+import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { backgroundLabel } from '@/lib/vn/backgrounds'
-import { BASE_OUTFIT_ID, parseSpriteKey } from '@/lib/vn/outfits'
-import { BGM_DEFAULT_KEY, SCENE_MOODS } from '@/lib/vn/moods'
+import { useAudioDuckStore } from '@/lib/store/useAudioDuckStore'
+import { BGM_DEFAULT_KEY, BGM_KEYS, SCENE_MOODS } from '@/lib/vn/moods'
+import type { GalleryEntry } from '@/lib/characters/cardSpec'
+import type { WorldCard } from '@/lib/types'
 import { ViewShell } from '@/components/ui/ViewShell'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Modal } from '@/components/ui/Modal'
+import { ALL_PLAYER_CHARACTERS, cgProgress, lockedCgLabel, playerCharacterOptions, viewableCgs, type CharacterCgProgress } from './cgProgress'
 
 const readable = (id: string) => id.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
-export function GalleryView() {
+interface GalleryViewProps {
+  /** Opens a character's editor, optionally on a tab (e.g. 'relationships', where its CG gallery is edited). Links are hidden when unset. */
+  onOpenCharacter?: (characterId: string, tab?: string) => void
+  /** Opens a world's editor, optionally on a tab (e.g. 'presentation', where its music is edited). Links are hidden when unset. */
+  onOpenWorld?: (worldId: string, tab?: string) => void
+}
+
+/**
+ * Media: story media that's worth browsing on its own — relationship CGs with their unlock
+ * progress, and each world's soundtrack to listen to outside a scene. Portraits, sprites, and
+ * backgrounds deliberately aren't repeated here; they live (and are edited) in Cast and Worlds.
+ */
+export function GalleryView({ onOpenCharacter, onOpenWorld }: GalleryViewProps = {}) {
   const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const chats = useApiQuery('chats', () => chatsApi.list(), []) ?? []
-  const personas = useApiQuery('personas', () => personasApi.list(), []) ?? []
-  const activePersonaId = useSettingsStore((s) => s.activePersonaId)
-  const [personaFilter, setPersonaFilter] = useState<string>(activePersonaId ?? 'all')
+  const activePlayerCharacterId = useSettingsStore((s) => s.activePlayerCharacterId)
+  const [playerFilter, setPlayerFilter] = useState<string>(activePlayerCharacterId ?? ALL_PLAYER_CHARACTERS)
+  const [viewing, setViewing] = useState<{ characterId: string; entryId: string } | null>(null)
 
-  const chatsForFilter = useMemo(
-    () => personaFilter === 'all' ? chats : chats.filter((chat) => chat.personaId === personaFilter),
-    [chats, personaFilter],
-  )
-  const unlockedByCharacter = useMemo(() => {
-    const map = new Map<string, Set<string>>()
-    for (const chat of chatsForFilter) {
-      if (!map.has(chat.characterId)) map.set(chat.characterId, new Set())
-      for (const id of chat.unlockedGalleryIds ?? []) map.get(chat.characterId)!.add(id)
-    }
-    return map
-  }, [chatsForFilter])
-  const affectionByCharacter = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const chat of chatsForFilter) {
-      map.set(chat.characterId, Math.max(map.get(chat.characterId) ?? 0, chat.affection ?? 0))
-    }
-    return map
-  }, [chatsForFilter])
-
-  const hasCharacterArt = characters.some((character) =>
-    character.avatarDataUrl || Object.values(character.sprites ?? {}).some(Boolean) ||
-    Object.values(character.spriteVariants ?? {}).some((variants) => variants.some(Boolean)),
-  )
-  const hasSceneArt = worlds.some((world) =>
-    Object.values(world.backgrounds ?? {}).some(Boolean) || Object.values(world.backgroundsNight ?? {}).some(Boolean),
-  )
-  const hasCgs = characters.some((character) => character.gallery?.length)
-  const hasMusic = worlds.some((world) => Object.values(world.music ?? {}).some(Boolean))
-  const hasVoice = characters.some((character) => character.voice?.provider || character.voice?.voiceId)
-  const hasVrm = characters.some((character) => character.vrm?.url)
+  const playerCards = useMemo(() => playerCharacterOptions(characters, chats), [characters, chats])
+  // A remembered card that's since been deleted (or never played) falls back to every story.
+  const effectiveFilter =
+    playerFilter === ALL_PLAYER_CHARACTERS || characters.length === 0 || playerCards.some((c) => c.id === playerFilter)
+      ? playerFilter
+      : ALL_PLAYER_CHARACTERS
+  const progress = useMemo(() => cgProgress(characters, chats, effectiveFilter), [characters, chats, effectiveFilter])
+  const percent = progress.total ? Math.round((progress.unlocked / progress.total) * 100) : 0
 
   return (
     <ViewShell
       title="Media"
       width="wide"
-      description="The art, sound, and models already attached to your cast and worlds. Edit an asset from its character or world editor."
-      actions={
-        <label className="flex items-center gap-2 text-xs text-text-muted">
-          CG progress for
-          <select
-            value={personaFilter}
-            onChange={(event) => setPersonaFilter(event.target.value)}
-            className="rounded-lg bg-bg-sunken px-2.5 py-1.5 text-xs text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40"
-          >
-            <option value="all">All player characters</option>
-            {personas.map((persona) => <option key={persona.id} value={persona.id}>{persona.name}</option>)}
-          </select>
-        </label>
-      }
+      description="Story CGs you've unlocked, and how to earn the rest, plus each world's soundtrack to listen to outside a scene."
     >
       <div className="space-y-10">
-        <section aria-labelledby="media-character-art">
-          <h2 id="media-character-art" className="font-display text-lg text-text">Character art & expressions</h2>
-          <p className="mt-1 text-xs text-text-muted">Portraits, outfit sprites, and expression variants from Cast.</p>
-          {hasCharacterArt ? characters.map((character) => {
-            const sprites = Object.entries(character.sprites ?? {}).filter(([, url]) => Boolean(url))
-            const variants = Object.entries(character.spriteVariants ?? {}).flatMap(([key, urls]) =>
-              urls.filter(Boolean).map((url, index) => ({ key, url, index })),
-            )
-            if (!character.avatarDataUrl && !sprites.length && !variants.length) return null
-            const labelFor = (key: string) => {
-              const { outfitId, expressionId } = parseSpriteKey(key)
-              const outfit = outfitId === BASE_OUTFIT_ID ? '' : `${character.outfits?.find((item) => item.id === outfitId)?.label ?? readable(outfitId)} · `
-              return `${outfit}${character.customExpressions?.find((item) => item.id === expressionId)?.label ?? readable(expressionId)}`
-            }
-            return (
-              <div key={character.id} className="mt-5">
-                <h3 className="mb-3 text-sm font-semibold text-text">{character.card.name}</h3>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {character.avatarDataUrl && <ImageCard src={character.avatarDataUrl} label="Portrait" alt={`${character.card.name} portrait`} />}
-                  {sprites.map(([key, url]) => <ImageCard key={key} src={url} label={labelFor(key)} alt={`${character.card.name}: ${labelFor(key)}`} />)}
-                  {variants.map(({ key, url, index }) => <ImageCard key={`${key}-${index}`} src={url} label={`${labelFor(key)} · variant ${index + 1}`} alt={`${character.card.name}: ${labelFor(key)} variant ${index + 1}`} />)}
-                </div>
-              </div>
-            )
-          }) : <EmptyState>No character art yet. Add a portrait or expression sprites in Cast.</EmptyState>}
-        </section>
-
-        <section aria-labelledby="media-scenes">
-          <h2 id="media-scenes" className="font-display text-lg text-text">Scene backgrounds</h2>
-          <p className="mt-1 text-xs text-text-muted">Day and night art stored on each world.</p>
-          {hasSceneArt ? worlds.map((world) => {
-            const day = Object.entries(world.backgrounds ?? {}).filter(([, url]) => Boolean(url))
-            const night = Object.entries(world.backgroundsNight ?? {}).filter(([, url]) => Boolean(url))
-            if (!day.length && !night.length) return null
-            return (
-              <div key={world.id} className="mt-5">
-                <h3 className="mb-3 text-sm font-semibold text-text">{world.name}</h3>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {day.map(([key, url]) => <ImageCard key={`day-${key}`} src={url} label={backgroundLabel(key, world)} alt={`${world.name}: ${backgroundLabel(key, world)} day background`} />)}
-                  {night.map(([key, url]) => <ImageCard key={`night-${key}`} src={url} label={`${backgroundLabel(key, world)} · night`} alt={`${world.name}: ${backgroundLabel(key, world)} night background`} />)}
-                </div>
-              </div>
-            )
-          }) : <EmptyState>No scene art yet. Add backgrounds in a world's editor.</EmptyState>}
-        </section>
-
         <section aria-labelledby="media-cgs">
-          <h2 id="media-cgs" className="font-display text-lg text-text">Story CGs</h2>
-          <p className="mt-1 text-xs text-text-muted">Relationship scene art and endings. Unlocks follow the selected player character's stories.</p>
-          {hasCgs ? characters.map((character) => {
-            const gallery = character.gallery ?? []
-            if (!gallery.length) return null
-            const unlocked = unlockedByCharacter.get(character.id) ?? new Set<string>()
-            const affection = affectionByCharacter.get(character.id) ?? 0
-            const unlockedCount = gallery.filter((entry) => unlocked.has(entry.id) || (!entry.isEnding && affection >= entry.unlockAffection)).length
-            return (
-              <div key={character.id} className="mt-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-text">{character.card.name}</h3>
-                  <span className="text-xs text-text-muted">{unlockedCount}/{gallery.length} unlocked</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {gallery.map((entry) => {
-                    const isUnlocked = unlocked.has(entry.id) || (!entry.isEnding && affection >= entry.unlockAffection)
-                    return (
-                      <div key={entry.id} className="overflow-hidden rounded-xl border border-border bg-bg-elevated">
-                        <div className="relative">
-                          {entry.imageUrl ? <img src={entry.imageUrl} alt={isUnlocked ? entry.title : ''} className={`aspect-[4/3] w-full object-cover ${isUnlocked ? '' : 'blur-sm grayscale'}`} /> :
-                            <div className="flex aspect-[4/3] items-center justify-center text-xs text-text-muted">No art</div>}
-                          {!isUnlocked && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><span className="rounded-lg bg-black/70 px-2 py-1 text-xs text-white">{entry.isEnding ? 'Reach Sweethearts' : `Unlock at ${entry.unlockAffection}`}</span></div>}
-                        </div>
-                        <div className="p-3">
-                          <div className="text-xs font-medium text-text">{entry.title}{entry.isEnding ? ' · Ending' : ''}</div>
-                          {entry.unlockHint && <div className="mt-1 text-[11px] text-text-muted">{entry.unlockHint}</div>}
-                        </div>
-                      </div>
-                    )
-                  })}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h3 id="media-cgs" className="font-display text-lg text-text">Story CGs</h3>
+              <p className="mt-1 text-xs text-text-muted">Relationship scenes and endings. They unlock as a story's warmth rises and it reaches key beats.</p>
+            </div>
+            {progress.total > 0 && (
+              <label className="flex items-center gap-2 text-xs text-text-muted">
+                Progress for
+                <select
+                  value={effectiveFilter}
+                  onChange={(event) => setPlayerFilter(event.target.value)}
+                  className="max-w-[12rem] rounded-lg bg-bg-sunken px-2.5 py-1.5 text-xs text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40"
+                >
+                  <option value={ALL_PLAYER_CHARACTERS}>All player characters</option>
+                  {playerCards.map((card) => <option key={card.id} value={card.id}>{card.card.name}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+
+          {progress.total > 0 ? (
+            <>
+              <div className="mt-4 rounded-xl border border-border bg-bg-elevated p-4">
+                <p className="text-sm text-text">
+                  <span className="font-semibold">{progress.unlocked}</span> of {progress.total} CGs unlocked
+                  <span className="text-text-muted"> · {progress.characters.length} {progress.characters.length === 1 ? 'character' : 'characters'}</span>
+                </p>
+                {/* Decorative — the sentence above already says the same thing for screen readers. */}
+                <div aria-hidden="true" className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-sunken">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
                 </div>
               </div>
-            )
-          }) : <EmptyState>No story CGs yet. Add them in a character's editor.</EmptyState>}
+              {progress.characters.map((row) => (
+                <CharacterCgs
+                  key={row.characterId}
+                  row={row}
+                  onOpen={(entryId) => setViewing({ characterId: row.characterId, entryId })}
+                  onEdit={onOpenCharacter && (() => onOpenCharacter(row.characterId, 'relationships'))}
+                />
+              ))}
+            </>
+          ) : (
+            <EmptyState className="mt-4">
+              No story CGs yet. Add them in a character's editor under Relationships → CG gallery (available when the
+              character's world has dating on), then unlock them by playing their stories.
+            </EmptyState>
+          )}
         </section>
 
-        <section aria-labelledby="media-music">
-          <h2 id="media-music" className="font-display text-lg text-text">Music</h2>
-          <p className="mt-1 text-xs text-text-muted">Background tracks attached to scene moods in Worlds.</p>
-          {hasMusic ? worlds.map((world) => {
-            const tracks = Object.entries(world.music ?? {}).filter(([, url]) => Boolean(url))
-            if (!tracks.length) return null
-            return <div key={world.id} className="mt-4"><h3 className="mb-2 text-sm font-semibold text-text">{world.name}</h3>
-              <div className="grid gap-3 sm:grid-cols-2">{tracks.map(([key, url]) =>
-                <div key={key} className="rounded-xl border border-border bg-bg-elevated p-3">
-                  <div className="mb-2 text-xs font-medium text-text">{key === BGM_DEFAULT_KEY ? 'Default' : SCENE_MOODS.find((mood) => mood.id === key)?.label ?? readable(key)}</div>
-                  <audio controls preload="none" src={url} className="w-full" aria-label={`${world.name} ${readable(key)} music`} />
-                </div>,
-              )}</div>
-            </div>
-          }) : <EmptyState>No music yet. Add mood tracks in a world's editor.</EmptyState>}
-        </section>
+        <Soundtrack worlds={worlds} onEdit={onOpenWorld && ((worldId) => onOpenWorld(worldId, 'presentation'))} />
 
-        <section aria-labelledby="media-voice-models">
-          <h2 id="media-voice-models" className="font-display text-lg text-text">Voices & 3D models</h2>
-          <p className="mt-1 text-xs text-text-muted">Voice choices and VRM models configured for the cast.</p>
-          {hasVoice || hasVrm ? <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {characters.filter((character) => character.voice?.provider || character.voice?.voiceId || character.vrm?.url).map((character) =>
-              <div key={character.id} className="rounded-xl border border-border bg-bg-elevated p-3">
-                <h3 className="text-sm font-semibold text-text">{character.card.name}</h3>
-                {character.voice && (character.voice.provider || character.voice.voiceId) &&
-                  <p className="mt-1 text-xs text-text-muted">Voice: {character.voice.provider ? readable(character.voice.provider) : 'Default provider'}{character.voice.voiceId && !character.voice.voiceId.startsWith('data:') ? ` · ${character.voice.voiceId}` : ''}</p>}
-                {character.vrm?.url && <p className="mt-1 text-xs text-text-muted">3D model: {character.vrm.label || 'VRM'}{character.vrm.enabled ? ' · enabled' : ' · disabled'}</p>}
-              </div>,
-            )}
-          </div> : <EmptyState>No character voices or VRM models configured yet.</EmptyState>}
-        </section>
-
-        <p className="border-t border-border pt-5 text-xs text-text-muted">Standalone media uploads and a shared asset library are future features. Media here comes from your existing Cast and Worlds records.</p>
+        <p className="border-t border-border pt-5 text-xs text-text-muted">
+          Portraits, sprites, and expressions live in each character's Cast → Presentation editor; scene backgrounds live in each
+          world's Locations.
+        </p>
       </div>
+
+      {viewing && (
+        <CgViewer
+          row={progress.characters.find((row) => row.characterId === viewing.characterId)}
+          entryId={viewing.entryId}
+          onNavigate={(entryId) => setViewing({ characterId: viewing.characterId, entryId })}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </ViewShell>
   )
 }
 
-function ImageCard({ src, label, alt }: { src: string; label: string; alt: string }) {
-  return <figure className="overflow-hidden rounded-xl border border-border bg-bg-elevated">
-    <img src={src} alt={alt} className="aspect-[4/3] w-full object-cover" />
-    <figcaption className="p-3 text-xs font-medium text-text">{label}</figcaption>
-  </figure>
+function CharacterCgs({ row, onOpen, onEdit }: { row: CharacterCgProgress; onOpen: (entryId: string) => void; onEdit?: () => void }) {
+  const headingId = `media-cgs-${row.characterId}`
+  return (
+    <section aria-labelledby={headingId} className="mt-6">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h4 id={headingId} className="text-sm font-semibold text-text">{row.name}</h4>
+        <div className="flex items-center gap-3 text-xs text-text-muted">
+          <span>{row.unlocked}/{row.total} unlocked · warmth {row.affection}</span>
+          {onEdit && (
+            <button type="button" onClick={onEdit} className="rounded text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+              Edit CGs
+            </button>
+          )}
+        </div>
+      </div>
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {row.entries.map(({ entry, unlocked }) => (
+          <li key={entry.id} className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg-elevated">
+            {unlocked && entry.imageUrl ? (
+              <button
+                type="button"
+                onClick={() => onOpen(entry.id)}
+                aria-label={`View ${entry.title} larger`}
+                className="block w-full transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+              >
+                <img src={entry.imageUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+              </button>
+            ) : unlocked ? (
+              <div className="flex aspect-[4/3] items-center justify-center bg-bg-sunken text-xs text-text-muted">No art yet</div>
+            ) : (
+              <div className="relative">
+                {/* Obscured on purpose — a locked CG only hints at its shape and colors. */}
+                {entry.imageUrl ? (
+                  <img src={entry.imageUrl} alt="" aria-hidden="true" className="aspect-[4/3] w-full object-cover blur-md grayscale" />
+                ) : (
+                  <div className="aspect-[4/3] bg-bg-sunken" />
+                )}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/45 p-2">
+                  <span className="flex items-center gap-1.5 rounded-lg bg-black/70 px-2 py-1 text-center text-xs text-white">
+                    <Lock size={12} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                    <span><span className="sr-only">Locked. </span>{lockedCgLabel(entry)}</span>
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="p-3">
+              <div className="break-words text-xs font-medium text-text">{entry.title}{entry.isEnding ? ' · Ending' : ''}</div>
+              {entry.unlockHint && <div className="mt-1 break-words text-[11px] text-text-muted">{entry.unlockHint}</div>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** The larger view of one unlocked CG, stepping through that character's other unlocked CGs. */
+function CgViewer({
+  row,
+  entryId,
+  onNavigate,
+  onClose,
+}: {
+  row?: CharacterCgProgress
+  entryId: string
+  onNavigate: (entryId: string) => void
+  onClose: () => void
+}) {
+  const entries = row ? viewableCgs(row) : []
+  const index = entries.findIndex((entry) => entry.id === entryId)
+  const entry: GalleryEntry | undefined = entries[index]
+  const [artIndex, setArtIndex] = useState(0)
+  useEffect(() => setArtIndex(0), [entryId])
+
+  const step = (delta: number) => {
+    if (entries.length < 2) return
+    onNavigate(entries[(index + delta + entries.length) % entries.length].id)
+  }
+  // Arrow keys page through, alongside the Modal's own Escape-to-close.
+  const stepRef = useRef(step)
+  stepRef.current = step
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') stepRef.current(-1)
+      if (event.key === 'ArrowRight') stepRef.current(1)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // The player-character filter changed underneath and this CG is no longer unlocked.
+  useEffect(() => {
+    if (!entry) onClose()
+  }, [entry, onClose])
+  if (!row || !entry) return null
+
+  const art = [entry.imageUrl, ...(entry.variants ?? []).filter(Boolean)]
+  const src = art[artIndex] ?? entry.imageUrl
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={entry.title}
+      size="3xl"
+      scrollable
+      description={`${row.name}${entry.isEnding ? ' · Ending' : ''} · ${index + 1} of ${entries.length} unlocked`}
+      headerExtra={entries.length > 1 && (
+        <>
+          <button type="button" onClick={() => step(-1)} aria-label="Previous CG" className="rounded-lg p-1.5 text-text-muted hover:bg-bg-sunken hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+            <ChevronLeft size={16} strokeWidth={2} />
+          </button>
+          <button type="button" onClick={() => step(1)} aria-label="Next CG" className="rounded-lg p-1.5 text-text-muted hover:bg-bg-sunken hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+            <ChevronRight size={16} strokeWidth={2} />
+          </button>
+        </>
+      )}
+    >
+      <div className="min-h-0 overflow-y-auto">
+        <img src={src} alt={art.length > 1 ? `${entry.title}, art ${artIndex + 1} of ${art.length}` : entry.title} className="max-h-[65vh] w-full rounded-xl bg-bg-sunken object-contain" />
+        {art.length > 1 && (
+          <div role="group" aria-label="Alternate art" className="mt-3 flex flex-wrap gap-2">
+            {art.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setArtIndex(i)}
+                aria-pressed={i === artIndex}
+                className={`rounded-lg px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${i === artIndex ? 'bg-accent/15 text-text' : 'bg-bg-sunken text-text-muted hover:text-text'}`}
+              >
+                Art {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+        {entry.unlockHint && <p className="mt-3 text-xs text-text-muted">{entry.unlockHint}</p>}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * A listen-only music room: each world's mood tracks, playable outside a scene (the world editor
+ * only uploads them). One track at a time, and the app-level scene music ducks while one plays.
+ */
+function Soundtrack({ worlds, onEdit }: { worlds: WorldCard[]; onEdit?: (worldId: string) => void }) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const setDucked = useAudioDuckStore((s) => s.setDucked)
+  useEffect(() => () => setDucked(false), [setDucked])
+
+  const albums = worlds
+    .map((world) => {
+      const music = world.music ?? {}
+      const keys = [...BGM_KEYS, ...Object.keys(music).filter((key) => !BGM_KEYS.includes(key))]
+      return { world, tracks: keys.filter((key) => Boolean(music[key])).map((key) => ({ key, url: music[key] })) }
+    })
+    .filter((album) => album.tracks.length > 0)
+
+  const playing = () => Array.from(listRef.current?.querySelectorAll('audio') ?? []).some((audio) => !audio.paused)
+  const onPlay = (event: SyntheticEvent<HTMLAudioElement>) => {
+    listRef.current?.querySelectorAll('audio').forEach((audio) => audio !== event.currentTarget && audio.pause())
+    setDucked(true)
+  }
+  const onStop = () => setDucked(playing())
+
+  return (
+    <section aria-labelledby="media-soundtrack">
+      <h3 id="media-soundtrack" className="font-display text-lg text-text">Soundtrack</h3>
+      <p className="mt-1 text-xs text-text-muted">Listen to each world's scene music. In a story, the track follows the scene's mood.</p>
+      {albums.length ? (
+        <div ref={listRef}>
+          {albums.map(({ world, tracks }) => {
+            const headingId = `media-soundtrack-${world.id}`
+            return (
+              <section key={world.id} aria-labelledby={headingId} className="mt-5">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h4 id={headingId} className="text-sm font-semibold text-text">{world.name}</h4>
+                  {onEdit && (
+                    <button type="button" onClick={() => onEdit(world.id)} className="rounded text-xs text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+                      Edit tracks
+                    </button>
+                  )}
+                </div>
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {tracks.map(({ key, url }) => {
+                    const mood = SCENE_MOODS.find((item) => item.id === key)
+                    const label = key === BGM_DEFAULT_KEY ? 'Main theme' : mood?.label ?? readable(key)
+                    return (
+                      <li key={key} className="min-w-0 rounded-xl border border-border bg-bg-elevated p-3">
+                        <div className="text-xs font-medium text-text">{label}</div>
+                        <div className="mb-2 truncate text-[11px] text-text-muted">{key === BGM_DEFAULT_KEY ? "The world's default track" : mood?.hint}</div>
+                        <audio
+                          controls
+                          preload="none"
+                          src={url}
+                          onPlay={onPlay}
+                          onPause={onStop}
+                          onEnded={onStop}
+                          className="w-full"
+                          aria-label={`${world.name}: ${label}`}
+                        />
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-xl border border-dashed border-border px-4 py-5 text-center text-xs text-text-muted">
+          No soundtracks yet. Add mood tracks in a Visual Novel world's editor, under Presentation → Background music.
+        </p>
+      )}
+    </section>
+  )
 }

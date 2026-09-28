@@ -97,6 +97,20 @@ describe('normalizeWorldTemplateId', () => {
 })
 
 describe('assistOverridesForTemplate', () => {
+  it('uses explicit world module choices for new story defaults', () => {
+    expect(assistOverridesForTemplate({ template: 'dating_sim', modules: { dating: false } })).toEqual({
+      autoTrackRelationship: false,
+      autoSuggestChoices: false,
+      slowBurnPacing: false,
+      showIntentChips: false,
+      showDateEventButton: false,
+    })
+    expect(assistOverridesForTemplate({ template: 'visual_novel', modules: { visualNovel: false } })).toEqual({
+      slowBurnPacing: false,
+      showIntentChips: false,
+      showDateEventButton: false,
+    })
+  })
   it('turns relationship tracking, choices, slow-burn pacing, intent chips, and the date button off for freeform', () => {
     const romanceOff = {
       autoTrackRelationship: false,

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, personasApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, worldsApi } from '@/lib/api/client'
+import { blankCharacterData } from '@/lib/characters/cardSpec'
+import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { availableGreetings, createChat } from '@/lib/chat/createChat'
 import { WORLD_TEMPLATES, getWorldTemplate, normalizeWorldTemplateId, type WorldTemplateId } from '@/lib/world/worldTemplates'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { Modal } from '@/components/ui/Modal'
-import { PlayAsSelect, resolvePlayAs } from '@/components/personas/PlayAsSelect'
+import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 
 export function NewChatDialog({
@@ -21,15 +23,17 @@ export function NewChatDialog({
   initialCharacterId?: string
 }) {
   const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
-  const personas = useApiQuery('personas', () => personasApi.list(), []) ?? []
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const client = useChatBackendClient()
   const [characterId, setCharacterId] = useState<string>(initialCharacterId)
   const [worldId, setWorldId] = useState<string>('')
   const [step, setStep] = useState(0)
-  const [personaId, setPersonaId] = useState<string>('')
-  const [personaName, setPersonaName] = useState('')
-  const [personaDescription, setPersonaDescription] = useState('')
+  const activePlayerCharacterId = useSettingsStore((s) => s.activePlayerCharacterId)
+  const setActivePlayerCharacterId = useSettingsStore((s) => s.setActivePlayerCharacterId)
+  // null until picked by hand: until then the player follows the last card you played (below).
+  const [pickedPlayerId, setPickedPlayerId] = useState<string | null>(null)
+  const [newPlayerName, setNewPlayerName] = useState('')
+  const [creatingPlayer, setCreatingPlayer] = useState(false)
   const [greetingIndex, setGreetingIndex] = useState(0)
   const [starterId, setStarterId] = useState<string>('')
   const [participantIds, setParticipantIds] = useState<string[]>([])
@@ -51,17 +55,21 @@ export function NewChatDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characters.length, worlds.length, initialCharacterId])
 
-  // A first-ever chat has no personas to pick from — offer a one-line "who you are" inline instead
-  // of sending the model a bare hardcoded "You" (see ROADMAP §13 / the persona-get-route bug, #41).
-  const noPersonas = personas.length === 0
-
   const toggleParticipant = (id: string) => {
     setParticipantIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
   }
 
   const character = characters.find((c) => c.id === characterId)
   const world = worlds.find((w) => w.id === worldId)
-  const availableCharacters = characters.filter((c) => (c.worldId ?? '') === worldId)
+  // The last card you played carries over as the default, unless it's this story's lead or you
+  // just added it to the AI cast.
+  const defaultPlayerId =
+    activePlayerCharacterId && activePlayerCharacterId !== characterId && !participantIds.includes(activePlayerCharacterId) && characters.some((c) => c.id === activePlayerCharacterId)
+      ? activePlayerCharacterId
+      : ''
+  const playerId = pickedPlayerId === null ? defaultPlayerId : pickedPlayerId === characterId ? '' : pickedPlayerId
+  // The AI never voices "you only" cards or a card you've picked to play.
+  const availableCharacters = characters.filter((c) => (c.worldId ?? '') === worldId && !c.playerOnly && c.id !== (pickedPlayerId ?? ''))
   const starters = character?.relationshipStarters ?? []
   const starter = starters.find((s) => s.id === starterId)
   const greetingOptions = character ? availableGreetings(character) : []
@@ -80,32 +88,47 @@ export function NewChatDialog({
 
   const doCreate = async () => {
     if (!character) return
-    // Resolve the persona: an existing pick, or a fresh one minted from the inline name/description.
-    let persona = await resolvePlayAs(personaId, personas)
-    let resolvedPersonaId = persona?.id ?? ''
-    if (noPersonas && !personaId && personaName.trim()) {
-      persona = await personasApi.create({
-        name: personaName.trim(),
-        description: personaDescription.trim(),
-      })
-      resolvedPersonaId = persona.id
-    }
+    const player = playerId ? characters.find((c) => c.id === playerId) : undefined
     const chat = await createChat({
       character,
       world,
-      personaId: resolvedPersonaId || '',
-      personaName: persona?.name,
-      participantIds,
+      player,
+      participantIds: participantIds.filter((id) => id !== player?.id),
       startingAffection: starter?.startingAffection ?? 0,
       summary: starter?.blurb || undefined,
       greetingIndex: greetingOptions.length > 0 ? greetingIndex : -1,
       mode,
       client,
     })
+    // Remember the pick for the next story; an explicit unnamed "You" clears it.
+    if (player) setActivePlayerCharacterId(player.id)
+    else if (pickedPlayerId === '') setActivePlayerCharacterId(null)
     onCreated(chat.id)
   }
 
-  const steps = ['World', 'Cast', 'Who you play as', 'Opening scene'] as const
+  const pickPlayer = (id: string) => {
+    setPickedPlayerId(id)
+    // The card you play leaves the AI cast.
+    if (id) setParticipantIds((prev) => prev.filter((p) => p !== id))
+  }
+
+  /** A quick "you only" card with just a name; flesh it out later in Cast. */
+  const createPlayerCharacter = async () => {
+    const name = newPlayerName.trim()
+    if (!name || creatingPlayer) return
+    setCreatingPlayer(true)
+    try {
+      const created = await charactersApi.create({ card: blankCharacterData(name), playerOnly: true })
+      pickPlayer(created.id)
+      setNewPlayerName('')
+    } catch (e) {
+      toastError(errorMessage(e))
+    } finally {
+      setCreatingPlayer(false)
+    }
+  }
+
+  const steps = ['World', 'Cast', 'Who you play', 'Opening scene'] as const
 
   return (
     <Modal onClose={onClose} title="Start a story" size="sm" hideHeaderClose scrollable>
@@ -148,14 +171,18 @@ export function NewChatDialog({
         </>}
         {step === 2 && <>
           <p className="mb-3 text-sm text-text-muted">Who are you in this story?</p>
-          <PlayAsSelect className="mb-3" value={personaId} onChange={setPersonaId} personas={personas} characters={characters.filter((c) => c.id !== characterId)} />
-          {noPersonas && !personaId && <div>
-            <label className="mb-1 block text-xs text-text-muted">Or make a player character</label>
-            <input value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="Your name (optional)"
-              className="mb-2 w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-sm text-text outline-none ring-1 ring-transparent focus:ring-accent/40" />
-            <input value={personaDescription} onChange={(e) => setPersonaDescription(e.target.value)} placeholder="A line about who you are (optional)"
-              className="w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-sm text-text outline-none ring-1 ring-transparent focus:ring-accent/40" />
-          </div>}
+          <PlayAsSelect className="mb-3" value={playerId} onChange={pickPlayer} characters={characters} excludeIds={characterId ? [characterId] : []} allowNone />
+          <div>
+            <label htmlFor="new-player-character" className="mb-1 block text-xs text-text-muted">Or create a player character</label>
+            <div className="flex gap-2">
+              <input id="new-player-character" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void createPlayerCharacter() } }}
+                placeholder="Your character's name"
+                className="min-w-0 flex-1 rounded-xl bg-bg-sunken px-3 py-2.5 text-sm text-text outline-none ring-1 ring-transparent focus:ring-accent/40" />
+              <Button variant="ghost" onClick={createPlayerCharacter} disabled={!newPlayerName.trim() || creatingPlayer}>{creatingPlayer ? 'Creating…' : 'Create'}</Button>
+            </div>
+            <p className="mt-1 text-[11px] text-text-muted">Made as a "you only" card. Add a portrait and description in Cast any time.</p>
+          </div>
         </>}
         {step === 3 && <>
           <p className="mb-3 text-sm text-text-muted">Choose how your story opens.</p>

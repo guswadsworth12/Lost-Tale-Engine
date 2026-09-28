@@ -13,6 +13,8 @@ interface IconButtonProps {
   /** 'chrome' (default) reads against the app's own surface tokens; 'glass' is white-on-photo, for VN mode's floating overlay toolbar. */
   tone?: 'chrome' | 'glass'
   className?: string
+  /** Anchor for the guided tour (`data-tour`). */
+  'data-tour'?: string
 }
 
 const TONE_CLASSES: Record<NonNullable<IconButtonProps['tone']>, { base: string; active: string }> = {
@@ -31,6 +33,7 @@ export function IconButton({
   boxSize = 34,
   tone = 'chrome',
   className = '',
+  'data-tour': tour,
 }: IconButtonProps) {
   const tones = TONE_CLASSES[tone]
   return (
@@ -39,6 +42,7 @@ export function IconButton({
       disabled={disabled}
       title={title}
       aria-label={title}
+      data-tour={tour}
       style={{ height: boxSize, width: boxSize }}
       className={`flex shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         active ? tones.active : tones.base

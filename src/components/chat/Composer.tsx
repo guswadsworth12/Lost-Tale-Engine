@@ -116,7 +116,7 @@ export function Composer({
     : 'bg-bg-elevated text-text-muted hover:text-danger'
 
   return (
-    <div className={vn ? `w-full ${fillHeight ? 'flex h-full min-h-0 flex-col' : ''}` : 'border-t border-border/50 bg-bg-elevated p-3'}>
+    <div data-tour="composer" className={vn ? `w-full ${fillHeight ? 'flex h-full min-h-0 flex-col' : ''}` : 'border-t border-border/50 bg-bg-elevated p-3'}>
       <div
         className={
           vn

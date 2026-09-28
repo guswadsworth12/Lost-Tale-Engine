@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import type { Persona, Scene, ScenePolicy } from '@/lib/types'
+import type { Scene, ScenePolicy } from '@/lib/types'
 import type { DayPhase } from '@/lib/world/calendar'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { TextAreaField } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { PlayAsSelect, resolvePlayAs } from '@/components/personas/PlayAsSelect'
+import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import type { Character } from '@/lib/characters/cardSpec'
 
 const TIME_OF_DAY: { value: DayPhase | 'clock'; label: string }[] = [
@@ -55,16 +55,20 @@ export function ScenePanel({
   onSaveGmNotes,
   onSaveParticipants,
   campaignAvailable = false,
-  personaId = '',
-  personas = [],
-  characters = [],
-  onSavePersona,
+  leadId,
+  playerCharacterId = '',
+  playableCharacters = [],
+  onSwitchPlayer,
 }: {
-  /** Who the player plays as (a persona id). Any character can be picked, TavernAI-style. */
-  personaId?: string
-  personas?: Persona[]
-  characters?: Character[]
-  onSavePersona?: (personaId: string) => Promise<void>
+  /** The story's lead (`Chat.characterId`). It can't be played, so Play As leaves it out. */
+  leadId?: string
+  /** The card the player plays in this story (`Chat.playerCharacterId`). */
+  playerCharacterId?: string
+  /** Every card that could be played; the lead is filtered out here. Also tells the invite picker
+   *  which cards are "you only". */
+  playableCharacters?: Character[]
+  /** Switches the played card (`useChatSession().switchPlayer`); false when refused. */
+  onSwitchPlayer?: (id: string) => Promise<boolean>
   /** The Game Master policy needs a world campaign to adjudicate against. */
   campaignAvailable?: boolean
   scene: Scene | undefined
@@ -86,9 +90,14 @@ export function ScenePanel({
   const [timeOfDay, setTimeOfDay] = useState<DayPhase | 'clock'>(scene?.timePhase ?? 'clock')
   const [turnPolicy, setTurnPolicy] = useState<ScenePolicy>(scene?.turnPolicy ?? 'manual')
   const [participants, setParticipants] = useState<string[]>(participantIds)
-  const [playAs, setPlayAs] = useState<string>(personaId)
+  const [playAs, setPlayAs] = useState<string>(playerCharacterId)
   const [privateNotes, setPrivateNotes] = useState(gmNotes ?? '')
   const [busy, setBusy] = useState(false)
+
+  // "You only" cards and whoever you play (now or after this save) are never AI-voiced, so they
+  // can't be invited into the scene.
+  const playerOnlyIds = new Set(playableCharacters.filter((c) => c.playerOnly).map((c) => c.id))
+  const invitable = otherCharacters.filter((c) => !playerOnlyIds.has(c.id) && c.id !== playerCharacterId && c.id !== playAs)
 
   const toggleParticipant = (id: string) =>
     setParticipants((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
@@ -99,12 +108,11 @@ export function ScenePanel({
   const save = async (payload: Partial<Scene> | null) => {
     setBusy(true)
     try {
-      if (participantsChanged) await onSaveParticipants(participants)
+      if (participantsChanged) await onSaveParticipants(participants.filter((id) => id !== playAs && !playerOnlyIds.has(id)))
       if (onSaveGmNotes && privateNotes !== (gmNotes ?? '')) await onSaveGmNotes(privateNotes)
-      if (onSavePersona && playAs !== personaId) {
-        const persona = await resolvePlayAs(playAs, personas)
-        await onSavePersona(persona?.id ?? '')
-      }
+      // Switching runs after the roster save: it drops the new card from the cast and returns the
+      // old one to it. A refusal (toasted by the session) keeps the panel open.
+      if (onSwitchPlayer && playAs && playAs !== playerCharacterId && !(await onSwitchPlayer(playAs))) return
       await onSave(payload)
       onClose()
     } finally {
@@ -121,11 +129,11 @@ export function ScenePanel({
       scrollable
     >
       <div className="flex-1 overflow-y-auto">
-        {otherCharacters.length > 0 && (
+        {invitable.length > 0 && (
           <div className="mb-4">
             <span className="mb-1 block text-xs font-medium text-text-muted">{turnPolicy === 'gm' ? 'Characters loaded for the GM' : "Who's in this scene"}</span>
             <div className="flex flex-wrap gap-1.5">
-              {otherCharacters.map((c) => (
+              {invitable.map((c) => (
                 <Chip key={c.id} on={participants.includes(c.id)} onClick={() => toggleParticipant(c.id)}>
                   {c.name}
                 </Chip>
@@ -177,13 +185,14 @@ export function ScenePanel({
           </p>
         </div>
 
-        {onSavePersona && (
+        {onSwitchPlayer && (
           <PlayAsSelect
             className="mb-3"
             value={playAs}
             onChange={setPlayAs}
-            personas={personas}
-            characters={characters}
+            characters={playableCharacters}
+            excludeIds={leadId ? [leadId] : []}
+            allowNone={!playerCharacterId}
           />
         )}
 

@@ -987,14 +987,16 @@ function WorldEditor({
         <div className="space-y-10">
           <Section
             title="Relationship thresholds"
-            description={`Warmth needed for each stage, for any character living here. Blank uses the default (${DEFAULT_STAGE_HINT}).`}
+            description={effectiveModules.dating
+              ? `Warmth needed for each stage, for any character living here. Blank uses the default (${DEFAULT_STAGE_HINT}).`
+              : 'Connection milestones for any character living here. Blank uses the defaults (15, 35, 55, 75, 90).'}
             surface="bare"
           >
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {EDITABLE_STAGES.map((stage) => (
                 <NumberField
                   key={stage}
-                  label={formatRelationshipStage(stage)}
+                  label={effectiveModules.dating ? formatRelationshipStage(stage) : ({ acquaintances: 'New connection', warming_up: 'Familiar', getting_close: 'Trusted', close: 'Close', sweethearts: 'Deep bond' } as Record<string, string>)[stage]}
                   min={0}
                   max={100}
                   placeholder={String(DEFAULT_THRESHOLDS[stage])}

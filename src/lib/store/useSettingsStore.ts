@@ -108,10 +108,15 @@ interface SettingsState {
 
   // identity
   activeCharacterId: string | null
+  /** Legacy: the last persona picked, from before cards and personas merged. Read once by
+   *  `useLegacyPlayerDefault` to seed `activePlayerCharacterId`; nothing else uses it. */
   activePersonaId: string | null
+  /** The card you last chose to play: Start a story's default, and Media's CG progress filter. */
+  activePlayerCharacterId: string | null
   activeChatId: string | null
   setActiveCharacterId: (id: string | null) => void
   setActivePersonaId: (id: string | null) => void
+  setActivePlayerCharacterId: (id: string | null) => void
   setActiveChatId: (id: string | null) => void
 
   // theming
@@ -347,9 +352,11 @@ export const useSettingsStore = create<SettingsState>()(
 
       activeCharacterId: null,
       activePersonaId: null,
+      activePlayerCharacterId: null,
       activeChatId: null,
       setActiveCharacterId: (id) => set({ activeCharacterId: id }),
       setActivePersonaId: (id) => set({ activePersonaId: id }),
+      setActivePlayerCharacterId: (id) => set({ activePlayerCharacterId: id }),
       setActiveChatId: (id) => set({ activeChatId: id }),
 
       colorMode: 'dark',

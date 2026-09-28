@@ -302,6 +302,14 @@ select:focus-visible,
   bg-black/NN + backdrop-blur combination, which is how they drifted into four different
   translucencies. Deliberately dark and low-contrast: the art behind it is the subject.
 */
+.vn-neutral {
+  --c-romance: var(--c-accent);
+  --c-romance-text: var(--c-accent-text);
+}
+
+.vn-toolbar-scroll { scrollbar-width: none; }
+.vn-toolbar-scroll::-webkit-scrollbar { display: none; }
+
 .vn-glass {
   background-color: rgb(10 10 14 / 0.52);
   backdrop-filter: blur(14px) saturate(1.15);

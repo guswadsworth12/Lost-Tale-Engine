@@ -5,7 +5,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, messagesApi, objectivesApi, personasApi, relationshipEventsApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, messagesApi, objectivesApi, relationshipEventsApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { playerViewOf, switchPlayer as planPlayerSwitch } from '@/lib/characters/player'
 import { newId } from '@/lib/id'
 import type { AuthorNote, Chat, CommitmentStatus, DateEventCard, ItemEffect, MessageIntent, Objective, ObjectiveTask, RelationshipStage, StoredMessage, WorldCard } from '@/lib/types'
 import { collectImageBase64, composeMessageText, type PendingAttachment } from '@/lib/attachments'
@@ -485,11 +486,14 @@ export function useChatSession(chatId: string | null) {
     () => Promise.all(participantIds.map((id) => charactersApi.get(id))).then((list) => list.filter((c): c is Character => !!c)),
     [participantIds.join(',')],
   ) ?? []
-  const persona = useApiQuery(
-    'personas',
-    () => (chat?.personaId ? personasApi.get(chat.personaId) : Promise.resolve(undefined)),
-    [chat?.personaId],
+  // The card you play in this story. Everything below reads it through `persona`, the public view
+  // (name, portrait, what others may know); its private prompts and memory never reach a prompt.
+  const playerCharacter = useApiQuery(
+    'characters',
+    () => (chat?.playerCharacterId ? charactersApi.get(chat.playerCharacterId) : Promise.resolve(undefined)),
+    [chat?.playerCharacterId],
   )
+  const persona = playerCharacter ? playerViewOf(playerCharacter) : undefined
   const world = useApiQuery(
     'worlds',
     () => (character?.worldId ? worldsApi.get(character.worldId) : Promise.resolve(undefined)),
@@ -891,7 +895,7 @@ export function useChatSession(chatId: string | null) {
       // Whether the app is actually presenting this scene as a visual novel — the same tri-state
       // resolution `ChatWindow` renders from, so the prose guidance and the presentation can never
       // disagree about which form the reply is being written for.
-      const vnOverride = freshChat.assistOverrides?.visualNovelMode ?? globalVisualNovelMode
+      const vnOverride = freshChat.assistOverrides?.visualNovelMode ?? (modules.visualNovel ? globalVisualNovelMode : false)
       const isVisualNovel = vnOverride === 'auto' ? isVnReady(speaker, world) : !!vnOverride
       // How a reply is written when it lands in a dialogue box under a sprite (`prompt/vnProse.ts`).
       const vnProseLine = vnProseNote(isVisualNovel, speaker.card.name, persona?.name || 'You', speakerTrack.mood, sceneRoster.map((c) => c.card.name))
@@ -2328,6 +2332,35 @@ export function useChatSession(chatId: string | null) {
     [chat, chatId],
   )
 
+  /** Play a different card mid-story. The card you take over leaves the AI cast; the one you leave rejoins it unless it's "you only". */
+  const switchPlayer = useCallback(
+    async (nextId: string) => {
+      if (!chatId) return false
+      const fresh = (await chatsApi.get(chatId)) ?? chat
+      if (!fresh) return false
+      const cards = await charactersApi.list()
+      const result = planPlayerSwitch(fresh, nextId, (id) => cards.find((c) => c.id === id))
+      if (!result.ok) {
+        toastInfo(result.reason)
+        return false
+      }
+      const participants = result.patch.participants ?? []
+      // The card you leave was in the scene as you, so it stays present once the AI takes it back.
+      const leaving = fresh.playerCharacterId && participants.includes(fresh.playerCharacterId) ? [fresh.playerCharacterId] : []
+      const present = fresh.scene?.presentCharacterIds
+        ?.filter((id) => id === fresh.characterId || participants.includes(id))
+        .concat(leaving.filter((id) => !fresh.scene!.presentCharacterIds!.includes(id)))
+      await chatsApi.update(chatId, {
+        ...result.patch,
+        participants,
+        scene: fresh.scene ? { ...fresh.scene, roundRobinIndex: 0, ...(present ? { presentCharacterIds: present } : {}) } : fresh.scene,
+      })
+      if (replyAsCharacterId === nextId) setReplyAsCharacterId(null)
+      return true
+    },
+    [chat, chatId, replyAsCharacterId],
+  )
+
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
   const suggestChoicesForMessage = useCallback(
     async (messageId: string, historyForChoices: ChatMessage[]) => {
@@ -3006,8 +3039,11 @@ export function useChatSession(chatId: string | null) {
         [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false })))
       const loadedIds = [character.id, ...(freshChat?.participants ?? [])]
       const presentIds = new Set(freshChat?.scene?.presentCharacterIds ?? loadedIds)
-      const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayerCharacter(c.name, playerName))
-      const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayerCharacter(c.name, playerName))
+      // The card you play is never AI cast: matched by id, with the name check kept for stories
+      // whose player predates cards and personas merging.
+      const isPlayer = (c: { id: string; name: string }) => c.id === freshChat?.playerCharacterId || isPlayerCharacter(c.name, playerName)
+      const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayer(c))
+      const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayer(c))
       const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
       const scenery = currentScenery(upTo, freshChat?.scene)
       const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
@@ -3099,7 +3135,7 @@ export function useChatSession(chatId: string | null) {
       if (turn.addCharacterIds?.length) {
         const fresh = await chatsApi.get(chatId)
         if (fresh) {
-          const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])].filter((id) => id !== fresh.characterId)
+          const participants = [...new Set([...(fresh.participants ?? []), ...turn.addCharacterIds])].filter((id) => id !== fresh.characterId && id !== fresh.playerCharacterId)
           const scene = fresh.scene?.presentCharacterIds
             ? { ...fresh.scene, presentCharacterIds: [...new Set([...fresh.scene.presentCharacterIds, ...turn.addCharacterIds])] }
             : fresh.scene
@@ -4174,6 +4210,7 @@ export function useChatSession(chatId: string | null) {
     chat,
     character,
     persona,
+    playerCharacter,
     world,
     activeObjective,
     participantCharacters,
@@ -4201,6 +4238,7 @@ export function useChatSession(chatId: string | null) {
     updateScene,
     updateGmNotes,
     updateParticipants,
+    switchPlayer,
     updateMemorySummary,
     continueMessage,
     canContinue,

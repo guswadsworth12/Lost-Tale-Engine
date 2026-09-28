@@ -21,16 +21,26 @@ import type { IntimacyScene } from '@/lib/dating/intimacyScene'
 import type { RecentRebuff } from '@/lib/dating/rebuff'
 import type { GiftLogEntry, ReciprocityCue } from '@/lib/dating/gifts'
 
+/**
+ * Who the player is in a story, as the rest of the app reads it: a name, the public description
+ * other characters may know, and a portrait. Built from the story's player card by
+ * `playerViewOf` (`characters/player.ts`); no longer a stored record of its own.
+ *
+ * The legacy `personas` table still exists read-only so old ids can be mapped: each row carries
+ * `migratedToCharacterId` once `server/migrations/mergePersonas.ts` has folded it into a card.
+ */
 export interface Persona {
   id: string
   name: string
-  /** Public description other characters may know. For a linked persona, blank falls back to the card's description. */
+  /** Public description other characters may know. Never the card's private prompts or memory. */
   description: string
   avatarDataUrl?: string
-  /** Play as this character: name and portrait follow the card (server-resolved). Private prompts and memory are never used. */
+  /** The player card this view was built from. */
   characterId?: string
   /** Set by the server when the linked character has been deleted; the persona keeps its last name. */
   characterMissing?: boolean
+  /** Legacy rows only: the card this persona became. */
+  migratedToCharacterId?: string
   createdAt: number
 }
 
@@ -381,7 +391,11 @@ export interface Chat {
   participantRelationships?: Record<string, RelationshipTrack>
   /** Location/atmosphere framing plus who replies next in a group chat. Unset = today's manual behavior. See `Scene`. */
   scene?: Scene
-  personaId: string
+  /** The card you play in this story. Any card can be played; see `Character.playerOnly`. */
+  playerCharacterId?: string
+  /** Legacy: the persona this story used before cards and personas merged. Kept so the migration
+   *  can be checked or rolled back; nothing reads it once `playerCharacterId` is set. */
+  personaId?: string
   title: string
   createdAt: number
   updatedAt: number

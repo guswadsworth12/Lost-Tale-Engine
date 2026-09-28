@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { charactersApi, chatsApi, instructTemplatesApi, messagesApi, personasApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, instructTemplatesApi, messagesApi, worldsApi } from '@/lib/api/client'
+import { playerViewOf } from '@/lib/characters/player'
 import { newId } from '@/lib/id'
 import { createChatBackend } from '@/lib/api/createChatBackend'
 import { evaluateOutreach, generateOutreachMessage } from '@/lib/dating/outreach'
@@ -43,7 +44,7 @@ async function runTick(baseUrl: string) {
   const charactersById = new Map(characters.map((c) => [c.id, c]))
 
   // Cheap in-memory pre-filter — the same conditions `evaluateOutreach` itself gates on, checked
-  // here first purely to skip a per-chat network round trip (fetching last message/world/persona)
+  // here first purely to skip a per-chat network round trip (fetching last message/world)
   // for a chat that's already fully determined to be ineligible from data already in hand.
   const candidates = chats
     .map((chat) => ({ chat, character: charactersById.get(chat.characterId) }))
@@ -88,7 +89,8 @@ async function runTick(baseUrl: string) {
     if (!check.eligible || !check.reason) continue
 
     try {
-      const persona = await personasApi.get(chat.personaId).catch(() => undefined)
+      const playerCard = chat.playerCharacterId ? charactersById.get(chat.playerCharacterId) : undefined
+      const persona = playerCard ? playerViewOf(playerCard) : undefined
       const template = resolveInstructTemplate(character.instructTemplateId || useSettingsStore.getState().instructTemplateId, customTemplates)
       const recentHistory = messages.slice(-10).map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
       const text = await generateOutreachMessage(client, {

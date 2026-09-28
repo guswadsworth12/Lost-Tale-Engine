@@ -31,6 +31,8 @@ interface VNDialogueBoxProps {
   plate: VNPlateColors
   /** True while the player owns the box — swaps the nameplate to their persona and the body to the composer. */
   writing: boolean
+  /** A GM line is stage narration, with no character portrait or nameplate. */
+  narration?: boolean
   /** Rendered dialogue (already run through the message/SFX renderer). Read state only. */
   children: ReactNode
   /** The composer, rendered in place of the dialogue while `writing`. */
@@ -60,6 +62,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
     initials,
     plate,
     writing,
+    narration,
     children,
     composer,
     streaming,
@@ -107,7 +110,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
         }`}
       >
 
-        <div className="flex items-center gap-2.5 px-4 pb-1 pt-3 sm:px-6">
+        {(writing || !narration) && <div className="flex items-center gap-2.5 px-4 pb-1 pt-3 sm:px-6">
           {writing ? (
             <>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-accent">
@@ -135,12 +138,12 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
               </span>
             </>
           )}
-        </div>
+        </div>}
 
         {/* The fixed frame. Write state takes the footer strip's height too (its own control row
             sits there instead), so the outer box is the same size either way — see `.vn-box` in
             globals.css. Nothing below this ever shifts. */}
-        <div className={`px-4 sm:px-6 ${writing ? 'vn-box-body-write' : 'vn-box-body'}`}>
+        <div className={`px-4 sm:px-6 ${writing ? 'vn-box-body-write' : 'vn-box-body'} ${narration && !writing ? 'pt-3' : ''}`}>
           {writing ? (
             <div ref={writeAreaRef} className="h-full pb-2 pt-1">
               {composer}
@@ -148,7 +151,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
           ) : (
             <div ref={bodyRef} className="h-full overflow-y-auto pb-2 pt-1.5">
               <p
-                className="vn-dialogue whitespace-pre-wrap text-[15px] leading-[1.75] text-white/95 sm:text-base"
+                className={`vn-dialogue whitespace-pre-wrap text-[15px] leading-[1.75] text-white/95 sm:text-base ${narration ? 'font-serif italic tracking-[0.01em]' : ''}`}
                 style={{ textShadow: '0 1px 3px rgb(0 0 0 / 0.55)' }}
               >
                 {children}

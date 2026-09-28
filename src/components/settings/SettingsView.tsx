@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { CircleHelp } from 'lucide-react'
+import { TutorialSettingsSection } from '@/components/help'
+import { openHelp } from '@/lib/help/helpStore'
 import { ConnectionSettings } from './ConnectionSettings'
 import { ThemeEditor } from './ThemeEditor'
 import { SamplingControls } from './SamplingControls'
@@ -25,7 +28,18 @@ export function SettingsView() {
     // container's padding edge, so any `pt` here would leave a gap above the pinned strip that
     // scrolled content shows through. The top gap lives on the (non-sticky) heading instead.
     <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-4 pb-10 sm:px-8">
-      <h2 className="pb-4 pt-4 font-display text-lg text-text sm:pt-8">Settings</h2>
+      <div className="flex items-center justify-between gap-3 pb-4 pt-4 sm:pt-8">
+        <h2 className="font-display text-lg text-text">Settings</h2>
+        {/* Help's only door on a phone outside a story, where the bottom bar has no room for it. */}
+        <button
+          type="button"
+          onClick={() => openHelp()}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-sunken hover:text-text"
+        >
+          <CircleHelp size={14} strokeWidth={1.75} />
+          Help &amp; tutorial
+        </button>
+      </div>
       {/* Only the tab strip sticks — the heading scrolls away. `bg-bg` + the `pb` shelf keep it
           opaque top-to-bottom so switching tabs from deep in a long tab (Generation is ~16
           sections) never means scrolling back up. */}
@@ -63,7 +77,7 @@ export function SettingsView() {
         {tab === 'generation' && <SamplingControls />}
         {tab === 'voice' && <VoiceSettings />}
         {tab === 'images' && <ImageGenSettings />}
-        {tab === 'data' && <DataSettings />}
+        {tab === 'data' && <><DataSettings /><div className="mt-8"><TutorialSettingsSection /></div></>}
       </div>
     </div>
   )

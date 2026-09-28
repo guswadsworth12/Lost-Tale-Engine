@@ -564,7 +564,9 @@ app.get('/api/characters/roster', (req, res) => {
     id: c.id,
     name: (c.card as { name?: string } | undefined)?.name ?? '',
     occupation: c.occupation,
-    gmEligible: c.gmEligible !== false,
+    // A "you only" card is never voiced by the AI, so the GM can't cast it either.
+    gmEligible: c.gmEligible !== false && c.playerOnly !== true,
+    playerOnly: c.playerOnly === true,
   })))
 })
 
@@ -573,6 +575,10 @@ app.get('/api/characters/:id', (req, res) => {
   if (!row) return notFound(res)
   res.json(row)
 })
+
+function normalizePlayerDescription(raw: unknown): string | undefined {
+  return typeof raw === 'string' ? raw.slice(0, 20_000) || undefined : undefined
+}
 
 app.post('/api/characters', (req, res) => {
   const now = Date.now()
@@ -587,6 +593,8 @@ app.post('/api/characters', (req, res) => {
     promptItems: normalizePromptItems(req.body.promptItems),
     privateMemory: typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined,
     modelOverride: typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined,
+    playerOnly: req.body.playerOnly === true || undefined,
+    playerDescription: normalizePlayerDescription(req.body.playerDescription),
     vrm: normalizeVrm(id, req.body.vrm),
     spriteSources: normalizeSpriteSources(req.body.spriteSources),
     avatarDataUrl,
@@ -638,6 +646,8 @@ app.put('/api/characters/:id', (req, res) => {
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
   if ('modelOverride' in req.body) patch.modelOverride = typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined
+  if ('playerOnly' in req.body) patch.playerOnly = req.body.playerOnly === true || undefined
+  if ('playerDescription' in req.body) patch.playerDescription = normalizePlayerDescription(req.body.playerDescription)
   if ('worldId' in req.body) patch.worldId = req.body.worldId || undefined
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
   if ('sprites' in req.body) patch.sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
@@ -703,7 +713,10 @@ app.delete('/api/characters/:id', (req, res) => {
   res.status(204).end()
 })
 
-// ---- Personas ----
+// ---- Personas (legacy) ----
+// Personas were folded into character cards (`migrations/mergePersonas.ts`); the app plays cards
+// now. These routes stay so old ids can be mapped (`migratedToCharacterId`) and nothing that still
+// calls them breaks, but no current screen creates or edits a persona.
 
 /**
  * A persona linked to a character (TavernAI-style "play as any character") takes that card's name
@@ -839,7 +852,8 @@ app.post('/api/chats', (req, res) => {
     id: newId(),
     characterId: req.body.characterId,
     participants: Array.isArray(req.body.participants) && req.body.participants.length ? req.body.participants : undefined,
-    personaId: req.body.personaId ?? '',
+    playerCharacterId: typeof req.body.playerCharacterId === 'string' && req.body.playerCharacterId ? req.body.playerCharacterId : undefined,
+    personaId: typeof req.body.personaId === 'string' && req.body.personaId ? req.body.personaId : undefined,
     title: req.body.title,
     affection: Number(req.body.affection ?? 0),
     relationshipStats: req.body.relationshipStats ?? undefined,

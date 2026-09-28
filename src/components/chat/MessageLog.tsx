@@ -10,6 +10,7 @@ import { MessageBubble } from './MessageBubble'
 interface MessageLogProps {
   messages: StoredMessage[]
   character?: Character
+  /** The player's public view, built from the story's `playerCharacterId` card (`useChatSession().persona`). */
   persona?: Persona
   /** Other characters able to speak in this chat (group scenes) — [] for an ordinary single-character chat. */
   participantCharacters?: Character[]

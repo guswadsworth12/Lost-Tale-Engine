@@ -61,7 +61,6 @@ describe('createChat: mode resolution', () => {
     await createChat({
       character: character(),
       world: world({ template: 'dating_sim' }),
-      personaId: '',
       mode: 'freeform',
     })
     const payload = lastCreatePayload()
@@ -82,7 +81,6 @@ describe('createChat: mode resolution', () => {
     await createChat({
       character: character(),
       world: world({ template: 'freeform' }),
-      personaId: '',
     })
     expect(lastCreatePayload().mode).toBe('freeform')
   })
@@ -91,13 +89,12 @@ describe('createChat: mode resolution', () => {
     await createChat({
       character: character(),
       world: world({ template: 'slice_of_life' as never }),
-      personaId: '',
     })
     expect(lastCreatePayload().mode).toBe('freeform')
   })
 
   it("falls back to 'dating_sim' when there's neither an explicit mode nor a bound world", async () => {
-    await createChat({ character: character(), world: undefined, personaId: '' })
+    await createChat({ character: character(), world: undefined })
     expect(lastCreatePayload().mode).toBe('dating_sim')
   })
 })
@@ -108,8 +105,7 @@ describe('createChat: scene location seeding', () => {
     await createChat({
       character: character({ first_mes: "*The library's second floor is cold enough that the windows have fogged.*" }),
       world: undefined,
-      personaId: '',
-      personaName: 'Kai',
+      player: { id: 'kai', card: { name: 'Kai' } as never },
     })
     expect(lastUpdatePayload()?.scene?.location).toBe('Library')
   })
@@ -119,8 +115,7 @@ describe('createChat: scene location seeding', () => {
     await createChat({
       character: character({ first_mes: '*She looks up from whatever she was scribbling.* "Oh. You."' }),
       world: undefined,
-      personaId: '',
-      personaName: 'Kai',
+      player: { id: 'kai', card: { name: 'Kai' } as never },
     })
     expect(lastUpdatePayload()).toBeUndefined()
   })

@@ -480,7 +480,7 @@ export function ThemeEditor() {
 
       <Section
         title="Background music"
-        description="Plays a world's uploaded scene tracks (World editor → Scenes → Background music), crossfading as the scene's mood changes. Ducks while a spoken line plays. Off at zero."
+        description="Plays a world's uploaded scene tracks (World editor → Presentation → Background music), crossfading as the scene's mood changes. Ducks while a spoken line plays. Off at zero."
         surface="bare"
       >
         <Slider

@@ -127,20 +127,13 @@ export function SamplingControls() {
     <SettingsPage>
       <SettingsEyebrow>Basics</SettingsEyebrow>
       <Section
-        title="Plain chat vs. dating sim"
+        title="Story systems"
         surface="bare"
         description={
           <>
-            Not everything below applies to every kind of story. <strong className="text-text">Relationship
-            tracking</strong>, its <strong className="text-text">Difficulty</strong>/<strong className="text-text">
-            Intimacy detail</strong> sub-settings, and <strong className="text-text">Suggest choices</strong> are the
-            dating-sim/VN layer. If you're doing plain roleplay, an adventure, or lore-only chat, it's completely
-            fine to turn all three off. <strong className="text-text">Auto-detect completed tasks</strong> only ever
-            does anything while an Objective is set, in any kind of chat. <strong className="text-text">Visual Novel
-            mode</strong> (Appearance tab) is a presentation choice, not a mechanic, independent of all of this, on
-            or off either way. A world's own template (Freeform RP, Visual Novel, Dating Sim, Slice of Life, set on
-            its Overview tab) already presets sensible per-chat defaults for the dating-sim toggles automatically;
-            what you pick here is just the global fallback for a chat that doesn't override it.
+            Worlds choose their own story systems in Overview. These settings are global fallbacks for stories
+            without an override. Relationship tracking can support friendship, rivalry, or romance; dating tools
+            and visual novel presentation are separate choices. Task detection runs when a goal is active.
           </>
         }
       />
@@ -341,17 +334,17 @@ export function SamplingControls() {
       <QuickRepliesSection />
 
       <SettingsEyebrow>Authoring</SettingsEyebrow>
-      <SystemPromptSection />
-
       <WritingStyleSection />
 
-      <PromptSectionsSection />
-
-      {/* A chat-completion backend formats its own turns — an instruct template (ChatML, Llama 3,
-          ...) is a text-completion-only concept and would be actively misleading to show here.
-          NovelAI is a raw text-completion API too (just its own hosted one), so it still wants a
-          real instruct template exactly like KoboldCpp does. */}
-      {chatBackend !== 'openai-compatible' && <InstructTemplateSection />}
+      <details className="group rounded-xl border border-border bg-bg-elevated p-4">
+        <summary className="cursor-pointer font-medium text-text">Advanced prompt controls</summary>
+        <div className="mt-4 space-y-5">
+          <SystemPromptSection />
+          <PromptSectionsSection />
+          {chatBackend !== 'openai-compatible' && <InstructTemplateSection />}
+          <RegexScriptsSection />
+        </div>
+      </details>
 
       <SettingsEyebrow>Power user</SettingsEyebrow>
       {chatBackend === 'openai-compatible' ? (
@@ -477,7 +470,6 @@ export function SamplingControls() {
         </Section>
       )}
 
-      <RegexScriptsSection />
     </SettingsPage>
   )
 }

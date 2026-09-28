@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
+  Menu,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -57,7 +58,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
-import { romanceEmphasisFor } from '@/lib/world/worldTemplates'
+import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
@@ -256,8 +257,10 @@ interface VNStageProps {
   onSelectSpeaker?: (id: string | null) => void
   /** Icon toolbar rendered as a glass overlay, left of the log toggle. */
   topBarExtra?: ReactNode
-  /** Mobile-only "back to chat list"; hidden at md and above. */
+  /** Back to the Stories library. */
   onBack?: () => void
+  /** The app menu (desktop rail / phone drawer), first in the toolbar so navigation is never out of reach. */
+  onOpenMenu?: () => void
   /** "Original chat" jump-back link, shown only for forked chats. */
   parentChatLink?: ReactNode
   /** Quick-reply pills (variant="vn"), shown when there's no active AI-suggested choice — always
@@ -315,6 +318,7 @@ export function VNStage({
   onSelectSpeaker,
   topBarExtra,
   onBack,
+  onOpenMenu,
   parentChatLink,
   choiceListSlot,
   activeChoiceData,
@@ -510,9 +514,11 @@ export function VNStage({
   // The name is set *on* the box's dark glass now, not on a filled romance-coloured tab, so it
   // takes the accent colour itself — `--c-romance-text` is the colour authored to contrast against
   // that fill, which in the dark theme is near-black and disappeared here.
+  const worldModules = modulesForWorld(world ?? { template: chat.mode })
+  const datingChrome = worldModules.dating && (chat.assistOverrides?.showDateEventButton ?? worldModules.romanceEmphasis === 'focus')
   const plate = isGroupScene
     ? { name: `hsl(${plateHue} 82% 82%)`, chip: `hsl(${plateHue} 44% 44%)` }
-    : { name: 'rgb(var(--c-romance))', chip: 'rgb(var(--c-romance))' }
+    : { name: `rgb(var(${datingChrome ? '--c-romance' : '--c-accent'}))`, chip: `rgb(var(${datingChrome ? '--c-romance' : '--c-accent'}))` }
   // Every fallback for "where is this scene" lives in `resolveSceneBackground` — including reading
   // the narration itself, which is what stops a chat's opening messages (a static greeting carries
   // no `<<scene:>>` tag at all) from landing on an unplaced void.
@@ -521,7 +527,7 @@ export function VNStage({
   // day" modal, so knowing whether there was still room for another activity today meant actually
   // opening it. Same visibility gate `ChatWindow`'s own day-planner toolbar button uses, so the
   // readout never claims a budget exists for a mode/character that has opted the whole mechanic out.
-  const showEnergy = !!world && world.campaign?.dating !== false && !character?.dateModeOptOut && (chat.assistOverrides?.showDateEventButton ?? romanceEmphasisFor(world?.template ?? chat.mode, world?.campaign?.dating) === 'focus')
+  const showEnergy = !!world && datingChrome && !character?.dateModeOptOut
   const energyRemaining = showEnergy ? getEnergyRemaining(world!.currentDay ?? 0, world!.currentPhaseIndex ?? 0) : 0
   const energyMax = showEnergy ? getMaxEnergyForDay(world!.currentDay ?? 0) : 0
   const narration = [lastCharMsg?.text, lastUserMsg?.text].filter(Boolean).join(' ')
@@ -931,7 +937,7 @@ export function VNStage({
 
   return (
     <div
-      className="relative flex flex-1 flex-col overflow-hidden"
+      className={`relative flex flex-1 flex-col overflow-hidden ${datingChrome ? '' : 'vn-neutral'}`}
       // A scene click reveals the current line, then advances one queued speaker at a time.
       onClick={(e) => {
         if (hideUI) {
@@ -993,7 +999,7 @@ export function VNStage({
               )}
             </div>
           )}
-          {cast.length > 0 && world?.campaign?.relationships !== false && <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
+          {datingChrome && cast.length > 0 && <StageRow variant="vn" first={!(personaName || chat.mode || parentChatLink)} className="!py-2">
             <div className="mb-1 flex min-w-0 items-center gap-1.5">
               <Heart size={11} strokeWidth={2.25} className="shrink-0 text-romance" fill="currentColor" fillOpacity={0.4} />
               <StageLabel variant="vn">
@@ -1025,7 +1031,7 @@ export function VNStage({
               </span>
             </div>
           )}
-          {chat.activeEvent?.title && (
+          {datingChrome && chat.activeEvent?.title && (
             <div className="flex items-center gap-1.5 truncate border-t border-white/10 px-3 py-1.5 text-xs">
               <span className="shrink-0 uppercase tracking-wide text-white/60">
                 {liveDateActive ? (isHangoutEvent ? 'Hangout' : 'Date') : 'Event'}
@@ -1033,12 +1039,12 @@ export function VNStage({
               <span className="truncate text-white/90">{chat.activeEvent.title}</span>
             </div>
           )}
-          {liveDateActive && chat.rapport && (
+          {datingChrome && liveDateActive && chat.rapport && (
             <div className="border-t border-white/10 px-3 py-1.5 text-xs">
               <LiveRapport read={chat.rapport} variant="vn" label={isHangoutEvent ? 'Live hangout' : 'Live date'} />
             </div>
           )}
-          {activeIntimacyScene && activeSpeakerId && (
+          {datingChrome && activeIntimacyScene && activeSpeakerId && (
             // Compact on purpose: the stage HUD says what's happening and roughly how far along,
             // and the Relationship panel carries the full readout (meters, clothing, contact).
             <div className="border-t border-white/10">
@@ -1057,18 +1063,29 @@ export function VNStage({
           )}
         </div>
 
-        <div className="vn-glass flex h-9 shrink-0 items-center gap-1 rounded-full px-1">
+        <div className="vn-glass vn-toolbar-scroll flex h-9 w-full min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-full px-1 sm:w-auto sm:shrink-0 sm:overflow-visible">
+          {onOpenMenu && (
+            <button
+              onClick={onOpenMenu}
+              data-tour="play-menu"
+              title="Menu"
+              aria-label="Menu"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white"
+            >
+              <Menu size={15} strokeWidth={2} />
+            </button>
+          )}
           {onBack && (
             <>
               <button
                 onClick={onBack}
-                title="Back to chats"
-                aria-label="Back to chats"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white md:hidden"
+                title="Back to Stories"
+                aria-label="Back to Stories"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white"
               >
                 <ArrowLeft size={15} strokeWidth={2} />
               </button>
-              <span className="h-4 w-px bg-white/15 md:hidden" />
+              <span className="h-4 w-px bg-white/15" />
             </>
           )}
           {onOpenScenery && (
@@ -1255,6 +1272,7 @@ export function VNStage({
           <div className="relative z-10">
             <VNDialogueBox
               ref={dialogueBoxRef}
+              narration={!showUserAsCurrent && (lastCharMsg?.speakerId === GM_SPEAKER_ID || !!lastCharMsg?.gm)}
               speakerName={speakerName}
               speakerAvatarUrl={speakerAvatarUrl}
               initials={initialsOf(speakerName)}

@@ -132,6 +132,13 @@ export interface Character {
   card: CharacterCardData
   /** False keeps this card in the library while excluding it from the GM's automatic scene cast. */
   gmEligible?: boolean
+  /** "You only": a card made to be played by you. The AI never voices it, and it stays out of
+   *  cast pickers and the GM's scene cast. Any other card can be played too; this just marks one
+   *  that shouldn't be anything else. Legacy personas become cards with this set. */
+  playerOnly?: boolean
+  /** What other characters know about this card when you play it. Blank uses `card.description`.
+   *  Its private prompts and memory are never sent while you play it. */
+  playerDescription?: string
   /** Ordered prompt items for this character, including imported TavernAI 2 card prompts. */
   promptItems?: import('@/lib/prompt/items').PromptItem[]
   /** User-authored private memory available only when this character speaks. */

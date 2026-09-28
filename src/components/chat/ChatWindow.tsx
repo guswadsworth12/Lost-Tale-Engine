@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  Menu,
   Backpack,
   CalendarDays,
   CalendarHeart,
@@ -25,7 +26,7 @@ import {
 import { useChatSession } from '@/lib/hooks/useChatSession'
 import { BrandWordmark } from '@/components/ui/BrandMark'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatsApi, personasApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
 import { IconButton } from '@/components/ui/IconButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { scrollToMessage } from '@/lib/scrollToMessage'
@@ -34,7 +35,7 @@ import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { useBgmSceneStore } from '@/lib/store/useBgmSceneStore'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { getEnergyRemaining, PHASES, presenceLabel, resolveScheduledPresence } from '@/lib/world/calendar'
-import { getWorldTemplate, romanceEmphasisFor } from '@/lib/world/worldTemplates'
+import { getWorldTemplate, modulesForWorld } from '@/lib/world/worldTemplates'
 import {
   computeWarmth,
   formatRelationshipStage,
@@ -44,8 +45,8 @@ import {
   relationshipStageForWarmth,
 } from '@/lib/dating/stage'
 import { ChatToolbar, type ChatToolbarAction } from './ChatToolbar'
-import { MessageLog } from './MessageLog'
-import { VNStage } from './VNStage'
+import { PlaySession } from './PlaySession'
+import { StoryPanel, type StoryTab } from './StoryPanel'
 import { useVnChromeStore } from '@/lib/store/useVnChromeStore'
 import { ChoiceList } from './ChoiceList'
 import { QuickReplyBar } from './QuickReplyBar'
@@ -99,16 +100,22 @@ import { composeIntimacyActionText, intimacyItemById, type IntimacyUnlockable } 
 export function ChatWindow({
   chatId,
   onBack,
+  onOpenStudio,
+  onOpenMenu,
   onOpenSettings,
   onNavigateToWorld,
 }: {
   chatId: string | null
   onBack?: () => void
+  onOpenStudio?: () => void
+  /** The app menu while playing: expands the desktop rail, or opens the phone drawer. */
+  onOpenMenu?: () => void
   /** Deep link from the Quick tuning panel's "Open full Generation settings" — optional so ChatWindow stays usable without a view-switcher in scope. */
   onOpenSettings?: () => void
   /** The Relationship panel's "Customize in World editor" link — optional for the same reason as `onOpenSettings`. */
   onNavigateToWorld?: (worldId: string, tab?: string) => void
 }) {
+  const session = useChatSession(chatId)
   const {
     chat,
     character,
@@ -139,6 +146,7 @@ export function ChatWindow({
     updateScene,
     updateGmNotes,
     updateParticipants,
+    switchPlayer,
     updateMemorySummary,
     continueMessage,
     canContinue,
@@ -169,7 +177,7 @@ export function ChatWindow({
     initiateFirstTime,
     endRelationship,
     forkChat,
-  } = useChatSession(chatId)
+  } = session
 
   const globalVisualNovelMode = useSettingsStore((s) => s.visualNovelMode)
   const vnInputMode = useSettingsStore((s) => s.vnInputMode)
@@ -182,9 +190,8 @@ export function ChatWindow({
   const setActiveChatId = useSettingsStore((s) => s.setActiveChatId)
   const firstReplyTipDismissed = useSettingsStore((s) => s.firstReplyTipDismissed)
   const dismissFirstReplyTip = useSettingsStore((s) => s.dismissFirstReplyTip)
-  // Only used for the Scene panel's invite picker, not the roster itself (`participantCharacters`).
+  // For the Scene panel's invite picker and Play As, not the roster itself (`participantCharacters`).
   const allCharacters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
-  const allPersonas = useApiQuery('personas', () => personasApi.list(), []) ?? []
   const otherCharacters = character ? allCharacters.filter((c) => c.id !== character.id) : allCharacters
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showInspector, setShowInspector] = useState(false)
@@ -205,6 +212,9 @@ export function ChatWindow({
   const [showBag, setShowBag] = useState(false)
   const [showDirector, setShowDirector] = useState(false)
   const [showTuning, setShowTuning] = useState(false)
+  const [showStoryPanel, setShowStoryPanel] = useState(false)
+  const [storyPanelPinned, setStoryPanelPinned] = useState(false)
+  const [storyTab, setStoryTab] = useState<StoryTab>('scene')
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [draft, setDraft] = useState('')
@@ -322,7 +332,8 @@ export function ChatWindow({
   // — resolved to a real boolean via `isVnReady` (character has sprites, world has scene art) so
   // 'auto' never shows a blank void, and everything past this point reads the resolved boolean.
   // Computed here, above the early return below, because the effect that publishes it is a hook.
-  const vnModeSetting = chat?.assistOverrides?.visualNovelMode ?? globalVisualNovelMode
+  const visualNovelModule = modulesForWorld(world ?? { template: chat?.mode }).visualNovel
+  const vnModeSetting = chat?.assistOverrides?.visualNovelMode ?? (visualNovelModule ? globalVisualNovelMode : false)
   const resolvedVisualNovelMode = !!chat && (vnModeSetting === 'auto' ? isVnReady(character, world) : vnModeSetting)
   // Panels opened over the stage wear its glass rather than the app's own surface — see
   // `useVnChromeStore`. Cleared on unmount so leaving the chat can't strand a dialog in VN dress.
@@ -348,7 +359,7 @@ export function ChatWindow({
   const toggleVnForChat = () => {
     const next = { ...(chat.assistOverrides ?? {}) }
     const target = !resolvedVisualNovelMode
-    if (target === globalVisualNovelMode) delete next.visualNovelMode
+    if (target === (visualNovelModule ? globalVisualNovelMode : false)) delete next.visualNovelMode
     else next.visualNovelMode = target
     chatsApi.update(chat.id, { assistOverrides: next }).catch((e) => toastError(errorMessage(e)))
   }
@@ -376,6 +387,8 @@ export function ChatWindow({
   // established scene location) so the badge can't say "in class" while the scene is elsewhere.
   // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`).
   const sceneSetting = sceneSettingFrom(messages, chat.scene, (id) => backgroundLabel(id, world))
+  const modules = modulesForWorld(world ?? { template: chat.mode })
+  const openStoryTab = (next: StoryTab) => { setStoryTab(next); setShowStoryPanel(true) }
   const presence =
     world && character?.schedule?.length
       ? resolveScheduledPresence(
@@ -392,8 +405,8 @@ export function ChatWindow({
 
   // Built once, rendered as the header toolbar (tone="chrome") or folded into VNStage's overlay (tone="glass").
   const toolbarTone = resolvedVisualNovelMode ? 'glass' : 'chrome'
-  const romanceFocus = romanceEmphasisFor(world?.template ?? chat.mode, world?.campaign?.dating) === 'focus'
-  const showDateControls = chat.assistOverrides?.showDateEventButton ?? romanceFocus
+  const romanceFocus = modules.romanceEmphasis === 'focus'
+  const showDateControls = modules.dating && (chat.assistOverrides?.showDateEventButton ?? romanceFocus)
   const scenery = currentScenery(messages, chat.scene)
   const gmActions = {
     decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
@@ -416,7 +429,7 @@ export function ChatWindow({
       icon: Dices,
       label: 'Resolve a campaign move',
       priority: 'primary',
-      hidden: world?.campaign?.mode !== 'mechanical' || !world.campaign.moves.length,
+      hidden: modules.campaignRules !== 'mechanical' || !world?.campaign?.moves?.length,
       onClick: () => setShowCampaignMove(true),
     },
     {
@@ -532,7 +545,9 @@ export function ChatWindow({
       onClick: exportTranscript,
     },
   ]
-  const toolbar = <ChatToolbar tone={toolbarTone} actions={toolbarActions} />
+  const toolbar = <ChatToolbar tone={toolbarTone} actions={toolbarActions
+    .filter((action) => ['tuning', 'inspector', 'director', 'export'].includes(action.key))
+    .map((action) => ({ ...action, priority: 'secondary' as const }))} />
 
   const parentChatLink = chat.parentChatId ? (
     <button
@@ -578,7 +593,7 @@ export function ChatWindow({
   // global default) — unless the mode itself has its own opinion (`showIntentChips`), which wins
   // either way (e.g. a Freeform chat where the player later turned relationship tracking back on
   // for some other reason still doesn't want "Flirt/Tease" chips; that vocabulary is genre, not tracking).
-  const relationshipTrackingActive = world?.campaign?.relationships !== false && (chat?.assistOverrides?.autoTrackRelationship ?? autoTrackRelationship)
+  const relationshipTrackingActive = modules.relationships && (chat?.assistOverrides?.autoTrackRelationship ?? autoTrackRelationship)
   const showIntentChips = relationshipTrackingActive && (chat?.assistOverrides?.showIntentChips ?? romanceFocus) && !isGenerating && !!character
   const liveDateActive = isLiveScene(chat?.activeEvent)
 
@@ -695,11 +710,10 @@ export function ChatWindow({
       replyAsId={replyAsCharacterId}
       onChangeReplyAs={(id) => setReplyAsCharacterId(id === character?.id ? null : id)}
       turnPolicyHint={turnPolicyHint}
-      intentSlot={
-        showIntentChips ? (
-          <IntentChips variant={variant} stats={intentStats} armed={armedIntent} onArm={setArmedIntent} />
-        ) : undefined
-      }
+      intentSlot={(showIntentChips || (modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length)) ? <div className="flex flex-wrap items-center gap-2">
+        {showIntentChips && <IntentChips variant={variant} stats={intentStats} armed={armedIntent} onArm={setArmedIntent} />}
+        {modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length && <button type="button" onClick={() => setShowCampaignMove(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-text hover:bg-bg-sunken"><Dices size={14} />Make a move / roll</button>}
+      </div> : undefined}
     />
   )
 
@@ -734,7 +748,7 @@ export function ChatWindow({
             {!character?.worldId && (
               <li>
                 <span className="font-medium text-text">Bind a world</span> in the character
-                editor's Identity tab, for scene backgrounds and a shared clock.
+                editor's Character tab, for scene backgrounds and a shared clock.
               </li>
             )}
           </ul>
@@ -743,9 +757,13 @@ export function ChatWindow({
       {!resolvedVisualNovelMode && (
         <header className="flex items-center justify-between gap-4 border-b border-border bg-bg-elevated px-5 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            {onBack && (
-              <IconButton tone="chrome" icon={ArrowLeft} title="Back to chats" onClick={onBack} className="md:hidden" />
+            {onOpenMenu && (
+              <IconButton tone="chrome" icon={Menu} title="Menu" onClick={onOpenMenu} data-tour="play-menu" />
             )}
+            {onBack && (
+              <IconButton tone="chrome" icon={ArrowLeft} title="Back to Stories" onClick={onBack} />
+            )}
+            {onOpenStudio && <button onClick={onOpenStudio} className="hidden rounded-lg px-2 py-1 text-xs text-text-muted hover:bg-bg-sunken hover:text-text sm:block">Studio</button>}
             {character?.avatarDataUrl && (
               <img src={character.avatarDataUrl} className="h-10 w-10 shrink-0 rounded-xl object-cover" />
             )}
@@ -757,7 +775,7 @@ export function ChatWindow({
                 <span className="truncate">{character?.card.name ?? '…'}</span>
                 {parentChatLink && <span className="shrink-0 text-xs font-normal text-text-muted">{parentChatLink}</span>}
               </div>
-              {world?.campaign?.relationships !== false && <div className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
+              {showDateControls && <div className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
                 {liveDateActive && chat.rapport ? (
                   // Warmth is frozen during a live scene, so show the qualitative rapport read instead.
                   <LiveRapport read={chat.rapport} label={chat?.activeEvent?.kind === 'hangout' ? 'Live hangout' : 'Live date'} />
@@ -799,8 +817,12 @@ export function ChatWindow({
               </div>
             </div>
           </div>
-          {/* Primary actions plus a "•••" overflow, so the row fits beside the title block at 375px. */}
           <div className="flex shrink-0 items-center gap-1">
+            <button onClick={() => openStoryTab('scene')} title="Open scene in Story panel" className="hidden max-w-32 truncate rounded-lg bg-bg-sunken px-2 py-1.5 text-xs text-text-muted hover:text-text sm:block">{sceneSetting.location ?? 'Scene'}</button>
+            <button onClick={() => openStoryTab('goals')} title="Open goals in Story panel" className="hidden max-w-32 truncate rounded-lg bg-bg-sunken px-2 py-1.5 text-xs text-text-muted hover:text-text md:block">{activeObjective?.title ?? 'Goal'}</button>
+            <button onClick={() => openStoryTab('scene')} data-tour="story-panel" className="rounded-lg px-2 py-1.5 text-xs text-text-muted hover:bg-bg-sunken hover:text-text" title="Open Story panel">Story</button>
+            <IconButton tone="chrome" icon={Drama} title="Switch to Visual Novel view" onClick={toggleVnForChat} data-tour="vn-toggle" />
+            <IconButton tone="chrome" icon={Search} title="Search story" onClick={() => setShowSearch(true)} />
             {toolbar}
             <div className="mx-1.5 h-5 w-px bg-border" />
             <ConnectionBadge />
@@ -902,12 +924,10 @@ export function ChatWindow({
           onSaveGmNotes={updateGmNotes}
           onSaveParticipants={updateParticipants}
           campaignAvailable={!!world?.campaign}
-          personaId={chat.personaId}
-          personas={allPersonas}
-          characters={allCharacters.filter((c) => c.id !== character?.id && !(chat.participants ?? []).includes(c.id))}
-          onSavePersona={async (personaId) => {
-            await chatsApi.update(chat.id, { personaId })
-          }}
+          leadId={chat.characterId}
+          playerCharacterId={chat.playerCharacterId}
+          playableCharacters={allCharacters}
+          onSwitchPlayer={switchPlayer}
         />
       )}
       {showCampaignMove && world?.campaign && (
@@ -1013,92 +1033,110 @@ export function ChatWindow({
         }
       />
 
-      {resolvedVisualNovelMode ? (
-        <VNStage
-          character={character}
-          persona={persona}
-          participantCharacters={participantCharacters}
-          chat={chat}
-          world={world}
-          messages={messages}
-          streamingText={streamingText}
-          generatingMessageId={generatingMessageId}
-          highlightedMessageId={highlightedId}
-          onSwipe={swipe}
-          onRegenerate={regenerate}
-          onSteer={regenerateWithSteer}
-          onDelete={deleteMessage}
-          onRewind={rewindToMessage}
-          onEdit={editMessage}
-          onFork={forkChat}
-          onTogglePin={togglePinMessage}
-          onSelectSpeaker={turnPolicy === 'manual' ? (id) => setReplyAsCharacterId(id) : undefined}
-          topBarExtra={toolbar}
-          onBack={onBack}
-          parentChatLink={parentChatLink}
-          choiceListSlot={quickReplyNode('vn')}
-          activeChoiceData={
-            activeChoices
-              ? {
-                  choices: activeChoices.choiceCards!,
-                  onPick: (choice) => {
-                    sendUserMessage(choice.text, [], { choice })
-                  },
-                  onRefresh: () => {
-                    setRefreshingChoices(true)
-                    regenerateChoices(activeChoices.id).finally(() => setRefreshingChoices(false))
-                  },
-                  refreshing: refreshingChoices,
-                }
-              : undefined
-          }
-          assistSlot={
-            <>
-              {showGenerationHud && <GenerationHud stats={genStats} variant="vn" />}
-              <AssistActivityBar items={assistActivity} variant="vn" />
-            </>
-          }
-          composerSlot={composerNode('vn')}
-          composerHasDraft={!!draft.trim()}
-          autoAdvance={autoAdvance}
-          onToggleAutoAdvance={() => setAutoAdvance((v) => !v)}
-          onAutoAdvanceFire={handleAutoAdvanceFire}
-          scenery={scenery}
-          onOpenScenery={world ? () => setShowScenery(true) : undefined}
-        />
-      ) : (
-        <>
-          <div className="relative min-h-0 flex-1">
-            <div ref={scrollRef} className="h-full overflow-y-auto px-6 py-6">
-              <MessageLog
-                messages={messages}
-                character={character}
-                persona={persona}
-                participantCharacters={participantCharacters}
-                generatingMessageId={generatingMessageId}
-                streamingText={streamingText}
-                highlightedMessageId={highlightedId}
-                onEdit={editMessage}
-                onDelete={deleteMessage}
-                onRewind={rewindToMessage}
-                onRegenerate={regenerate}
-                onSteer={regenerateWithSteer}
-                onSwipe={swipe}
-                onFork={forkChat}
-                onTogglePin={togglePinMessage}
-              />
-            </div>
-            {/* Live scenes only — an ordinary chat stays text-focused with no portrait. */}
-            {liveDateActive && character && (
-              <ReactivePortrait spriteUrl={reactivePortraitUrl} alt={character.card.name} />
-            )}
-          </div>
-          {choiceListNode('default') || quickReplyNode('default')}
-          {showGenerationHud && <GenerationHud stats={genStats} />}
-          <AssistActivityBar items={assistActivity} />
-          {composerNode('default')}
-        </>
-      )}
+      <PlaySession
+        visualNovel={resolvedVisualNovelMode}
+        vn={{
+          character,
+          persona,
+          participantCharacters,
+          chat,
+          world,
+          messages,
+          streamingText,
+          generatingMessageId,
+          highlightedMessageId: highlightedId,
+          onSwipe: swipe,
+          onRegenerate: regenerate,
+          onSteer: regenerateWithSteer,
+          onDelete: deleteMessage,
+          onRewind: rewindToMessage,
+          onEdit: editMessage,
+          onFork: forkChat,
+          onTogglePin: togglePinMessage,
+          onSelectSpeaker: turnPolicy === 'manual' ? (id) => setReplyAsCharacterId(id) : undefined,
+          topBarExtra: <>
+            {onOpenStudio && <button onClick={onOpenStudio} title="Open Studio" className="hidden h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15 sm:block">Studio</button>}
+            <button onClick={() => openStoryTab('goals')} title={activeObjective?.title ?? 'Goals'} aria-label="Goals" className="hidden h-7 max-w-28 truncate rounded-full px-2 text-[11px] text-white/80 hover:bg-white/15 sm:block">{activeObjective?.title ?? 'Goal'}</button>
+            <button onClick={() => openStoryTab('scene')} data-tour="story-panel" title="Story panel" aria-label="Story panel" className="h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15">Story</button>
+            <IconButton tone="glass" icon={Drama} title="Switch to transcript view" onClick={toggleVnForChat} data-tour="vn-toggle" />
+            <IconButton tone="glass" icon={Search} title="Search story" onClick={() => setShowSearch(true)} />
+            {toolbar}
+          </>,
+          onBack,
+          onOpenMenu,
+          parentChatLink,
+          choiceListSlot: quickReplyNode('vn'),
+          activeChoiceData: activeChoices ? {
+            choices: activeChoices.choiceCards!,
+            onPick: (choice) => { sendUserMessage(choice.text, [], { choice }) },
+            onRefresh: () => {
+              setRefreshingChoices(true)
+              regenerateChoices(activeChoices.id).finally(() => setRefreshingChoices(false))
+            },
+            refreshing: refreshingChoices,
+          } : undefined,
+          assistSlot: <>
+            {showGenerationHud && <GenerationHud stats={genStats} variant="vn" />}
+            <AssistActivityBar items={assistActivity} variant="vn" />
+          </>,
+          composerSlot: composerNode('vn'),
+          composerHasDraft: !!draft.trim(),
+          autoAdvance,
+          onToggleAutoAdvance: () => setAutoAdvance((v) => !v),
+          onAutoAdvanceFire: handleAutoAdvanceFire,
+          scenery,
+          onOpenScenery: world ? () => setShowScenery(true) : undefined,
+        }}
+        classic={{
+          scrollRef,
+          log: {
+                messages,
+                character,
+                persona,
+                participantCharacters,
+                generatingMessageId,
+                streamingText,
+                highlightedMessageId: highlightedId,
+                onEdit: editMessage,
+                onDelete: deleteMessage,
+                onRewind: rewindToMessage,
+                onRegenerate: regenerate,
+                onSteer: regenerateWithSteer,
+                onSwipe: swipe,
+                onFork: forkChat,
+                onTogglePin: togglePinMessage,
+          },
+          portrait: liveDateActive && character ? <ReactivePortrait spriteUrl={reactivePortraitUrl} alt={character.card.name} /> : undefined,
+          choices: choiceListNode('default') || quickReplyNode('default'),
+          hud: showGenerationHud ? <GenerationHud stats={genStats} /> : undefined,
+          assist: <AssistActivityBar items={assistActivity} />,
+          composer: composerNode('default'),
+        }}
+        storyPanel={showStoryPanel ? <StoryPanel
+          key={chat.id}
+          session={session}
+          modules={modules}
+          setting={sceneSetting}
+          tab={storyTab}
+          onTabChange={setStoryTab}
+          pinned={storyPanelPinned}
+          onPin={() => setStoryPanelPinned((value) => !value)}
+          onClose={() => setShowStoryPanel(false)}
+          onJump={jumpToMessage}
+          onSwitchPlayer={switchPlayer}
+          allCharacters={allCharacters}
+          onOpenRelationship={() => setShowRelationship(true)}
+          onOpenObjective={() => setShowObjective(true)}
+          onOpenScenery={() => setShowScenery(true)}
+          onOpenCalendar={() => setShowCalendar(true)}
+          onOpenWorldFact={() => setShowWorldFact(true)}
+          onOpenScene={() => setShowScene(true)}
+          datingToolsVisible={showDateControls}
+          onOpenEvent={() => setShowEvent(true)}
+          onOpenDayPlanner={() => setShowDayPlanner(true)}
+          onOpenBag={() => setShowBag(true)}
+        /> : undefined}
+      />
     </div>
     </GmActionsContext.Provider>
   )

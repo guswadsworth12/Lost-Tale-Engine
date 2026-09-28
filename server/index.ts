@@ -1,8 +1,31 @@
 import { app, purgeExpiredTrash } from './app.ts'
-import { checkpointDb, dataDir } from './db.ts'
+import { avatarsDir, characterStore, chatStore, checkpointDb, dataDir, db, newId, personaStore } from './db.ts'
+import { mergePersonasIntoCards } from './migrations/mergePersonas.ts'
 import { runSeedIfNeeded } from './seed.ts'
 
 runSeedIfNeeded()
+// Runs after seeding so a fresh install's starter persona becomes a card straight away. A no-op
+// once everything is folded; the first real run backs the database up before writing anything.
+mergePersonasIntoCards({
+  personaStore,
+  characterStore,
+  chatStore,
+  avatarsDir,
+  dataDir,
+  backup: (file) => db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`),
+  transaction: (fn) => {
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      fn()
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+  },
+  newId,
+  log: (msg) => console.log(msg),
+})
 purgeExpiredTrash()
 
 const port = Number(process.env.API_PORT) || 3001

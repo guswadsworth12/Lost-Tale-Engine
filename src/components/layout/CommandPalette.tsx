@@ -4,6 +4,7 @@ import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
 import { NAV, type ViewId } from './Sidebar'
 import { useVnChromeClass } from '@/lib/store/useVnChromeStore'
+import { openHelp, startTour } from '@/lib/help/helpStore'
 
 interface PaletteResult {
   key: string
@@ -59,6 +60,12 @@ export function CommandPalette({
       group: 'View',
       onSelect: () => onNavigateView(v.id),
     }))
+    for (const help of [
+      { key: 'help-open', label: 'Help & tutorial', onSelect: () => openHelp() },
+      { key: 'help-tour', label: 'Take the guided tour', onSelect: () => startTour() },
+    ]) {
+      if (!q || help.label.toLowerCase().includes(q) || 'help tutorial'.includes(q)) views.push({ ...help, group: 'View' })
+    }
 
     // An empty query is a quick "jump to a section" default — searching the whole library on top
     // of that would be a wall of everything, not a shortcut.
