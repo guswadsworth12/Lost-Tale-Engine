@@ -25,6 +25,7 @@ import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveA
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
+import { storiesRouter } from './stories.ts'
 
 /**
  * Express app: REST routes for characters, personas, chats/messages, world info books, sampler
@@ -40,6 +41,7 @@ app.use(originGuard)
 // Raised generously (a bulk sprite upload easily clears 25MB) — local-only app, no untrusted-request concern.
 app.use(express.json({ limit: '150mb' }))
 app.use('/api/openmayhem', openMayhemRouter())
+app.use('/api', storiesRouter)
 app.use('/avatars', express.static(avatarsDir))
 
 function notFound(res: express.Response) {
@@ -905,7 +907,9 @@ app.post('/api/chats/:id/fork', (req, res) => {
   const now = Date.now()
   const newChatId = newId()
   // worldInfoState (turn-numbered bookkeeping) and rapport (a live-date scene read) don't carry over to a fork.
-  const { id: _id, createdAt: _ca, updatedAt: _ua, title, worldInfoState: _wis, rapport: _rap, ...rest } = source
+  // A fork of a scene is another take on that scene: it keeps its place in the story (storyId,
+  // sceneNumber, previousSceneId) but is live again, so an ended scene's ending and recap stay behind.
+  const { id: _id, createdAt: _ca, updatedAt: _ua, title, worldInfoState: _wis, rapport: _rap, endedAt: _end, recap: _rec, ...rest } = source
   const forkedChat = chatStore.insert({
     ...rest,
     id: newChatId,

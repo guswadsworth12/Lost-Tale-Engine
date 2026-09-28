@@ -30,7 +30,7 @@ export type PromptSectionId = 'system' | 'summary' | 'world' | 'description' | '
 
 export const PROMPT_SECTION_LABELS: Record<PromptSectionId, string> = {
   system: 'System prompt',
-  summary: 'Long-term memory summary',
+  summary: 'Story memory (earlier scenes and summary)',
   world: 'World / setting description',
   description: 'Character description',
   participants: 'Other participants roster (group chats)',
@@ -79,6 +79,9 @@ export interface PromptBuildInput {
   history: ChatMessage[]
   /** Running long-term memory log for everything older than what's in `history`. */
   chatSummary?: string
+  /** Recaps of earlier scenes this speaker was present for (`story/recaps.ts`). Stable for the whole
+   *  scene, so it sits with the summary near the top of the prompt where it doesn't disturb the cache. */
+  storyRecap?: string
   /** The world the character lives in, if any. Always included, not keyword-triggered like a lorebook.
    *  Stable identity only — the setting and its rules. Anything that changes as the story moves
    *  belongs in `worldMoment` instead; see the note there for why the split matters. */
@@ -255,7 +258,10 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
       ].join('\n')
     : ''
 
-  const summaryBlock = input.chatSummary?.trim() ? `Story so far: ${sub(input.chatSummary)}` : ''
+  const summaryBlock = [
+    input.storyRecap?.trim() ? sub(input.storyRecap) : '',
+    input.chatSummary?.trim() ? `Story so far: ${sub(input.chatSummary)}` : '',
+  ].filter(Boolean).join('\n\n')
   const worldBlock = input.worldDescription?.trim() ? sub(input.worldDescription) : ''
   const worldMomentBlock = sections.world && input.worldMoment?.trim() ? sub(input.worldMoment) : ''
 
@@ -446,7 +452,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     const worldInfoBlock = [worldBefore, worldAfter].filter(Boolean).join('\n')
     const candidates: { id: string; label: string; text: string }[] = [
       { id: 'system', label: 'System prompt', text: sections.system ? systemBlock : '' },
-      { id: 'summary', label: 'Long-term memory summary', text: sections.summary ? summaryBlock : '' },
+      { id: 'summary', label: 'Story memory (earlier scenes and summary)', text: sections.summary ? summaryBlock : '' },
       { id: 'world', label: 'World / setting description', text: sections.world ? worldBlock : '' },
       { id: 'worldPromptItems', label: 'World prompt items', text: sections.world ? worldPromptBlock : '' },
       { id: 'worldMoment', label: 'World right now (time, weather, scene)', text: worldMomentBlock },

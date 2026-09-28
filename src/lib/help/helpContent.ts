@@ -11,6 +11,7 @@ export const HELP_TOPIC_IDS = [
   'getting-started',
   'navigation',
   'stories',
+  'scenes',
   'playing',
   'visual-novel',
   'story-panel',
@@ -155,7 +156,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     icon: 'menu',
     summary: 'The Menu button, the compact rail, and getting back to your library.',
     keywords: ['sidebar', 'rail', 'drawer', 'back', 'library', 'menu', 'mobile', 'phone'],
-    related: ['stories', 'shortcuts'],
+    related: ['stories', 'scenes', 'shortcuts'],
     sections: [
       {
         id: 'nav-desktop',
@@ -191,8 +192,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: '**Back to Stories** (the arrow in the Classic header, or in the phone drawer) returns to the library. Nothing is lost: open the story card again to continue where you left off. On wider screens the Classic header also has a **Studio** shortcut to Cast.',
+            text: '**Back to Stories** (the arrow in the Classic header, or in the phone drawer) returns to the library. Nothing is lost: open the story card again to continue its current scene. On wider screens the Classic header also has a **Studio** shortcut to Cast.',
           },
+          { kind: 'text', text: 'To look back at an earlier scene of the same story, open **Story panel → Scenes**. See Scenes and long stories.' },
           { kind: 'text', text: '**Ctrl/Cmd K** jumps straight to any story, cast member, world or section from anywhere.' },
         ],
       },
@@ -204,8 +206,8 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     group: 'Play',
     icon: 'library',
     summary: 'Your library: starting, continuing and managing stories.',
-    keywords: ['chat', 'chats', 'new chat', 'library', 'begin', 'trash', 'restore', 'fork', 'branch', 'duplicate'],
-    related: ['playing', 'navigation', 'cast'],
+    keywords: ['chat', 'chats', 'new chat', 'library', 'begin', 'trash', 'restore', 'fork', 'branch', 'duplicate', 'scenes'],
+    related: ['scenes', 'playing', 'navigation', 'cast'],
     sections: [
       {
         id: 'stories-library',
@@ -213,7 +215,11 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'Stories shows every story as a card: its title, its world (or "Freeform world"), where the scene is, the day and time of day when the world keeps a clock, the current goal or the last line, the cast, and when you last played. Pinned stories stay at the top.',
+            text: 'Stories shows one card per story: its title, its world (or "Freeform world"), how many scenes it has, where the scene is, the day and time of day when the world keeps a clock, the current goal or the last line, the cast, and when you last played. Pinned stories stay at the top.',
+          },
+          {
+            kind: 'text',
+            text: 'A story is a chain of scenes, each its own short chat, so long stories stay within what the model can hold. See Scenes and long stories.',
           },
         ],
       },
@@ -240,7 +246,12 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
       {
         id: 'stories-continue',
         heading: 'Continue a story',
-        blocks: [{ kind: 'text', text: 'Click a story card (or focus it and press Enter) to pick up where you left off.' }],
+        blocks: [
+          {
+            kind: 'text',
+            text: "Click a story card (or focus it and press Enter) to continue its current scene. Earlier scenes are in the Story panel's **Scenes** tab.",
+          },
+        ],
       },
       {
         id: 'stories-actions',
@@ -254,7 +265,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**Rename**.',
               '**Duplicate full story**: a complete copy, messages and all.',
               '**New with same cast and player**: a fresh start with the same people.',
-              '**Delete**: moves the story to **Trash** (the link under the library), where you can restore it for 30 days.',
+              '**Delete**: moves the story, with all its scenes, to **Trash** (the link under the library), where you can restore it for 30 days.',
             ],
           },
         ],
@@ -266,6 +277,117 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'text',
             text: "**Fork chat from here** on any reply starts a new branch from that point. Branches show a fork icon in the library, and the play header links back to the **original chat**.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'scenes',
+    title: 'Scenes and long stories',
+    group: 'Play',
+    icon: 'book',
+    summary: 'Why a story is a chain of scenes, the context meter, ending a scene, and reading it all back.',
+    keywords: ['scene', 'scenes', 'recap', 'recaps', 'context', 'context window', 'context meter', 'tokens', 'split', 'storyline', 'storylines', 'parallel', 'timeline', 'long story', 'local model', 'end scene', 'chapter', 'history', 'old chats'],
+    related: ['stories', 'story-panel', 'campaign'],
+    sections: [
+      {
+        id: 'scenes-why',
+        heading: 'Why stories are made of scenes',
+        blocks: [
+          {
+            kind: 'text',
+            text: "A story is a chain of scenes. One endless chat eventually grows too big for the model's context (how much it can read at once), and local models run out of room soonest. So each scene is its own short chat.",
+          },
+          {
+            kind: 'text',
+            text: 'The story itself carries on across scenes: its relationships, objectives, facts and confirmed consequences come with you into every new scene.',
+          },
+        ],
+      },
+      {
+        id: 'scenes-meter',
+        heading: 'The context meter',
+        blocks: [
+          {
+            kind: 'text',
+            text: "A meter in the play header shows how much of the model's context the current scene uses.",
+          },
+          {
+            kind: 'list',
+            items: [
+              'At about 70% it suggests ending the scene.',
+              'At about 85% it says the scene is nearly out of room.',
+              'It also suggests a break when the story moves somewhere new or skips ahead in time.',
+            ],
+          },
+          { kind: 'note', text: 'The meter only suggests. The scene ends when you choose **End scene…**.' },
+        ],
+      },
+      {
+        id: 'scenes-end',
+        heading: 'Ending a scene',
+        blocks: [
+          {
+            kind: 'text',
+            text: "**End scene…** is in the Story panel's **Scenes** tab, and on the meter's suggestion chip.",
+          },
+          {
+            kind: 'steps',
+            items: [
+              'A recap of the scene is drafted for you, along with its open threads. Edit it or rewrite it.',
+              'Tick any lasting change you want to **Record as world canon**: it becomes true in every story in this world.',
+              'Set up the next scene: its title, its location, and **Who\'s there** (the story\'s lead is always there). Choose whether to continue the story or **Split off a parallel storyline**.',
+              '**End scene and continue** opens the new scene.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'scenes-knowledge',
+        heading: 'Who knows what',
+        blocks: [
+          {
+            kind: 'list',
+            items: [
+              'Characters only hear the recaps of scenes they were present for.',
+              'The Game Master hears all of them.',
+              'A parallel storyline only knows what happened up to the point where it split off.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'scenes-history',
+        heading: 'Ended scenes and the Scenes tab',
+        blocks: [
+          {
+            kind: 'list',
+            items: [
+              'An ended scene is read-only history: a banner says so, and **Continue in Scene N** takes you on to carry on playing.',
+              "Story panel → **Scenes** lists the story's scenes by storyline (the story's timeline). Open any of them from there.",
+              '**Read the whole story** shows every scene in order, each with its recap.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'scenes-library',
+        heading: 'In the Stories library',
+        blocks: [
+          {
+            kind: 'text',
+            text: 'The library shows one card per story, with its scene count. Opening it continues the current scene. Deleting a story moves all its scenes to the trash.',
+          },
+        ],
+      },
+      {
+        id: 'scenes-old-chats',
+        heading: 'Older chats',
+        blocks: [
+          {
+            kind: 'note',
+            text: 'Chats from before scenes existed became one-scene stories automatically. Nothing is split for you: end the scene yourself whenever it suits the story.',
           },
         ],
       },
@@ -439,9 +561,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     title: 'Story panel and Tools',
     group: 'Play',
     icon: 'panel',
-    summary: 'Scene, Goals, People, Canon, Notes and Scene Rules, plus the Tools menu.',
-    keywords: ['story panel', 'scene', 'goals', 'objective', 'people', 'canon', 'notes', "author's note", 'scene rules', 'turn policy', 'tools', 'tuning', 'inspector', 'director', 'export', 'pinned'],
-    related: ['playing', 'campaign', 'simulation', 'dating'],
+    summary: 'Scene, Scenes, Goals, People, Canon, Notes and Scene Rules, plus the Tools menu.',
+    keywords: ['story panel', 'scene', 'scenes', 'end scene', 'goals', 'objective', 'people', 'canon', 'notes', "author's note", 'scene rules', 'turn policy', 'tools', 'tuning', 'inspector', 'director', 'export', 'pinned'],
+    related: ['playing', 'scenes', 'campaign', 'simulation', 'dating'],
     sections: [
       {
         id: 'sp-open',
@@ -461,6 +583,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             kind: 'list',
             items: [
               "**Scene**: the story's **Location** and **Atmosphere** (**Save scene**; they follow the branch when you rewind), who is **Here now**, and **Choose scenery** when the story has a world. With world simulation you also see the day and time of day and **Key dates**; with dating controls, **Date or event** and **Day planner**.",
+              "**Scenes**: the story's scenes by storyline, **End scene…** to wrap up this one and set up the next, and **Read the whole story**. See Scenes and long stories.",
               '**Goals**: give the story an objective (**Set goal**), tick off its tasks, add a **Next step**, **Mark complete**, or open **More goal options** for suggestions and generated tasks.',
               '**People**: everyone in the story. With the Relationships module you see their connection and stats; with dating controls, **Dating details** and **Bag and gifts**.',
               '**Canon**: confirmed world facts, **Record a fact** (it becomes true in every story in this world), and Game Master proposals to **Confirm** or **Reject**. The tab shows a count when proposals are waiting.',

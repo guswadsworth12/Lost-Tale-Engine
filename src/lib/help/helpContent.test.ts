@@ -17,6 +17,7 @@ const REQUIRED_TOPICS = [
   'getting-started',
   'navigation',
   'stories',
+  'scenes',
   'playing',
   'visual-novel',
   'story-panel',
@@ -113,6 +114,27 @@ describe('help content', () => {
     expect(getHelpTopic('dating').id).toBe('dating')
   })
 
+  it('explains scenes: the context meter, ending a scene, and who knows what', () => {
+    const scenes = getHelpTopic('scenes')
+    expect(scenes.id).toBe('scenes')
+    expect(scenes.group).toBe('Play')
+    const text = scenes.sections.flatMap((section) => section.blocks.map(blockText)).join(' ')
+    for (const label of ['End scene…', 'Record as world canon', "Who's there", 'Split off a parallel storyline', 'End scene and continue', 'Continue in Scene N', 'Read the whole story']) {
+      expect(text, label).toContain(label)
+    }
+    expect(text).toMatch(/70%/)
+    expect(text).toMatch(/85%/)
+    expect(text).toMatch(/Game Master hears all/)
+  })
+
+  it('points to scenes from Stories, the Story panel and Getting around', () => {
+    for (const id of ['stories', 'story-panel', 'navigation'] as const) {
+      expect(getHelpTopic(id).related).toContain('scenes')
+      const text = getHelpTopic(id).sections.flatMap((section) => section.blocks.map(blockText)).join(' ')
+      expect(text, id).toMatch(/Scenes/)
+    }
+  })
+
   it('points every tour step at a real help topic', () => {
     for (const step of TOUR_STEPS) if (step.helpTopic) expect(isHelpTopicId(step.helpTopic)).toBe(true)
   })
@@ -158,6 +180,13 @@ describe('searchHelp', () => {
 
   it('finds a topic through its keywords', () => {
     expect(searchHelp('persona').some((result) => result.topicId === 'cast')).toBe(true)
+  })
+
+  it('finds the scenes topic for recap and context', () => {
+    for (const query of ['recap', 'context', 'storyline', 'local model']) {
+      const results = searchHelp(query)
+      expect(results.some((result) => result.topicId === 'scenes' && result.sectionId === undefined), query).toBe(true)
+    }
   })
 
   it('finds the merged player-card controls in Cast', () => {

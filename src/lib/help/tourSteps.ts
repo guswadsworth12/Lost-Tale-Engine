@@ -92,12 +92,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'story-panel',
     title: 'Story panel and Tools',
     body: [
-      '**Story** opens the Story panel: Scene, Goals, People, Canon, Notes and Scene Rules.',
+      '**Story** opens the Story panel: Scene, Scenes, Goals, People, Canon, Notes and Scene Rules.',
       '**Tools** holds quick tuning, the prompt inspector, the Director and HTML export.',
     ],
     anchors: ['story-panel', 'tools-menu'],
     whereToFind: 'Story and Tools are in the header of any open story.',
     helpTopic: 'story-panel',
+  },
+  {
+    id: 'scenes',
+    title: 'Scenes and the context meter',
+    body: [
+      "A story is a chain of short scenes, so it never outgrows the model's context. The meter in the play header shows how full the current scene is, and suggests a break when it gets full or the story moves on.",
+      '**End scene…** drafts a recap for you to edit, then sets up the next scene. Every scene is kept in the Story panel\'s **Scenes** tab.',
+    ],
+    anchors: ['context-meter'],
+    whereToFind: 'The context meter is in the header of any open story.',
+    helpTopic: 'scenes',
   },
   {
     id: 'play-menu',

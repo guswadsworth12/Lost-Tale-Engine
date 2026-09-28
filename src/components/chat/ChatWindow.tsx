@@ -79,7 +79,16 @@ import { GmActionsContext } from './GmTurnCard'
 import { currentScenery } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
-import { GM_NAME, GM_SPEAKER_ID } from '@/lib/world/gm'
+import { GM_NAME, GM_SPEAKER_ID, branchConsequencesFrom } from '@/lib/world/gm'
+import { ContextMeter } from '@/components/story/ContextMeter'
+import { EndSceneDialog, type EndSceneConfirmInput } from '@/components/story/EndSceneDialog'
+import { EndedSceneBanner } from '@/components/story/EndedSceneBanner'
+import { StoryTranscript } from '@/components/story/StoryTranscript'
+import { nextSceneOf } from '@/lib/story/library'
+import { sceneBreakHint } from '@/lib/story/sceneBreak'
+import { sceneLabel } from '@/lib/story/recaps'
+import type { RecapDraft } from '@/lib/story/recapWriter'
+import { MAIN_STORYLINE_ID } from '@/lib/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { TextAreaField } from '@/components/ui/Field'
@@ -147,6 +156,11 @@ export function ChatWindow({
     updateGmNotes,
     updateParticipants,
     switchPlayer,
+    story,
+    storyScenes,
+    contextUsage,
+    draftSceneRecap,
+    finishScene,
     updateMemorySummary,
     continueMessage,
     canContinue,
@@ -213,6 +227,11 @@ export function ChatWindow({
   const [showDirector, setShowDirector] = useState(false)
   const [showTuning, setShowTuning] = useState(false)
   const [showStoryPanel, setShowStoryPanel] = useState(false)
+  const [showEndScene, setShowEndScene] = useState(false)
+  const [recapDraft, setRecapDraft] = useState<RecapDraft | null>(null)
+  const [draftingRecap, setDraftingRecap] = useState(false)
+  const [recapError, setRecapError] = useState<string | undefined>()
+  const [showTranscript, setShowTranscript] = useState(false)
   const [storyPanelPinned, setStoryPanelPinned] = useState(false)
   const [storyTab, setStoryTab] = useState<StoryTab>('scene')
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
@@ -387,6 +406,36 @@ export function ChatWindow({
   // established scene location) so the badge can't say "in class" while the scene is elsewhere.
   // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`).
   const sceneSetting = sceneSettingFrom(messages, chat.scene, (id) => backgroundLabel(id, world))
+  const sceneEnded = !!chat.endedAt
+  // Dropped transcript messages mean the scene no longer fits, whatever the raw token count says.
+  const contextRatio = contextUsage && contextUsage.budget > 0
+    ? Math.max(contextUsage.used / contextUsage.budget, contextUsage.dropped > 0 ? 0.9 : 0)
+    : 0
+  const breakHint = sceneEnded
+    ? null
+    : sceneBreakHint({
+        contextRatio,
+        messagesInScene: messages.length,
+        locationChanged: sceneSetting.source !== 'chat' && sceneSetting.location && sceneSetting.location !== chat.scene?.location ? sceneSetting.location : undefined,
+      })
+  const draftRecap = () => {
+    setDraftingRecap(true)
+    setRecapError(undefined)
+    draftSceneRecap()
+      .then(setRecapDraft)
+      .catch((e) => setRecapError(errorMessage(e)))
+      .finally(() => setDraftingRecap(false))
+  }
+  const openEndScene = () => {
+    setShowEndScene(true)
+    setRecapDraft(null)
+    draftRecap()
+  }
+  const contextMeter = contextUsage && !sceneEnded ? (
+    <span data-tour="context-meter" className="flex shrink-0 items-center">
+      <ContextMeter used={contextUsage.used} budget={contextUsage.budget} hint={breakHint} onEndScene={openEndScene} compact />
+    </span>
+  ) : null
   const modules = modulesForWorld(world ?? { template: chat.mode })
   const openStoryTab = (next: StoryTab) => { setStoryTab(next); setShowStoryPanel(true) }
   const presence =
@@ -684,7 +733,14 @@ export function ChatWindow({
 
   // `fillHeight` only in VN's inline input mode, where the composer *is* the dialogue box's body
   // and has to hold its fixed height rather than hug its content.
-  const composerNode = (variant: 'default' | 'vn') => (
+  // An ended scene is history: the banner points on to the next scene instead of a composer. VN
+  // shows it through `assistSlot`, which the stage always renders; its composer slot can be hidden.
+  const endedBanner = sceneEnded ? (
+    <EndedSceneBanner scene={chat} nextScene={nextSceneOf(storyScenes, chat.id)} onOpenScene={setActiveChatId} />
+  ) : null
+  const composerNode = (variant: 'default' | 'vn') => sceneEnded ? (
+    variant === 'vn' ? null : <div className="border-t border-border/50 bg-bg-elevated p-3">{endedBanner}</div>
+  ) : (
     <Composer
       variant={variant}
       fillHeight={variant === 'vn' && vnInputMode === 'inline'}
@@ -820,6 +876,7 @@ export function ChatWindow({
           <div className="flex shrink-0 items-center gap-1">
             <button onClick={() => openStoryTab('scene')} title="Open scene in Story panel" className="hidden max-w-32 truncate rounded-lg bg-bg-sunken px-2 py-1.5 text-xs text-text-muted hover:text-text sm:block">{sceneSetting.location ?? 'Scene'}</button>
             <button onClick={() => openStoryTab('goals')} title="Open goals in Story panel" className="hidden max-w-32 truncate rounded-lg bg-bg-sunken px-2 py-1.5 text-xs text-text-muted hover:text-text md:block">{activeObjective?.title ?? 'Goal'}</button>
+            {contextMeter}
             <button onClick={() => openStoryTab('scene')} data-tour="story-panel" className="rounded-lg px-2 py-1.5 text-xs text-text-muted hover:bg-bg-sunken hover:text-text" title="Open Story panel">Story</button>
             <IconButton tone="chrome" icon={Drama} title="Switch to Visual Novel view" onClick={toggleVnForChat} data-tour="vn-toggle" />
             <IconButton tone="chrome" icon={Search} title="Search story" onClick={() => setShowSearch(true)} />
@@ -928,6 +985,39 @@ export function ChatWindow({
           playerCharacterId={chat.playerCharacterId}
           playableCharacters={allCharacters}
           onSwitchPlayer={switchPlayer}
+        />
+      )}
+      {showTranscript && (
+        <StoryTranscript
+          open
+          onClose={() => setShowTranscript(false)}
+          story={story}
+          scenes={storyScenes.length ? storyScenes : [chat]}
+          fromSceneId={chat.id}
+        />
+      )}
+      {showEndScene && (
+        <EndSceneDialog
+          open
+          onClose={() => setShowEndScene(false)}
+          drafting={draftingRecap}
+          draft={recapDraft}
+          error={recapError}
+          onRedraft={draftRecap}
+          sceneLabel={sceneLabel(chat)}
+          cast={[character, ...participantCharacters]
+            .filter((c): c is NonNullable<typeof c> => !!c && c.id !== chat.playerCharacterId)
+            .map((c) => ({ id: c.id, name: c.card.name, present: c.id === chat.characterId || (chat.scene?.presentCharacterIds ?? chat.participants ?? []).includes(c.id) }))}
+          leadId={chat.characterId}
+          location={sceneSetting.location}
+          storylines={[{ id: MAIN_STORYLINE_ID, name: 'Main story' }, ...(story?.storylines ?? [])]}
+          currentStorylineId={chat.storylineId ?? MAIN_STORYLINE_ID}
+          consequences={[...(chat.carriedConsequences ?? []), ...branchConsequencesFrom(messages)]}
+          onConfirm={async (input: EndSceneConfirmInput) => {
+            const next = await finishScene(input)
+            setShowEndScene(false)
+            setActiveChatId(next.id)
+          }}
         />
       )}
       {showCampaignMove && world?.campaign && (
@@ -1057,6 +1147,7 @@ export function ChatWindow({
           topBarExtra: <>
             {onOpenStudio && <button onClick={onOpenStudio} title="Open Studio" className="hidden h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15 sm:block">Studio</button>}
             <button onClick={() => openStoryTab('goals')} title={activeObjective?.title ?? 'Goals'} aria-label="Goals" className="hidden h-7 max-w-28 truncate rounded-full px-2 text-[11px] text-white/80 hover:bg-white/15 sm:block">{activeObjective?.title ?? 'Goal'}</button>
+            {contextMeter}
             <button onClick={() => openStoryTab('scene')} data-tour="story-panel" title="Story panel" aria-label="Story panel" className="h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15">Story</button>
             <IconButton tone="glass" icon={Drama} title="Switch to transcript view" onClick={toggleVnForChat} data-tour="vn-toggle" />
             <IconButton tone="glass" icon={Search} title="Search story" onClick={() => setShowSearch(true)} />
@@ -1065,8 +1156,8 @@ export function ChatWindow({
           onBack,
           onOpenMenu,
           parentChatLink,
-          choiceListSlot: quickReplyNode('vn'),
-          activeChoiceData: activeChoices ? {
+          choiceListSlot: sceneEnded ? null : quickReplyNode('vn'),
+          activeChoiceData: activeChoices && !sceneEnded ? {
             choices: activeChoices.choiceCards!,
             onPick: (choice) => { sendUserMessage(choice.text, [], { choice }) },
             onRefresh: () => {
@@ -1076,6 +1167,7 @@ export function ChatWindow({
             refreshing: refreshingChoices,
           } : undefined,
           assistSlot: <>
+            {endedBanner}
             {showGenerationHud && <GenerationHud stats={genStats} variant="vn" />}
             <AssistActivityBar items={assistActivity} variant="vn" />
           </>,
@@ -1131,6 +1223,12 @@ export function ChatWindow({
           onOpenCalendar={() => setShowCalendar(true)}
           onOpenWorldFact={() => setShowWorldFact(true)}
           onOpenScene={() => setShowScene(true)}
+          story={story}
+          scenes={storyScenes.length ? storyScenes : undefined}
+          currentSceneId={chat.id}
+          onOpenStoryScene={setActiveChatId}
+          onEndScene={openEndScene}
+          onReadStory={() => setShowTranscript(true)}
           datingToolsVisible={showDateControls}
           onOpenEvent={() => setShowEvent(true)}
           onOpenDayPlanner={() => setShowDayPlanner(true)}

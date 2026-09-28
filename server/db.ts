@@ -141,6 +141,14 @@ db.exec(`
     data TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_chat_facts_chatId_createdAt ON chat_facts(chatId, createdAt);
+
+  -- Stories made of scenes (\`server/stories.ts\`). The scenes themselves are chats carrying storyId.
+  CREATE TABLE IF NOT EXISTS stories (
+    id TEXT PRIMARY KEY,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
 `)
 
 type Row = Record<string, unknown>
@@ -259,6 +267,7 @@ export const objectiveStore = createStore('objectives', [
 ])
 export const relationshipEventStore = createStore('relationship_events', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { name: 'createdAt' }])
+export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 
 export function newId(): string {
   return crypto.randomUUID()

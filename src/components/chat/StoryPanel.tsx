@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { Pin, PinOff, X } from 'lucide-react'
 import type { WorldModules } from '@/lib/world/worldTemplates'
 import type { useChatSession } from '@/lib/hooks/useChatSession'
-import type { ScenePolicy } from '@/lib/types'
+import type { Chat, ScenePolicy, Story } from '@/lib/types'
 import type { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { computeWarmth, getRelationshipStats, getRelationshipTrack } from '@/lib/dating/stage'
 import { PHASES } from '@/lib/world/calendar'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
+import { StoryScenes } from '@/components/story/StoryScenes'
 
-export type StoryTab = 'scene' | 'goals' | 'people' | 'canon' | 'notes' | 'rules'
+export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'canon' | 'notes' | 'rules'
 const TABS: { id: StoryTab; label: string }[] = [
-  { id: 'scene', label: 'Scene' }, { id: 'goals', label: 'Goals' }, { id: 'people', label: 'People' },
+  { id: 'scene', label: 'Scene' }, { id: 'scenes', label: 'Scenes' }, { id: 'goals', label: 'Goals' }, { id: 'people', label: 'People' },
   { id: 'canon', label: 'Canon' }, { id: 'notes', label: 'Notes' }, { id: 'rules', label: 'Scene Rules' },
 ]
 const POLICIES: { id: ScenePolicy; label: string }[] = [
@@ -26,6 +27,7 @@ export function StoryPanel({
   onSwitchPlayer, allCharacters, onOpenRelationship, onOpenObjective, onOpenScenery,
   onOpenCalendar, onOpenWorldFact, onOpenScene, datingToolsVisible,
   onOpenEvent, onOpenDayPlanner, onOpenBag,
+  story, scenes, currentSceneId, onOpenStoryScene, onEndScene, onReadStory,
 }: {
   session: ReturnType<typeof useChatSession>
   modules: WorldModules
@@ -49,6 +51,19 @@ export function StoryPanel({
   onOpenEvent: () => void
   onOpenDayPlanner: () => void
   onOpenBag: () => void
+  /** The story this chat is a scene of; unset for a story of one scene. */
+  story?: Story
+  /** The story's scenes (`scenesOfStory`); defaults to just this chat. */
+  scenes?: Chat[]
+  /** Defaults to this chat. */
+  currentSceneId?: string
+  /** Opens another scene of the story (switches the active chat). Not `onOpenScene`, which is the
+   *  existing "More scene rules" panel opener above. */
+  onOpenStoryScene?: (chatId: string) => void
+  /** Starts ending the current scene (the End Scene dialog). Omitted hides the button. */
+  onEndScene?: () => void
+  /** Opens the whole-story reader (`StoryTranscript`). Omitted hides the button. */
+  onReadStory?: () => void
 }) {
   const { chat, world, character, participantCharacters, messages, activeObjective } = session
   const [location, setLocation] = useState(setting.location ?? '')
@@ -71,6 +86,8 @@ export function StoryPanel({
   const proposals = messages.flatMap((message) => (message.gm?.proposals ?? [])
     .filter((proposal) => proposal.status === 'pending').map((proposal) => ({ message, proposal })))
   const pinnedMessages = messages.filter((message) => message.pinned)
+  const currentScene = scenes?.find((scene) => scene.id === (currentSceneId ?? chat.id)) ?? chat
+  const canEndScene = !!onEndScene && !currentScene.endedAt && !chat.endedAt
   const panel = <section className="flex h-full w-full min-w-0 flex-col border-l border-border bg-bg-elevated md:w-80" aria-label="Story panel">
     <div className="flex items-center justify-between border-b border-border px-4 py-3">
       <strong className="font-display text-sm text-text">Story</strong>
@@ -95,6 +112,14 @@ export function StoryPanel({
         <div><h3 className="font-medium">Here now</h3><p className="mt-1 text-xs text-text-muted">{loaded.filter((member) => present.includes(member.id)).map((member) => member.card.name).join(', ') || 'No cast selected'}</p></div>
         <div className="flex flex-wrap gap-2">{world && <button className={actionClass} onClick={onOpenScenery}>Choose scenery</button>}{world && modules.worldSimulation && <button className={actionClass} onClick={onOpenCalendar}>Key dates</button>}</div>
         {datingToolsVisible && <div className="flex flex-wrap gap-2"><button className={actionClass} onClick={onOpenEvent}>Date or event</button>{world && modules.worldSimulation && <button className={actionClass} onClick={onOpenDayPlanner}>Day planner</button>}</div>}
+      </>}
+      {tab === 'scenes' && <>
+        <div><h3 className="font-medium">Scenes</h3><p className="mt-1 text-xs text-text-muted">Each scene is its own chat. Ending one writes a recap and opens the next with the story's state.</p></div>
+        {canEndScene || onReadStory ? <div className="flex flex-wrap gap-2">
+          {canEndScene && <button className={actionClass} onClick={onEndScene}>End scene…</button>}
+          {onReadStory && <button className={actionClass} onClick={onReadStory}>Read the whole story</button>}
+        </div> : null}
+        <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} />
       </>}
       {tab === 'goals' && <>
         {activeObjective ? <>

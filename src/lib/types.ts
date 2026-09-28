@@ -459,6 +459,22 @@ export interface Chat {
   summary?: string
   /** Messages with `createdAt <=` this are represented by `summary`, not sent verbatim. */
   summaryUpToTimestamp?: number
+  /** The story this chat is a scene of (`Story`). Unset: a story of one scene, the chat itself. */
+  storyId?: string
+  /** 1-based position in the story, in the order scenes were started (parallel storylines interleave). */
+  sceneNumber?: number
+  /** Shown in the story's scene list, e.g. "The cistern". Falls back to "Scene N". */
+  sceneTitle?: string
+  /** Which storyline this scene belongs to (`Story.storylines`). Unset reads as the main one. */
+  storylineId?: string
+  /** The scene this one continues from. The chain of these is a scene's whole past: recaps come
+   *  from it, and a scene split into a parallel storyline only knows what happened before the split. */
+  previousSceneId?: string
+  /** When the scene was ended with a recap. An ended scene is read-only history. */
+  endedAt?: number
+  recap?: SceneRecap
+  /** Confirmed branch consequences from earlier scenes (their GM turns stay with those scenes). */
+  carriedConsequences?: string[]
   /** Set when this chat was created by forking another one — the source chat's id. */
   parentChatId?: string
   /** The message (in the parent chat) this fork branched off from. */
@@ -509,6 +525,40 @@ export interface WorldInfoBook {
   boundWorldIds?: string[]
   createdAt: number
 }
+
+/**
+ * What a scene leaves behind for the ones after it. Written once, when the scene ends. Characters
+ * only hear recaps of scenes they were present for (`presentIds`); the Game Master hears them all.
+ */
+export interface SceneRecap {
+  text: string
+  /** Everyone in the scene: the lead, the AI cast, and the card the player played. */
+  presentIds: string[]
+  /** Unresolved threads, carried as reminders into later scenes. */
+  openThreads?: string[]
+  /** Where the scene ended. */
+  location?: string
+  writtenAt: number
+}
+
+/** A parallel line of scenes inside one story, e.g. when the party splits up. */
+export interface Storyline {
+  id: string
+  name: string
+}
+
+/** A story made of scenes (chats sharing `storyId`). Created when a story's first scene ends. */
+export interface Story {
+  id: string
+  title: string
+  worldId?: string
+  /** Beyond the implicit main line (`MAIN_STORYLINE_ID`). */
+  storylines?: Storyline[]
+  createdAt: number
+  updatedAt: number
+}
+
+export const MAIN_STORYLINE_ID = 'main'
 
 export interface WorldCard {
   id: string

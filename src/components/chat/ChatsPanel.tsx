@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react'
 import { Copy, GitFork, MoreHorizontal, Pencil, Pin, PinOff, Plus, Star, Trash2 } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatsApi, messagesApi, objectivesApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, messagesApi, objectivesApi, storiesApi, worldsApi } from '@/lib/api/client'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { createChat } from '@/lib/chat/createChat'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
 import { PHASES } from '@/lib/world/calendar'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
+import { groupStories, type StoryGroup } from '@/lib/story/library'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat, WorldCard } from '@/lib/types'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
@@ -37,6 +38,8 @@ function StoryPreview({ chat, world }: { chat: Chat; world?: WorldCard }) {
   )
 }
 
+const sceneBadge = (group: StoryGroup) => `scene ${group.current.sceneNumber ?? 1} of ${group.sceneCount}`
+
 export function ChatsPanel({
   activeChatId,
   onSelect,
@@ -44,8 +47,11 @@ export function ChatsPanel({
   activeChatId: string | null
   onSelect: (id: string | null) => void
 }) {
-  const unsortedChats = useApiQuery('chats', () => chatsApi.list(), []) ?? []
-  const chats = [...unsortedChats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt)
+  const allChats = useApiQuery('chats', () => chatsApi.list(), []) ?? []
+  const stories = useApiQuery('stories', () => storiesApi.list(), []) ?? []
+  // One card per story, not per scene. A story counts as pinned when any of its scenes is.
+  const isPinned = (group: StoryGroup) => group.scenes.some((scene) => scene.pinned)
+  const groups = groupStories(allChats, stories).sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)))
   const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const [showNew, setShowNew] = useState(false)
@@ -59,40 +65,46 @@ export function ChatsPanel({
   const renameInputRef = useRef<HTMLInputElement>(null)
   const charFor = (id: string) => characters.find((c) => c.id === id)
 
-  const startRename = (chat: Chat) => {
+  const startRename = (group: StoryGroup) => {
     setMenuForId(null)
-    setRenamingId(chat.id)
-    setRenameDraft(chat.title)
+    setRenamingId(group.storyId)
+    setRenameDraft(group.title)
     requestAnimationFrame(() => renameInputRef.current?.select())
   }
 
-  const commitRename = async (chat: Chat) => {
+  // A scene of a story renames the story (its card shows the story's title); a lone chat renames itself.
+  const commitRename = async (group: StoryGroup) => {
     const next = renameDraft.trim()
     setRenamingId(null)
-    if (!next || next === chat.title) return
-    try { await chatsApi.update(chat.id, { title: next }) }
-    catch (e) { toastError(errorMessage(e)) }
+    if (!next || next === group.title) return
+    try {
+      if (group.current.storyId) await storiesApi.update(group.current.storyId, { title: next })
+      else await chatsApi.update(group.current.id, { title: next })
+    } catch (e) { toastError(errorMessage(e)) }
   }
 
-  const togglePin = async (chat: Chat) => {
+  // Pins the current scene; unpinning clears every pinned scene, so the story really drops down.
+  const togglePin = async (group: StoryGroup) => {
     setMenuForId(null)
-    try { await chatsApi.update(chat.id, { pinned: !chat.pinned }) }
-    catch (e) { toastError(errorMessage(e)) }
+    try {
+      if (isPinned(group)) for (const scene of group.scenes.filter((s) => s.pinned)) await chatsApi.update(scene.id, { pinned: false })
+      else await chatsApi.update(group.current.id, { pinned: true })
+    } catch (e) { toastError(errorMessage(e)) }
   }
 
-  const duplicateChat = async (chat: Chat) => {
+  const duplicateChat = async (chat: Chat, busyKey: string) => {
     setMenuForId(null)
-    setBusyId(chat.id)
+    setBusyId(busyKey)
     try { onSelect((await chatsApi.fork(chat.id)).id) }
     catch (e) { toastError(errorMessage(e)) }
     finally { setBusyId(null) }
   }
 
-  const quickNewSameCharacter = async (chat: Chat) => {
+  const quickNewSameCharacter = async (chat: Chat, busyKey: string) => {
     setMenuForId(null)
     const character = charFor(chat.characterId)
     if (!character) return
-    setBusyId(chat.id)
+    setBusyId(busyKey)
     try {
       const world = worlds.find((w) => w.id === character.worldId)
       const player = chat.playerCharacterId ? charFor(chat.playerCharacterId) : undefined
@@ -102,19 +114,23 @@ export function ChatsPanel({
     finally { setBusyId(null) }
   }
 
-  const deleteChat = async (chat: Chat) => {
+  // Deletes the whole story: every scene goes to the trash.
+  const deleteStory = async (group: StoryGroup) => {
     setMenuForId(null)
+    const many = group.sceneCount > 1
     const ok = await confirmDialog({
-      title: `Delete "${chat.title}"?`,
-      body: 'Moves it to the trash. Recoverable there for 30 days, or you can delete it for good right away.',
-      confirmLabel: 'Delete story',
+      title: `Delete "${group.title}"?`,
+      body: many
+        ? `Moves the whole story to the trash: all ${group.sceneCount} scenes. Each is recoverable there for 30 days, or you can delete them for good right away.`
+        : 'Moves it to the trash. Recoverable there for 30 days, or you can delete it for good right away.',
+      confirmLabel: many ? `Delete all ${group.sceneCount} scenes` : 'Delete story',
       tone: 'danger',
     })
     if (!ok) return
-    setBusyId(chat.id)
+    setBusyId(group.storyId)
     try {
-      await chatsApi.remove(chat.id)
-      if (activeChatId === chat.id) onSelect(null)
+      for (const scene of group.scenes) await chatsApi.remove(scene.id)
+      if (group.scenes.some((scene) => scene.id === activeChatId)) onSelect(null)
     } catch (e) { toastError(errorMessage(e)) }
     finally { setBusyId(null) }
   }
@@ -133,17 +149,20 @@ export function ChatsPanel({
           </Button>
         </div>
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {chats.map((chat) => {
+          {groups.map((group) => {
+            const chat = group.current
+            const key = group.storyId
             const character = charFor(chat.characterId)
             const cast = [character, ...(chat.participants ?? []).map(charFor)].filter((c): c is Character => Boolean(c))
             const player = chat.playerCharacterId ? charFor(chat.playerCharacterId) : undefined
             const world = worlds.find((w) => w.id === character?.worldId)
-            const isRenaming = renamingId === chat.id
-            const isMenuOpen = menuForId === chat.id
-            const isBusy = busyId === chat.id
+            const isRenaming = renamingId === key
+            const isMenuOpen = menuForId === key
+            const isBusy = busyId === key
+            const pinned = isPinned(group)
             return (
-              <div key={chat.id} className="relative min-w-0 rounded-2xl border border-border bg-bg-elevated p-4 themed-shadow">
-                <div role="button" tabIndex={isBusy ? -1 : 0} aria-disabled={isBusy} aria-label={`Open ${chat.title}`}
+              <div key={key} className="relative min-w-0 rounded-2xl border border-border bg-bg-elevated p-4 themed-shadow">
+                <div role="button" tabIndex={isBusy ? -1 : 0} aria-disabled={isBusy} aria-label={`Open ${group.title}${group.sceneCount > 1 ? `, ${sceneBadge(group)}` : ''}`}
                   onClick={() => !isRenaming && !isBusy && onSelect(chat.id)}
                   onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!isBusy) onSelect(chat.id) } }}
                   className={`w-full cursor-pointer text-left ${isBusy ? 'opacity-50' : ''}`}>
@@ -152,29 +171,33 @@ export function ChatsPanel({
                       : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-bg-sunken text-sm text-text-muted">{(character?.card.name ?? '?').slice(0, 2).toUpperCase()}</div>}
                     <div className="min-w-0 flex-1">
                       {isRenaming ? <input ref={renameInputRef} value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)}
-                        onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(chat); if (e.key === 'Escape') setRenamingId(null) }}
-                        onBlur={() => commitRename(chat)} className="w-full rounded-lg bg-bg-sunken px-2 py-1 text-sm text-text outline-none ring-1 ring-accent/40" />
-                        : <div className="flex items-center gap-1.5 font-medium text-text">{chat.pinned && <Star size={13} fill="currentColor" className="shrink-0 text-accent" />}{chat.parentChatId && <GitFork size={13} className="shrink-0 text-text-muted" />}<span className="truncate">{chat.title}</span></div>}
-                      <div className="mt-1 truncate text-xs text-text-muted">{world?.name ?? 'Freeform world'}</div>
+                        onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(group); if (e.key === 'Escape') setRenamingId(null) }}
+                        onBlur={() => commitRename(group)} className="w-full rounded-lg bg-bg-sunken px-2 py-1 text-sm text-text outline-none ring-1 ring-accent/40" />
+                        : <div className="flex items-center gap-1.5 font-medium text-text">{pinned && <Star size={13} fill="currentColor" className="shrink-0 text-accent" />}{chat.parentChatId && <GitFork size={13} className="shrink-0 text-text-muted" />}<span className="truncate">{group.title}</span></div>}
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-text-muted">
+                        <span className="truncate">{world?.name ?? 'Freeform world'}</span>
+                        {group.sceneCount > 1 && <span className="shrink-0 rounded-full bg-bg-sunken px-2 py-0.5 text-[11px]" title={`${group.sceneCount} scenes`}>Scene {chat.sceneNumber ?? 1}</span>}
+                        {group.storylineCount > 1 && <span className="shrink-0 rounded-full bg-bg-sunken px-2 py-0.5 text-[11px]">{group.storylineCount} storylines</span>}
+                      </div>
                     </div>
                   </div>
                   <StoryPreview chat={chat} world={world} />
                   <div className="mt-4 flex items-center justify-between gap-2 text-xs text-text-muted">
                     <span className="truncate">{cast.length ? cast.map((c) => c.card.name).join(', ') : 'Cast unavailable'}{player && ` · You: ${player.card.name}`}</span>
-                    <span className="shrink-0">{isBusy ? 'Working…' : `Played ${new Date(chat.updatedAt).toLocaleDateString()}`}</span>
+                    <span className="shrink-0">{isBusy ? 'Working…' : `Played ${new Date(group.updatedAt).toLocaleDateString()}`}</span>
                   </div>
                 </div>
-                {!isRenaming && <button onClick={() => setMenuForId(isMenuOpen ? null : chat.id)} title="Story actions" aria-label="Story actions"
+                {!isRenaming && <button onClick={() => setMenuForId(isMenuOpen ? null : key)} title="Story actions" aria-label="Story actions"
                   className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-sunken hover:text-text"><MoreHorizontal size={17} /></button>}
                 {isMenuOpen && <>
                   <div className="fixed inset-0 z-40" onClick={() => setMenuForId(null)} />
                   <div className="absolute right-3 top-11 z-50 w-56 overflow-hidden rounded-xl border border-border bg-bg-elevated py-1 themed-shadow">
-                    <button onClick={() => togglePin(chat)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken">{chat.pinned ? <PinOff size={14} /> : <Pin size={14} />}{chat.pinned ? 'Unpin' : 'Pin to top'}</button>
-                    <button onClick={() => startRename(chat)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Pencil size={14} />Rename</button>
-                    <button onClick={() => duplicateChat(chat)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Copy size={14} />Duplicate full story</button>
-                    {character && <button onClick={() => quickNewSameCharacter(chat)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Plus size={14} />New with same cast and player</button>}
+                    <button onClick={() => togglePin(group)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken">{pinned ? <PinOff size={14} /> : <Pin size={14} />}{pinned ? 'Unpin' : 'Pin to top'}</button>
+                    <button onClick={() => startRename(group)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Pencil size={14} />Rename</button>
+                    <button onClick={() => duplicateChat(chat, key)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Copy size={14} />{group.sceneCount > 1 ? 'Duplicate current scene' : 'Duplicate full story'}</button>
+                    {character && <button onClick={() => quickNewSameCharacter(chat, key)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-bg-sunken"><Plus size={14} />New with same cast and player</button>}
                     <div className="my-1 h-px bg-border" />
-                    <button onClick={() => deleteChat(chat)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"><Trash2 size={14} />Delete</button>
+                    <button onClick={() => deleteStory(group)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"><Trash2 size={14} />Delete</button>
                   </div>
                 </>}
               </div>

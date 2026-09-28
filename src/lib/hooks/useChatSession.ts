@@ -5,7 +5,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, messagesApi, objectivesApi, relationshipEventsApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { sceneChain, storyRecapBlock } from '@/lib/story/recaps'
+import { writeSceneRecap, type RecapDraft } from '@/lib/story/recapWriter'
 import { playerViewOf, switchPlayer as planPlayerSwitch } from '@/lib/characters/player'
 import { newId } from '@/lib/id'
 import type { AuthorNote, Chat, CommitmentStatus, DateEventCard, ItemEffect, MessageIntent, Objective, ObjectiveTask, RelationshipStage, StoredMessage, WorldCard } from '@/lib/types'
@@ -494,6 +496,10 @@ export function useChatSession(chatId: string | null) {
     [chat?.playerCharacterId],
   )
   const persona = playerCharacter ? playerViewOf(playerCharacter) : undefined
+  // The story this scene belongs to, and all its scenes (none for a one-scene story). Keyed on
+  // 'chats' so ending a scene, which creates the next one, refreshes the list.
+  const story = useApiQuery('stories', () => (chat?.storyId ? storiesApi.get(chat.storyId) : Promise.resolve(undefined)), [chat?.storyId])
+  const storyScenes = useApiQuery('chats', () => (chat?.storyId ? storiesApi.scenes(chat.storyId) : Promise.resolve([] as Chat[])), [chat?.storyId]) ?? []
   const world = useApiQuery(
     'worlds',
     () => (character?.worldId ? worldsApi.get(character.worldId) : Promise.resolve(undefined)),
@@ -540,8 +546,12 @@ export function useChatSession(chatId: string | null) {
   const spriteBase64Ref = useRef<Map<string, string>>(new Map())
   // Who a freshly-sent message's reply gets generated as — only meaningful in a group chat.
   const [replyAsCharacterId, setReplyAsCharacterId] = useState<string | null>(null)
+  // How full the last reply's prompt was, for the context meter. `dropped` counts transcript
+  // messages that no longer fit, the clearest sign a scene has run long.
+  const [contextUsage, setContextUsage] = useState<{ used: number; budget: number; dropped: number } | null>(null)
   useEffect(() => {
     setReplyAsCharacterId(null)
+    setContextUsage(null)
   }, [chatId])
 
   // Opening a chat with an unread unprompted message clears its ChatsPanel badge.
@@ -665,7 +675,8 @@ export function useChatSession(chatId: string | null) {
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
-      const branchConsequences = branchConsequencesFrom(branchMessages)
+      // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
+      const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
       // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`), not the chat's opening value.
       const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       const worldMomentLines = [
@@ -1119,6 +1130,12 @@ export function useChatSession(chatId: string | null) {
           ]
 
       const contextBudget = sampler.max_context_length - sampler.max_length - 32
+      // Earlier scenes this speaker was actually there for, read fresh so a just-ended scene counts.
+      const scenesForRecap = freshChat.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => storyScenes) : []
+      const storyRecap = storyRecapBlock(sceneChain(scenesForRecap, freshChat), { characterId: speaker.id }, {
+        maxTokens: Math.floor(contextBudget * 0.15),
+        speakerName: speaker.card.name,
+      })
       return buildPrompt({
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
@@ -1131,6 +1148,7 @@ export function useChatSession(chatId: string | null) {
         globalPostHistory,
         history: recentHistory,
         chatSummary: freshChat.summary,
+        storyRecap,
         worldDescription,
         worldMoment,
         lorebooks: [...worldLorebook, ...lorebooks, ...boundBooks, ...factsLorebook],
@@ -2361,6 +2379,92 @@ export function useChatSession(chatId: string | null) {
     [chat, chatId, replyAsCharacterId],
   )
 
+  /** Drafts this scene's recap with the model, for the End scene dialog to show and edit. */
+  const draftSceneRecap = useCallback(async (): Promise<RecapDraft> => {
+    if (!chat || !character || !chatId) throw new Error('No scene is open.')
+    const branch = await messagesApi.listByChat(chatId)
+    const scenes = chat.storyId ? await storiesApi.scenes(chat.storyId).catch(() => [] as Chat[]) : []
+    const earlier = storyRecapBlock(sceneChain(scenes, chat), 'narrator', { maxTokens: 600 })
+    const playerName = persona?.name || 'You'
+    return writeSceneRecap({
+      messages: branch
+        .filter((m) => !m.failed && m.text.trim())
+        .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('char' as const), name: m.role === 'user' ? playerName : m.name, text: m.text })),
+      playerName,
+      castNames: [character, ...participantCharacters].map((c) => c.card.name),
+      location: sceneSettingFrom(branch, chat.scene, (id) => backgroundLabel(id, world)).location,
+      storySoFar: [earlier, chat.summary].filter(Boolean).join('\n\n') || undefined,
+      generate: (prompt) =>
+        generateWithTimeout(
+          client,
+          {
+            prompt,
+            max_length: 700,
+            max_context_length: sampler.max_context_length,
+            temperature: 0.4,
+            top_p: 1,
+            top_k: 0,
+            min_p: 0,
+            typical: 1,
+            tfs: 1,
+            rep_pen: 1.1,
+            rep_pen_range: 1024,
+            rep_pen_slope: 0.7,
+          },
+          'Write scene recap',
+          undefined,
+          assistShaping,
+        ),
+    })
+  }, [assistShaping, character, chat, chatId, client, participantCharacters, persona?.name, sampler.max_context_length, world])
+
+  /**
+   * Ends this scene and opens the next. The recap remembers who was there, so later scenes only
+   * tell it to characters who were. Ticked lasting changes become world canon first.
+   */
+  const finishScene = useCallback(
+    async (input: {
+      recapText: string
+      openThreads: string[]
+      canonFacts: string[]
+      next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
+    }): Promise<Chat> => {
+      if (!chatId) throw new Error('No scene is open.')
+      const fresh = await chatsApi.get(chatId)
+      if (!fresh) throw new Error('This scene no longer exists.')
+      const branch = await messagesApi.listByChat(chatId)
+      const inScene = fresh.scene?.presentCharacterIds ?? fresh.participants ?? []
+      const spoke = branch.map((m) => m.speakerId).filter((id): id is string => !!id && id !== fresh.characterId)
+      const presentIds = [...new Set([fresh.characterId, ...inScene, ...spoke, ...(fresh.playerCharacterId ? [fresh.playerCharacterId] : [])])]
+        .filter((id) => id !== GM_SPEAKER_ID)
+      const facts = input.canonFacts.map((t) => t.trim()).filter(Boolean)
+      if (facts.length && world) {
+        const current = await worldsApi.get(world.id)
+        await worldsApi.update(world.id, {
+          canonFacts: [...(current?.canonFacts ?? []), ...facts.map((text) => ({ id: newId(), text, createdAt: Date.now(), sourceChatId: chatId }))],
+        })
+      }
+      const location = input.next.location?.trim()
+      return chatsApi.nextScene(chatId, {
+        recap: {
+          text: input.recapText.trim(),
+          presentIds,
+          openThreads: input.openThreads.map((t) => t.trim()).filter(Boolean),
+          location: sceneSettingFrom(branch, fresh.scene, (id) => backgroundLabel(id, world)).location,
+        },
+        consequences: branchConsequencesFrom(branch),
+        next: {
+          title: input.next.title?.trim() || undefined,
+          ...(location !== undefined ? { location: location || null } : {}),
+          presentIds: input.next.presentIds,
+          storylineId: input.next.storylineId,
+          newStorylineName: input.next.newStorylineName?.trim() || undefined,
+        },
+      })
+    },
+    [chatId, world],
+  )
+
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
   const suggestChoicesForMessage = useCallback(
     async (messageId: string, historyForChoices: ChatMessage[]) => {
@@ -2619,6 +2723,7 @@ export function useChatSession(chatId: string | null) {
           let firstTokenAt: number | null = null
           let streamedTokenCount = 0
           const builtForStats = built
+          setContextUsage({ used: built.tokensUsed, budget: built.contextBudget, dropped: built.excludedMessageCount })
           let newText = ''
           try {
             newText = await replyClient.generateStream(
@@ -3035,6 +3140,9 @@ export function useChatSession(chatId: string | null) {
       if (!world?.campaign || !character || !chatId) return null
       const freshChat = (await chatsApi.get(chatId)) ?? chat
       const playerName = persona?.name || 'You'
+      // The Game Master narrates the whole story, so it hears every earlier scene's recap.
+      const gmScenes = freshChat?.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => [] as Chat[]) : []
+      const narratorRecap = freshChat ? storyRecapBlock(sceneChain(gmScenes, freshChat), 'narrator', { maxTokens: 900 }) : ''
       const fullRoster = await charactersApi.roster(world.id).catch(() =>
         [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false })))
       const loadedIds = [character.id, ...(freshChat?.participants ?? [])]
@@ -3055,13 +3163,13 @@ export function useChatSession(chatId: string | null) {
         worldRules: world.rules,
         gmNotes: [world.gmNotes, freshChat?.gmNotes].filter(Boolean).join('\n\n'),
         scenario: freshChat?.authorNote?.text,
-        storySoFar: freshChat?.summary,
+        storySoFar: [narratorRecap, freshChat?.summary].filter(Boolean).join('\n\n') || undefined,
         openThreads: activeFacts.filter((f) => f.unresolved).map((f) => f.text),
         activeObjective: activeObjective?.status === 'active'
           ? [activeObjective.title, ...activeObjective.tasks.filter((t) => t.status === 'pending').map((t) => t.description)].join(' — ')
           : undefined,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
-        branchConsequences: branchConsequencesFrom(upTo),
+        branchConsequences: [...(freshChat?.carriedConsequences ?? []), ...branchConsequencesFrom(upTo)],
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
         ...(() => {
           const setting = sceneSettingFrom(upTo, freshChat?.scene, (id) => backgroundLabel(id, world))
@@ -3236,6 +3344,10 @@ export function useChatSession(chatId: string | null) {
         // Read fresh rather than the hook's possibly stale `chat` — needed by both the gift block and the scene-policy resolution below.
         const freshChat = await chatsApi.get(chatId)
         if (!freshChat) return
+        if (freshChat.endedAt) {
+          toastInfo('This scene has ended. Carry on in the next scene.')
+          return
+        }
         // A gift moves the chosen target's own track, not always the primary's — same "reply as" picker the composer already exposes.
         const { active: giftTarget } = resolveSpeaker(replyAsCharacterId)
         let giftId: string | undefined
@@ -4239,6 +4351,11 @@ export function useChatSession(chatId: string | null) {
     updateGmNotes,
     updateParticipants,
     switchPlayer,
+    story,
+    storyScenes,
+    contextUsage,
+    draftSceneRecap,
+    finishScene,
     updateMemorySummary,
     continueMessage,
     canContinue,

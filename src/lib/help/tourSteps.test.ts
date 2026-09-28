@@ -23,7 +23,7 @@ const phone = { width: 375, height: 812 }
 describe('tour steps', () => {
   it('is a short introduction with unique ids', () => {
     expect(TOUR_STEPS.length).toBeGreaterThanOrEqual(6)
-    expect(TOUR_STEPS.length).toBeLessThanOrEqual(9)
+    expect(TOUR_STEPS.length).toBeLessThanOrEqual(10)
     const ids = TOUR_STEPS.map((step) => step.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const step of TOUR_STEPS) {
@@ -42,7 +42,7 @@ describe('tour steps', () => {
   })
 
   it('uses the anchors the app provides', () => {
-    const known = new Set(['nav', 'nav-stories', 'nav-cast', 'nav-worlds', 'nav-lore', 'nav-media', 'nav-writer', 'nav-settings', 'nav-help', 'play-menu', 'story-panel', 'tools-menu', 'vn-toggle', 'composer'])
+    const known = new Set(['nav', 'nav-stories', 'nav-cast', 'nav-worlds', 'nav-lore', 'nav-media', 'nav-writer', 'nav-settings', 'nav-help', 'play-menu', 'story-panel', 'tools-menu', 'vn-toggle', 'composer', 'context-meter'])
     for (const step of TOUR_STEPS) for (const anchor of step.anchors ?? []) expect(known.has(anchor), anchor).toBe(true)
   })
 })

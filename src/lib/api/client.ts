@@ -1,6 +1,8 @@
 import type { Character } from '@/lib/characters/cardSpec'
 import type {
   Chat,
+  SceneRecap,
+  Story,
   ChatFact,
   CustomInstructTemplate,
   Objective,
@@ -182,6 +184,47 @@ export const chatsApi = {
     invalidate('chats')
     invalidate('messages')
     invalidate('objectives')
+    return result
+  },
+  /** Ends this scene with its recap and opens the next one (`server/stories.ts`). Returns the new scene. */
+  async nextScene(id: string, body: NextSceneBody): Promise<Chat> {
+    const result = await request<Chat>('POST', `/chats/${id}/next-scene`, body)
+    invalidate('chats')
+    invalidate('stories')
+    invalidate('objectives')
+    return result
+  },
+}
+
+export interface NextSceneBody {
+  recap: Pick<SceneRecap, 'text' | 'presentIds' | 'openThreads' | 'location'>
+  /** Confirmed consequences from this scene's GM turns, kept in force afterwards. */
+  consequences?: string[]
+  next?: {
+    title?: string
+    location?: string | null
+    atmosphere?: string | null
+    presentIds?: string[]
+    storylineId?: string
+    newStorylineName?: string
+  }
+}
+
+/** Stories made of scenes. A story's scenes are chats carrying its id. */
+export const storiesApi = {
+  list(): Promise<Story[]> {
+    return request('GET', '/stories')
+  },
+  get(id: string): Promise<Story | undefined> {
+    return request<Story>('GET', `/stories/${id}`).catch(() => undefined)
+  },
+  /** The story's scenes, oldest first. */
+  scenes(id: string): Promise<Chat[]> {
+    return request('GET', `/stories/${id}/scenes`)
+  },
+  async update(id: string, patch: Partial<Pick<Story, 'title' | 'storylines'>>): Promise<Story> {
+    const result = await request<Story>('PUT', `/stories/${id}`, patch)
+    invalidate('stories')
     return result
   },
 }
