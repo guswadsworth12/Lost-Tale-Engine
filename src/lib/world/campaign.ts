@@ -10,7 +10,16 @@ export interface CampaignConfig {
   dating: boolean
   /** World-authored fields for each character's sheet. Older campaigns derive these from moves. */
   stats?: CampaignStat[]
+  /** The world's standing ladder, lowest first (e.g. apprentice → master). The GM scales what
+   *  counts as routine, risky, or out of reach by it. A note can mark a rank that sits outside the
+   *  ladder's order, such as an exceptional status. */
+  ranks?: CampaignRank[]
   moves: PbtaMove[]
+}
+
+export interface CampaignRank {
+  name: string
+  note?: string
 }
 
 export interface CampaignStat {
@@ -26,6 +35,8 @@ export interface CharacterSheet {
   worldId?: string
   /** World-defined ratings, keyed by stable stat id. */
   stats: Record<string, number>
+  /** The character's standing on that world's rank ladder (`CampaignConfig.ranks`), by name. */
+  rank?: string
 }
 
 export interface PbtaMove {
@@ -178,8 +189,38 @@ export function normalizeCharacterSheet(raw: unknown): CharacterSheet | undefine
   const stats = (raw as { stats?: unknown }).stats
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return undefined
   const worldId = (raw as { worldId?: unknown }).worldId
-  return { ...(typeof worldId === 'string' && worldId.trim() ? { worldId: worldId.slice(0, 100) } : {}), stats: Object.fromEntries(Object.entries(stats).slice(0, 50).filter(([id, value]) =>
+  const rank = text((raw as { rank?: unknown }).rank, 60)
+  return { ...(typeof worldId === 'string' && worldId.trim() ? { worldId: worldId.slice(0, 100) } : {}), ...(rank ? { rank } : {}), stats: Object.fromEntries(Object.entries(stats).slice(0, 50).filter(([id, value]) =>
     id.length > 0 && id.length <= 100 && Number.isInteger(value) && (value as number) >= -100 && (value as number) <= 100)) }
+}
+
+/** Sanitize a rank ladder: named, unique, lowest first, at most 20 rungs. */
+export function normalizeCampaignRanks(raw: unknown): CampaignRank[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<string>()
+  return raw.slice(0, 20).flatMap((entry: unknown) => {
+    const value = typeof entry === 'string' ? { name: entry } : entry && typeof entry === 'object' ? entry as Record<string, unknown> : undefined
+    const name = text(value?.name, 60)
+    if (!name || seen.has(name.toLowerCase())) return []
+    seen.add(name.toLowerCase())
+    const note = text(value?.note, 200)
+    return [{ name, ...(note ? { note } : {}) }]
+  })
+}
+
+/**
+ * The GM's scale rule for a world with a rank ladder. Rank decides what an action even is: routine
+ * work for someone's standing needs no roll, uncertain work within reach is rolled, and work far
+ * above it isn't a plain roll at all. Without a ladder there is nothing to scale by.
+ */
+export function scaleGuidance(config: CampaignConfig): string {
+  const ranks = config.ranks ?? []
+  if (!ranks.length) return ''
+  const ladder = ranks.map((r) => (r.note ? `${r.name} (${r.note})` : r.name)).join(' → ')
+  return [
+    `Rank ladder, lowest to highest: ${ladder}.`,
+    'Judge every action against the rank of whoever attempts it. Something well within that rank is routine: no roll, narrate it done. Roll only when the outcome is uncertain or risky for someone of that rank. Something far above it is not a plain roll: say what it would take (help, preparation, a cost, time), or that it is beyond them for now. Opposition\'s rank sets how hard a contested action is; a lower-ranked foe rarely threatens a higher-ranked character, while a much stronger one can overwhelm even a good roll.',
+  ].join(' ')
 }
 
 export function normalizeCampaignStats(raw: unknown): CampaignStat[] | undefined {
@@ -230,6 +271,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
     relationships,
     dating: relationships && v.dating === true,
     ...(Array.isArray(v.stats) ? { stats: normalizeCampaignStats(v.stats) ?? [] } : {}),
+    ...(Array.isArray(v.ranks) ? { ranks: normalizeCampaignRanks(v.ranks) ?? [] } : {}),
     moves: v.moves.slice(0, 100)
       .filter((m): m is Record<string, unknown> => !!m && typeof m === 'object' && !!text((m as Record<string, unknown>).name, 200))
       .map((m, i) => ({

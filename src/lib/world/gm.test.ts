@@ -375,3 +375,28 @@ describe('bringing characters into the scene', () => {
     expect(turn.speakerIds).toEqual(['hana'])
   })
 })
+
+describe('rank scaling', () => {
+  const ranked = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' as const, ranks: [
+    { name: 'Novice' }, { name: 'Adept' }, { name: 'Master' }, { name: 'Legend', note: 'exceptional status, not a rung' },
+  ] }
+
+  it('gives the GM the ladder, the scale rule, and everyone\'s rank', () => {
+    const { system, user } = buildGmPrompt(ctx({
+      campaign: ranked,
+      playerRank: 'Legend',
+      roster: [{ id: 'ivo', name: 'Ivo Brand', occupation: 'lamplighter', rank: 'Novice' }],
+    }))
+    expect(system).toContain('Rank ladder, lowest to highest: Novice → Adept → Master → Legend (exceptional status, not a rung).')
+    expect(system).toContain('Something well within that rank is routine: no roll')
+    expect(system).toContain('not a plain roll')
+    expect(user).toContain('Wren Calloway\'s rank: Legend')
+    expect(user).toContain('- Ivo Brand (rank: Novice; lamplighter)')
+  })
+
+  it('adds nothing when the world has no ladder', () => {
+    const { system, user } = buildGmPrompt(ctx())
+    expect(system).not.toContain('Rank ladder')
+    expect(user).not.toContain('rank:')
+  })
+})

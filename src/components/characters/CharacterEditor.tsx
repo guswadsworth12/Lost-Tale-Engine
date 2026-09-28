@@ -34,6 +34,7 @@ import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
 import { CHARACTER_TAB_ALIASES } from '@/lib/ui/navigation'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { campaignStats, type CharacterSheet } from '@/lib/world/campaign'
+import { rankSelectOptions } from '@/components/worlds/rankLadder'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
@@ -288,6 +289,7 @@ export function CharacterEditor({
   const sheetWorld = worlds.find((w) => w.id === sheetWorldId)
   const sheetFields = sheetWorld?.campaign ? campaignStats(sheetWorld.campaign) : []
   const currentSheet = sheets[sheetWorldId]
+  const sheetRanks = sheetWorld?.campaign?.ranks ?? []
   const datingEnabled = modulesForWorld(editingWorld).dating
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
@@ -956,10 +958,28 @@ export function CharacterEditor({
           </SelectField>
           {!sheetWorldId ? <p className="text-sm text-text-muted">Choose a ruleset to create or edit its sheet.</p>
             : !sheetWorld?.campaign ? <p className="text-sm text-text-muted">This world's ruleset is unavailable. Existing sheets remain saved.</p>
-            : sheetFields.length === 0 ? <p className="text-sm text-text-muted">This world has no stats yet. Add them in its Story Rules tab first.</p>
+            : sheetFields.length === 0 && sheetRanks.length === 0 ? <p className="text-sm text-text-muted">This world has no stats yet. Add them in its Story Rules tab first.</p>
             : !currentSheet ? <Button variant="secondary" onClick={() => setSheets((current) => ({ ...current, [sheetWorldId]: { worldId: sheetWorldId, stats: Object.fromEntries(sheetFields.map((stat) => [stat.id, stat.valueMode === 'ability' || stat.valueMode === 'target' ? 10 : 0])) } }))}>Add sheet for {sheetWorld.name}</Button>
             : <>
               <Button variant="secondary" onClick={() => setSheets((current) => { const next = { ...current }; delete next[sheetWorldId]; return next })}>Remove this sheet</Button>
+              {/* Hidden when the world has no ladder, but a saved rank stays on the sheet untouched. */}
+              {sheetRanks.length > 0 && (
+                <SelectField
+                  label="Rank"
+                  hint={sheetRanks.find((rank) => rank.name === currentSheet.rank)?.note || (currentSheet.rank && !sheetRanks.some((rank) => rank.name === currentSheet.rank) ? 'This rank is no longer on the world\'s ladder. Choose a current rank or (none).' : 'The Game Master scales what this character can do by rank, lowest to highest.')}
+                  value={currentSheet.rank ?? ''}
+                  onChange={(event) => {
+                    const rank = event.target.value
+                    setSheets((current) => {
+                      const { rank: _previous, ...rest } = current[sheetWorldId]
+                      return { ...current, [sheetWorldId]: { ...rest, worldId: sheetWorldId, ...(rank ? { rank } : {}) } }
+                    })
+                  }}
+                >
+                  {rankSelectOptions(sheetRanks, currentSheet.rank).map((option) => <option key={`${option.disabled ? 'off-' : ''}${option.value}`} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                </SelectField>
+              )}
+              {sheetFields.length === 0 && <p className="text-sm text-text-muted">This world has no stats yet. Add them in its Story Rules tab.</p>}
               {sheetFields.map((stat) => (
               <NumberField
                 key={stat.id}
@@ -974,7 +994,7 @@ export function CharacterEditor({
                   const min = stat.valueMode === 'ability' ? 1 : stat.valueMode === 'target' ? 0 : -100
                   const max = stat.valueMode === 'ability' ? 30 : 100
                   if (Number.isInteger(value) && value >= min && value <= max) {
-                    setSheets((current) => ({ ...current, [sheetWorldId]: { worldId: sheetWorldId, stats: { ...current[sheetWorldId].stats, [stat.id]: value } } }))
+                    setSheets((current) => ({ ...current, [sheetWorldId]: { ...current[sheetWorldId], worldId: sheetWorldId, stats: { ...current[sheetWorldId].stats, [stat.id]: value } } }))
                   }
                 }}
               />

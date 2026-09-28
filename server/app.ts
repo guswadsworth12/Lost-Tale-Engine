@@ -29,7 +29,7 @@ import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
-import { isCampaignResolver, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
+import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
 import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
 
@@ -114,6 +114,7 @@ function normalizeCampaign(raw: unknown) {
     relationships: value.relationships === true,
     dating: value.dating === true && value.relationships === true,
     ...(Array.isArray(value.stats) ? { stats: normalizeCampaignStats(value.stats) ?? [] } : {}),
+    ...(Array.isArray(value.ranks) ? { ranks: normalizeCampaignRanks(value.ranks) ?? [] } : {}),
     moves: Array.isArray(value.moves) ? value.moves.slice(0, 100)
       .filter((move): move is Record<string, unknown> => !!move && typeof move === 'object')
       .map((move) => ({
@@ -578,6 +579,8 @@ app.get('/api/characters/roster', (req, res) => {
     // A "you only" card is never voiced by the AI, so the GM can't cast it either.
     gmEligible: c.gmEligible !== false && c.playerOnly !== true,
     playerOnly: c.playerOnly === true,
+    // Their standing in this world, so the GM can scale what they can do.
+    rank: sheetForWorld(c as Parameters<typeof sheetForWorld>[0], worldId)?.rank,
   })))
 })
 

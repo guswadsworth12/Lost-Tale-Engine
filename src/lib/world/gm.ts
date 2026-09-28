@@ -1,4 +1,4 @@
-import type { CampaignConfig, PbtaRoll } from './campaign'
+import { scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
 
 /**
  * The game master agent. Separate from the character agents on purpose: the GM paces the scene,
@@ -125,6 +125,8 @@ export interface GmRosterEntry {
   id: string
   name: string
   occupation?: string
+  /** Standing on the world's rank ladder, from their sheet. */
+  rank?: string
 }
 
 export interface GmContext {
@@ -154,6 +156,8 @@ export interface GmContext {
   canFork?: boolean
   loreIndex?: { id: string; title: string }[]
   playerName: string
+  /** The player's standing on the world's rank ladder, from their sheet. */
+  playerRank?: string
   transcript: { speaker: string; text: string }[]
   playerAction: string
   recordedMove?: RecordedMove
@@ -202,6 +206,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
     ...moveLines,
+    scaleGuidance(campaign),
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
     'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
     'You may add at most one available character to the scene when an entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. The added character responds this beat: list them in speakers too. Never add the player character.',
@@ -217,12 +222,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
   ].join('\n')
 
-  const rosterLine = ctx.roster.length
-    ? ctx.roster.map((r) => `- ${r.name}${r.occupation ? ` (${r.occupation})` : ''}`).join('\n')
-    : '- (nobody else is present)'
-  const availableLine = ctx.availableRoster?.length
-    ? ctx.availableRoster.map((r) => `- ${r.name}${r.occupation ? ` (${r.occupation})` : ''}`).join('\n')
-    : '- (none)'
+  const describe = (r: GmRosterEntry) => `- ${r.name}${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).length ? ` (${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).join('; ')})` : ''}`
+  const rosterLine = ctx.roster.length ? ctx.roster.map(describe).join('\n') : '- (nobody else is present)'
+  const availableLine = ctx.availableRoster?.length ? ctx.availableRoster.map(describe).join('\n') : '- (none)'
   const m = ctx.recordedMove
   const recorded = m
     ? m.resolver && m.resolver !== 'pbta'
@@ -250,6 +252,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     `Fork allowed this beat: ${ctx.canFork === false ? 'no — a nearby beat already forked' : 'yes, if a distinct continuing branch is truly needed'}`,
     ctx.loreIndex?.length ? `Callable public lorebook entries:\n${ctx.loreIndex.map((l) => `- ${l.title}`).join('\n')}` : '',
     ctx.transcript.length ? `Recent scene:\n${ctx.transcript.map((t) => `${t.speaker}: ${t.text}`).join('\n')}` : '',
+    ctx.playerRank ? `${ctx.playerName}'s rank: ${ctx.playerRank}` : '',
     `${ctx.playerName}'s declared action: ${ctx.playerAction.trim() || '(no action, only waiting)'}`,
     recorded,
     earlier,

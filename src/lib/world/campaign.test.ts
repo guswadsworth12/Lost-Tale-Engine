@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCharacterSheet, normalizeCharacterSheets, parseCampaignFile, resolveCampaignRoll, resolvePbtaRoll, sheetForWorld, sheetModifier, statForMove } from './campaign'
+import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCampaignRanks, normalizeCharacterSheet, normalizeCharacterSheets, parseCampaignFile, resolveCampaignRoll, resolvePbtaRoll, scaleGuidance, sheetForWorld, sheetModifier, statForMove } from './campaign'
 
 describe('campaign prompt emphasis', () => {
   it('keeps focus guidance and leaves natural/off turns free of campaign romance steering', () => {
@@ -86,5 +86,29 @@ describe('portable sheets and core check resolvers', () => {
     const under = preset('roll-under')
     expect(resolveCampaignRoll(under, under.moves[0], 12, [6, 6, 6])).toMatchObject({ total: 18, target: 12, degree: 'critical failure', tier: 'miss' })
     expect(resolveCampaignRoll(under, under.moves[0], 12, [2, 3, 4])).toMatchObject({ total: 9, degree: 'success', tier: 'strong' })
+  })
+})
+
+describe('rank ladders', () => {
+  it('keeps named, unique ranks in order, with optional notes', () => {
+    expect(normalizeCampaignRanks(['Novice', { name: 'Adept' }, { name: 'novice' }, { name: '' }, { name: 'Legend', note: ' beyond the ladder ' }])).toEqual([
+      { name: 'Novice' }, { name: 'Adept' }, { name: 'Legend', note: 'beyond the ladder' },
+    ])
+    expect(normalizeCampaignRanks('nope')).toBeUndefined()
+  })
+
+  it('keeps a character sheet rank', () => {
+    expect(normalizeCharacterSheet({ worldId: 'w', rank: ' Adept ', stats: { might: 2 } })).toEqual({ worldId: 'w', rank: 'Adept', stats: { might: 2 } })
+  })
+
+  it('survives a campaign file round trip', () => {
+    const file = campaignFileFrom({ ruleset: 'Custom', mode: 'mechanical', resolver: 'pbta', relationships: false, dating: false, moves: [{ id: 'm', name: 'Act', trigger: 'you act', stat: 'Might', strong: 's', mixed: 'm', miss: 'x' }], ranks: [{ name: 'Novice' }, { name: 'Master' }] })
+    expect(parseCampaignFile(file).ranks).toEqual([{ name: 'Novice' }, { name: 'Master' }])
+  })
+
+  it('writes a scale rule only when there is a ladder', () => {
+    const base = { ruleset: 'Custom', mode: 'mechanical' as const, resolver: 'pbta' as const, relationships: false, dating: false, moves: [] }
+    expect(scaleGuidance(base)).toBe('')
+    expect(scaleGuidance({ ...base, ranks: [{ name: 'Novice' }, { name: 'Master' }] })).toContain('Novice → Master')
   })
 })

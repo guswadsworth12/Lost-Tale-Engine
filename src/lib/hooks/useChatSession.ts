@@ -17,7 +17,7 @@ import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithT
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { createChatBackend } from '@/lib/api/createChatBackend'
 import type { ChatBackend } from '@/lib/api/chatBackend'
-import { campaignPrompt } from '@/lib/world/campaign'
+import { campaignPrompt, sheetForWorld } from '@/lib/world/campaign'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { romancePromptPolicy } from '@/lib/prompt/romanceEmphasis'
 import {
@@ -3151,7 +3151,7 @@ export function useChatSession(chatId: string | null) {
       const gmScenes = freshChat?.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => [] as Chat[]) : []
       const narratorRecap = freshChat ? storyRecapBlock(sceneChain(gmScenes, freshChat), 'narrator', { maxTokens: 900 }) : ''
       const fullRoster = await charactersApi.roster(world.id).catch(() =>
-        [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false })))
+        [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false, rank: sheetForWorld(c, world.id)?.rank })))
       const loadedIds = [character.id, ...(freshChat?.participants ?? [])]
       const presentIds = new Set(freshChat?.scene?.presentCharacterIds ?? loadedIds)
       // The card you play is never AI cast: matched by id, with the name check kept for stories
@@ -3189,6 +3189,7 @@ export function useChatSession(chatId: string | null) {
         canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
         loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
         playerName,
+        playerRank: playerCharacter ? sheetForWorld(playerCharacter, world.id)?.rank : undefined,
         transcript: upTo.slice(-13, -1).filter((m) => m.text.trim()).map((m) => ({
           speaker: m.role === 'user' ? playerName : m.name,
           text: m.text.slice(0, 800),

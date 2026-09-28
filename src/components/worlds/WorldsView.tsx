@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Globe, ImagePlus, Moon, Music, Plus, Star, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Globe, ImagePlus, Moon, Music, Plus, Star, X } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { worldsApi } from '@/lib/api/client'
 import type { CustomSceneFlag, GiftItem, GiftRarity, ItemDef, ItemEffect, RelationshipDimension, WorldCard } from '@/lib/types'
@@ -31,7 +31,8 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
-import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
+import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignRank, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
+import { MAX_RANKS, RANK_NAME_MAX, RANK_NOTE_MAX, moveItem, nextRankName, rankLadderProblem } from './rankLadder'
 import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
 import type { PromptItem } from '@/lib/prompt/items'
 
@@ -280,8 +281,75 @@ export function loadCampaignPreset(current: CampaignConfig, preset: CampaignConf
     relationships: current.relationships,
     dating: current.dating,
     stats: preset.stats?.map((stat) => ({ ...stat })),
+    // A rank ladder belongs to the world's setting, not the dice rules, so a preset without one keeps it.
+    ranks: (preset.ranks ?? current.ranks)?.map((rank) => ({ ...rank })),
     moves: preset.moves.map((move) => ({ ...move })),
   }
+}
+
+/**
+ * The world's rank ladder, lowest first. Rows keep stable keys across reorders so focus and typing
+ * follow the rung being moved; a ladder replaced from outside (preset, import) falls back to
+ * positional keys until it's edited here.
+ */
+function RankLadderEditor({ ranks, onChange }: { ranks: CampaignRank[]; onChange: (ranks: CampaignRank[]) => void }) {
+  const [keys, setKeys] = useState<string[]>(() => ranks.map(() => newId()))
+  const rowKeys = ranks.map((_, index) => keys[index] ?? `rank-row-${index}`)
+  const problem = rankLadderProblem(ranks)
+
+  const move = (index: number, delta: -1 | 1) => {
+    const key = rowKeys[index]
+    setKeys(moveItem(rowKeys, index, delta))
+    onChange(moveItem(ranks, index, delta))
+    // The button that was pressed goes disabled when its rung reaches either end; hand focus to the
+    // other arrow so a keyboard user can keep going.
+    requestAnimationFrame(() => {
+      const same = document.getElementById(`${key}-${delta < 0 ? 'up' : 'down'}`) as HTMLButtonElement | null
+      const other = document.getElementById(`${key}-${delta < 0 ? 'down' : 'up'}`) as HTMLButtonElement | null
+      if (same && !same.disabled) same.focus()
+      else other?.focus()
+    })
+  }
+  const update = (index: number, patch: Partial<CampaignRank>) =>
+    onChange(ranks.map((rank, i) => {
+      if (i !== index) return rank
+      const next = { ...rank, ...patch }
+      if (!next.note) delete next.note
+      return next
+    }))
+  const remove = (index: number) => {
+    setKeys(rowKeys.filter((_, i) => i !== index))
+    onChange(ranks.filter((_, i) => i !== index))
+  }
+  const add = () => {
+    if (ranks.length >= MAX_RANKS) return
+    setKeys([...rowKeys, newId()])
+    onChange([...ranks, { name: nextRankName(ranks) }])
+  }
+
+  return (
+    <div className="space-y-3">
+      {ranks.length === 0 && <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-text-muted">No ranks yet. Without a ladder the Game Master judges difficulty from the scene alone.</p>}
+      {ranks.map((rank, index) => {
+        const key = rowKeys[index]
+        const label = rank.name.trim() || `rank ${index + 1}`
+        return <div key={key} className="rounded-xl border border-border bg-bg-sunken p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm text-text">Rank {index + 1}{ranks.length > 1 && index === 0 ? ' · lowest' : ranks.length > 1 && index === ranks.length - 1 ? ' · highest' : ''}</strong>
+            <div className="flex items-center gap-1">
+              <Button id={`${key}-up`} variant="secondary" aria-label={`Move ${label} up`} title="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} strokeWidth={2} aria-hidden="true" /></Button>
+              <Button id={`${key}-down`} variant="secondary" aria-label={`Move ${label} down`} title="Move down" disabled={index === ranks.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} strokeWidth={2} aria-hidden="true" /></Button>
+              <Button variant="secondary" aria-label={`Remove ${label}`} onClick={() => remove(index)}>Remove</Button>
+            </div>
+          </div>
+          <TextField label="Name" maxLength={RANK_NAME_MAX} value={rank.name} onChange={(e) => update(index, { name: e.target.value })} />
+          <TextField label="Note (optional)" maxLength={RANK_NOTE_MAX} placeholder="e.g. exceptional status, not a rung" value={rank.note ?? ''} onChange={(e) => update(index, { note: e.target.value })} />
+        </div>
+      })}
+      {problem && <p className="text-xs text-danger">{problem}</p>}
+      <Button variant="secondary" disabled={ranks.length >= MAX_RANKS} onClick={add}>Add rank{ranks.length >= MAX_RANKS ? ` (maximum ${MAX_RANKS})` : ''}</Button>
+    </div>
+  )
 }
 
 function WorldEditor({
@@ -597,6 +665,7 @@ function WorldEditor({
   const sheetStats = campaignStats(campaign)
   const sheetNames = sheetStats.map((stat) => stat.name.trim().toLowerCase())
   const sheetStatsValid = sheetStats.length <= 30 && sheetNames.every(Boolean) && new Set(sheetNames).size === sheetNames.length
+  const rankLadderValid = !rankLadderProblem(campaign.ranks ?? [])
 
   const addSheetStat = () => {
     if (sheetStats.length >= 30) return
@@ -648,7 +717,7 @@ function WorldEditor({
           ) : (
             <span />
           )}
-          <Button variant="primary" onClick={save} disabled={!name.trim() || !sheetStatsValid || saving}>
+          <Button variant="primary" onClick={save} disabled={!name.trim() || !sheetStatsValid || !rankLadderValid || saving}>
             {saving ? 'Saving…' : world ? 'Save changes' : 'Create world'}
           </Button>
         </>
@@ -806,6 +875,10 @@ function WorldEditor({
               {!sheetStatsValid && <p className="text-xs text-danger">Give each stat a unique, nonempty name before saving.</p>}
               <Button variant="secondary" disabled={sheetStats.length >= 30} onClick={addSheetStat}>Add stat{sheetStats.length >= 30 ? ' (maximum 30)' : ''}</Button>
             </div>
+          </Section>
+          <Section title="Rank ladder" description="Lowest first. The Game Master judges what's routine, what needs a roll, and what's out of reach by each character's rank. Use a note for a rank outside the order, like an exceptional status." surface="bare">
+            {/* Always an array once edited, so clearing the last rung saves `[]` and the server drops the old ladder. */}
+            <RankLadderEditor ranks={campaign.ranks ?? []} onChange={(ranks) => setCampaign({ ...campaign, ranks })} />
           </Section>
           <Section title="Moves" description="These are editable campaign checks. Write the trigger and guidance for each result. Degree-specific effects beyond these core checks need custom rules." surface="bare">
             <div className="space-y-4">
