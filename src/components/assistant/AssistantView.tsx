@@ -17,9 +17,9 @@ const STARTERS = [
   { group: 'Brainstorm', label: 'Location', prompt: 'Help me brainstorm a memorable location. Ask about the world and tone, then suggest sensory details, a secret, and a reason to revisit it.' },
   { group: 'Brainstorm', label: 'Faction', prompt: 'Help me brainstorm a faction. Ask about the setting, then suggest its public goal, internal conflict, key figure, and how it affects the cast.' },
   { group: 'Brainstorm', label: 'Story arc', prompt: 'Help me plan a story arc. Ask about the cast and current conflict, then sketch a beginning, turning point, climax, and aftermath.' },
-  { group: 'Review & prep', label: 'Continuity check', prompt: 'Check my story notes for continuity issues. I will paste the relevant scenes or facts; flag contradictions and uncertainties, and cite the passages you used.' },
-  { group: 'Review & prep', label: 'Summary', prompt: 'Summarize the story material I paste next. Separate confirmed events, character changes, and open questions. Do not invent missing details.' },
-  { group: 'Review & prep', label: 'Dangling threads', prompt: 'Find dangling story threads in the notes I paste next. List unresolved promises, mysteries, and character goals, with possible follow-up scenes.' },
+  { group: 'Review & prep', label: 'Continuity check', prompt: 'Search my saved stories for continuity issues. Flag contradictions and uncertainties, and cite the saved material you used.' },
+  { group: 'Review & prep', label: 'Summary', prompt: 'Summarize my saved story setup. Separate confirmed events, character changes, and open questions. Do not invent missing details.' },
+  { group: 'Review & prep', label: 'Dangling threads', prompt: 'Search my saved stories for dangling threads. List unresolved promises, mysteries, and character goals, with possible follow-up scenes.' },
   { group: 'Review & prep', label: 'Encounter prep', prompt: 'Help me prepare an encounter. Ask for the setting, participants, and desired stakes, then suggest an opening, complications, and possible outcomes.' },
 ] as const
 
@@ -309,7 +309,7 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
                 <h1 className="font-display text-xl text-text">Writer's Room</h1>
                 <p className="mt-2 max-w-xl text-sm text-text-muted">
                   Build a playable world and cast, brainstorm, review your notes, or prepare the next scene. Choose a starting point, edit the brief, and send it when ready.
-                  For continuity work, paste the relevant story material into the conversation.
+                  Writer's Room searches your saved worlds, cast, lore, and stories locally for each request. Name a world or story to narrow the results. Relevant excerpts are sent to your configured model and shown with its reply.
                 </p>
                 <Button variant="primary" onClick={() => setBuilding(true)} className="mt-4 inline-flex items-center gap-2"><Sparkles size={15} /> Build a roleplay</Button>
                 {(['Brainstorm', 'Review & prep'] as const).map((group) => (
@@ -344,6 +344,16 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
                 )}
                 {m.attachment?.kind === 'character' && <CharacterCard message={m} onSave={() => void saveCharacter(m.id)} />}
                 {m.attachment?.kind === 'story' && <StoryCard message={m} />}
+                {!!m.sources?.length && <details className="mt-2 rounded-lg border border-border bg-bg-sunken/40 px-3 py-2 text-xs text-text-muted">
+                  <summary className="cursor-pointer">Local sources used ({m.sources.length})</summary>
+                  <ol className="mt-2 space-y-2">
+                    {m.sources.map((source, index) => <li key={`${source.kind}:${source.id}`}>
+                      <span className="font-medium text-text">[{index + 1}] {source.title}</span>
+                      <span className="ml-1 capitalize">· {source.kind}</span>
+                      <p className="mt-0.5 whitespace-pre-wrap">{source.excerpt}</p>
+                    </li>)}
+                  </ol>
+                </details>}
               </div>
             ))}
             {streamingText && (

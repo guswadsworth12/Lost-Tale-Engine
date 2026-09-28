@@ -50,7 +50,50 @@ export interface GmAdjudication {
   target?: number
   total?: number
   rollId?: string
+  /** A question answered from an earlier recorded roll that granted it, so no new dice were due. */
+  followUp?: boolean
   outcome: string
+}
+
+/** A recent recorded roll whose result still grants questions the player hasn't asked yet. */
+export interface EarlierRoll {
+  rollId: string
+  moveId?: string
+  moveName: string
+  tier?: PbtaRoll['tier']
+  degree?: string
+  total?: number
+  outcome: string
+  granted: number
+  remaining: number
+}
+
+const NUMBER_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5 }
+
+/** How many questions a move's outcome text grants ("Ask one useful question", "ask 3 questions"). 0 when it grants none. */
+export function grantedQuestions(outcome: string): number {
+  const m = /\bask\s+(\d+|a|an|one|two|three|four|five)\b[^.]{0,40}?\bquestions?\b/i.exec(outcome)
+  if (!m) return 0
+  const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()] ?? 0
+  return Math.max(0, Math.min(n, 5))
+}
+
+/**
+ * The latest recorded roll in the recent branch that still has granted questions left. Follow-up
+ * answers are counted by `rollId`, so the allowance runs out after exactly the number granted.
+ * Only the last `window` messages count: an old result doesn't cover a question asked much later.
+ */
+export function earlierRollFrom(branch: readonly { gm?: GmTurn }[], window = 10): EarlierRoll | undefined {
+  const recent = branch.slice(-window)
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const adj = recent[i].gm?.adjudication
+    if (adj?.source !== 'recorded_roll' || adj.followUp || !adj.rollId) continue
+    const granted = adj.tier === 'miss' ? 0 : grantedQuestions(adj.outcome)
+    const used = recent.slice(i + 1).filter((m) => m.gm?.adjudication?.followUp && m.gm.adjudication.rollId === adj.rollId).length
+    if (granted - used <= 0) return undefined
+    return { rollId: adj.rollId, moveId: adj.moveId, moveName: adj.moveName ?? 'the earlier roll', tier: adj.tier, degree: adj.degree, total: adj.total, outcome: adj.outcome, granted, remaining: granted - used }
+  }
+  return undefined
 }
 
 export interface GmTurn {
@@ -114,6 +157,8 @@ export interface GmContext {
   transcript: { speaker: string; text: string }[]
   playerAction: string
   recordedMove?: RecordedMove
+  /** A recent recorded roll whose granted questions aren't used up yet (`earlierRollFrom`). */
+  earlierRoll?: EarlierRoll
   maxSpeakers: number
 }
 
@@ -159,17 +204,17 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ...moveLines,
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
     'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
-    'You may add at most one available character to the scene when an entrance follows naturally from the fiction. That character becomes eligible to speak on the next beat. Never add the player character.',
+    'You may add at most one available character to the scene when an entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. The added character responds this beat: list them in speakers too. Never add the player character.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
-    'Established conditions are true when the player checks them, even if the outline expected their discovery later. On a successful investigation, give truthful, actionable evidence within the declared scope; never conceal it to preserve a planned reveal. If a recorded result grants questions, answer the player’s questions from that result without demanding another roll. Describe what the character can observe, not their private interpretation or next choice.',
+    'Established conditions are true when the player checks them, even if the outline expected their discovery later. On a successful investigation, give truthful, actionable evidence within the declared scope; never conceal it to preserve a planned reveal. If a recorded result grants questions, answer the player’s questions from that result without demanding another roll: set adjudication.followUp to true, name the earlier move, and put the answer in adjudication.outcome. A follow-up question never needs new dice. Describe what the character can observe, not their private interpretation or next choice.',
     'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
+    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
   ].join('\n')
 
   const rosterLine = ctx.roster.length
@@ -184,6 +229,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
       ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
       : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
     : 'Recorded roll: none this turn.'
+  const earlier = ctx.earlierRoll
+    ? `Earlier roll still in effect: ${ctx.earlierRoll.moveName} (${ctx.earlierRoll.total ?? '?'}${ctx.earlierRoll.tier ? `, ${TIER_LABEL[ctx.earlierRoll.tier]}` : ''}). It granted: ${ctx.earlierRoll.outcome} Questions left: ${ctx.earlierRoll.remaining}. If the player is asking one of these, answer it as a follow-up (adjudication.followUp true) and do not request a roll.`
+    : ''
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
     ctx.worldRules?.trim() ? `World rules: ${ctx.worldRules.trim()}` : '',
@@ -204,6 +252,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.transcript.length ? `Recent scene:\n${ctx.transcript.map((t) => `${t.speaker}: ${t.text}`).join('\n')}` : '',
     `${ctx.playerName}'s declared action: ${ctx.playerAction.trim() || '(no action, only waiting)'}`,
     recorded,
+    earlier,
     'JSON:',
   ].filter(Boolean).join('\n\n')
   return { system, user }
@@ -300,19 +349,6 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
 
   const pacing: GmPacing = obj.pacing === 'advance' || obj.pacing === 'cut' ? obj.pacing : 'linger'
 
-  const requested = Array.isArray(obj.speakers) ? obj.speakers.filter((s): s is string => typeof s === 'string') : []
-  const speakerIds: string[] = []
-  for (const name of requested) {
-    if (isPlayerCharacter(name, ctx.playerName)) {
-      corrections.push(`Ignored a request for ${ctx.playerName} to act; the player controls that character.`)
-      continue
-    }
-    const hit = matchRosterName(name, ctx.roster)
-    if (hit && !speakerIds.includes(hit.id)) speakerIds.push(hit.id)
-  }
-  if (speakerIds.length > ctx.maxSpeakers) speakerIds.length = ctx.maxSpeakers
-  if (!speakerIds.length && pacing !== 'cut') speakerIds.push(...defaultSpeakers(ctx))
-
   const requestedAdd = Array.isArray(obj.addCharacters) ? obj.addCharacters.filter((s): s is string => typeof s === 'string') : []
   const addCharacterIds: string[] = []
   for (const name of requestedAdd) {
@@ -321,6 +357,36 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     if (hit && !addCharacterIds.includes(hit.id)) addCharacterIds.push(hit.id)
     if (addCharacterIds.length === 1) break
   }
+
+  // An arrival answers in the beat that brings them in; waiting a beat left calls unanswered.
+  const added = (ctx.availableRoster ?? []).filter((r) => addCharacterIds.includes(r.id))
+  const requested = Array.isArray(obj.speakers) ? obj.speakers.filter((s): s is string => typeof s === 'string') : []
+  const speakerIds: string[] = []
+  for (const name of requested) {
+    if (isPlayerCharacter(name, ctx.playerName)) {
+      corrections.push(`Ignored a request for ${ctx.playerName} to act; the player controls that character.`)
+      continue
+    }
+    const hit = matchRosterName(name, [...ctx.roster, ...added])
+    if (hit && !speakerIds.includes(hit.id)) speakerIds.push(hit.id)
+  }
+  for (const entrant of added) if (!speakerIds.includes(entrant.id)) speakerIds.push(entrant.id)
+  if (!speakerIds.length && pacing !== 'cut') speakerIds.push(...defaultSpeakers(ctx))
+  if (!speakerIds.length && pacing !== 'cut' && !addCharacterIds.length) {
+    // Nobody is here, but the player spoke to someone who could join (a call, a shout, a summons).
+    // The first one named is the one being reached ("call Mae… bring Avi" reaches Mae).
+    const called = (ctx.availableRoster ?? [])
+      .filter((r) => !isPlayerCharacter(r.name, ctx.playerName))
+      .map((r) => ({ r, at: ctx.playerAction.search(new RegExp(`\\b${escapeRe(firstName(r.name))}\\b`, 'i')) }))
+      .filter((hit) => hit.at >= 0)
+      .sort((a, b) => a.at - b.at)[0]?.r
+    if (called) {
+      addCharacterIds.push(called.id)
+      speakerIds.push(called.id)
+      corrections.push(`Brought in ${called.name}: the player addressed them and nobody else was here to answer.`)
+    }
+  }
+  if (speakerIds.length > ctx.maxSpeakers) speakerIds.length = ctx.maxSpeakers
   const requestedFork = obj.fork && typeof obj.fork === 'object' && !Array.isArray(obj.fork)
     ? obj.fork as Record<string, unknown> : undefined
   const forkTitle = str(requestedFork?.title, 100)
@@ -341,6 +407,24 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     adjudication = recordedAdjudication(ctx.recordedMove)
     if (claimedTier && claimedTier !== ctx.recordedMove.tier) {
       corrections.push(`The GM narrated a ${claimedTier} result; the recorded ${ctx.recordedMove.tier} result stands.`)
+    }
+  } else if (rawAdj && ctx.earlierRoll && (rawAdj.followUp === true || (
+    str(rawAdj.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
+  ))) {
+    // A question the earlier roll already paid for: answered from that result, no new dice.
+    const e = ctx.earlierRoll
+    if (rawAdj.followUp !== true) corrections.push(`Answered from the earlier ${e.moveName} roll instead of asking for a new one.`)
+    adjudication = {
+      action: str(rawAdj.action, 500) || ctx.playerAction.trim().slice(0, 500),
+      source: 'recorded_roll',
+      followUp: true,
+      moveId: e.moveId,
+      moveName: e.moveName,
+      tier: e.tier,
+      degree: e.degree,
+      total: e.total,
+      rollId: e.rollId,
+      outcome: str(rawAdj.outcome, 1000) || narration || e.outcome,
     }
   } else if (rawAdj) {
     const action = str(rawAdj.action, 500) || ctx.playerAction.trim().slice(0, 500)
@@ -435,6 +519,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
 }
 
 export function adjudicationLabel(adj: GmAdjudication): string {
+  if (adj.source === 'recorded_roll' && adj.followUp) return `${adj.moveName}: question from the earlier ${adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : 'roll')} (${adj.total})`
   if (adj.source === 'recorded_roll') return `${adj.moveName}: ${adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : '')} (${adj.total}, recorded roll)`
   if (adj.source === 'roll_needed') return `${adj.moveName}: roll needed${adj.target !== undefined ? ` vs ${adj.target}` : ''}`
   return 'GM judgment (guided, not a rules result)'
@@ -457,8 +542,12 @@ export function formatGmMessage(turn: GmTurn): string {
  * `beatOrder` is the names of this beat's speakers in order, so each agent knows who has already
  * spoken (they are in its transcript and it may answer them) and who still will.
  */
-export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: string, beatOrder: string[] = []): string {
+export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: string, beatOrder: string[] = [], entering = false): string {
   const lines = [`The Game Master has ruled on this beat. Reply only as ${speakerName}.`]
+  if (entering) {
+    // An arrival only knows how it was reached; it hasn't been part of the scene until now.
+    lines.push(`${speakerName} has just been drawn into this scene by ${playerName}'s last action. Answer through the same means ${playerName} used to reach ${speakerName}, in this setting's terms: if ${playerName} called, messaged, or signalled from a distance, reply from wherever ${speakerName} is instead of appearing in person, unless the fiction has given them time to arrive. ${speakerName} does not know where anyone else is or what they are doing unless that has been established; do not report it.`)
+  }
   if (turn.adjudication?.source === 'recorded_roll') {
     lines.push(`Binding recorded result: ${adjudicationLabel(turn.adjudication)} — ${turn.adjudication.outcome} Do not reroll, change, or soften it.`)
     if (turn.adjudication.tier === 'miss') lines.push('The check failed. Apply only the recorded miss outcome; do not portray the attempted action as successful unless that outcome explicitly allows it.')

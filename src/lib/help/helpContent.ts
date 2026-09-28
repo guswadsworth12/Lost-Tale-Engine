@@ -932,7 +932,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           },
           {
             kind: 'text',
-            text: 'A starter fills in a brief you can edit before sending. For continuity work, paste the relevant story material. Enter sends, Shift+Enter adds a line, **Stop** cancels.',
+            text: 'A starter fills in a brief you can edit before sending. Writer’s Room searches saved worlds, cast, lore, and story text on this device and sends relevant excerpts to your configured model. Name a world or story to narrow the search. Open **Local sources used** below a reply to inspect its evidence. Enter sends, Shift+Enter adds a line, **Stop** cancels.',
           },
         ],
       },

@@ -24,6 +24,7 @@ import {
   GM_NAME,
   GM_SPEAKER_ID,
   branchConsequencesFrom,
+  earlierRollFrom,
   buildGmPrompt,
   formatGmMessage,
   gmDirectionFor,
@@ -590,9 +591,16 @@ export function useChatSession(chatId: string | null) {
   )
 
   /** Which character's card is "active" for a given speaker id, plus everyone else as a roster. */
+  // Cards of characters the GM brought in during the current beat. The reactive
+  // `participantCharacters` only catches up on the next render, too late for the arrival's own reply.
+  const arrivalsRef = useRef<Character[]>([])
+  useEffect(() => {
+    arrivalsRef.current = []
+  }, [chatId])
   const resolveSpeaker = useCallback(
     (speakerId: string | null | undefined) => {
-      const sceneCharacters = character ? [character, ...participantCharacters] : participantCharacters
+      const known = character ? [character, ...participantCharacters] : participantCharacters
+      const sceneCharacters = [...known, ...arrivalsRef.current.filter((a) => !known.some((c) => c.id === a.id))]
       const active = (speakerId && sceneCharacters.find((c) => c.id === speakerId)) || character
       const roster = active ? sceneCharacters.filter((c) => c.id !== active.id) : []
       return { active, roster }
@@ -3189,6 +3197,8 @@ export function useChatSession(chatId: string | null) {
         // the short "I roll" declaration that carried its binding dice result.
         playerAction: playerMsg.campaignRoll?.action || playerMsg.text,
         recordedMove: playerMsg.campaignRoll,
+        // Only when this turn has no dice of its own: a fresh roll always governs its own beat.
+        earlierRoll: playerMsg.campaignRoll ? undefined : earlierRollFrom(upTo.slice(0, -1)),
         maxSpeakers: 3,
       }
       const { system, user } = buildGmPrompt(ctx)
@@ -3250,6 +3260,8 @@ export function useChatSession(chatId: string | null) {
             : fresh.scene
           await chatsApi.update(chatId, { participants, scene })
         }
+        const arrivals = await Promise.all(turn.addCharacterIds.map((id) => charactersApi.get(id).catch(() => undefined)))
+        arrivalsRef.current = [...arrivalsRef.current, ...arrivals.filter((c): c is Character => !!c)]
       }
       if (turn.fork) {
         try {
@@ -3262,11 +3274,12 @@ export function useChatSession(chatId: string | null) {
       }
       const playerName = persona?.name || 'You'
       // Each agent is told who speaks before and after it this beat, so it can answer the others.
-      const nameOfAgent = (id: string) => (id === character.id ? character : participantCharacters.find((c) => c.id === id))?.card.name
+      const castNow = [...participantCharacters, ...arrivalsRef.current]
+      const nameOfAgent = (id: string) => (id === character.id ? character : castNow.find((c) => c.id === id))?.card.name
       const beatOrder = turn.speakerIds.map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
       let at = startAt + 1
       for (const speakerId of turn.speakerIds) {
-        const agent = speakerId === character.id ? character : participantCharacters.find((c) => c.id === speakerId)
+        const agent = speakerId === character.id ? character : castNow.find((c) => c.id === speakerId)
         if (!agent || isPlayerCharacter(agent.card.name, playerName)) continue
         const replyMsg: StoredMessage = {
           id: newId(),
@@ -3287,7 +3300,7 @@ export function useChatSession(chatId: string | null) {
         await runGeneration(history, replyMsg.id, [], {
           speakerId: agent.id,
           extraStyleGuidance: [
-            gmDirectionFor(turn, agent.card.name, playerName, beatOrder),
+            gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
             ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
           ].join('\n\n'),
         })

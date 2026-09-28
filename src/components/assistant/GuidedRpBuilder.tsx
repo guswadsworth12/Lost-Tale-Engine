@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Sparkles, Trash2 } from 'lucide-react'
-import { charactersApi, chatsApi, messagesApi, objectivesApi, worldsApi } from '@/lib/api/client'
+import { assistantLibraryApi, charactersApi, chatsApi, messagesApi, objectivesApi, worldsApi } from '@/lib/api/client'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
@@ -66,7 +66,10 @@ export function GuidedRpBuilder({ onClose, onCreated, conversationBrief }: { onC
     if (!draft.brief.trim() || generating || checkpoint.worldId) return
     setGenerating(true)
     setError('')
-    try { setDraft(await draftRpFromBrief(client, draft)) }
+    try {
+      const sources = await assistantLibraryApi.search(draft.brief)
+      setDraft(await draftRpFromBrief(client, draft, undefined, sources))
+    }
     catch (cause) { setError(errorMessage(cause)) }
     finally { setGenerating(false) }
   }

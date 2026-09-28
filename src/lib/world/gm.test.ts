@@ -4,7 +4,9 @@ import {
   branchConsequencesFrom,
   buildGmPrompt,
   formatGmMessage,
+  earlierRollFrom,
   gmDirectionFor,
+  grantedQuestions,
   isPlayerCharacter,
   parseGmTurn,
   type GmContext,
@@ -225,7 +227,8 @@ describe('Game Master decision validation', () => {
       fork: { title: 'The road north', reason: 'The party split to follow two leads.' },
     }), context, ids)
     expect(turn.addCharacterIds).toEqual(['mira'])
-    expect(turn.speakerIds).toEqual(['hana'])
+    // The arrival answers in the same beat, after whoever the GM listed.
+    expect(turn.speakerIds).toEqual(['hana', 'mira'])
     expect(turn.fork).toEqual({ title: 'The road north', reason: 'The party split to follow two leads.' })
     expect(parseGmTurn('{"fork":{"title":"Another","reason":"Split"}}', ctx({ canFork: false }), ids).fork).toBeUndefined()
   })
@@ -278,5 +281,97 @@ describe('group interplay and scene moves', () => {
     expect(last).toContain('Ivo Brand and Tobin Reed just spoke this beat. Hana Pike can respond to them as readily as to Wren Calloway.')
     expect(last).toContain('Never speak or act for Wren Calloway or any other carded character.')
     expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).not.toContain('just spoke')
+  })
+})
+
+describe('questions earned by an earlier roll', () => {
+  const read = { ...STARTER_PBTA_CAMPAIGN.moves[0], id: 'read', name: 'Read the Threads', mixed: 'Ask one useful question; the GM also reveals a complication.' }
+  const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' as const, moves: [read, ...STARTER_PBTA_CAMPAIGN.moves] }
+  const rolled = (tier: 'strong' | 'mixed' | 'miss', outcome: string, rollId = 'r1') => ({
+    gm: { adjudication: { action: 'I read the marks.', source: 'recorded_roll' as const, moveId: 'read', moveName: 'Read the Threads', tier, total: 8, rollId, outcome } },
+  }) as never
+  const followUp = (rollId = 'r1') => ({ gm: { adjudication: { action: 'q', source: 'recorded_roll' as const, followUp: true, rollId, outcome: 'answer' } } }) as never
+
+  it('reads how many questions an outcome grants', () => {
+    expect(grantedQuestions('Ask one useful question; the GM also reveals a complication.')).toBe(1)
+    expect(grantedQuestions('Ask 3 questions from the list.')).toBe(3)
+    expect(grantedQuestions('ask two good questions')).toBe(2)
+    expect(grantedQuestions('You learn something troubling.')).toBe(0)
+  })
+
+  it('keeps an allowance open until it is used, never for a miss, and only for recent rolls', () => {
+    const hit = rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')
+    expect(earlierRollFrom([hit])).toMatchObject({ moveName: 'Read the Threads', granted: 1, remaining: 1 })
+    expect(earlierRollFrom([hit, followUp()])).toBeUndefined()
+    expect(earlierRollFrom([rolled('miss', 'Ask one question anyway.')])).toBeUndefined()
+    expect(earlierRollFrom([hit, ...Array.from({ length: 10 }, () => ({}) as never)])).toBeUndefined()
+  })
+
+  it('answers the earned question without new dice when the GM marks it as a follow-up', () => {
+    const earlierRoll = earlierRollFrom([rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')])
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The scraped glyphs show no spellwork at all.',
+      adjudication: { action: 'Is it magical?', move: 'Read the Threads', followUp: true, outcome: 'Not magical: physical tampering.' },
+    }), ctx({ campaign, earlierRoll, roster: [], playerAction: 'Can I tell if the interference is magical?' }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true, rollId: 'r1', outcome: 'Not magical: physical tampering.' })
+    expect(formatGmMessage(turn)).toContain('question from the earlier 7–9 mixed hit (8)')
+  })
+
+  it('accepts the earlier result when the GM reuses its tier instead of discarding it for a new roll', () => {
+    const earlierRoll = earlierRollFrom([rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')])
+    const turn = parseGmTurn(JSON.stringify({
+      adjudication: { action: 'Is it magical?', move: 'Read the Threads', tier: 'mixed', outcome: 'It is not magical.' },
+    }), ctx({ campaign, earlierRoll, roster: [] }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true })
+    expect(turn.corrections?.join(' ')).toContain('Answered from the earlier Read the Threads roll')
+  })
+
+  it('still asks for a roll when no earlier result covers the question', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      adjudication: { action: 'Is it magical?', move: 'Read the Threads', tier: 'mixed', outcome: 'It is not magical.' },
+    }), ctx({ campaign, roster: [] }), ids)
+    expect(turn.adjudication?.source).toBe('roll_needed')
+  })
+
+  it('tells the GM about the open allowance', () => {
+    const earlierRoll = earlierRollFrom([rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')])
+    const { user } = buildGmPrompt(ctx({ campaign, earlierRoll }))
+    expect(user).toContain('Earlier roll still in effect: Read the Threads')
+    expect(user).toContain('Questions left: 1')
+  })
+})
+
+describe('bringing characters into the scene', () => {
+  const available = [{ id: 'mae', name: 'Mae Rook' }, { id: 'avi', name: 'Avi Pyre' }]
+
+  it('lets a character the GM adds answer in the same beat when nobody else is here', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', addCharacters: ['Mae Rook'], speakers: [] }),
+      ctx({ roster: [], availableRoster: available, playerAction: 'I call Mae through the link.' }), ids)
+    expect(turn.addCharacterIds).toEqual(['mae'])
+    expect(turn.speakerIds).toEqual(['mae'])
+  })
+
+  it('brings in the character the player addressed when the GM added nobody and nobody is here', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [] }),
+      ctx({ roster: [], availableRoster: [...available].reverse(), playerAction: 'I call Mae. "Mae, meet me at the aqueduct and bring Avi."' }), ids)
+    expect(turn.addCharacterIds).toEqual(['mae'])
+    expect(turn.speakerIds).toEqual(['mae'])
+    expect(turn.corrections?.join(' ')).toContain('Brought in Mae Rook')
+  })
+
+  it('tells an arriving character to answer the way the player reached them, not to report others', () => {
+    const turn = parseGmTurn(JSON.stringify({ addCharacters: ['Mae Rook'], speakers: [] }),
+      ctx({ roster: [], availableRoster: available, playerAction: 'I call Mae through the link.' }), ids)
+    const direction = gmDirectionFor(turn, 'Mae Rook', 'Wren Calloway', ['Mae Rook'], true)
+    expect(direction).toContain('reply from wherever Mae Rook is instead of appearing in person')
+    expect(direction).toContain('does not know where anyone else is')
+    expect(gmDirectionFor(turn, 'Mae Rook', 'Wren Calloway', ['Mae Rook'])).not.toContain('drawn into this scene')
+  })
+
+  it('does not pull someone in when a present character can answer', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [] }),
+      ctx({ availableRoster: available, playerAction: '"Mae would love this," I tell Hana.' }), ids)
+    expect(turn.addCharacterIds).toBeUndefined()
+    expect(turn.speakerIds).toEqual(['hana'])
   })
 })

@@ -15,6 +15,7 @@ import type {
   WorldInfoBook,
 } from '@/lib/types'
 import type { AssistantThread } from '@/lib/assistant/thread'
+import type { LocalSource } from '@/lib/assistant/localSources'
 import { toastError, toastSuccess, useToastStore } from '@/lib/store/useToastStore'
 
 // The local API server runs on the same machine, but a wedged Node process (or a very large
@@ -150,6 +151,12 @@ export const charactersApi = {
 export const personasApi = makeResource<Persona>('personas', '/personas')
 /** Plain assistant conversations (`lib/assistant/`) — no character, no relationship track. */
 export const assistantThreadsApi = makeResource<AssistantThread>('assistant-threads', '/assistant-threads')
+export const assistantLibraryApi = {
+  /** Never throws: a failed search just means the reply goes out without saved sources. */
+  search(query: string): Promise<LocalSource[]> {
+    return request<LocalSource[]>('GET', `/assistant-library/search?q=${encodeURIComponent(query)}`).catch(() => [])
+  },
+}
 export const chatsApi = {
   ...makeResource<Chat>('chats', '/chats'),
   /** The server draws and records both dice before the GM sees the result. */

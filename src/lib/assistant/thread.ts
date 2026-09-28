@@ -1,6 +1,7 @@
 import type { CharacterCardData, Lorebook } from '@/lib/characters/cardSpec'
 import type { Outfit } from '@/lib/vn/outfits'
 import type { DraftedBonds, DraftedProfile } from '@/lib/characters/aiAssist'
+import type { LocalSource } from '@/lib/assistant/localSources'
 
 /**
  * An assistant thread: a plain model conversation, stored whole. Deliberately not a `Chat` — that
@@ -54,6 +55,8 @@ export interface AssistantMessage {
   text: string
   createdAt: number
   attachment?: AssistantAttachment
+  /** Saved search hits actually shown to the model for this answer. */
+  sources?: LocalSource[]
   /** Set when generation failed, so the turn renders as an error rather than an empty reply. */
   error?: string
 }

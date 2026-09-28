@@ -28,7 +28,10 @@ import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
+import { searchLocalLibrary } from './assistantSearch.ts'
 import { isCampaignResolver, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
+import type { Character } from '../src/lib/characters/cardSpec.ts'
+import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
 
 /**
  * Express app: REST routes for characters, personas, chats/messages, world info books, sampler
@@ -1194,6 +1197,20 @@ app.delete('/api/themes/:id', (req, res) => {
 //
 // Plain model conversations, with no character and no relationship state. One row per thread with
 // its messages inside, so the whole feature is a single resource (see `db.ts` for why).
+
+app.get('/api/assistant-library/search', (req, res) => {
+  const query = typeof req.query.q === 'string' ? req.query.q : ''
+  if (!query.trim()) return res.json([])
+  res.json(searchLocalLibrary(query, {
+    worlds: worldStore.list() as unknown as WorldCard[],
+    characters: characterStore.list() as unknown as Character[],
+    books: worldInfoBookStore.list() as unknown as WorldInfoBook[],
+    chats: chatStore.list() as unknown as Chat[],
+    messages: messageStore.list() as unknown as StoredMessage[],
+    objectives: objectiveStore.list() as unknown as Objective[],
+    facts: chatFactStore.list() as unknown as ChatFact[],
+  }))
+})
 
 app.get('/api/assistant-threads', (_req, res) => {
   // Newest first: the list is a recency list, and a thread is picked up where it was left.
