@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Send, Square, Sparkles, Trash2, UserPlus } from 'lucide-react'
-import { assistantThreadsApi } from '@/lib/api/client'
+import { assistantThreadsApi, charactersApi } from '@/lib/api/client'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { useAssistant } from '@/lib/assistant/useAssistant'
 import { detectProducer, PRODUCER_DETAIL, PRODUCER_LABEL, type ProducerKind } from '@/lib/assistant/requests'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { GuidedRpBuilder } from '@/components/assistant/GuidedRpBuilder'
+import { CharacterUpdateCard } from '@/components/assistant/CharacterUpdateCard'
 
 /** Writing workspace backed by ordinary assistant threads and their existing producers. */
 
@@ -164,8 +165,11 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
   const [refreshKey, setRefreshKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const { thread, load, isBusy, streamingText, progress, sendMessage, produceCharacter, produceStory, saveCharacter, abort } =
+  const { thread, load, isBusy, streamingText, progress, sendMessage, produceCharacter, produceStory, produceUpdate, applyUpdate, saveCharacter, abort } =
     useAssistant(threadId, () => setRefreshKey((k) => k + 1))
+  // Saved names let the composer tell "update Ash's sheet" from "make a new character".
+  const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
+  const characterNames = useMemo(() => characters.map((c) => c.card.name).filter(Boolean), [characters])
 
   // Newest thread selected on first load, so the view is never an empty shell when history exists.
   useEffect(() => {
@@ -185,11 +189,12 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
     if (!pending || threadId !== pending.id || thread?.id !== pending.id) return
     setPending(null)
     void (async () => {
+      if (pending.kind === 'update') return produceUpdate(pending.text)
       await sendMessage(pending.text)
       if (pending.kind === 'character') await produceCharacter(pending.text)
       if (pending.kind === 'story') await produceStory(pending.text)
     })()
-  }, [pending, threadId, thread?.id, sendMessage, produceCharacter, produceStory])
+  }, [pending, threadId, thread?.id, sendMessage, produceCharacter, produceStory, produceUpdate])
 
   const newThread = async () => {
     try {
@@ -212,7 +217,7 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
   }
 
   /** What the composer's text looks like it's asking to have made, for the offer chip. */
-  const offered: ProducerKind | undefined = useMemo(() => detectProducer(draft), [draft])
+  const offered: ProducerKind | undefined = useMemo(() => detectProducer(draft, characterNames), [draft, characterNames])
 
   const submit = async () => {
     const text = draft.trim()
@@ -248,6 +253,8 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
       return
     }
     setDraft('')
+    // An update's draft card is the reply, so it skips the ordinary chat answer.
+    if (kind === 'update') return produceUpdate(text)
     // The brief is kept in the thread as the user's own turn, so the request reads as a request.
     await sendMessage(text)
     if (kind === 'character') await produceCharacter(text)
@@ -344,6 +351,9 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
                 )}
                 {m.attachment?.kind === 'character' && <CharacterCard message={m} onSave={() => void saveCharacter(m.id)} />}
                 {m.attachment?.kind === 'story' && <StoryCard message={m} />}
+                {m.attachment?.kind === 'update' && m.attachment.update && (
+                  <CharacterUpdateCard draft={m.attachment.update} onApply={(edited) => applyUpdate(m.id, edited)} />
+                )}
                 {!!m.sources?.length && <details className="mt-2 rounded-lg border border-border bg-bg-sunken/40 px-3 py-2 text-xs text-text-muted">
                   <summary className="cursor-pointer">Local sources used ({m.sources.length})</summary>
                   <ol className="mt-2 space-y-2">

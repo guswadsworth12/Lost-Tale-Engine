@@ -15,11 +15,35 @@ import type { LocalSource } from '@/lib/assistant/localSources'
 
 /** What a turn produced beyond its text, when the assistant was asked to *make* something. */
 export interface AssistantAttachment {
-  kind: 'character' | 'story'
+  kind: 'character' | 'story' | 'update'
   /** A generated character, ready to save into the library. */
   character?: GeneratedCharacter
   /** A generated long-form story. */
   story?: GeneratedStory
+  /** A proposed change to a saved character, applied only when the writer confirms it. */
+  update?: CharacterUpdateDraft
+}
+
+/** Text fields Writer's Room may propose changing on a saved character. List fields hold one entry per line. */
+export type CharacterUpdateField = 'description' | 'personality' | 'playerDescription' | 'goals' | 'likes'
+
+/**
+ * A reviewed-before-saved change to an existing character: a character sheet for one world's
+ * rules, and/or a few profile fields. Nothing is written until the writer applies it.
+ */
+export interface CharacterUpdateDraft {
+  characterId: string
+  characterName: string
+  /** The world whose sheet the stats belong to (`Character.sheets[worldId]`). */
+  worldId?: string
+  worldName?: string
+  /** One row per sheet field of that world, keyed by the world's stat id. `before` is the saved value. */
+  stats?: { id: string; name: string; before?: number; after: number; reason?: string }[]
+  fields?: { key: CharacterUpdateField; label: string; before: string; after: string }[]
+  /** One or two sentences on what changes and why. */
+  summary: string
+  /** Set once applied, so the card shows it was saved and can't apply twice. */
+  appliedAt?: number
 }
 
 /** A finished character draft, in the shape the character library already accepts. */

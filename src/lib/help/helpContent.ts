@@ -932,7 +932,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           },
           {
             kind: 'text',
-            text: 'A starter fills in a brief you can edit before sending. Writer’s Room searches saved worlds, cast, lore, and story text on this device and sends relevant excerpts to your configured model. Name a world or story to narrow the search. Open **Local sources used** below a reply to inspect its evidence. Enter sends, Shift+Enter adds a line, **Stop** cancels.',
+            text: 'A starter fills in a brief you can edit before sending. Writer’s Room searches saved worlds, cast, lore, and story text on this device and sends relevant excerpts to your configured model. Name a world or story to narrow the search. Open **Local sources used** below a reply to inspect its evidence. To change a saved character, name them and say what to change, for example \u201cgive Ash\u2019s character sheet stats for this world\u201d: **Update this character** drafts it (stats for that world\u2019s rules, with a reason for each) on a card you can edit, and **Apply** saves it. Enter sends, Shift+Enter adds a line, **Stop** cancels.',
           },
         ],
       },

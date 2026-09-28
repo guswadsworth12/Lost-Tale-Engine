@@ -85,3 +85,31 @@ describe('detectProducer — what it must leave alone', () => {
     expect(detectProducer('write it chapter by chapter')).toBe('story')
   })
 })
+
+describe('detectProducer — updating a saved character', () => {
+  const names = ['Ash Vale', 'Mira Voss', 'Oren Hale']
+
+  it('offers an update when a saved character is named with something to change', () => {
+    for (const text of [
+      'Help me create a character sheet for Ash Vale in Amber Gate',
+      "Make Ash's character sheet for the PbtA rules",
+      'Ash has no stats yet, can you give him some?',
+      'Update Mira Voss with a better backstory',
+      "Flesh out Oren's personality",
+    ]) {
+      expect(detectProducer(text, names), text).toBe('update')
+    }
+  })
+
+  it('still reads a new character or a story as what it is', () => {
+    expect(detectProducer('Make a new character who is Ash Vale\'s sister', names)).toBe('character')
+    expect(detectProducer('Write a story about Mira Voss and the harbor', names)).toBe('story')
+  })
+
+  it('leaves questions and mentions alone, and needs the names to match', () => {
+    expect(detectProducer("What are Ash's stats?", names)).toBeUndefined()
+    expect(detectProducer('Ash said something funny today', names)).toBeUndefined()
+    expect(detectProducer('Update the character sheet for Ash', [])).toBe('character')
+    expect(detectProducer('Give the ash tree some stats', ['Ashley Cole'])).not.toBe('update')
+  })
+})

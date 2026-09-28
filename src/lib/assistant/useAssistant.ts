@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { assistantLibraryApi, assistantThreadsApi, charactersApi, instructTemplatesApi } from '@/lib/api/client'
+import { assistantLibraryApi, assistantThreadsApi, charactersApi, instructTemplatesApi, worldsApi } from '@/lib/api/client'
+import { generateWithTimeout } from '@/lib/api/generateWithTimeout'
+import { buildUpdatePrompt, findTargetCharacter, findTargetWorld, parseUpdateResponse, updatePatch, wantsSheet } from '@/lib/assistant/characterUpdate'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { createChatBackend } from '@/lib/api/createChatBackend'
 import { cleanModelOutput } from '@/lib/text/slop'
@@ -13,7 +15,7 @@ import { formatLocalSources } from '@/lib/assistant/localSources'
 import { detectProducer, type ProducerKind } from '@/lib/assistant/requests'
 import { DEFAULT_CHAPTER_COUNT, planStory, requestedChapterCount, writeChapter } from '@/lib/assistant/story'
 import { generatedToCharacterInput } from '@/lib/assistant/saveCharacter'
-import { promptTurnsOf, threadTitleFrom, type AssistantMessage, type AssistantThread } from '@/lib/assistant/thread'
+import { promptTurnsOf, threadTitleFrom, type AssistantMessage, type AssistantThread, type CharacterUpdateDraft } from '@/lib/assistant/thread'
 
 /**
  * The assistant thread's own session: send, stream, and the two producers.
@@ -322,6 +324,96 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     [persist, threadId],
   )
 
+  /**
+   * Drafts a change to a saved character, e.g. a character sheet for a world's rules. The draft is
+   * attached for review; nothing touches the character until `applyUpdate`. Adds the request as the
+   * writer's own turn itself, with no ordinary chat reply first: the draft card is the reply.
+   */
+  const produceUpdate = useCallback(
+    async (request: string) => {
+      const id = threadId
+      const trimmed = request.trim()
+      if (!id || !trimmed || isBusy) return
+      const controller = new AbortController()
+      abortRef.current = controller
+      setIsBusy(true)
+      setProgress({ kind: 'update', label: 'Reading the character' })
+      const withUser: AssistantMessage[] = [...(threadRef.current?.messages ?? []), { id: newId(), role: 'user', text: trimmed, createdAt: Date.now() }]
+      await persist(withUser, id)
+      const reply = (message: Omit<AssistantMessage, 'id' | 'role' | 'createdAt'>) =>
+        persist([...withUser, { id: newId(), role: 'assistant', createdAt: Date.now(), ...message }], id)
+      try {
+        const [characters, worlds] = await Promise.all([charactersApi.list(), worldsApi.list()])
+        const target = findTargetCharacter(trimmed, characters)
+        if (!target) {
+          await reply({ text: "I couldn't tell which saved character you mean. Name them the way they appear in Cast." })
+          return
+        }
+        if ('ambiguous' in target) {
+          await reply({ text: `Which one do you mean: ${target.ambiguous.map((c) => c.card.name).join(', ')}? Use their full name.` })
+          return
+        }
+        const { character } = target
+        const includeSheet = wantsSheet(trimmed)
+        const world = includeSheet ? findTargetWorld(trimmed, worlds, character) : undefined
+        if (includeSheet && !world) {
+          await reply({ text: `${character.card.name} isn't tied to a world with dice rules yet. Name the world, or give it a ruleset in its editor (Story Rules), and ask again.` })
+          return
+        }
+        setProgress({ kind: 'update', label: world ? `Drafting ${character.card.name}'s sheet for ${world.name}` : `Drafting changes to ${character.card.name}` })
+        const raw = await generateWithTimeout(
+          client,
+          {
+            prompt: buildUpdatePrompt({ request: trimmed, character, world, includeSheet }),
+            max_context_length: await client.getEffectiveMaxContext(settings.sampler.max_context_length),
+            max_length: 1400,
+            temperature: 0.5,
+            top_p: 0.95,
+            top_k: 0,
+            min_p: 0.05,
+            typical: 1,
+            tfs: 1,
+            rep_pen: 1.1,
+            rep_pen_range: 1024,
+            rep_pen_slope: 0.7,
+          },
+          'Draft character update',
+          controller.signal,
+        )
+        const draft = parseUpdateResponse(raw, { character, world, includeSheet })
+        await reply({ text: draft.summary, attachment: { kind: 'update', update: draft } })
+      } catch (e) {
+        if (!isAbortError(e)) await reply({ text: '', error: errorMessage(e) })
+      } finally {
+        setProgress(null)
+        setIsBusy(false)
+        abortRef.current = null
+      }
+    },
+    [client, isBusy, persist, settings.sampler.max_context_length, threadId],
+  )
+
+  /** Saves a reviewed update to the character, merging a sheet into the character's other sheets. */
+  const applyUpdate = useCallback(
+    async (messageId: string, edited: CharacterUpdateDraft) => {
+      const id = threadId
+      if (!id) return
+      const character = await charactersApi.get(edited.characterId)
+      if (!character) throw new Error(`${edited.characterName} is no longer in your library.`)
+      await charactersApi.update(character.id, updatePatch(character, edited))
+      toastSuccess(`Saved changes to ${edited.characterName}.`)
+      await persist(
+        (threadRef.current?.messages ?? []).map((m) =>
+          m.id === messageId && m.attachment?.update
+            ? { ...m, attachment: { ...m.attachment, update: { ...edited, appliedAt: Date.now() } } }
+            : m,
+        ),
+        id,
+      )
+    },
+    [persist, threadId],
+  )
+
   return {
     thread,
     load,
@@ -331,6 +423,8 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     sendMessage,
     produceCharacter,
     produceStory,
+    produceUpdate,
+    applyUpdate,
     saveCharacter,
     abort,
     detectProducer,
