@@ -28,12 +28,13 @@ export interface RpDraft {
   lore: RpLoreDraft[]
   player: RpCastDraft
   cast: RpCastDraft[]
+  goal: string
   opening: string
 }
 
 export const EMPTY_RP_DRAFT: RpDraft = {
   brief: '', title: '', template: 'freeform', ruleset: '', sheetStats: {}, description: '', rules: '', gmNotes: '',
-  lore: [], player: { name: 'You', description: '', personality: '' }, cast: [{ name: '', description: '', personality: '' }], opening: '',
+  lore: [], player: { name: 'You', description: '', personality: '' }, cast: [{ name: '', description: '', personality: '' }], goal: '', opening: '',
 }
 
 const string = (value: unknown, limit = 4000) => typeof value === 'string' ? value.trim().slice(0, limit) : ''
@@ -65,6 +66,7 @@ export function parseRpDraft(raw: string, previous: RpDraft): RpDraft {
     lore,
     player: player.name ? player : previous.player,
     cast: npc,
+    goal: string(value.goal, 200),
     opening: string(value.opening),
   }
 }
@@ -74,7 +76,7 @@ export async function draftRpFromBrief(client: ChatBackend, previous: RpDraft, s
     'You are helping a writer set up a playable roleplay. Make a coherent, specific setting with a reason for the cast to meet. The writer will review every field before anything is saved.',
     `Writer's idea: ${previous.brief.trim()}`,
     `Style: ${previous.template}. Ruleset choice: ${CAMPAIGN_PRESETS.find((p) => p.id === previous.ruleset)?.label ?? 'narrative, no dice checks'}. Do not invent or copy a published ruleset.`,
-    'Output ONLY JSON with this shape: {"world":{"name":"short title","description":"setting, tone and current conflict","rules":"world truths and boundaries, not dice rules","gmNotes":"one concrete hidden truth for the GM"},"lore":[{"name":"place or faction","detail":"what matters in play"}],"player":{"name":"suggested player name","description":"who they are","personality":"how they act"},"cast":[{"name":"NPC name","description":"role, appearance, motive and connection to the player","personality":"speech and behavior"}],"opening":"a present-tense opening scene with a clear first choice for the player"}.',
+    'Output ONLY JSON with this shape: {"world":{"name":"short title","description":"setting, tone and current conflict","rules":"world truths and boundaries, not dice rules","gmNotes":"one concrete hidden truth for the GM"},"lore":[{"name":"place or faction","detail":"what matters in play"}],"player":{"name":"suggested player name","description":"who they are","personality":"how they act"},"cast":[{"name":"NPC name","description":"role, appearance, motive and connection to the player","personality":"speech and behavior"}],"goal":"a concrete first objective for the player","opening":"a present-tense opening scene with a clear first choice for the player"}.',
     'Include 2 or 3 lore entries and 2 or 3 NPCs. Give each NPC a distinct purpose. Keep secrets in gmNotes, never in public lore. Write plain prose; avoid generic fantasy filler.',
     'JSON:',
   ].join('\n\n')

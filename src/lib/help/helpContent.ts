@@ -915,7 +915,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           },
           {
             kind: 'text',
-            text: 'Choose a check preset in **Rules & opening** to give your player character a starting sheet. Customize the world’s moves and stats in Worlds and the saved sheet in Cast after setup. Put secrets in **GM only notes**, not public lore.',
+            text: 'Choose a check preset in **Rules & opening** to give your player character a starting sheet, and optionally set a first goal for the Story panel. Customize the world’s moves and stats in Worlds and the saved sheet in Cast after setup. Put secrets in **GM only notes**, not public lore.',
           },
         ],
       },

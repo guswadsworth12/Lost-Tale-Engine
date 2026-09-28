@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Sparkles, Trash2 } from 'lucide-react'
-import { charactersApi, chatsApi, messagesApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, messagesApi, objectivesApi, worldsApi } from '@/lib/api/client'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
@@ -20,6 +20,7 @@ interface Checkpoint {
   playerId?: string
   castIds: Record<number, string>
   chatId?: string
+  objectiveId?: string
 }
 
 function savedDraft(): RpDraft {
@@ -132,6 +133,15 @@ export function GuidedRpBuilder({ onClose, onCreated, conversationBrief }: { onC
       const messages = await messagesApi.listByChat(chat.id)
       if (!messages.length) await messagesApi.create({ chatId: chat.id, role: 'char', name: cast[0].card.name, text: draft.opening.trim() })
       await chatsApi.update(chat.id, { title: draft.title.trim() })
+      if (draft.goal.trim()) {
+        const objective = progress.objectiveId ? await objectivesApi.get(progress.objectiveId) : undefined
+        if (objective) await objectivesApi.update(objective.id, { title: draft.goal.trim(), description: draft.brief.trim() })
+        else {
+          const created = await objectivesApi.create({ chatId: chat.id, title: draft.goal.trim(), description: draft.brief.trim(), tasks: [], status: 'active', createdBy: 'user' })
+          progress = { ...progress, objectiveId: created.id }
+          remember(progress)
+        }
+      } else if (progress.objectiveId) await objectivesApi.update(progress.objectiveId, { status: 'abandoned' })
       setActivePlayerCharacterId(player.id)
       localStorage.removeItem(DRAFT_KEY)
       localStorage.removeItem(CHECKPOINT_KEY)
@@ -224,6 +234,7 @@ export function GuidedRpBuilder({ onClose, onCreated, conversationBrief }: { onC
                 max={stat.valueMode === 'ability' ? 30 : preset.campaign.resolver === 'pbta' ? 5 : 100} step={1} />
             })}</div>
           </div>}
+          <TextField label="First goal (optional)" value={draft.goal} onChange={(e) => update({ goal: e.target.value })} maxLength={200} hint="A concrete thing you want to pursue. Appears in the Story panel and can change during play." />
           <TextAreaField label="First scene" value={draft.opening} onChange={(e) => update({ opening: e.target.value })} rows={7} hint="Write from the opening character's point of view. End with something you can respond to." />
         </>}
         {step === 5 && <>
@@ -236,6 +247,7 @@ export function GuidedRpBuilder({ onClose, onCreated, conversationBrief }: { onC
             <p><strong>You play:</strong> {draft.player.name || 'You'}</p>
             <p><strong>Cast:</strong> {draft.cast.filter((person) => person.name.trim()).map((person) => person.name).join(', ') || 'No characters yet'}</p>
             <p><strong>Checks:</strong> {preset?.label ?? 'Narrative only'}</p>
+            <p><strong>First goal:</strong> {draft.goal.trim() || 'No goal set'}</p>
             <p><strong>Opening:</strong> {draft.opening.trim() || 'No opening yet'}</p>
           </div>
         </>}
