@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Send, Square, Trash2, UserPlus } from 'lucide-react'
+import { Plus, Send, Square, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import { assistantThreadsApi } from '@/lib/api/client'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { useAssistant } from '@/lib/assistant/useAssistant'
@@ -8,6 +8,7 @@ import type { AssistantMessage, AssistantThread } from '@/lib/assistant/thread'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
+import { GuidedRpBuilder } from '@/components/assistant/GuidedRpBuilder'
 
 /** Writing workspace backed by ordinary assistant threads and their existing producers. */
 
@@ -154,10 +155,11 @@ function StoryCard({ message }: { message: AssistantMessage }) {
   )
 }
 
-export function AssistantView() {
+export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: string) => void }) {
   const threads = useApiQuery<AssistantThread[]>('assistant-threads', () => assistantThreadsApi.list(), []) ?? []
   const [threadId, setThreadId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [building, setBuilding] = useState(false)
   const [pending, setPending] = useState<{ id: string; text: string; kind?: ProducerKind } | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -254,11 +256,14 @@ export function AssistantView() {
 
   const messages = thread?.messages ?? []
 
+  if (building) return <GuidedRpBuilder onClose={() => setBuilding(false)} onCreated={onCreatedStory}
+    conversationBrief={messages.slice(-8).filter((message) => !message.error && message.text.trim()).map((message) => `${message.role === 'user' ? 'Writer' : 'Assistant'}: ${message.text}`).join('\n\n').slice(-6000)} />
+
   return (
     // A flex item of App's own row wrapper, so it has to be told to grow and to allow shrinking.
-    <div className="flex h-full min-h-0 min-w-0 flex-1">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col md:flex-row">
       {/* Thread list */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-bg-sunken/50">
+      <aside className="flex w-full shrink-0 flex-col border-b border-border bg-bg-sunken/50 md:w-60 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between gap-2 p-3">
           <span className="font-display text-sm font-semibold">Writer's Room</span>
           <Button onClick={newThread} className="inline-flex items-center gap-1.5">
@@ -266,12 +271,17 @@ export function AssistantView() {
             New
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <div className="px-3 pb-2">
+          <Button variant="primary" onClick={() => setBuilding(true)} className="flex w-full items-center justify-center gap-1.5">
+            <Sparkles size={14} /> Build a roleplay
+          </Button>
+        </div>
+        <div className="flex gap-1 overflow-x-auto px-2 pb-2 md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto">
           {threads.length === 0 && <p className="px-2 py-3 text-xs text-text-muted">No conversations yet.</p>}
           {threads.map((t) => (
             <div
               key={t.id}
-              className={`group mb-1 flex items-center gap-1 rounded-lg px-2 py-2 text-xs transition-colors ${
+              className={`group flex w-40 shrink-0 items-center gap-1 rounded-lg px-2 py-2 text-xs transition-colors md:mb-1 md:w-auto ${
                 t.id === threadId ? 'bg-bg-elevated text-text' : 'text-text-muted hover:text-text'
               }`}
             >
@@ -281,7 +291,7 @@ export function AssistantView() {
               <button
                 onClick={() => removeThread(t.id)}
                 title="Delete conversation"
-                className="shrink-0 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                className="shrink-0 transition-opacity hover:text-danger md:opacity-0 md:group-hover:opacity-100"
               >
                 <Trash2 size={13} />
               </button>
@@ -298,9 +308,10 @@ export function AssistantView() {
               <div className="py-8">
                 <h1 className="font-display text-xl text-text">Writer's Room</h1>
                 <p className="mt-2 max-w-xl text-sm text-text-muted">
-                  Brainstorm, review your notes, or prepare the next scene. Choose a starting point, edit the brief, and send it when ready.
+                  Build a playable world and cast, brainstorm, review your notes, or prepare the next scene. Choose a starting point, edit the brief, and send it when ready.
                   For continuity work, paste the relevant story material into the conversation.
                 </p>
+                <Button variant="primary" onClick={() => setBuilding(true)} className="mt-4 inline-flex items-center gap-2"><Sparkles size={15} /> Build a roleplay</Button>
                 {(['Brainstorm', 'Review & prep'] as const).map((group) => (
                   <section key={group} className="mt-6" aria-label={group}>
                     <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{group}</h2>

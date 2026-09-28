@@ -157,7 +157,7 @@ export default function App() {
           <ChatSurface activeChatId={activeChatId} onNavigate={navigate} onNavigateToWorld={navigateToWorld}
             playing={playing} onPlay={play} onBack={backToStories} onOpenMenu={openPlayMenu} />
         )}
-        {view === 'writer' && <AssistantView />}
+        {view === 'writer' && <AssistantView onCreatedStory={play} />}
         {view === 'cast' && (
           <CastView initialCharacterId={pendingCharacterId} initialCharacterTab={pendingCharacterTab}
             onConsumedInitial={() => { setPendingCharacterId(null); setPendingCharacterTab(null) }} />

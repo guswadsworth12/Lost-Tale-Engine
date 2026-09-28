@@ -891,9 +891,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     title: "Writer's Room",
     group: 'Tools',
     icon: 'sparkles',
-    summary: 'A planning assistant for brainstorming, reviews and prep.',
-    keywords: ['assistant', 'brainstorm', 'continuity', 'summary', 'encounter', 'generate character', 'outline'],
-    related: ['cast', 'lore'],
+    summary: 'Build a playable roleplay or brainstorm, review and prepare stories.',
+    keywords: ['assistant', 'brainstorm', 'continuity', 'summary', 'encounter', 'generate character', 'outline', 'build roleplay', 'guided setup'],
+    related: ['cast', 'lore', 'worlds', 'stories'],
     sections: [
       {
         id: 'writer-what',
@@ -902,6 +902,20 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'text',
             text: "The Writer's Room is a conversation with the model that sits outside your stories: brainstorm, review your notes, or prepare the next scene. Past conversations are listed on the side; **New** starts another.",
+          },
+        ],
+      },
+      {
+        id: 'writer-guided',
+        heading: 'Build a roleplay',
+        blocks: [
+          {
+            kind: 'text',
+            text: 'Choose **Build a roleplay** to walk through an idea, world, public lore, cast, rules and opening scene. Use an existing Writer’s Room conversation as the idea, write the fields yourself, or use **Suggest world, lore, cast & opening** for an editable draft. Review before **Create & start story** saves the world and characters and opens the first playable scene. The draft stays on this device until creation succeeds.',
+          },
+          {
+            kind: 'text',
+            text: 'Choose a check preset in **Rules & opening** to give your player character a starting sheet. Customize the world’s moves and stats in Worlds and the saved sheet in Cast after setup. Put secrets in **GM only notes**, not public lore.',
           },
         ],
       },

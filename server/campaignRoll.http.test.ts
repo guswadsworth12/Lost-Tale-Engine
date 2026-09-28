@@ -51,16 +51,18 @@ function call(route: string, method: string, body?: unknown): Promise<{ status: 
 describe('server-owned roll HTTP API', () => {
   it('persists one roll, replays exact retries, rejects conflicts and client-authored changes', async () => {
     const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' }
-    const world = await call('/api/worlds', 'POST', { name: 'Test world', description: '', lorebook: { entries: [] }, campaign })
+    const world = await call('/api/worlds', 'POST', { name: 'Test world', description: '', gmNotes: 'The bridge is trapped.', lorebook: { entries: [] }, campaign })
     expect(world.status).toBe(201)
+    expect(world.body.gmNotes).toBe('The bridge is trapped.')
     expect(world.body.campaign.stats[0]).toMatchObject({ id: 'nerve', name: 'Nerve' })
     expect(world.body.campaign.moves[0].statId).toBe('nerve')
     const lead = await call('/api/characters', 'POST', { card: { name: 'Lead' }, worldId: world.body.id })
     const player = await call('/api/characters', 'POST', { card: { name: 'Player' }, worldId: world.body.id, playerOnly: true })
     expect(lead.status).toBe(201)
     expect(player.status).toBe(201)
-    const chat = await call('/api/chats', 'POST', { characterId: lead.body.id, playerCharacterId: player.body.id, title: 'A scene' })
+    const chat = await call('/api/chats', 'POST', { characterId: lead.body.id, playerCharacterId: player.body.id, title: 'A scene', scene: { turnPolicy: 'gm' } })
     expect(chat.status).toBe(201)
+    expect(chat.body.scene?.turnPolicy).toBe('gm')
 
     const request = { messageId: 'roll-message-1', moveId: campaign.moves[0].id, modifier: -5, action: 'Cross the bridge', text: 'I cross the bridge.' }
     const route = `/api/chats/${chat.body.id}/roll`
