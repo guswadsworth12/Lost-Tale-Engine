@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   Menu,
   Move,
+  PanelRightClose,
+  PanelRightOpen,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -73,6 +75,7 @@ import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { stageLayout, type StageDepth } from '@/lib/vn/stageLayout'
 import { clampStagePoint, DEFAULT_STAGE_AREA, moveStagePoint, stagePointStyle, type StageAreaSettings, type StagePoint } from '@/lib/vn/stageArea'
+import type { ChatToolbarAction } from './ChatToolbar'
 
 /**
  * Visual-novel presentation of a chat: full-bleed scene background, each cast member's sprite
@@ -248,8 +251,9 @@ interface VNStageProps {
   onTogglePin: (id: string) => void
   /** Lets the cast double as the "reply as" picker; omitted under any non-manual turn policy. */
   onSelectSpeaker?: (id: string | null) => void
-  /** Icon toolbar rendered as a glass overlay, left of the log toggle. */
-  topBarExtra?: ReactNode
+  /** Story and tool actions shown in the Visual Novel side rail. */
+  sideActions?: ChatToolbarAction[]
+  contextMeter?: ReactNode
   /** Back to the Stories library. */
   onBack?: () => void
   /** The app menu (desktop rail / phone drawer), first in the toolbar so navigation is never out of reach. */
@@ -309,7 +313,8 @@ export function VNStage({
   onFork,
   onTogglePin,
   onSelectSpeaker,
-  topBarExtra,
+  sideActions = [],
+  contextMeter,
   onBack,
   onOpenMenu,
   parentChatLink,
@@ -331,9 +336,9 @@ export function VNStage({
   const [hideUI, setHideUI] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
   const stageRootRef = useRef<HTMLDivElement>(null)
-  const stageMenuRef = useRef<HTMLDivElement>(null)
+  const sideRailRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; point: StagePoint; width: number; height: number } | null>(null)
-  const [stageMenuOpen, setStageMenuOpen] = useState(false)
+  const [sideExpanded, setSideExpanded] = useState(false)
   const [arrangingStage, setArrangingStage] = useState(false)
   const [stageAreas, setStageAreas] = useState<Record<string, StageAreaSettings>>(readStageAreas)
   const storedArea = stageAreas[chat.id]
@@ -347,16 +352,16 @@ export function VNStage({
     try { window.localStorage.setItem(STAGE_AREAS_KEY, JSON.stringify(stageAreas)) } catch { /* Layout remains usable without storage. */ }
   }, [stageAreas])
 
-  useEffect(() => { setArrangingStage(false); setStageMenuOpen(false) }, [chat.id])
+  useEffect(() => { setArrangingStage(false); setSideExpanded(false) }, [chat.id])
 
   useEffect(() => {
-    if (!stageMenuOpen && !arrangingStage) return
+    if (!sideExpanded && !arrangingStage) return
     const onPointerDown = (event: PointerEvent) => {
-      if (stageMenuOpen && !stageMenuRef.current?.contains(event.target as Node)) setStageMenuOpen(false)
+      if (sideExpanded && !sideRailRef.current?.contains(event.target as Node)) setSideExpanded(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setStageMenuOpen(false)
+      setSideExpanded(false)
       setArrangingStage(false)
     }
     window.addEventListener('pointerdown', onPointerDown)
@@ -365,7 +370,7 @@ export function VNStage({
       window.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [stageMenuOpen, arrangingStage])
+  }, [sideExpanded, arrangingStage])
 
   useEffect(() => {
     if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
@@ -569,7 +574,7 @@ export function VNStage({
     updateStageArea({ positions: initial })
     setShowLog(false)
     setHideUI(false)
-    setStageMenuOpen(false)
+    setSideExpanded(false)
     setArrangingStage(true)
   }
   const resetStageArea = () => {
@@ -579,7 +584,7 @@ export function VNStage({
       return next
     })
     setArrangingStage(false)
-    setStageMenuOpen(false)
+    setSideExpanded(false)
   }
   const activeMember = castMembers.find((m) => m.isActive) ?? castMembers[0]
   // Nameplate follows whoever's line is actually showing — the player's own persona while
@@ -1012,6 +1017,45 @@ export function VNStage({
     </>
   ) : undefined
 
+  const navigationActions: ChatToolbarAction[] = [
+    ...(onOpenMenu ? [{ key: 'main-menu', icon: Menu, label: 'Main menu', onClick: onOpenMenu }] : []),
+    ...(onBack ? [{ key: 'back', icon: ArrowLeft, label: 'Back to Stories', onClick: onBack }] : []),
+    ...sideActions.filter((action) => ['studio', 'goals', 'story', 'transcript', 'search'].includes(action.key) && !action.hidden),
+  ]
+  const sceneActions: ChatToolbarAction[] = onOpenScenery ? [{
+    key: 'scenery', icon: MapPin,
+    label: `Scenery: ${sceneBackground ? backgroundLabel(sceneBackground, world) : 'unplaced'} · ${night ? 'night' : 'day'}`,
+    onClick: onOpenScenery,
+    active: !!scenery?.backgroundId,
+  }] : []
+  const playbackActions: ChatToolbarAction[] = [
+    ...(onToggleAutoAdvance ? [{ key: 'auto', icon: Play, label: 'Auto-advance', onClick: onToggleAutoAdvance, active: autoAdvance }] : []),
+    { key: 'skip', icon: ChevronsRight, label: 'Skip typewriter reveal', disabled: !typewriterActive || dialogueRevealDone,
+      onClick: () => { if (typewriterActive && !dialogueRevealDone) skipTypewriter() } },
+    { key: 'hide', icon: EyeOff, label: 'Hide UI', disabled: arrangingStage, onClick: () => setHideUI(true) },
+    { key: 'history', icon: History, label: showLog ? 'Close history' : 'Open history', active: showLog,
+      onClick: () => { setArrangingStage(false); setShowLog((value) => !value) } },
+  ]
+  const toolActions = sideActions.filter((action) => !['studio', 'goals', 'story', 'transcript', 'search'].includes(action.key) && !action.hidden)
+  const railButton = (action: ChatToolbarAction) => (
+    <button key={action.key} type="button" onClick={() => { action.onClick(); if (action.key !== 'auto') setSideExpanded(false) }}
+      disabled={action.disabled} title={sideExpanded ? undefined : action.label} aria-label={action.label}
+      aria-pressed={action.key === 'auto' ? !!action.active : undefined}
+      data-tour={action.key === 'story' ? 'story-panel' : action.key === 'transcript' ? 'vn-toggle' : undefined}
+      className={`items-center rounded-xl text-left text-sm transition-colors hover:bg-white/15 disabled:opacity-35 ${sideExpanded
+        ? 'flex min-h-10 w-full gap-3 px-3 py-2'
+        : 'hidden h-10 w-10 justify-center md:flex'} ${action.active ? 'bg-white/10 text-accent' : 'text-white/85'}`}>
+      <action.icon size={18} strokeWidth={1.75} className="shrink-0" />
+      {sideExpanded && <span className="min-w-0 flex-1 break-words leading-snug">{action.label}</span>}
+    </button>
+  )
+  const railSection = (label: string, actions: ChatToolbarAction[]) => actions.length > 0 && (
+    <div className="w-full">
+      {sideExpanded && <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-white/50">{label}</p>}
+      {actions.map(railButton)}
+    </div>
+  )
+
   return (
     <div
       className={`relative flex flex-1 flex-col overflow-hidden ${datingChrome ? '' : 'vn-neutral'}`}
@@ -1056,10 +1100,8 @@ export function VNStage({
       {/* Hidden along with the rest of the chrome under Hide-UI — click the scene to bring it back. */}
       {!hideUI && (
       <>
-      {/* One flex container (not two absolute overlays) so the HUD card and toolbar can't collide.
-          Stacked on a phone — side by side there left the card crushed to an unreadable stub. */}
-      <div className="absolute inset-x-3 top-3 z-20 flex flex-col-reverse items-end gap-2 sm:inset-x-4 sm:top-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div className="vn-glass min-w-0 self-start overflow-hidden rounded-2xl text-white sm:max-w-[58%] sm:self-auto">
+      <div className="absolute inset-x-3 top-3 z-20 sm:inset-x-4 sm:top-4">
+        <div className="vn-glass min-w-0 max-w-[calc(100%-4rem)] overflow-hidden rounded-2xl text-white sm:max-w-[58%]">
           {(personaName || chat.mode || parentChatLink) && (
             <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-2 text-[11px] text-white/70">
               {personaName && <span className="truncate">as {personaName}</span>}
@@ -1141,59 +1183,29 @@ export function VNStage({
           )}
         </div>
 
-        <div className="vn-glass vn-toolbar-scroll flex h-9 w-full min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-full px-1 sm:w-auto sm:shrink-0 sm:overflow-visible">
-          {onOpenMenu && (
-            <button
-              onClick={onOpenMenu}
-              data-tour="play-menu"
-              title="Menu"
-              aria-label="Menu"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white"
-            >
-              <Menu size={15} strokeWidth={2} />
-            </button>
-          )}
-          {onBack && (
-            <>
-              <button
-                onClick={onBack}
-                title="Back to Stories"
-                aria-label="Back to Stories"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white"
-              >
-                <ArrowLeft size={15} strokeWidth={2} />
-              </button>
-              <span className="h-4 w-px bg-white/15" />
-            </>
-          )}
-          {onOpenScenery && (
-            <button
-              onClick={onOpenScenery}
-              title={`Scenery: ${sceneBackground ? backgroundLabel(sceneBackground, world) : 'unplaced'}${scenery?.backgroundId ? ' (pinned)' : ''}. Click to change`}
-              aria-label="Change scenery"
-              className={`flex h-7 max-w-[11rem] items-center gap-1 rounded-full px-2 text-[11px] transition-colors hover:bg-white/15 ${scenery?.backgroundId ? 'text-accent' : 'text-white/85 hover:text-white'}`}
-            >
-              <MapPin size={13} strokeWidth={2} className="shrink-0" />
-              <span className="truncate">{sceneBackground ? backgroundLabel(sceneBackground, world) : 'Scenery'}</span>
-              <span className="shrink-0 text-white/50">{night ? '· night' : '· day'}</span>
-            </button>
-          )}
-          <div ref={stageMenuRef} className="relative hidden md:block">
-            <button
-              type="button"
-              onClick={() => setStageMenuOpen((open) => !open)}
-              aria-label="Stage layout"
-              aria-expanded={stageMenuOpen}
-              title="Stage layout"
-              className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/15 ${arrangingStage ? 'text-accent' : 'text-white/85'}`}
-            ><SlidersHorizontal size={14} strokeWidth={2} /></button>
-            {stageMenuOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-64 space-y-4 rounded-xl border border-white/15 bg-black/90 p-4 text-white shadow-xl backdrop-blur-md" aria-label="Stage layout settings">
-                <div>
-                  <h3 className="text-sm font-semibold">Stage layout</h3>
-                  <p className="mt-1 text-xs text-white/60">Arrange the cast within the floor area for this story.</p>
-                </div>
-                <button type="button" onClick={arrangingStage ? () => { setArrangingStage(false); setStageMenuOpen(false) } : beginArrangeStage}
+      </div>
+      {sideExpanded && <button type="button" aria-label="Close Visual Novel controls"
+        onClick={() => setSideExpanded(false)} className="fixed inset-0 z-20 bg-black/40 md:hidden" />}
+      <aside ref={sideRailRef} aria-label="Visual Novel controls" data-tour="tools-menu"
+        className={`absolute bottom-3 right-3 top-3 z-30 flex flex-col overflow-hidden rounded-2xl border border-white/10 text-white shadow-xl backdrop-blur-xl transition-[width] duration-200 ${sideExpanded
+          ? 'w-[min(18rem,calc(100%-1.5rem))] bg-black/90'
+          : 'h-fit max-h-[calc(100%-1.5rem)] w-11 bg-black/70'}`}>
+        <button type="button" onClick={() => setSideExpanded((value) => !value)}
+          data-tour="play-menu"
+          aria-label={sideExpanded ? 'Collapse Visual Novel controls' : 'Expand Visual Novel controls'}
+          aria-expanded={sideExpanded}
+          className="flex h-11 w-full shrink-0 items-center gap-3 border-b border-white/10 px-3 text-white/90 hover:bg-white/15">
+          {sideExpanded ? <PanelRightClose size={18} strokeWidth={1.75} className="shrink-0" /> : <PanelRightOpen size={18} strokeWidth={1.75} className="shrink-0" />}
+          {sideExpanded && <span className="text-sm font-semibold">Scene controls</span>}
+        </button>
+        <div className={`vn-toolbar-scroll min-h-0 w-full flex-col overflow-y-auto ${sideExpanded ? 'flex px-2 pb-3' : 'hidden px-0.5 pb-1 md:flex'}`}>
+          {railSection('Navigate', navigationActions)}
+          {railSection('Scene', sceneActions)}
+          <div className="hidden w-full md:block">
+            {sideExpanded ? (
+              <div className="space-y-3 px-3 pb-2">
+                <p className="pt-3 text-[10px] font-semibold uppercase tracking-widest text-white/50">Stage layout</p>
+                <button type="button" onClick={arrangingStage ? () => { setArrangingStage(false); setSideExpanded(false) } : beginArrangeStage}
                   disabled={!!triggeredCgEntry || castMembers.length === 0}
                   className="flex w-full items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-left text-sm hover:bg-white/20 disabled:opacity-40">
                   <Move size={15} />{arrangingStage ? 'Finish arranging' : 'Arrange cast'}
@@ -1212,59 +1224,18 @@ export function VNStage({
                   <RotateCcw size={13} />Reset automatic layout
                 </button>
               </div>
+            ) : (
+              <button type="button" onClick={() => setSideExpanded(true)} title="Stage layout" aria-label="Stage layout"
+                className={`flex h-10 w-10 items-center justify-center rounded-xl hover:bg-white/15 ${arrangingStage ? 'text-accent' : 'text-white/85'}`}>
+                <SlidersHorizontal size={18} strokeWidth={1.75} />
+              </button>
             )}
           </div>
-          {topBarExtra}
-          <span className="h-4 w-px bg-white/15" />
-          {/* Minimal VN quick menu — History (the log below), Auto, Skip, Hide-UI. Icon-only; each
-              has its own tooltip/aria-label rather than a text chip, so the row stays compact
-              enough to sit beside the title block down to phone width. */}
-          {onToggleAutoAdvance && (
-            <button
-              onClick={onToggleAutoAdvance}
-              title={autoAdvance ? 'Auto-advance: on. Click to stop' : 'Auto-advance the story after each reply'}
-              aria-label={autoAdvance ? 'Auto-advance: on' : 'Auto-advance: off'}
-              aria-pressed={autoAdvance}
-              className={`relative flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/15 ${
-                autoAdvance ? 'text-accent' : 'text-white/85 hover:text-white'
-              }`}
-            >
-              <Play size={13} strokeWidth={2} fill={autoAdvance ? 'currentColor' : 'none'} />
-              {autoAdvance && <span className="vn-auto-pulse absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (typewriterActive && !dialogueRevealDone) skipTypewriter()
-            }}
-            disabled={!typewriterActive || dialogueRevealDone}
-            title="Skip ahead"
-            aria-label="Skip typewriter reveal"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white disabled:opacity-30"
-          >
-            <ChevronsRight size={15} strokeWidth={2} />
-          </button>
-          <button
-            onClick={() => setHideUI(true)}
-            disabled={arrangingStage}
-            title="Hide UI. Click the scene to bring it back"
-            aria-label="Hide UI"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white disabled:opacity-30"
-          >
-            <EyeOff size={14} strokeWidth={2} />
-          </button>
-          <span className="h-4 w-px bg-white/15" />
-          <button
-            onClick={() => { setArrangingStage(false); setShowLog((v) => !v) }}
-            title={showLog ? 'Close history' : 'Open history'}
-            aria-label={showLog ? 'Close history' : 'Open history'}
-            className="flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-white/85 transition-colors hover:bg-white/15 hover:text-white sm:pr-3"
-          >
-            {showLog ? <X size={14} strokeWidth={2} /> : <History size={14} strokeWidth={2} />}
-            <span className="hidden sm:inline">{showLog ? 'Close' : 'History'}</span>
-          </button>
+          {railSection('Playback', playbackActions)}
+          {railSection('Tools', toolActions)}
+          {sideExpanded && contextMeter && <div className="mt-3 border-t border-white/10 px-3 pt-3">{contextMeter}</div>}
         </div>
-      </div>
+      </aside>
       </>
       )}
 

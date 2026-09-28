@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Menu,
   Backpack,
+  BookOpen,
   CalendarDays,
   CalendarHeart,
   Clapperboard,
@@ -20,6 +21,7 @@ import {
   Star,
   Sunrise,
   Target,
+  Users,
   Wrench,
   X,
 } from 'lucide-react'
@@ -1144,15 +1146,15 @@ export function ChatWindow({
           onFork: forkChat,
           onTogglePin: togglePinMessage,
           onSelectSpeaker: turnPolicy === 'manual' ? (id) => setReplyAsCharacterId(id) : undefined,
-          topBarExtra: <>
-            {onOpenStudio && <button onClick={onOpenStudio} title="Open Studio" className="hidden h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15 sm:block">Studio</button>}
-            <button onClick={() => openStoryTab('goals')} title={activeObjective?.title ?? 'Goals'} aria-label="Goals" className="hidden h-7 max-w-28 truncate rounded-full px-2 text-[11px] text-white/80 hover:bg-white/15 sm:block">{activeObjective?.title ?? 'Goal'}</button>
-            {contextMeter}
-            <button onClick={() => openStoryTab('scene')} data-tour="story-panel" title="Story panel" aria-label="Story panel" className="h-7 rounded-full px-2 text-[11px] text-white/85 hover:bg-white/15">Story</button>
-            <IconButton tone="glass" icon={Drama} title="Switch to transcript view" onClick={toggleVnForChat} data-tour="vn-toggle" />
-            <IconButton tone="glass" icon={Search} title="Search story" onClick={() => setShowSearch(true)} />
-            {toolbar}
-          </>,
+          sideActions: [
+            ...(onOpenStudio ? [{ key: 'studio', icon: Users, label: 'Studio', onClick: onOpenStudio }] : []),
+            { key: 'goals', icon: Target, label: activeObjective?.title ? `Goals: ${activeObjective.title}` : 'Goals', onClick: () => openStoryTab('goals') },
+            { key: 'story', icon: BookOpen, label: 'Story panel', onClick: () => openStoryTab('scene') },
+            { key: 'transcript', icon: Drama, label: 'Switch to transcript view', onClick: toggleVnForChat },
+            { key: 'search', icon: Search, label: 'Search story', onClick: () => setShowSearch(true) },
+            ...toolbarActions.filter((action) => ['tuning', 'inspector', 'director', 'export'].includes(action.key)),
+          ],
+          contextMeter,
           onBack,
           onOpenMenu,
           parentChatLink,

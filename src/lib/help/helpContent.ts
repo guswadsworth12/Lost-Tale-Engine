@@ -169,7 +169,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'list',
             items: [
-              'The **Menu** button at the top left of the play header (in both Classic and Visual Novel) expands or collapses the menu.',
+              'In Classic, **Menu** in the play header expands or collapses the left menu. In Visual Novel, expand **Scene controls** on the right and choose **Main menu**.',
               "The rail's own **Expand menu** / **Collapse menu** button at its bottom works too.",
               '**Stories** in the menu takes you back to the open story from any other view. Choose it again while you are already there to reach the library.',
             ],
@@ -182,7 +182,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: "The bottom navigation bar is hidden while you play, so the scene and the composer stay clear. Tap **Menu** at the top left to open a navigation drawer: **Back to Stories**, then **Current story** (closes the drawer), **Studio** (**Cast**, **Worlds**, **Lore**, **Media**), **Tools** (**Writer's Room**, **Settings**), and **Help & tutorial** at the bottom.",
+            text: "The bottom navigation bar is hidden while you play. In Classic, tap **Menu** in the header; in Visual Novel, expand **Scene controls** at the top right and tap **Main menu**. The drawer has **Back to Stories**, **Current story**, **Studio** (**Cast**, **Worlds**, **Lore**, **Media**), **Tools** (**Writer's Room**, **Settings**) and **Help & tutorial**.",
           },
         ],
       },
@@ -192,7 +192,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: '**Back to Stories** (the arrow in the Classic header, or in the phone drawer) returns to the library. Nothing is lost: open the story card again to continue its current scene. On wider screens the Classic header also has a **Studio** shortcut to Cast.',
+            text: '**Back to Stories** in the Classic header, Visual Novel side rail or phone drawer returns to the library. Nothing is lost: open the story card again to continue its current scene. On wider screens the Classic header also has a **Studio** shortcut to Cast.',
           },
           { kind: 'text', text: 'To look back at an earlier scene of the same story, open **Story panel → Scenes**. See Scenes and long stories.' },
           { kind: 'text', text: '**Ctrl/Cmd K** jumps straight to any story, cast member, world or section from anywhere.' },
@@ -311,7 +311,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: "A meter in the play header shows how much of the model's context the current scene uses.",
+            text: "A meter in the Classic header or expanded Visual Novel side rail shows how much of the model's context the current scene uses.",
           },
           {
             kind: 'list',
@@ -461,8 +461,8 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'list',
             items: [
-              '**Search story** (the magnifier in the play header) searches messages and can jump to matches in other stories too.',
-              '**Tools → Export as HTML transcript** saves the story as a web page.',
+              '**Search story** in the play header or Visual Novel side rail searches messages and can jump to matches in other stories too.',
+              '**Export as HTML transcript** in Classic **Tools** or Visual Novel side controls saves the story as a web page.',
             ],
           },
         ],
@@ -489,7 +489,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'list',
             items: [
-              'The masks button in the play header switches this story: **Switch to Visual Novel view** in Classic, **Switch to transcript view** in Visual Novel.',
+              'The masks button switches this story: **Switch to Visual Novel view** in the Classic header, **Switch to transcript view** in the Visual Novel side rail.',
               "New stories follow **Settings → Appearance → Visual Novel mode** (Off, Auto or On). Auto turns Visual Novel on only once the character has expression sprites and the world has scene backgrounds, so you never get an empty stage.",
             ],
           },
@@ -535,13 +535,14 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
       },
       {
         id: 'vn-quick-menu',
-        heading: 'The top bar',
+        heading: 'The side controls',
         blocks: [
           {
             kind: 'list',
             items: [
-              '**Change scenery**: the place pill with day or night. It appears when the story has a world.',
-              '**Story** opens the Story panel; the masks button switches to the transcript; the magnifier searches; **Tools** holds tuning, the prompt inspector, the Director and export.',
+              'The right-side rail starts collapsed. Its top button expands it to show labels. On a phone, it opens as a drawer.',
+              '**Scenery** shows the current place and day or night. **Stage layout** lets you arrange the cast and adjust the stage on desktop.',
+              '**Story panel** opens the story details; the masks button switches to the transcript; **Search story** finds messages. The **Tools** section holds tuning, the prompt inspector, the Director and export.',
               '**Auto-advance** (the play icon) keeps the story moving on its own after each reply, once you have had time to read it. It stops by itself after a few turns, when a choice is waiting, or when a reply fails, and it is off again when you switch stories.',
               '**Skip ahead** finishes the current line instantly.',
               '**Hide UI** leaves only the art. Click the scene to bring everything back.',
@@ -561,7 +562,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     title: 'Story panel and Tools',
     group: 'Play',
     icon: 'panel',
-    summary: 'Scene, Scenes, Goals, People, Canon, Notes and Scene Rules, plus the Tools menu.',
+    summary: 'Scene, Scenes, Goals, People, Canon, Notes and Scene Rules, plus play tools.',
     keywords: ['story panel', 'scene', 'scenes', 'end scene', 'goals', 'objective', 'people', 'canon', 'notes', "author's note", 'scene rules', 'turn policy', 'tools', 'tuning', 'inspector', 'director', 'export', 'pinned'],
     related: ['playing', 'scenes', 'campaign', 'simulation', 'dating'],
     sections: [
@@ -571,7 +572,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: '**Story** in the play header opens the Story panel in both views. In Classic, the place and goal pills next to it open the Scene and Goals tabs directly. On a wide screen, **Pin panel** docks it beside the scene; **Close Story panel** hides it.',
+            text: '**Story** in the Classic header or **Story panel** in the Visual Novel side rail opens the panel. In Classic, the place and goal pills next to it open the Scene and Goals tabs directly. On a wide screen, **Pin panel** docks it beside the scene; **Close Story panel** hides it.',
           },
         ],
       },
@@ -595,9 +596,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
       },
       {
         id: 'sp-tools',
-        heading: 'The Tools menu',
+        heading: 'Play tools',
         blocks: [
-          { kind: 'text', text: '**Tools** (•••) in the play header holds the less frequent controls:' },
+          { kind: 'text', text: '**Tools** (•••) in the Classic header or the **Tools** section of the Visual Novel side rail holds the less frequent controls:' },
           {
             kind: 'list',
             items: [
@@ -787,7 +788,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           },
           {
             kind: 'text',
-            text: "During play the model tags where each reply happens. **Choose scenery** (Story panel → Scene) or **Change scenery** (Visual Novel top bar) pins a place on this branch until you choose **Follow the story**.",
+            text: "During play the model tags where each reply happens. **Choose scenery** (Story panel → Scene) or **Scenery** (Visual Novel side rail) pins a place on this branch until you choose **Follow the story**.",
           },
         ],
       },

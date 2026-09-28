@@ -41,7 +41,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
       'On a computer, **Expand menu** at the bottom of the rail shows the labels. On a phone, the menu is the bar along the bottom.',
     ],
     anchors: ['nav'],
-    whereToFind: 'The menu is on the left on a computer, or along the bottom on a phone. While a story is open, the Menu button at the top left brings it up.',
+    whereToFind: 'The menu is on the left on a computer, or along the bottom on a phone. In Visual Novel, expand the right-side scene controls and choose Main menu.',
     helpTopic: 'navigation',
   },
   {
@@ -82,10 +82,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: 'Classic or Visual Novel',
     body: [
       'The masks button switches a story between the Classic transcript and the Visual Novel stage, with scene art, sprites and a dialogue box.',
-      'In Visual Novel, the top bar has **Auto-advance**, **Skip ahead**, **Hide UI** and **History**.',
+      'In Visual Novel, expand the right-side scene controls for **Auto-advance**, **Skip ahead**, **Hide UI** and **History**.',
     ],
     anchors: ['vn-toggle'],
-    whereToFind: 'The masks button is in the header of any open story.',
+    whereToFind: 'The masks button is in the Classic header or the Visual Novel side rail.',
     helpTopic: 'visual-novel',
   },
   {
@@ -93,17 +93,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: 'Story panel and Tools',
     body: [
       '**Story** opens the Story panel: Scene, Scenes, Goals, People, Canon, Notes and Scene Rules.',
-      '**Tools** holds quick tuning, the prompt inspector, the Director and HTML export.',
+      'Expand the Visual Novel side rail for quick tuning, the prompt inspector, the Director and HTML export. Classic keeps these under **Tools**.',
     ],
     anchors: ['story-panel', 'tools-menu'],
-    whereToFind: 'Story and Tools are in the header of any open story.',
+    whereToFind: 'Story is in the Classic header or the Visual Novel side rail.',
     helpTopic: 'story-panel',
   },
   {
     id: 'scenes',
     title: 'Scenes and the context meter',
     body: [
-      "A story is a chain of short scenes, so it never outgrows the model's context. The meter in the play header shows how full the current scene is, and suggests a break when it gets full or the story moves on.",
+      "A story is a chain of short scenes, so it never outgrows the model's context. The meter in the Classic header or expanded Visual Novel side rail shows how full the current scene is, and suggests a break when it gets full or the story moves on.",
       '**End scene…** drafts a recap for you to edit, then sets up the next scene. Every scene is kept in the Story panel\'s **Scenes** tab.',
     ],
     anchors: ['context-meter'],
@@ -114,11 +114,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'play-menu',
     title: 'Getting around while you play',
     body: [
-      'Opening a story keeps navigation close: **Menu** at the top left of the play header expands the rail, or opens a navigation drawer on a phone.',
+      'In Visual Novel, expand the right-side scene controls and choose **Main menu**. In Classic, **Menu** is in the play header.',
       '**Back to Stories** returns to your library; **Stories** in the menu brings you back to the open story.',
     ],
     anchors: ['play-menu'],
-    whereToFind: 'Menu and Back to Stories are at the top left of any open story.',
+    whereToFind: 'Expand Visual Novel scene controls at the top right, or use the Classic header.',
     helpTopic: 'navigation',
   },
   {
