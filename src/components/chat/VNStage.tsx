@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ArrowLeft,
   Menu,
+  Move,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,7 @@ import {
   MapPin,
   Play,
   RotateCcw,
+  SlidersHorizontal,
   Star,
   Sunrise,
   Volume1,
@@ -69,6 +71,8 @@ import { getWorldTemplate } from '@/lib/world/worldTemplates'
 import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/world/calendar'
 import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
+import { stageLayout, type StageDepth } from '@/lib/vn/stageLayout'
+import { clampStagePoint, DEFAULT_STAGE_AREA, moveStagePoint, stagePointStyle, type StageAreaSettings, type StagePoint } from '@/lib/vn/stageArea'
 
 /**
  * Visual-novel presentation of a chat: full-bleed scene background, each cast member's sprite
@@ -92,17 +96,14 @@ const OUTDOOR_BACKGROUNDS = new Set([
   'school-rooftop', 'school-gate', 'school-courtyard', 'shrine', 'festival', 'fireworks-viewing', 'onsen',
 ])
 
-/**
- * Horizontal width per cast slot; height is set separately so sprites of any source resolution
- * normalize to the same on-screen height. The cap matters more than it looks: `object-contain`
- * takes whichever of width/height binds first, so a narrow cap on a bust-cropped sprite (the common
- * case — most cards ship a portrait, not a full-body VN sprite) shrinks it vertically too and
- * leaves the head sitting low with dead scene above it.
- */
-function slotWidthClass(castSize: number): string {
-  if (castSize <= 1) return 'basis-[72%] max-w-[620px]'
-  if (castSize === 2) return 'basis-[52%] max-w-[470px]'
-  return 'basis-[35%] max-w-[350px]'
+const STAGE_AREAS_KEY = 'rp-vn-stage-areas'
+
+function readStageAreas(): Record<string, StageAreaSettings> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const value = JSON.parse(window.localStorage.getItem(STAGE_AREAS_KEY) ?? '{}')
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  } catch { return {} }
 }
 
 /** Stable muted identity hue per speaker, used for group-scene nameplates/accents. Solo chats keep the usual relationship-pink instead. */
@@ -119,14 +120,13 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-/** One cast member's sprite, split out so each can crossfade independently. The speaker stands full-height/colour with a floor-light; everyone else steps back, dimmed. */
+/** One cast member's sprite, split out so each can crossfade independently. */
 function VNCharacterSprite({
   spriteUrl,
   name,
   hue,
   isActive,
-  dim,
-  slotClass,
+  depth,
   onClick,
   phase,
   vrmUrl,
@@ -144,9 +144,7 @@ function VNCharacterSprite({
   /** Identity hue matching this speaker's nameplate. */
   hue: number
   isActive: boolean
-  /** True for a non-speaking member of a 2+ cast. */
-  dim: boolean
-  slotClass: string
+  depth: StageDepth
   /** Doubles as the "reply as" picker; omitted when turn policy isn't manual. */
   onClick?: () => void
   /** Sprite staging: a brief slide+fade the moment this member joins or leaves the roster. Unset once settled. */
@@ -200,22 +198,17 @@ function VNCharacterSprite({
     spriteInner
   )
 
-  const showingPlaceholder = !displaySrc && !use3d
-
   return (
     <div
-      className={`relative flex shrink items-end justify-center transition-[transform,filter,opacity,height] duration-500 ease-out ${slotClass} ${
-        isActive
-          ? 'z-10 h-[96%]'
-          : !dim
-            ? 'z-0 h-[90%]'
-            : showingPlaceholder
-              ? 'z-0 h-[84%] scale-[0.96] opacity-75 [filter:brightness(0.78)_saturate(0.8)]'
-              : 'z-0 h-[82%] scale-[0.95] [filter:brightness(0.5)_saturate(0.72)]'
+      className={`relative flex h-full w-full items-end justify-center transition-[filter,opacity] duration-500 ease-out ${
+        depth === 'foreground'
+          ? 'opacity-100'
+          : depth === 'midground'
+            ? 'opacity-[0.94] [filter:brightness(0.82)_saturate(0.9)]'
+            : 'opacity-[0.86] [filter:brightness(0.7)_saturate(0.82)]'
       } ${phase === 'entering' ? 'vn-sprite-enter-anim' : phase === 'exiting' ? 'vn-sprite-exit-anim pointer-events-none' : ''}`}
     >
-      {isActive && dim && (
-        // Floor-light under the speaker, only shown when there's someone else to contrast against.
+      {isActive && (
         <div className="pointer-events-none absolute inset-x-[2%] bottom-0 -z-10 h-20 rounded-[50%] bg-white/20 blur-2xl" />
       )}
       {inner}
@@ -337,6 +330,42 @@ export function VNStage({
   // other VN's hide-UI, so no on-screen hint is needed to find your way back.
   const [hideUI, setHideUI] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
+  const stageRootRef = useRef<HTMLDivElement>(null)
+  const stageMenuRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; point: StagePoint; width: number; height: number } | null>(null)
+  const [stageMenuOpen, setStageMenuOpen] = useState(false)
+  const [arrangingStage, setArrangingStage] = useState(false)
+  const [stageAreas, setStageAreas] = useState<Record<string, StageAreaSettings>>(readStageAreas)
+  const storedArea = stageAreas[chat.id]
+  const stageArea = {
+    width: Number.isFinite(storedArea?.width) ? Math.min(100, Math.max(60, storedArea.width)) : DEFAULT_STAGE_AREA.width,
+    depth: Number.isFinite(storedArea?.depth) ? Math.min(60, Math.max(30, storedArea.depth)) : DEFAULT_STAGE_AREA.depth,
+    positions: storedArea?.positions && typeof storedArea.positions === 'object' ? storedArea.positions : {},
+  }
+
+  useEffect(() => {
+    try { window.localStorage.setItem(STAGE_AREAS_KEY, JSON.stringify(stageAreas)) } catch { /* Layout remains usable without storage. */ }
+  }, [stageAreas])
+
+  useEffect(() => { setArrangingStage(false); setStageMenuOpen(false) }, [chat.id])
+
+  useEffect(() => {
+    if (!stageMenuOpen && !arrangingStage) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (stageMenuOpen && !stageMenuRef.current?.contains(event.target as Node)) setStageMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setStageMenuOpen(false)
+      setArrangingStage(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [stageMenuOpen, arrangingStage])
 
   useEffect(() => {
     if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
@@ -402,6 +431,14 @@ export function VNStage({
   // shrink after they last spoke).
   const rawActiveSpeakerId = lastCharMsg ? (lastCharMsg.speakerId ?? character?.id) : character?.id
   const activeSpeakerId = cast.some((m) => m.id === rawActiveSpeakerId) ? rawActiveSpeakerId : character?.id
+  const castSpeakerId = (message: StoredMessage | undefined) => {
+    if (!message || message.role !== 'char' || message.speakerId === GM_SPEAKER_ID || message.gm || message.name === 'Game Master') return undefined
+    return cast.find((member) => member.id === message.speakerId || (!message.speakerId && member.card.name === message.name))?.id
+      ?? (!message.speakerId ? cast.find((member) => member.id === character?.id)?.id : undefined)
+  }
+  const stageSpeakerId = showUserAsCurrent ? undefined : castSpeakerId(lastCharMsg)
+  // Narration keeps the preceding cast shot on desktop; on phones only the actual line speaker appears.
+  const visualFocusId = stageSpeakerId ?? [...messages].reverse().map(castSpeakerId).find(Boolean) ?? cast[0]?.id
   const activeTrack = activeSpeakerId ? getRelationshipTrack(chat, activeSpeakerId) : {}
   const affection = Math.max(0, Math.min(100, activeTrack.affection ?? 0))
   const warmth = computeWarmth(affection, getRelationshipStats(activeTrack))
@@ -447,17 +484,17 @@ export function VNStage({
   const outfitId = currentOutfitFrom(messages)
   // Same stable-per-message seed as the CG pick above, so a sprite variant doesn't flicker mid-turn.
   const spriteVariantSeed = lastCharMsg?.id ?? 'no-message'
-  // Everyone in the roster is shown at once (a two/three-shot); the active speaker gets the live
-  // expression and full prominence, everyone else rests dimmed at neutral.
+  // The line being read determines the expression. Narration holds the last cast shot.
   const canPickSpeaker = !!onSelectSpeaker && cast.length > 1
   const isGroupScene = cast.length > 1
   const castMembers = cast.map((member) => {
-    const isActive = member.id === activeSpeakerId
-    // Non-active members gate their sprite/expression unlocks on their own affection, not the active speaker's.
-    const memberAffection = isActive ? affection : Math.max(0, Math.min(100, getRelationshipTrack(chat, member.id).affection ?? 0))
+    const isActive = member.id === visualFocusId
+    // Each member's sprite unlocks follow their own relationship track, regardless of framing.
+    const memberAffection = Math.max(0, Math.min(100, getRelationshipTrack(chat, member.id).affection ?? 0))
     const variantOptions = { variants: member.spriteVariants, seed: spriteVariantSeed }
+    const memberExpression = member.id === stageSpeakerId ? expression : 'neutral'
     const spriteUrl = isActive
-      ? resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, expression, memberAffection, outfitId, variantOptions)
+      ? resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, memberExpression, memberAffection, outfitId, variantOptions)
       : resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, 'neutral', memberAffection, undefined, variantOptions)
     return {
       id: member.id,
@@ -466,8 +503,8 @@ export function VNStage({
       hue: nameplateHue(member.id || member.card.name),
       spriteUrl,
       vrmUrl: member.vrm?.enabled ? member.vrm.url : undefined,
-      expression: isActive ? expression : 'neutral',
-      speaking: isActive && isStreamingThis,
+      expression: memberExpression,
+      speaking: member.id === stageSpeakerId && isStreamingThis,
       isActive,
       onClick: canPickSpeaker ? () => onSelectSpeaker!(member.id === character?.id ? null : member.id) : undefined,
     }
@@ -503,7 +540,47 @@ export function VNStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castMembers.map((m) => m.id).join(',')])
 
-  const slotClass = slotWidthClass(castMembers.length)
+  const phoneSpeakerId = stageSpeakerId ?? (messages.length === 0 ? visualFocusId : null)
+  const castPlacements = stageLayout(castMembers.map((member) => member.id), visualFocusId, phoneSpeakerId)
+  const departedPlacements = stageLayout(departedMembers.map((member) => member.id), undefined, null)
+  const stagedFigures = [
+    ...departedMembers.map((member, index) => ({ member, placement: departedPlacements[index], phase: 'exiting' as const })),
+    ...castMembers.map((member, index) => ({ member, placement: castPlacements[index], phase: enteringIds.has(member.id) ? 'entering' as const : undefined })),
+  ]
+  const updateStageArea = (changes: Partial<StageAreaSettings>) => {
+    setStageAreas((previous) => ({
+      ...previous,
+      [chat.id]: { ...DEFAULT_STAGE_AREA, ...previous[chat.id], ...changes },
+    }))
+  }
+  const setStagePoint = (id: string, point: StagePoint) => {
+    setStageAreas((previous) => {
+      const area = { ...DEFAULT_STAGE_AREA, ...previous[chat.id] }
+      return { ...previous, [chat.id]: { ...area, positions: { ...area.positions, [id]: clampStagePoint(point) } } }
+    })
+  }
+  const pointFor = (id: string, placement: (typeof castPlacements)[number]): StagePoint => {
+    const saved = stageArea.positions[id]
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.depth)) return clampStagePoint(saved)
+    return clampStagePoint({ x: placement.x / 100, depth: 1 - Math.max(0, placement.bottom) / stageArea.depth })
+  }
+  const beginArrangeStage = () => {
+    const initial = Object.fromEntries(castMembers.map((member, index) => [member.id, pointFor(member.id, castPlacements[index])]))
+    updateStageArea({ positions: initial })
+    setShowLog(false)
+    setHideUI(false)
+    setStageMenuOpen(false)
+    setArrangingStage(true)
+  }
+  const resetStageArea = () => {
+    setStageAreas((previous) => {
+      const next = { ...previous }
+      delete next[chat.id]
+      return next
+    })
+    setArrangingStage(false)
+    setStageMenuOpen(false)
+  }
   const activeMember = castMembers.find((m) => m.isActive) ?? castMembers[0]
   // Nameplate follows whoever's line is actually showing — the player's own persona while
   // `showUserAsCurrent`, the speaking cast member otherwise. Same slot, same styling either way.
@@ -783,12 +860,12 @@ export function VNStage({
     onAutoAdvanceFireRef.current = onAutoAdvanceFire
   })
   useEffect(() => {
-    if (!autoAdvance || !dialogueComplete || nextBeatMsg || speakState !== 'idle') return
+    if (arrangingStage || !autoAdvance || !dialogueComplete || nextBeatMsg || speakState !== 'idle') return
     const delayMs = Math.min(30000, Math.max(4000, 1500 + shownDialogueText.length * 55))
     const t = setTimeout(() => onAutoAdvanceFireRef.current?.(), delayMs)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoAdvance, dialogueComplete, lastCharMsg?.id, nextBeatMsg?.id, speakState])
+  }, [arrangingStage, autoAdvance, dialogueComplete, lastCharMsg?.id, nextBeatMsg?.id, speakState])
 
   const regexScripts = useSettingsStore((s) => s.regexScripts)
   const sfxEnabled = useSettingsStore((s) => s.sfxBursts)
@@ -940,6 +1017,7 @@ export function VNStage({
       className={`relative flex flex-1 flex-col overflow-hidden ${datingChrome ? '' : 'vn-neutral'}`}
       // A scene click reveals the current line, then advances one queued speaker at a time.
       onClick={(e) => {
+        if (arrangingStage) return
         if (hideUI) {
           setHideUI(false)
           return
@@ -1100,6 +1178,42 @@ export function VNStage({
               <span className="shrink-0 text-white/50">{night ? '· night' : '· day'}</span>
             </button>
           )}
+          <div ref={stageMenuRef} className="relative hidden md:block">
+            <button
+              type="button"
+              onClick={() => setStageMenuOpen((open) => !open)}
+              aria-label="Stage layout"
+              aria-expanded={stageMenuOpen}
+              title="Stage layout"
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-white/15 ${arrangingStage ? 'text-accent' : 'text-white/85'}`}
+            ><SlidersHorizontal size={14} strokeWidth={2} /></button>
+            {stageMenuOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 space-y-4 rounded-xl border border-white/15 bg-black/90 p-4 text-white shadow-xl backdrop-blur-md" aria-label="Stage layout settings">
+                <div>
+                  <h3 className="text-sm font-semibold">Stage layout</h3>
+                  <p className="mt-1 text-xs text-white/60">Arrange the cast within the floor area for this story.</p>
+                </div>
+                <button type="button" onClick={arrangingStage ? () => { setArrangingStage(false); setStageMenuOpen(false) } : beginArrangeStage}
+                  disabled={!!triggeredCgEntry || castMembers.length === 0}
+                  className="flex w-full items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-left text-sm hover:bg-white/20 disabled:opacity-40">
+                  <Move size={15} />{arrangingStage ? 'Finish arranging' : 'Arrange cast'}
+                </button>
+                <label className="block text-xs text-white/80">
+                  <span className="mb-1 flex justify-between"><span>Stage width</span><span>{stageArea.width}%</span></span>
+                  <input type="range" min="60" max="100" step="5" value={stageArea.width}
+                    onChange={(event) => updateStageArea({ width: Number(event.target.value) })} className="w-full accent-[rgb(var(--c-accent))]" />
+                </label>
+                <label className="block text-xs text-white/80">
+                  <span className="mb-1 flex justify-between"><span>Stage depth</span><span>{stageArea.depth}%</span></span>
+                  <input type="range" min="30" max="60" step="5" value={stageArea.depth}
+                    onChange={(event) => updateStageArea({ depth: Number(event.target.value) })} className="w-full accent-[rgb(var(--c-accent))]" />
+                </label>
+                <button type="button" onClick={resetStageArea} className="flex items-center gap-2 text-xs text-white/70 hover:text-white">
+                  <RotateCcw size={13} />Reset automatic layout
+                </button>
+              </div>
+            )}
+          </div>
           {topBarExtra}
           <span className="h-4 w-px bg-white/15" />
           {/* Minimal VN quick menu — History (the log below), Auto, Skip, Hide-UI. Icon-only; each
@@ -1132,15 +1246,16 @@ export function VNStage({
           </button>
           <button
             onClick={() => setHideUI(true)}
+            disabled={arrangingStage}
             title="Hide UI. Click the scene to bring it back"
             aria-label="Hide UI"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 hover:text-white disabled:opacity-30"
           >
             <EyeOff size={14} strokeWidth={2} />
           </button>
           <span className="h-4 w-px bg-white/15" />
           <button
-            onClick={() => setShowLog((v) => !v)}
+            onClick={() => { setArrangingStage(false); setShowLog((v) => !v) }}
             title={showLog ? 'Close history' : 'Open history'}
             aria-label={showLog ? 'Close history' : 'Open history'}
             className="flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-white/85 transition-colors hover:bg-white/15 hover:text-white sm:pr-3"
@@ -1179,9 +1294,8 @@ export function VNStage({
         </div>
       ) : (
         <>
-          {/* The cast fills the whole stage and the dialogue box floats over their feet, the way a
-              real VN composes a shot — rather than the two splitting the available height between
-              them, which is what kept the character small. */}
+          {/* The background stays visible behind a staggered cast: speaker in front, companions
+              farther into the scene. Phones frame only the person whose line is being read. */}
           <div
             // On a phone the sprite is width-bound long before it is height-bound, so standing it on
             // the stage floor left almost all of it behind the dialogue box. There it stands on the
@@ -1206,43 +1320,100 @@ export function VNStage({
                 </div>
               </div>
             )}
-            {/* h-full is required for each slot's h-[NN%] to resolve against a definite height. Skipped while a CG is showing full-bleed — sprites composited over unrelated CG art would look wrong. */}
+            {/* Skipped while a CG is showing full-bleed; sprites over unrelated CG art look wrong. */}
             {!triggeredCgEntry && (
-            <div className="flex h-full w-full items-end justify-center gap-2 sm:gap-5">
-              {departedMembers.map((m) => (
-                <VNCharacterSprite
-                  key={m.id}
-                  spriteUrl={m.spriteUrl}
-                  name={m.name}
-                  hue={m.hue}
-                  isActive={m.isActive}
-                  dim={!m.isActive}
-                  slotClass={slotClass}
-                  phase="exiting"
-                />
-              ))}
-              {castMembers.map((m) => (
-                <VNCharacterSprite
-                  key={m.id}
-                  spriteUrl={m.spriteUrl}
-                  name={m.name}
-                  hue={m.hue}
-                  isActive={m.isActive}
-                  dim={isGroupScene && !m.isActive}
-                  slotClass={slotClass}
-                  onClick={m.onClick}
-                  phase={enteringIds.has(m.id) ? 'entering' : undefined}
-                  vrmUrl={m.vrmUrl}
-                  expression={m.expression}
-                  speaking={m.speaking}
-                />
-              ))}
+            <div ref={stageRootRef} className="relative mx-auto h-full w-full md:w-[var(--stage-area-width)] md:max-w-[1400px]"
+              style={{ '--stage-area-width': `${stageArea.width}%` } as CSSProperties}>
+              {arrangingStage && (
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-20 h-full w-full">
+                  <polygon points={`22,${100 - stageArea.depth} 78,${100 - stageArea.depth} 100,100 0,100`}
+                    fill="rgb(58 205 183 / 0.08)" stroke="rgb(94 234 212 / 0.9)" strokeWidth="2" strokeDasharray="8 5" vectorEffect="non-scaling-stroke" />
+                </svg>
+              )}
+              {stagedFigures.filter(({ phase }) => !arrangingStage || phase !== 'exiting').map(({ member, placement, phase }) => {
+                const saved = stageArea.positions[member.id]
+                const hasSavedPoint = !!saved && Number.isFinite(saved.x) && Number.isFinite(saved.depth)
+                const point = pointFor(member.id, placement)
+                const custom = arrangingStage || hasSavedPoint
+                const box = custom ? stagePointStyle(point, stageArea.depth) : {
+                  x: placement.x, width: placement.width, height: placement.height,
+                  bottom: placement.bottom * stageArea.depth / DEFAULT_STAGE_AREA.depth,
+                }
+                const figureDepth: StageDepth = member.isActive ? 'foreground' : custom && point.depth >= 0.7 ? 'midground' : placement.depth
+                const draggable = arrangingStage && phase !== 'exiting'
+                return (
+                <div
+                  key={member.id}
+                  role={draggable ? 'button' : undefined}
+                  tabIndex={draggable ? 0 : undefined}
+                  aria-label={draggable ? `Move ${member.name} on stage. Use arrow keys or drag.` : undefined}
+                  onPointerDown={draggable ? (event) => {
+                    if (event.button !== 0 || !stageRootRef.current) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    const rect = stageRootRef.current.getBoundingClientRect()
+                    dragRef.current = { id: member.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, point, width: rect.width, height: rect.height }
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                  } : undefined}
+                  onPointerMove={draggable ? (event) => {
+                    const drag = dragRef.current
+                    if (!drag || drag.id !== member.id || drag.pointerId !== event.pointerId) return
+                    setStagePoint(member.id, moveStagePoint(drag.point, (event.clientX - drag.clientX) / drag.width, (event.clientY - drag.clientY) / drag.height, stageArea.depth))
+                  } : undefined}
+                  onPointerUp={draggable ? () => { dragRef.current = null } : undefined}
+                  onPointerCancel={draggable ? () => { dragRef.current = null } : undefined}
+                  onKeyDown={draggable ? (event) => {
+                    const delta = event.key === 'ArrowLeft' ? [-0.02, 0] : event.key === 'ArrowRight' ? [0.02, 0]
+                      : event.key === 'ArrowUp' ? [0, -0.02] : event.key === 'ArrowDown' ? [0, 0.02] : null
+                    if (!delta) return
+                    event.preventDefault()
+                    setStagePoint(member.id, moveStagePoint(point, delta[0], delta[1], stageArea.depth))
+                  } : undefined}
+                  className={`absolute left-1/2 bottom-0 h-[98%] -translate-x-1/2 outline-none md:left-[var(--stage-x)] md:bottom-[var(--stage-bottom)] md:h-[var(--stage-height)] md:w-[var(--stage-width)] ${draggable
+                    ? 'cursor-grab touch-none rounded-xl ring-2 ring-transparent hover:ring-teal-300/70 focus-visible:ring-teal-300 active:cursor-grabbing'
+                    : 'transition-[left,width,height,bottom] duration-500 ease-out motion-reduce:transition-none'} ${placement.visibleOnPhone
+                    ? 'w-[88%]'
+                    : 'hidden md:block'}`}
+                  style={{
+                    '--stage-x': `${box.x}%`,
+                    '--stage-width': `${box.width}%`,
+                    '--stage-height': `${box.height}%`,
+                    '--stage-bottom': `${box.bottom}%`,
+                    maxWidth: figureDepth === 'foreground' ? 620 : figureDepth === 'midground' ? 420 : 360,
+                    zIndex: custom ? Math.round(1 + point.depth * 10) : placement.depth === 'foreground' ? 3 : placement.depth === 'midground' ? 2 : 1,
+                  } as CSSProperties}
+                >
+                  <VNCharacterSprite
+                    spriteUrl={member.spriteUrl}
+                    name={member.name}
+                    hue={member.hue}
+                    isActive={member.isActive}
+                    depth={figureDepth}
+                    onClick={draggable || phase === 'exiting' ? undefined : member.onClick}
+                    phase={phase}
+                    vrmUrl={phase === 'exiting' ? undefined : member.vrmUrl}
+                    expression={member.expression}
+                    speaking={member.speaking}
+                  />
+                </div>
+                )
+              })}
             </div>
             )}
           </div>
 
+          {arrangingStage && (
+            <div className="relative z-30 mx-4 mb-4 mt-auto flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/40 bg-black/80 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md md:mx-auto md:max-w-2xl">
+              <Move size={17} className="shrink-0 text-teal-200" />
+              <span className="min-w-0 flex-1">Drag a character within the outlined floor. Arrow keys move a focused character.</span>
+              <button type="button" onClick={resetStageArea} className="rounded-lg px-2 py-1.5 text-white/75 hover:bg-white/10 hover:text-white">Reset</button>
+              <button type="button" onClick={() => setArrangingStage(false)} className="rounded-lg bg-teal-300 px-3 py-1.5 font-semibold text-black hover:bg-teal-200">Done</button>
+            </div>
+          )}
+
           {/* Hidden under Hide-UI too — only the background/sprites/CG stay up, full-scene. */}
-          {!hideUI && (
+          {!hideUI && !arrangingStage && (
           <>
           {/* Everything that isn't dialogue floats above the box instead of stacking inside it.
               That separation is what lets the box hold one fixed height while choices, quick
@@ -1306,7 +1477,7 @@ export function VNStage({
               docked pills above — a real VN choice screen. Sits outside the Hide-UI gate above on
               purpose in the sense that it's its own conditional, but still never shows while
               Hide-UI is on (a pending choice just waits; clicking the scene restores the UI first). */}
-          {activeChoiceData && !nextBeatMsg && vnChoiceStyle === 'centered' && !hideUI && (
+          {activeChoiceData && !nextBeatMsg && vnChoiceStyle === 'centered' && !hideUI && !arrangingStage && (
             <VNCenteredChoices
               choices={activeChoiceData.choices}
               onPick={activeChoiceData.onPick}
