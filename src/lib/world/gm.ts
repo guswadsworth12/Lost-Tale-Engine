@@ -238,12 +238,13 @@ function recordedAdjudication(move: RecordedMove): GmAdjudication {
 
 /** A GM turn built without the model: keeps play moving and still honors a recorded roll. */
 export function fallbackGmTurn(ctx: GmContext, reason: string): GmTurn {
+  const unresolved = ctx.campaign.mode === 'mechanical' && !ctx.recordedMove
   return {
     mode: ctx.campaign.mode,
     ruleset: ctx.campaign.ruleset,
-    narration: '',
+    narration: unresolved ? 'The Game Master could not rule on this action. Retry the ruling or withdraw the action.' : '',
     pacing: 'linger',
-    speakerIds: defaultSpeakers(ctx),
+    speakerIds: unresolved ? [] : defaultSpeakers(ctx),
     adjudication: ctx.recordedMove ? recordedAdjudication(ctx.recordedMove) : undefined,
     proposals: [],
     scenery: ctx.scenery,
@@ -331,8 +332,11 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     const action = str(rawAdj.action, 500) || ctx.playerAction.trim().slice(0, 500)
     const moveName = str(rawAdj.move, 200)
     const move = moveName ? ctx.campaign.moves.find((mv) => mv.name.toLowerCase() === moveName.toLowerCase()) : undefined
+    if (ctx.campaign.mode === 'mechanical' && moveName && !move) {
+      return fallbackGmTurn(ctx, `The GM named an unknown move: ${moveName}.`)
+    }
     if (ctx.campaign.mode === 'mechanical' && move) {
-      adjudication = { action, source: 'roll_needed', moveId: move.id, moveName: move.name, outcome: `Roll ${move.name} (+${move.stat}) to resolve this.` }
+      adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, outcome: `Roll ${move.name} (+${move.stat}) to resolve this.` }
       if (claimedTier) corrections.push('No dice were recorded, so the claimed tier was discarded and a roll was requested.')
     } else {
       const outcome = str(rawAdj.outcome, 1000)
@@ -345,6 +349,20 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     if (namedInRuling) {
       adjudication = undefined
       corrections.push(`Removed a GM judgment involving ${namedInRuling}; the character agent owns that response.`)
+    }
+  }
+  if (adjudication?.source === 'roll_needed') {
+    // A requested move is a gate, not a beat: none of the model's fictional result is established.
+    return {
+      mode: ctx.campaign.mode,
+      ruleset: ctx.campaign.ruleset,
+      narration: '',
+      pacing: 'linger',
+      speakerIds: [],
+      adjudication,
+      proposals: [],
+      scenery: ctx.scenery,
+      corrections: corrections.length ? corrections : undefined,
     }
   }
 
@@ -361,6 +379,23 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     .filter((p) => p.text)
     .slice(0, 3)
     .map((p) => ({ id: newId(), ...p, status: 'pending' as const }))
+
+  if (ctx.recordedMove?.tier === 'miss') {
+    // Arbitrary model prose cannot be checked against a failed roll. Only the move's recorded
+    // miss outcome can establish what happened; let the cast react without inventing success.
+    return {
+      mode: ctx.campaign.mode,
+      ruleset: ctx.campaign.ruleset,
+      narration: '',
+      pacing: 'linger',
+      speakerIds,
+      loreCallIds: loreCallIds.length ? loreCallIds : undefined,
+      adjudication,
+      proposals: [],
+      scenery: ctx.scenery,
+      corrections: corrections.length ? corrections : undefined,
+    }
+  }
 
   return {
     mode: ctx.campaign.mode,
@@ -389,7 +424,10 @@ export function adjudicationLabel(adj: GmAdjudication): string {
 export function formatGmMessage(turn: GmTurn): string {
   // The move is public: every agent and the player should know where the scene now is.
   const parts = [turn.setting ? `[Scene: ${turn.setting.location}]` : '', turn.narration]
-  if (turn.adjudication) parts.push(`[${adjudicationLabel(turn.adjudication)}] ${turn.adjudication.outcome}`)
+  if (turn.adjudication) {
+    const failed = turn.adjudication.source === 'recorded_roll' && turn.adjudication.tier === 'miss'
+    parts.push(`[${failed ? 'Failed check — ' : ''}${adjudicationLabel(turn.adjudication)}] ${turn.adjudication.outcome}`)
+  }
   if (turn.pacing === 'cut') parts.push('[Scene ends]')
   return parts.filter(Boolean).join('\n\n') || '[The GM lets the moment play out.]'
 }
@@ -403,6 +441,7 @@ export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: st
   const lines = [`The Game Master has ruled on this beat. Reply only as ${speakerName}.`]
   if (turn.adjudication?.source === 'recorded_roll') {
     lines.push(`Binding recorded result: ${adjudicationLabel(turn.adjudication)} — ${turn.adjudication.outcome} Do not reroll, change, or soften it.`)
+    if (turn.adjudication.tier === 'miss') lines.push('The check failed. Apply only the recorded miss outcome; do not portray the attempted action as successful unless that outcome explicitly allows it.')
   } else if (turn.adjudication?.source === 'roll_needed') {
     lines.push(`${playerName}'s action is not resolved yet: it needs a ${turn.adjudication.moveName} roll. React without deciding whether it succeeds.`)
   } else if (turn.adjudication) {

@@ -152,6 +152,12 @@ export const personasApi = makeResource<Persona>('personas', '/personas')
 export const assistantThreadsApi = makeResource<AssistantThread>('assistant-threads', '/assistant-threads')
 export const chatsApi = {
   ...makeResource<Chat>('chats', '/chats'),
+  /** The server draws and records both dice before the GM sees the result. */
+  async roll(id: string, body: { messageId: string; moveId: string; modifier: number; action: string; text: string }): Promise<StoredMessage> {
+    const result = await request<StoredMessage>('POST', `/chats/${id}/roll`, body)
+    invalidate('messages')
+    return result
+  },
   // Soft delete — the chat moves to the trash (`trash`/`restore`/`purge` below) rather than being
   // destroyed immediately. Nothing about it is actually touched, so this is always reversible
   // until it's purged.

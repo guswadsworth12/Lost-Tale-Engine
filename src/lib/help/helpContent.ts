@@ -1013,9 +1013,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. It opens **Resolve a campaign move**: roll 2d6 plus a modifier, and the result is saved as a story turn that guides the next reply. You choose when to roll; the roll shows on your turn.',
+            text: 'With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. Roll 2d6 plus a modifier; the recorded result is shown on your turn and the Game Master rules on it. If the GM identifies a move after you describe an action, play pauses at **Roll required**. Roll that move or withdraw the action before continuing. If a saved roll is still waiting after a reload, use **Resolve recorded roll**. If the GM could not rule on an unrolled action, retry its ruling or withdraw the action.',
           },
-          { kind: 'note', text: 'The app records the roll and its result tier. The narrator describes what happens; the rest of your ruleset is not applied automatically.' },
+          { kind: 'note', text: 'A failed check shows the recorded miss outcome and cannot be turned into success by GM narration or a proposed fact. The app does not yet calculate modifiers from a character sheet or apply other ruleset resources automatically.' },
         ],
       },
       {
@@ -1024,7 +1024,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'Set **Story panel → Scene Rules → Turn policy** to **Game Master** (offered only when the world has story rules). The GM narrates, decides who acts next, can bring characters into the scene, and may start a new story branch.',
+            text: 'New mechanical stories start with the **Game Master** turn policy. For an older story, set **Story panel → Scene Rules → Turn policy** to **Game Master** so it can identify checks before characters answer. Explicit rolls use the GM even if that story still uses Manual turns. The GM narrates, decides who acts next, can bring characters into the scene, and may start a new story branch.',
           },
           {
             kind: 'list',

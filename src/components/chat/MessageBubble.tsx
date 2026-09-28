@@ -110,7 +110,7 @@ export const MessageBubble = memo(function MessageBubble({
   const showContinuityFlag = !isUser && !!message.continuityFlag && !isStreaming
 
   const startEdit = () => {
-    if (!clickToEdit || isStreaming) return
+    if (!clickToEdit || isStreaming || message.campaignRoll) return
     setDraft(message.text)
     setEditing(true)
   }
@@ -208,7 +208,7 @@ export const MessageBubble = memo(function MessageBubble({
   ) : (
     <div
       onClick={startEdit}
-      className={`prose-rp whitespace-pre-wrap break-words text-sm leading-relaxed ${clickToEdit ? 'cursor-text' : ''}`}
+      className={`prose-rp whitespace-pre-wrap break-words text-sm leading-relaxed ${clickToEdit && !message.campaignRoll ? 'cursor-text' : ''}`}
     >
       {showFailedIndicator ? (
         <span className="flex items-center gap-1.5 text-danger">

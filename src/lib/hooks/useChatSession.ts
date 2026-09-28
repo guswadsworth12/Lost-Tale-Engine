@@ -32,7 +32,6 @@ import {
   fallbackGmTurn,
   type GmContext,
   type GmTurn,
-  type RecordedMove,
 } from '@/lib/world/gm'
 import { currentScenery, describeScenery, pinnedSceneryGuidance, sceneryIsNight } from '@/lib/vn/scenery'
 import { sceneSettingFrom, type SceneSettingEvent } from '@/lib/chat/sceneSetting'
@@ -3186,7 +3185,9 @@ export function useChatSession(chatId: string | null) {
           speaker: m.role === 'user' ? playerName : m.name,
           text: m.text.slice(0, 800),
         })),
-        playerAction: playerMsg.text,
+        // A requested check is rolled as a separate turn; adjudicate the original action, not
+        // the short "I roll" declaration that carried its binding dice result.
+        playerAction: playerMsg.campaignRoll?.action || playerMsg.text,
         recordedMove: playerMsg.campaignRoll,
         maxSpeakers: 3,
       }
@@ -3296,6 +3297,34 @@ export function useChatSession(chatId: string | null) {
     [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration, callableLore],
   )
 
+  /** The roll is durable before the model starts; a failed model call cannot change the dice. */
+  const rollCampaignMove = useCallback(async (input: { messageId: string; moveId: string; modifier: number; action: string; text: string }) => {
+    if (!chatId) throw new Error('No active story.')
+    if (!beginGeneration()) throw new Error('Wait for the current reply to finish.')
+    try {
+      const playerMsg = await chatsApi.roll(chatId, input)
+      void runGmBeat(playerMsg, playerMsg.createdAt + 1)
+        .catch((error) => toastError(`The roll was saved, but the GM could not finish: ${errorMessage(error)}`))
+        .finally(endGeneration)
+    } catch (error) {
+      endGeneration()
+      throw error
+    }
+  }, [beginGeneration, chatId, endGeneration, runGmBeat])
+
+  /** Resume after a reload or model failure when the dice were saved but the GM turn was not. */
+  const resumeRecordedRoll = useCallback(async (messageId: string) => {
+    if (!chatId || !beginGeneration()) return
+    try {
+      const branch = await messagesApi.listByChat(chatId)
+      const last = branch[branch.length - 1]
+      if (!last || last.id !== messageId || !last.campaignRoll) return
+      await runGmBeat(last, last.createdAt + 1)
+    } finally {
+      endGeneration()
+    }
+  }, [beginGeneration, chatId, endGeneration, runGmBeat])
+
   /** The player's answer to a GM proposal. A world-scope confirmation also becomes shared canon. */
   const decideGmProposal = useCallback(
     async (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => {
@@ -3337,7 +3366,7 @@ export function useChatSession(chatId: string | null) {
     async (
       text: string,
       attachments: PendingAttachment[] = [],
-      opts?: { choice?: ChoiceOption; intent?: MessageIntent; intimacyOptionId?: string; campaignRoll?: RecordedMove },
+      opts?: { choice?: ChoiceOption; intent?: MessageIntent; intimacyOptionId?: string; withdrawCheck?: boolean },
     ) => {
       if (!chatId || !beginGeneration()) return
       try {
@@ -3536,7 +3565,6 @@ export function useChatSession(chatId: string | null) {
             : undefined,
           scene: intimateOutfit ? { outfit: intimateOutfit } : undefined,
           images: storedImages.length ? storedImages : undefined,
-          campaignRoll: opts?.campaignRoll,
           createdAt: now,
         }
         await messagesApi.create(userMsg)
@@ -3558,7 +3586,9 @@ export function useChatSession(chatId: string | null) {
         // Who actually replies, per the chat's turn policy — `manual` keeps the "reply as" choice above; the others need a roster to pick from.
         let speaker = giftTarget
         const turnPolicy = freshChat.scene?.turnPolicy ?? 'manual'
-        if (turnPolicy === 'gm' && world?.campaign) {
+        // Withdrawal cancels an unresolved declaration without asking the GM to adjudicate it.
+        if (opts?.withdrawCheck) return
+        if (world?.campaign && turnPolicy === 'gm') {
           await runGmBeat(userMsg, now + 1)
           return
         }
@@ -3632,8 +3662,15 @@ export function useChatSession(chatId: string | null) {
       if (!beginGeneration()) return
       try {
         const priorMessages = messages.slice(0, idx)
-        // A GM turn re-rules the same player action in place; the agents who answered keep their lines.
+        // Re-ruling after character replies would leave those replies attached to an obsolete
+        // decision (possibly even a different check result). Rewind that beat first.
         if (messages[idx].gm) {
+          const nextUserIndex = messages.findIndex((m, i) => i > idx && m.role === 'user')
+          const beatEnd = nextUserIndex < 0 ? messages.length : nextUserIndex
+          if (messages.slice(idx + 1, beatEnd).some((m) => m.role === 'char')) {
+            toastInfo('Rewind the character replies before regenerating this GM ruling.')
+            return
+          }
           const playerMsg = [...priorMessages].reverse().find((m) => m.role === 'user')
           const turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
           if (turn) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
@@ -4335,6 +4372,8 @@ export function useChatSession(chatId: string | null) {
     genStats,
     assistActivity,
     sendUserMessage,
+    rollCampaignMove,
+    resumeRecordedRoll,
     regenerate,
     regenerateWithSteer,
     swipe,

@@ -2,6 +2,7 @@ import express from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomInt } from 'node:crypto'
 import {
   characterStore,
   chatFactStore,
@@ -26,6 +27,8 @@ import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
+import { createCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
+import type { CampaignConfig } from '../src/lib/world/campaign.ts'
 
 /**
  * Express app: REST routes for characters, personas, chats/messages, world info books, sampler
@@ -964,6 +967,53 @@ app.post('/api/chats/:id/restore', (req, res) => {
   res.json(updated)
 })
 
+app.post('/api/chats/:id/roll', (req, res) => {
+  const chat = chatStore.get(req.params.id)
+  if (!chat) return notFound(res)
+  let messageId: string
+  let moveId: string
+  let action: string
+  let text: string
+  const modifier = req.body?.modifier
+  try {
+    messageId = requiredRollText(req.body?.messageId, 'Message id', 100)
+    moveId = requiredRollText(req.body?.moveId, 'Move id', 100)
+    action = requiredRollText(req.body?.action, 'Action', 500)
+    text = requiredRollText(req.body?.text, 'Message', 10_000)
+    if (!Number.isInteger(modifier) || modifier < -5 || modifier > 5) throw new Error('Modifier must be an integer from -5 to 5.')
+  } catch (error) {
+    return res.status(400).json({ error: (error as Error).message })
+  }
+  const request = { chatId: req.params.id, moveId, modifier: modifier as number, action, text }
+  const existing = messageStore.get(messageId)
+  if (existing) return sameRollRequest(existing, request)
+    ? res.json(existing)
+    : res.status(409).json({ error: 'That message id already belongs to a different action.' })
+
+  const character = typeof chat.characterId === 'string' ? characterStore.get(chat.characterId) : undefined
+  const world = typeof character?.worldId === 'string' ? worldStore.get(character.worldId) : undefined
+  const campaign = world?.campaign as CampaignConfig | undefined
+  if (campaign?.mode !== 'mechanical') return res.status(400).json({ error: 'This chat has no mechanical campaign.' })
+  const move = campaign.moves.find((entry) => entry.id === moveId)
+  if (!move) return res.status(400).json({ error: 'That campaign move is no longer available.' })
+  const now = Date.now()
+  const roll = createCampaignRoll(move, modifier as number, [randomInt(1, 7), randomInt(1, 7)], action, newId(), now)
+  const player = typeof chat.playerCharacterId === 'string' ? characterStore.get(chat.playerCharacterId) : undefined
+  const card = player?.card as Record<string, unknown> | undefined
+  const name = typeof card?.name === 'string' && card.name.trim() ? card.name : 'You'
+  try {
+    const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, createdAt: now })
+    return res.status(201).json(created)
+  } catch (error) {
+    // A concurrent retry may have won the unique message-id insert in another server process.
+    const duplicate = messageStore.get(messageId)
+    if (duplicate) return sameRollRequest(duplicate, request)
+      ? res.json(duplicate)
+      : res.status(409).json({ error: 'That message id already belongs to a different action.' })
+    throw error
+  }
+})
+
 // The real, permanent delete — reachable from the trash view, a deliberate second step after soft-delete.
 app.delete('/api/chats/:id/purge', (req, res) => {
   const chatId = req.params.id
@@ -992,13 +1042,26 @@ app.get('/api/messages/:id', (req, res) => {
 })
 
 app.post('/api/messages', (req, res) => {
+  if ('campaignRoll' in req.body) return res.status(409).json({ error: 'Use the server roll endpoint to record a campaign move.' })
   const created = messageStore.insert({ ...req.body, id: req.body.id || newId(), createdAt: req.body.createdAt ?? Date.now() })
   res.status(201).json(created)
 })
 
 app.put('/api/messages/:id', (req, res) => {
-  const updated = messageStore.update(req.params.id, req.body)
-  if (!updated) return notFound(res)
+  const existing = messageStore.get(req.params.id)
+  if (!existing) return notFound(res)
+  const body = req.body
+  if ('campaignRoll' in body) {
+    return res.status(409).json({ error: 'A recorded campaign roll cannot be changed after the message is created.' })
+  }
+  if (existing.campaignRoll && (
+    (body.chatId && body.chatId !== existing.chatId)
+    || (body.role && body.role !== 'user')
+    || ('text' in body && body.text !== existing.text)
+  )) {
+    return res.status(400).json({ error: 'A rolled action cannot change chat, role, or text. Rewind and roll again.' })
+  }
+  const updated = messageStore.update(req.params.id, body)
   res.json(updated)
 })
 

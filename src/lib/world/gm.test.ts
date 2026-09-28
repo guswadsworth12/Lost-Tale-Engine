@@ -99,10 +99,43 @@ describe('Game Master decision validation', () => {
   })
 
   it('asks for a roll instead of accepting an invented mechanical result', () => {
-    const raw = '{"narration":"Hana braces.","speakers":["Hana Pike"],"adjudication":{"action":"ward","move":"Take a Risk","tier":"strong","outcome":"You hold."}}'
-    const turn = parseGmTurn(raw, ctx(), ids)
+    const raw = JSON.stringify({
+      narration: 'The door opens and the party escapes.', pacing: 'cut', speakers: ['Hana Pike'],
+      addCharacters: ['Mira Vale'], fork: { title: 'Escape', reason: 'The door opened.' },
+      setting: { location: 'Outside' }, proposals: [{ scope: 'world', text: 'The party escaped.' }],
+      adjudication: { action: 'force the door', move: 'Take a Risk', tier: 'strong', outcome: 'You escape.' },
+    })
+    const turn = parseGmTurn(raw, ctx({ availableRoster: [{ id: 'mira', name: 'Mira Vale' }] }), ids)
     expect(turn.adjudication).toMatchObject({ source: 'roll_needed', moveId: 'take-a-risk' })
+    expect(turn.adjudication?.action).toBe('I throw a ward over Hana.')
     expect(turn.adjudication?.tier).toBeUndefined()
+    expect(turn).toMatchObject({ narration: '', pacing: 'linger', speakerIds: [], proposals: [] })
+    expect(turn.addCharacterIds).toBeUndefined()
+    expect(turn.fork).toBeUndefined()
+    expect(turn.setting).toBeUndefined()
+    expect(formatGmMessage(turn)).not.toContain('escapes')
+  })
+
+  it('makes a recorded miss the only action result, even when the model claims success', () => {
+    const miss: RecordedMove = { ...resolvePbtaRoll(move, 0, [1, 2]), id: 'roll-miss', createdAt: 2, action: 'I force the door.' }
+    const raw = JSON.stringify({
+      narration: 'The door opens and the party escapes.', pacing: 'cut', speakers: ['Hana Pike'],
+      addCharacters: ['Mira Vale'], fork: { title: 'Escape', reason: 'The party got out.' },
+      setting: { location: 'Outside' }, proposals: [{ scope: 'world', text: 'The party escaped.' }],
+      adjudication: { action: 'force the door', move: 'Take a Risk', tier: 'strong', outcome: 'You escape.' },
+    })
+    const turn = parseGmTurn(raw, ctx({ recordedMove: miss, availableRoster: [{ id: 'mira', name: 'Mira Vale' }] }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', tier: 'miss', total: 3, outcome: move.miss })
+    expect(turn).toMatchObject({ narration: '', pacing: 'linger', proposals: [] })
+    expect(turn.addCharacterIds).toBeUndefined()
+    expect(turn.fork).toBeUndefined()
+    expect(turn.setting).toBeUndefined()
+    const publicText = formatGmMessage(turn)
+    expect(publicText).toContain('Failed check')
+    expect(publicText).toContain(move.miss)
+    expect(publicText).not.toContain('door opens')
+    expect(publicText).not.toContain('party escaped')
+    expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).toContain('The check failed. Apply only the recorded miss outcome')
   })
 
   it('keeps a guided ruling labeled as judgment, never a tier', () => {
@@ -152,6 +185,19 @@ describe('Game Master decision validation', () => {
     expect(turn.fallback).toBeTruthy()
     expect(turn.speakerIds).toEqual(['tobin'])
     expect(turn.adjudication?.source).toBe('recorded_roll')
+  })
+
+  it('pauses an unrolled mechanical action when the GM response is unusable', () => {
+    for (const raw of [
+      'The ward succeeds.',
+      '{"adjudication":{"action":"ward","move":"Unknown Move","outcome":"It succeeds."},"speakers":["Hana"]}',
+    ]) {
+      const turn = parseGmTurn(raw, ctx(), ids)
+      expect(turn.fallback).toBeTruthy()
+      expect(turn.speakerIds).toEqual([])
+      expect(turn.adjudication).toBeUndefined()
+      expect(formatGmMessage(turn)).toContain('Retry the ruling or withdraw')
+    }
   })
 
   it('caps who acts and lets a cut end the scene with nobody speaking', () => {

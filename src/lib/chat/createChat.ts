@@ -84,6 +84,8 @@ export async function createChat(opts: CreateChatOptions): Promise<Chat> {
     unlockedGalleryIds: [],
     summary,
     mode: resolvedMode,
+    // Mechanical stories need the GM to adjudicate actions before character agents answer.
+    scene: world?.campaign?.mode === 'mechanical' ? { turnPolicy: 'gm' } : undefined,
     assistOverrides: assistOverridesForTemplate(world ? { ...world, template: resolvedMode } : resolvedMode),
   })
 
@@ -129,7 +131,7 @@ export async function createChat(opts: CreateChatOptions): Promise<Chat> {
       if (scene.background) {
         writes.push(
           chatsApi.update(chat.id, {
-            scene: { turnPolicy: 'manual', location: backgroundLabel(scene.background, world) },
+            scene: { turnPolicy: chat.scene?.turnPolicy ?? 'manual', location: backgroundLabel(scene.background, world) },
           }),
         )
       }

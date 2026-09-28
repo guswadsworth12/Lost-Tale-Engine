@@ -75,7 +75,6 @@ import { TuningPanel } from './TuningPanel'
 import { ReactivePortrait } from './ReactivePortrait'
 import { ScenePanel } from './ScenePanel'
 import { CampaignMovePanel } from './CampaignMovePanel'
-import { formatPbtaRoll } from '@/lib/world/campaign'
 import { SceneryPicker } from './SceneryPicker'
 import { GmActionsContext } from './GmTurnCard'
 import { currentScenery } from '@/lib/vn/scenery'
@@ -142,6 +141,8 @@ export function ChatWindow({
     genStats,
     assistActivity,
     sendUserMessage,
+    rollCampaignMove,
+    resumeRecordedRoll,
     regenerate,
     regenerateWithSteer,
     swipe,
@@ -219,6 +220,7 @@ export function ChatWindow({
   const [showAuthorNote, setShowAuthorNote] = useState(false)
   const [showScene, setShowScene] = useState(false)
   const [showCampaignMove, setShowCampaignMove] = useState(false)
+  const [pendingCheck, setPendingCheck] = useState<{ moveId: string; action: string } | null>(null)
   const [showScenery, setShowScenery] = useState(false)
   const [showWorldFact, setShowWorldFact] = useState(false)
   const [worldFactText, setWorldFactText] = useState('')
@@ -459,12 +461,23 @@ export function ChatWindow({
   const romanceFocus = modules.romanceEmphasis === 'focus'
   const showDateControls = modules.dating && (chat.assistOverrides?.showDateEventButton ?? romanceFocus)
   const scenery = currentScenery(messages, chat.scene)
+  const lastMessage = messages[messages.length - 1]
+  const pendingGmAdjudication = lastMessage?.gm?.adjudication
+  const pendingGmMessageId = pendingGmAdjudication?.source === 'roll_needed' ? lastMessage.id : undefined
+  const pendingRollMessageId = lastMessage?.campaignRoll ? lastMessage.id : undefined
+  const pendingRulingMessageId = lastMessage?.gm?.mode === 'mechanical' && lastMessage.gm.fallback && !lastMessage.gm.adjudication ? lastMessage.id : undefined
   const gmActions = {
     decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
       void decideGmProposal(messageId, proposalId, decision).catch((e) => toastError(errorMessage(e))),
     nameOf: (id: string) =>
       id === GM_SPEAKER_ID ? GM_NAME : [character, ...participantCharacters].find((c) => c?.id === id)?.card.name ?? id,
     openChat: (id: string) => setActiveChatId(id),
+    pendingCheckMessageId: pendingGmMessageId,
+    rollForCheck: (messageId: string, moveId: string, action: string) => {
+      if (messageId !== pendingGmMessageId) return
+      setPendingCheck({ moveId, action })
+      setShowCampaignMove(true)
+    },
   }
   const toolbarActions: ChatToolbarAction[] = [
     {
@@ -752,7 +765,7 @@ export function ChatWindow({
         // Clearing the composer discards the armed intimacy action too.
         if (!v.trim()) setArmedIntimacyOptionId(null)
       }}
-      disabled={!character}
+      disabled={!character || !!pendingGmMessageId || !!pendingRollMessageId || !!pendingRulingMessageId}
       isGenerating={isGenerating}
       canContinue={canContinue}
       onSend={sendWithIntent}
@@ -768,9 +781,18 @@ export function ChatWindow({
       replyAsId={replyAsCharacterId}
       onChangeReplyAs={(id) => setReplyAsCharacterId(id === character?.id ? null : id)}
       turnPolicyHint={turnPolicyHint}
-      intentSlot={(showIntentChips || (modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length)) ? <div className="flex flex-wrap items-center gap-2">
-        {showIntentChips && <IntentChips variant={variant} stats={intentStats} armed={armedIntent} onArm={setArmedIntent} />}
-        {modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length && <button type="button" onClick={() => setShowCampaignMove(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-text hover:bg-bg-sunken"><Dices size={14} />Make a move / roll</button>}
+      intentRequired={!!pendingGmMessageId || !!pendingRollMessageId || !!pendingRulingMessageId}
+      intentSlot={(pendingGmMessageId || pendingRollMessageId || pendingRulingMessageId || showIntentChips || (modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length)) ? <div className="flex flex-wrap items-center gap-2">
+        {pendingGmMessageId && pendingGmAdjudication?.moveId ? <>
+          <button type="button" disabled={isGenerating} onClick={() => gmActions.rollForCheck(pendingGmMessageId, pendingGmAdjudication.moveId!, pendingGmAdjudication.action)} className="inline-flex items-center gap-1.5 rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 disabled:opacity-50"><Dices size={14} />Roll {pendingGmAdjudication.moveName}</button>
+          <button type="button" disabled={isGenerating} onClick={() => sendUserMessage('I withdraw my previous action before rolling.', [], { withdrawCheck: true })} className="rounded-lg px-2.5 py-1.5 text-xs text-text-muted hover:bg-bg-sunken disabled:opacity-50">Withdraw action</button>
+        </> : pendingRollMessageId ? <button type="button" disabled={isGenerating} onClick={() => void resumeRecordedRoll(pendingRollMessageId).catch((error) => toastError(errorMessage(error)))} className="inline-flex items-center gap-1.5 rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 disabled:opacity-50"><Dices size={14} />Resolve recorded roll</button> : pendingRulingMessageId ? <>
+          <button type="button" disabled={isGenerating} onClick={() => void regenerate(pendingRulingMessageId).catch((error) => toastError(errorMessage(error)))} className="rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 disabled:opacity-50">Retry Game Master</button>
+          <button type="button" disabled={isGenerating} onClick={() => sendUserMessage('I withdraw my previous action.', [], { withdrawCheck: true })} className="rounded-lg px-2.5 py-1.5 text-xs text-text-muted hover:bg-bg-sunken disabled:opacity-50">Withdraw action</button>
+        </> : <>
+          {showIntentChips && <IntentChips variant={variant} stats={intentStats} armed={armedIntent} onArm={setArmedIntent} />}
+          {modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length && <button type="button" onClick={() => { setPendingCheck(null); setShowCampaignMove(true) }} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-text hover:bg-bg-sunken"><Dices size={14} />Make a move / roll</button>}
+        </>}
       </div> : undefined}
     />
   )
@@ -1025,14 +1047,19 @@ export function ChatWindow({
       {showCampaignMove && world?.campaign && (
         <CampaignMovePanel
           campaign={world.campaign}
-          onClose={() => setShowCampaignMove(false)}
-          onSubmit={(roll, action) =>
-            // Under the GM the dice ride structurally on the player's turn and the GM rules on them;
-            // otherwise the formatted result stays in the text so the replying character sees it.
-            turnPolicy === 'gm'
-              ? sendUserMessage(action, [], { campaignRoll: { ...roll, action } })
-              : sendUserMessage(formatPbtaRoll(roll, action), [], { campaignRoll: { ...roll, action } })
-          }
+          pendingCheck={pendingCheck ?? undefined}
+          onClose={() => { setShowCampaignMove(false); setPendingCheck(null) }}
+          onSubmit={async (moveId, modifier, action, messageId) => {
+            const moveName = world.campaign?.moves.find((move) => move.id === moveId)?.name ?? 'the check'
+            await rollCampaignMove({
+              messageId,
+              moveId,
+              modifier,
+              action,
+              text: pendingCheck ? `I roll ${moveName} to resolve my previous action.` : action,
+            })
+            setPendingCheck(null)
+          }}
         />
       )}
       {showScenery && world && (

@@ -1,0 +1,85 @@
+import fs from 'node:fs'
+import http from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import type { AddressInfo } from 'node:net'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { STARTER_PBTA_CAMPAIGN } from '../src/lib/world/campaign.ts'
+
+let server: http.Server
+let dataDir: string
+let originalDataDir: string | undefined
+let originalLoadEnvFile: typeof process.loadEnvFile
+
+beforeAll(async () => {
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lost-tales-roll-http-'))
+  originalDataDir = process.env.LOST_TALES_DATA_DIR
+  originalLoadEnvFile = process.loadEnvFile
+  process.env.LOST_TALES_DATA_DIR = dataDir
+  // The test provides its own data directory; do not read the checkout's private .env.
+  process.loadEnvFile = () => {}
+  const { app } = await import('./app.ts')
+  server = app.listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.once('listening', resolve))
+  const db = await import('./db.ts')
+  expect(db.dataDir).toBe(dataDir)
+})
+
+afterAll(async () => {
+  if (server) await new Promise<void>((resolve) => server.close(() => resolve()))
+  const { db } = await import('./db.ts')
+  db.close()
+  process.loadEnvFile = originalLoadEnvFile
+  if (originalDataDir === undefined) delete process.env.LOST_TALES_DATA_DIR
+  else process.env.LOST_TALES_DATA_DIR = originalDataDir
+  if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
+})
+
+function call(route: string, method: string, body?: unknown): Promise<{ status: number; body: Record<string, any> }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ hostname: '127.0.0.1', port: (server.address() as AddressInfo).port,
+      path: route, method, headers: { 'Content-Type': 'application/json' } }, (res) => {
+      let content = ''
+      res.on('data', (data) => { content += data })
+      res.on('end', () => resolve({ status: res.statusCode!, body: JSON.parse(content) }))
+    })
+    req.on('error', reject)
+    req.end(body === undefined ? undefined : JSON.stringify(body))
+  })
+}
+
+describe('server-owned roll HTTP API', () => {
+  it('persists one roll, replays exact retries, rejects conflicts and client-authored changes', async () => {
+    const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' }
+    const world = await call('/api/worlds', 'POST', { name: 'Test world', description: '', lorebook: { entries: [] }, campaign })
+    expect(world.status).toBe(201)
+    const lead = await call('/api/characters', 'POST', { card: { name: 'Lead' }, worldId: world.body.id })
+    const player = await call('/api/characters', 'POST', { card: { name: 'Player' }, worldId: world.body.id, playerOnly: true })
+    expect(lead.status).toBe(201)
+    expect(player.status).toBe(201)
+    const chat = await call('/api/chats', 'POST', { characterId: lead.body.id, playerCharacterId: player.body.id, title: 'A scene' })
+    expect(chat.status).toBe(201)
+
+    const request = { messageId: 'roll-message-1', moveId: campaign.moves[0].id, modifier: -5, action: 'Cross the bridge', text: 'I cross the bridge.' }
+    const route = `/api/chats/${chat.body.id}/roll`
+    const first = await call(route, 'POST', request)
+    expect(first.status).toBe(201)
+    expect(first.body).toMatchObject({ id: request.messageId, chatId: chat.body.id, role: 'user', name: 'Player', text: request.text,
+      campaignRoll: { moveId: request.moveId, modifier: -5, action: request.action } })
+    const roll = first.body.campaignRoll
+    expect(roll.dice).toHaveLength(2)
+    expect(roll.dice.every((die: number) => Number.isInteger(die) && die >= 1 && die <= 6)).toBe(true)
+    expect(roll.total).toBe(roll.dice[0] + roll.dice[1] - 5)
+    expect(roll.tier).toBe(roll.total >= 10 ? 'strong' : roll.total >= 7 ? 'mixed' : 'miss')
+    expect(roll.outcome).toBe(campaign.moves[0][roll.tier as 'strong' | 'mixed' | 'miss'])
+
+    const retry = await call(route, 'POST', request)
+    expect(retry.status).toBe(200)
+    expect(retry.body).toEqual(first.body)
+    expect((await call(route, 'POST', { ...request, action: 'Different action' })).status).toBe(409)
+    expect((await call('/api/messages', 'POST', { id: 'forged', chatId: chat.body.id, role: 'user', text: 'Forged', campaignRoll: roll })).status).toBe(409)
+    expect((await call(`/api/messages/${request.messageId}`, 'PUT', { campaignRoll: { ...roll, tier: 'strong' } })).status).toBe(409)
+    expect((await call(`/api/messages/${request.messageId}`, 'PUT', { text: 'Changed after rolling' })).status).toBe(400)
+    expect((await call(`/api/messages/${request.messageId}`, 'GET')).body).toEqual(first.body)
+  })
+})

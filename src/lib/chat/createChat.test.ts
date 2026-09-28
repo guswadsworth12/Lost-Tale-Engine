@@ -51,9 +51,9 @@ function world(overrides: Partial<WorldCard> = {}): WorldCard {
 }
 
 /** The payload `createChat` most recently handed to `chatsApi.create`. */
-function lastCreatePayload(): { mode?: string; assistOverrides?: object } {
+function lastCreatePayload(): { mode?: string; assistOverrides?: object; scene?: { turnPolicy: string } } {
   const calls = vi.mocked(chatsApi.create).mock.calls
-  return calls[calls.length - 1][0] as { mode?: string; assistOverrides?: object }
+  return calls[calls.length - 1][0] as { mode?: string; assistOverrides?: object; scene?: { turnPolicy: string } }
 }
 
 describe('createChat: mode resolution', () => {
@@ -96,6 +96,17 @@ describe('createChat: mode resolution', () => {
   it("falls back to 'dating_sim' when there's neither an explicit mode nor a bound world", async () => {
     await createChat({ character: character(), world: undefined })
     expect(lastCreatePayload().mode).toBe('dating_sim')
+  })
+
+  it('starts a mechanical campaign with GM adjudication, including when greeting art seeds a location', async () => {
+    vi.mocked(chatsApi.update).mockClear()
+    await createChat({
+      character: character({ first_mes: '*The library doors are barred.*' }),
+      world: world({ campaign: { ruleset: 'Test', mode: 'mechanical', resolver: 'pbta', relationships: false, dating: false, moves: [] } }),
+    })
+    expect(lastCreatePayload().scene?.turnPolicy).toBe('gm')
+    const updates = vi.mocked(chatsApi.update).mock.calls
+    expect(updates[updates.length - 1]?.[1]).toMatchObject({ scene: { turnPolicy: 'gm' } })
   })
 })
 

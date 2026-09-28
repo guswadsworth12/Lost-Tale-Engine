@@ -25,6 +25,8 @@ interface ComposerProps {
   turnPolicyHint?: string
   /** A row that belongs *to* the message being composed (10b's intent chips) — sits inside the card, above the textarea, so it reads as part of writing the line rather than a separate bar. */
   intentSlot?: ReactNode
+  /** Keep a required check visible on a phone instead of folding it into optional intent chips. */
+  intentRequired?: boolean
   /** 'vn' strips its own chrome (border/background/margin) to sit bare inside the glass dialogue box it's nested in, and switches text/icon colors for a photo backdrop instead of the app surface. */
   variant?: 'default' | 'vn'
   /** VN inline input: fills the dialogue box's fixed height instead of hugging its content, so the box never resizes as the draft grows. */
@@ -49,6 +51,7 @@ export function Composer({
   onChangeReplyAs,
   turnPolicyHint,
   intentSlot,
+  intentRequired = false,
   variant = 'default',
   fillHeight = false,
 }: ComposerProps) {
@@ -132,17 +135,17 @@ export function Composer({
           <>
             {/* Desktop VN: always visible, same as before. */}
             <div className="mb-2.5 hidden border-b border-white/10 px-1.5 pb-2.5 sm:block">{intentSlot}</div>
-            {/* Mobile VN: collapsed by default — the sprite/dialogue box need the vertical room more. */}
+            {/* Mobile VN: optional chips collapse; a required roll stays in sight. */}
             <div className="mb-2.5 border-b border-white/10 pb-2.5 sm:hidden">
-              <button
+              {!intentRequired && <button
                 type="button"
                 onClick={() => setShowIntentMobile((v) => !v)}
                 className="flex items-center gap-1 px-1.5 text-xs text-white/60 transition-colors hover:text-white"
               >
                 <ChevronDown size={12} strokeWidth={2} className={`transition-transform ${showIntentMobile ? 'rotate-180' : ''}`} />
                 Intent
-              </button>
-              {showIntentMobile && <div className="mt-2 px-1.5">{intentSlot}</div>}
+              </button>}
+              {(intentRequired || showIntentMobile) && <div className="mt-2 px-1.5">{intentSlot}</div>}
             </div>
           </>
         )}

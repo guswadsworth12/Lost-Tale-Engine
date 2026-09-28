@@ -11,6 +11,8 @@ export const GmActionsContext = createContext<{
   decideProposal?: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => void
   nameOf?: (characterId: string) => string
   openChat?: (chatId: string) => void
+  pendingCheckMessageId?: string
+  rollForCheck?: (messageId: string, moveId: string, action: string) => void
 }>({})
 
 const SOURCE_TONE = {
@@ -23,16 +25,17 @@ const SOURCE_TONE = {
 export function CampaignRollBadge({ message }: { message: StoredMessage }) {
   const roll = message.campaignRoll
   if (!roll) return null
+  const failed = roll.tier === 'miss'
   return (
-    <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2 py-1 text-[11px] text-accent">
+    <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] ${failed ? 'bg-danger/10 text-danger' : 'bg-accent/10 text-accent'}`}>
       <Dices size={12} strokeWidth={2} />
-      {roll.moveName}: {roll.dice[0]} + {roll.dice[1]} {roll.modifier >= 0 ? '+' : '−'} {Math.abs(roll.modifier)} {roll.stat} = {roll.total} ({roll.tier})
+      {failed ? 'Failed check · ' : ''}{roll.moveName}: {roll.dice[0]} + {roll.dice[1]} {roll.modifier >= 0 ? '+' : '−'} {Math.abs(roll.modifier)} {roll.stat} = {roll.total} ({roll.tier})
     </div>
   )
 }
 
 export function GmTurnCard({ message }: { message: StoredMessage }) {
-  const { decideProposal, nameOf, openChat } = useContext(GmActionsContext)
+  const { decideProposal, nameOf, openChat, pendingCheckMessageId, rollForCheck } = useContext(GmActionsContext)
   const turn = message.gm
   if (!turn) return null
   const adj = turn.adjudication
@@ -42,7 +45,7 @@ export function GmTurnCard({ message }: { message: StoredMessage }) {
         <span className="rounded-full bg-bg px-1.5 py-px font-medium text-text">
           {turn.mode === 'mechanical' ? 'Mechanical' : 'Guided'} · {turn.ruleset}
         </span>
-        {adj && <span className={`rounded-full px-1.5 py-px font-medium ${SOURCE_TONE[adj.source]}`}>{adjudicationLabel(adj)}</span>}
+        {adj && <span className={`rounded-full px-1.5 py-px font-medium ${adj.source === 'recorded_roll' && adj.tier === 'miss' ? 'bg-danger/15 text-danger' : SOURCE_TONE[adj.source]}`}>{adjudicationLabel(adj)}</span>}
         <span className="rounded-full bg-bg px-1.5 py-px">Pacing: {turn.pacing}</span>
         {turn.speakerIds.length > 0 && (
           <span className="rounded-full bg-bg px-1.5 py-px">Acts: {turn.speakerIds.map((id) => nameOf?.(id) ?? id).join(' → ')}</span>
@@ -50,6 +53,11 @@ export function GmTurnCard({ message }: { message: StoredMessage }) {
       </div>
       {turn.mode === 'guided' && (
         <p>Guided mode: the GM judges outcomes from the ruleset’s spirit. This is not rules enforcement.</p>
+      )}
+      {adj?.source === 'roll_needed' && adj.moveId && pendingCheckMessageId === message.id && rollForCheck && (
+        <button type="button" onClick={() => rollForCheck(message.id, adj.moveId!, adj.action)} className="inline-flex items-center gap-1.5 rounded-lg bg-warning/15 px-2 py-1 font-medium text-warning hover:bg-warning/25">
+          <Dices size={13} /> Roll {adj.moveName}
+        </button>
       )}
       {turn.fallback && <p className="text-warning">GM fallback: {turn.fallback}</p>}
       {turn.corrections?.map((c) => <p key={c}>Engine correction: {c}</p>)}
