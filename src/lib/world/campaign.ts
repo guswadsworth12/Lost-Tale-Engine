@@ -5,7 +5,7 @@ export interface CampaignConfig {
   edition?: string
   mode: 'guided' | 'mechanical'
   /** An adapter handles resolution rolls, not an entire published rulebook. */
-  resolver: 'pbta'
+  resolver: 'pbta' | 'd20' | 'd20-degree' | 'fate' | 'roll-under'
   relationships: boolean
   dating: boolean
   /** World-authored fields for each character's sheet. Older campaigns derive these from moves. */
@@ -17,12 +17,14 @@ export interface CampaignStat {
   id: string
   name: string
   description?: string
+  /** A raw d20 ability score derives its modifier; other values are used directly. */
+  valueMode?: 'modifier' | 'ability' | 'target'
 }
 
 export interface CharacterSheet {
   /** The world whose stat ids these values were assigned against. */
   worldId?: string
-  /** Values are PbtA modifiers from -5 to +5, keyed by stable world stat id. */
+  /** World-defined ratings, keyed by stable stat id. */
   stats: Record<string, number>
 }
 
@@ -33,6 +35,8 @@ export interface PbtaMove {
   stat: string
   /** Stable reference to a sheet field; old moves still resolve by their stat label. */
   statId?: string
+  /** Fixed difficulty or opposition; omitted when it varies by scene. */
+  target?: number
   strong: string
   mixed: string
   miss: string
@@ -44,10 +48,18 @@ export interface PbtaRoll {
   moveName: string
   stat: string
   modifier: number
-  dice: [number, number]
+  dice: number[]
   total: number
   tier: 'strong' | 'mixed' | 'miss'
   outcome: string
+  resolver?: CampaignConfig['resolver']
+  target?: number
+  /** The player-supplied target, kept separate from a fixed world-authored target for retry checks. */
+  requestedTarget?: number
+  pendingGmMessageId?: string
+  degree?: string
+  rollMode?: 'normal' | 'advantage' | 'disadvantage'
+  natural?: number
   createdAt: number
 }
 
@@ -77,6 +89,48 @@ export const STARTER_PBTA_CAMPAIGN: CampaignConfig = {
   ],
 }
 
+export function isCampaignResolver(value: unknown): value is CampaignConfig['resolver'] {
+  return value === 'pbta' || value === 'd20' || value === 'd20-degree' || value === 'fate' || value === 'roll-under'
+}
+
+const checkMove = (id: string, name: string, statId: string, resolver: CampaignConfig['resolver']): PbtaMove => ({
+  id, name, trigger: `you face a meaningful risk and use ${name.toLowerCase()}`, stat: name.replace(/ check$/, ''), statId,
+  strong: 'The check succeeds. Describe the established effect.',
+  mixed: resolver === 'fate' ? 'The check ties. The GM names a minor cost or reduced effect.' : 'The check succeeds with a complication.',
+  miss: 'The check fails. The GM describes the consequence without granting the intended result.',
+})
+
+/**
+ * Core check templates only; worlds can add their own fields, moves, and outcomes.
+ * Mechanics references: D&D SRD 5.2.1 (https://www.dndbeyond.com/srd),
+ * Fate Core (https://fate-srd.com/fate-core/actions-outcomes), and Paizo's
+ * Starfinder 2e / Pathfinder 2e check rules (https://paizo.com/starfinder).
+ * The 3d6 preset is generic roll-under, not a bundled GURPS rulebook.
+ */
+export const CAMPAIGN_PRESETS: { id: string; label: string; campaign: CampaignConfig }[] = [
+  { id: 'pbta', label: 'Starter 2d6 moves', campaign: STARTER_PBTA_CAMPAIGN },
+  { id: 'dnd-5-2', label: 'D&D 5e SRD 5.2.1 · core checks', campaign: {
+    ruleset: 'D&D 5e SRD', edition: '5.2.1', mode: 'mechanical', resolver: 'd20', relationships: false, dating: false,
+    stats: ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'].map((name) => ({ id: name.toLowerCase(), name, valueMode: 'ability' })),
+    moves: ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'].map((name) => checkMove(`${name.toLowerCase()}-check`, `${name} check`, name.toLowerCase(), 'd20')),
+  } },
+  { id: 'starfinder-2', label: 'Starfinder 2e · core checks', campaign: {
+    ruleset: 'Starfinder', edition: '2e', mode: 'mechanical', resolver: 'd20-degree', relationships: false, dating: false,
+    stats: ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'].map((name) => ({ id: name.toLowerCase(), name, valueMode: 'modifier' })),
+    moves: ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'].map((name) => checkMove(`${name.toLowerCase()}-check`, `${name} check`, name.toLowerCase(), 'd20-degree')),
+  } },
+  { id: 'fate-core', label: 'Fate Core · skill checks', campaign: {
+    ruleset: 'Fate Core', mode: 'mechanical', resolver: 'fate', relationships: false, dating: false,
+    stats: ['Athletics', 'Empathy', 'Investigate', 'Notice', 'Rapport', 'Will'].map((name) => ({ id: name.toLowerCase(), name, valueMode: 'modifier' })),
+    moves: ['Athletics', 'Empathy', 'Investigate', 'Notice', 'Rapport', 'Will'].map((name) => checkMove(`${name.toLowerCase()}-check`, `${name} check`, name.toLowerCase(), 'fate')),
+  } },
+  { id: 'roll-under', label: '3d6 roll-under · custom skills', campaign: {
+    ruleset: '3d6 Roll-under', mode: 'mechanical', resolver: 'roll-under', relationships: false, dating: false,
+    stats: ['Might', 'Agility', 'Reason', 'Vitality'].map((name) => ({ id: name.toLowerCase(), name, valueMode: 'target' })),
+    moves: ['Might', 'Agility', 'Reason', 'Vitality'].map((name) => checkMove(`${name.toLowerCase()}-check`, `${name} check`, name.toLowerCase(), 'roll-under')),
+  } },
+]
+
 /** Old worlds had only free-text move stats. Give them stable derived fields until edited. */
 export function campaignStats(campaign: CampaignConfig): CampaignStat[] {
   if (campaign.stats) return campaign.stats
@@ -97,7 +151,25 @@ export function statForMove(campaign: CampaignConfig, move: PbtaMove): CampaignS
 export function sheetModifier(campaign: CampaignConfig, move: PbtaMove, sheet: CharacterSheet | undefined): number | undefined {
   const stat = statForMove(campaign, move)
   const value = stat && sheet?.stats[stat.id]
-  return typeof value === 'number' && Number.isInteger(value) && value >= -5 && value <= 5 ? value : undefined
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < -100 || value > 100) return undefined
+  if (stat?.valueMode === 'ability') return value >= 1 && value <= 30 ? Math.floor((value - 10) / 2) : undefined
+  if (stat?.valueMode === 'target') return value >= 0 ? value : undefined
+  return campaign.resolver === 'pbta' && (value < -5 || value > 5) ? undefined : value
+}
+
+/** A character can carry sheets for several worlds without changing their home world. */
+export function sheetForWorld(character: { worldId?: string; sheet?: CharacterSheet; sheets?: Record<string, CharacterSheet> } | undefined, worldId: string): CharacterSheet | undefined {
+  return character?.sheets?.[worldId] ?? (character?.sheet && (character.sheet.worldId === worldId || !character.sheet.worldId && character.worldId === worldId) ? character.sheet : undefined)
+}
+
+export function normalizeCharacterSheets(raw: unknown): Record<string, CharacterSheet> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const entries = Object.entries(raw).slice(0, 30).flatMap(([worldId, value]) => {
+    if (!worldId || worldId.length > 100) return []
+    const sheet = normalizeCharacterSheet(value)
+    return sheet ? [[worldId, { ...sheet, worldId }] as const] : []
+  })
+  return Object.fromEntries(entries)
 }
 
 /** Sanitize imported sheet fields; absent legacy sheets remain absent. */
@@ -107,7 +179,7 @@ export function normalizeCharacterSheet(raw: unknown): CharacterSheet | undefine
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return undefined
   const worldId = (raw as { worldId?: unknown }).worldId
   return { ...(typeof worldId === 'string' && worldId.trim() ? { worldId: worldId.slice(0, 100) } : {}), stats: Object.fromEntries(Object.entries(stats).slice(0, 50).filter(([id, value]) =>
-    id.length > 0 && id.length <= 100 && Number.isInteger(value) && (value as number) >= -5 && (value as number) <= 5)) }
+    id.length > 0 && id.length <= 100 && Number.isInteger(value) && (value as number) >= -100 && (value as number) <= 100)) }
 }
 
 export function normalizeCampaignStats(raw: unknown): CampaignStat[] | undefined {
@@ -122,7 +194,8 @@ export function normalizeCampaignStats(raw: unknown): CampaignStat[] | undefined
     if (!name || ids.has(id) || names.has(name.toLowerCase())) return []
     ids.add(id)
     names.add(name.toLowerCase())
-    return [{ id, name, description: text(value.description, 500) || undefined }]
+    const valueMode = value.valueMode === 'ability' || value.valueMode === 'target' || value.valueMode === 'modifier' ? value.valueMode : undefined
+    return [{ id, name, description: text(value.description, 500) || undefined, ...(valueMode ? { valueMode } : {}) }]
   })
 }
 
@@ -153,7 +226,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
     ruleset: text(v.ruleset, 200) || 'Custom',
     edition: text(v.edition, 100) || undefined,
     mode: v.mode === 'mechanical' ? 'mechanical' : 'guided',
-    resolver: 'pbta',
+    resolver: isCampaignResolver(v.resolver) ? v.resolver : 'pbta',
     relationships,
     dating: relationships && v.dating === true,
     ...(Array.isArray(v.stats) ? { stats: normalizeCampaignStats(v.stats) ?? [] } : {}),
@@ -165,6 +238,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
         trigger: text(m.trigger, 2000),
         stat: text(m.stat, 100),
         ...(text(m.statId, 100) ? { statId: text(m.statId, 100) } : {}),
+        ...(typeof m.target === 'number' && Number.isInteger(m.target) && m.target >= -30 && m.target <= 100 ? { target: m.target } : {}),
         strong: text(m.strong, 4000),
         mixed: text(m.mixed, 4000),
         miss: text(m.miss, 4000),
@@ -178,6 +252,53 @@ export function resolvePbtaRoll(move: PbtaMove, modifier: number, dice: [number,
   const total = dice[0] + dice[1] + modifier
   const tier = total >= 10 ? 'strong' : total >= 7 ? 'mixed' : 'miss'
   return { moveId: move.id, moveName: move.name, stat: move.stat, modifier, dice, total, tier, outcome: move[tier] }
+}
+
+/** Deterministic core check resolution. The server supplies the dice and records this snapshot. */
+export function resolveCampaignRoll(config: CampaignConfig, move: PbtaMove, modifier: number, dice: number[], suppliedTarget?: number, rollMode: 'normal' | 'advantage' | 'disadvantage' = 'normal'): Omit<PbtaRoll, 'id' | 'createdAt'> {
+  if (config.resolver === 'pbta') {
+    if (dice.length !== 2) throw new Error('A 2d6 move needs two dice.')
+    return { ...resolvePbtaRoll(move, modifier, dice as [number, number]), resolver: 'pbta' }
+  }
+  if (!Number.isInteger(modifier) || modifier < -100 || modifier > 100) throw new Error('Sheet value is out of range.')
+  if (config.resolver === 'roll-under' && modifier < 0) throw new Error('A roll-under target cannot be negative.')
+  const target = config.resolver === 'roll-under' ? modifier : move.target ?? suppliedTarget
+  if (!Number.isInteger(target) || (target as number) < -30 || (target as number) > 100) throw new Error('A valid check difficulty is required.')
+  let total: number
+  let degree: string
+  let natural: number | undefined
+  let tier: PbtaRoll['tier']
+  if (config.resolver === 'd20' || config.resolver === 'd20-degree') {
+    const count = rollMode === 'normal' ? 1 : 2
+    if (dice.length !== count || !dice.every((die) => Number.isInteger(die) && die >= 1 && die <= 20)) throw new Error('A d20 check needs valid d20 dice.')
+    natural = rollMode === 'advantage' ? Math.max(...dice) : rollMode === 'disadvantage' ? Math.min(...dice) : dice[0]
+    total = natural + modifier
+    if (config.resolver === 'd20-degree') {
+      const margin = total - (target as number)
+      const levels = ['critical failure', 'failure', 'success', 'critical success']
+      const base = margin >= 10 ? 3 : margin >= 0 ? 2 : margin <= -10 ? 0 : 1
+      const index = Math.max(0, Math.min(3, base + (natural === 20 ? 1 : natural === 1 ? -1 : 0)))
+      degree = levels[index]
+      tier = index >= 2 ? 'strong' : 'miss'
+    } else {
+      degree = total >= (target as number) ? 'success' : 'failure'
+      tier = degree === 'success' ? 'strong' : 'miss'
+    }
+  } else if (config.resolver === 'fate') {
+    if (dice.length !== 4 || !dice.every((die) => die === -1 || die === 0 || die === 1)) throw new Error('A Fate check needs four Fate dice.')
+    total = dice.reduce((sum, die) => sum + die, modifier)
+    const margin = total - (target as number)
+    degree = margin >= 3 ? 'success with style' : margin > 0 ? 'success' : margin === 0 ? 'tie' : 'failure'
+    tier = margin > 0 ? 'strong' : margin === 0 ? 'mixed' : 'miss'
+  } else {
+    if (dice.length !== 3 || !dice.every((die) => Number.isInteger(die) && die >= 1 && die <= 6)) throw new Error('A roll-under check needs three d6 dice.')
+    total = dice.reduce((sum, die) => sum + die, 0)
+    const criticalSuccess = total <= 4 || total === 5 && modifier >= 15 || total === 6 && modifier >= 16
+    const criticalFailure = total === 18 || total === 17 && modifier < 16 || total - modifier >= 10
+    degree = criticalSuccess ? 'critical success' : criticalFailure ? 'critical failure' : total <= modifier && total < 17 ? 'success' : 'failure'
+    tier = degree.endsWith('success') ? 'strong' : 'miss'
+  }
+  return { moveId: move.id, moveName: move.name, stat: move.stat, modifier, dice, total, tier, outcome: move[tier], resolver: config.resolver, target, degree, ...(natural ? { natural, rollMode } : {}) }
 }
 
 export function rollPbtaMove(move: PbtaMove, modifier: number): PbtaRoll {
@@ -214,7 +335,7 @@ export function campaignPrompt(config: CampaignConfig, romanceEmphasis: RomanceE
   ]
   if (config.mode === 'mechanical' && config.moves.length) {
     lines.push('Available moves:')
-    for (const move of config.moves) lines.push(`- ${move.name}: when ${move.trigger}; roll +${move.stat || 'modifier'}.`)
+    for (const move of config.moves) lines.push(`- ${move.name}: when ${move.trigger}; use ${move.stat || 'the linked sheet field'} with the ${config.resolver} check resolver.`)
   }
   return lines.filter(Boolean).join('\n')
 }

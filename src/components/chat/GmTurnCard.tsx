@@ -26,10 +26,17 @@ export function CampaignRollBadge({ message }: { message: StoredMessage }) {
   const roll = message.campaignRoll
   if (!roll) return null
   const failed = roll.tier === 'miss'
+  const result = roll.resolver === 'roll-under'
+    ? `3d6 ${roll.dice.join(' + ')} = ${roll.total} vs skill ${roll.target}`
+    : roll.resolver === 'fate'
+      ? `4dF ${roll.dice.map((die) => die > 0 ? '+' : die < 0 ? '−' : '0').join(' ')} + ${roll.modifier} = ${roll.total} vs ${roll.target}`
+      : roll.resolver === 'd20' || roll.resolver === 'd20-degree'
+        ? `d20 ${roll.dice.join(', ')}${roll.rollMode && roll.rollMode !== 'normal' ? ` (${roll.rollMode}: ${roll.natural})` : ''} ${roll.modifier >= 0 ? '+' : '−'} ${Math.abs(roll.modifier)} = ${roll.total} vs ${roll.target}`
+        : `${roll.dice[0]} + ${roll.dice[1]} ${roll.modifier >= 0 ? '+' : '−'} ${Math.abs(roll.modifier)} ${roll.stat} = ${roll.total}`
   return (
     <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] ${failed ? 'bg-danger/10 text-danger' : 'bg-accent/10 text-accent'}`}>
       <Dices size={12} strokeWidth={2} />
-      {failed ? 'Failed check · ' : ''}{roll.moveName}: {roll.dice[0]} + {roll.dice[1]} {roll.modifier >= 0 ? '+' : '−'} {Math.abs(roll.modifier)} {roll.stat} = {roll.total} ({roll.tier}){roll.modifierSource === 'sheet' ? ' · sheet' : ''}
+      {failed ? 'Failed check · ' : ''}{roll.moveName}: {result} ({roll.degree ?? roll.tier}){roll.modifierSource === 'sheet' ? ' · sheet' : ''}
     </div>
   )
 }

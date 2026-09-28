@@ -3298,7 +3298,7 @@ export function useChatSession(chatId: string | null) {
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */
-  const rollCampaignMove = useCallback(async (input: { messageId: string; moveId: string; modifier: number; action: string; text: string }) => {
+  const rollCampaignMove = useCallback(async (input: { messageId: string; moveId: string; modifier: number; action: string; text: string; target?: number; rollMode?: 'normal' | 'advantage' | 'disadvantage'; pendingGmMessageId?: string }) => {
     if (!chatId) throw new Error('No active story.')
     if (!beginGeneration()) throw new Error('Wait for the current reply to finish.')
     try {

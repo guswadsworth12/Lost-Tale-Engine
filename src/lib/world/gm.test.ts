@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER_PBTA_CAMPAIGN, resolvePbtaRoll } from './campaign'
+import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, resolvePbtaRoll } from './campaign'
 import {
   branchConsequencesFrom,
   buildGmPrompt,
@@ -80,6 +80,18 @@ describe('Game Master prompt', () => {
 })
 
 describe('Game Master decision validation', () => {
+  it('records the GM difficulty before a d20 roll and rejects a missing difficulty', () => {
+    const campaign = CAMPAIGN_PRESETS.find((entry) => entry.id === 'dnd-5-2')!.campaign
+    const input = (target?: number) => JSON.stringify({ narration: 'The gate opens.', pacing: 'advance', speakers: [],
+      adjudication: { action: 'lift gate', move: campaign.moves[0].name, target, tier: 'strong', outcome: 'It opens.' } })
+    const ready = parseGmTurn(input(20), ctx({ campaign }), ids)
+    expect(ready.adjudication).toMatchObject({ source: 'roll_needed', target: 20, moveId: campaign.moves[0].id })
+    expect(ready.narration).toBe('')
+    const missing = parseGmTurn(input(), ctx({ campaign }), ids)
+    expect(missing.fallback).toContain('without setting a difficulty')
+    expect(missing.adjudication).toBeUndefined()
+  })
+
   it('honors the recorded roll even when the model narrates a different tier', () => {
     const raw = JSON.stringify({
       narration: 'The ward flares as the floor splits.',

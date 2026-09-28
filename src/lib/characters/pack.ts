@@ -17,7 +17,9 @@ export interface CharacterPackV1 {
   character: {
     card: CharacterCardData
     playerOnly?: boolean
+    worldId?: string
     sheet?: Character['sheet']
+    sheets?: Character['sheets']
     avatarDataUrl?: string
     sprites?: Record<string, string>
     spriteUnlocks?: Record<string, number>
@@ -107,7 +109,9 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
     character: {
       card: character.card,
       playerOnly: character.playerOnly,
+      worldId: character.worldId,
       sheet: character.sheet,
+      sheets: character.sheets,
       avatarDataUrl,
       sprites,
       spriteUnlocks: character.spriteUnlocks,
@@ -247,6 +251,10 @@ export async function importCharacterPack(
     card: pack.character.card,
     playerOnly: pack.character.playerOnly,
     sheet: pack.character.sheet ? { ...pack.character.sheet, worldId: world?.id ?? pack.character.sheet.worldId } : undefined,
+    sheets: Object.fromEntries(Object.entries(pack.character.sheets ?? {}).map(([id, sheet]) => {
+      const nextId = world && id === pack.character.worldId ? world.id : id
+      return [nextId, { ...sheet, worldId: nextId }]
+    })),
     avatarDataUrl: pack.character.avatarDataUrl,
     sprites: pack.character.sprites,
     spriteUnlocks: pack.character.spriteUnlocks,

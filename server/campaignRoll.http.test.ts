@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { STARTER_PBTA_CAMPAIGN } from '../src/lib/world/campaign.ts'
+import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN } from '../src/lib/world/campaign.ts'
 
 let server: http.Server
 let dataDir: string
@@ -94,5 +94,43 @@ describe('server-owned roll HTTP API', () => {
     expect(sheetRoll.body.campaignRoll).toMatchObject({ modifierSource: 'sheet', sheetStatId: 'nerve' })
     expect(sheetRoll.body.campaignRoll.total).toBe(sheetRoll.body.campaignRoll.dice[0] + sheetRoll.body.campaignRoll.dice[1] + 2)
     expect((await call(route, 'POST', sheetRequest)).body).toEqual(sheetRoll.body)
+  })
+
+  it('uses a portable d20 sheet and records an actual failed DC check', async () => {
+    const campaign = CAMPAIGN_PRESETS.find((entry) => entry.id === 'dnd-5-2')!.campaign
+    const world = await call('/api/worlds', 'POST', { name: 'D20 world', description: '', lorebook: { entries: [] }, campaign })
+    const oldWorld = await call('/api/worlds', 'POST', { name: 'Old home', description: '', lorebook: { entries: [] } })
+    const lead = await call('/api/characters', 'POST', { card: { name: 'Lead' }, worldId: world.body.id })
+    const player = await call('/api/characters', 'POST', { card: { name: 'Player' }, worldId: oldWorld.body.id, playerOnly: true,
+      sheets: { [world.body.id]: { stats: { strength: 18 } } } })
+    const chat = await call('/api/chats', 'POST', { characterId: lead.body.id, playerCharacterId: player.body.id, title: 'D20 check' })
+    const route = `/api/chats/${chat.body.id}/roll`
+    const request = { messageId: 'd20-failed-check', moveId: campaign.moves[0].id, modifier: 4, target: 30, action: 'Lift the gate', text: 'I lift the gate.' }
+    expect((await call(route, 'POST', { ...request, modifier: 9 })).status).toBe(409)
+    const result = await call(route, 'POST', request)
+    expect(result.status).toBe(201)
+    expect(result.body.campaignRoll).toMatchObject({ resolver: 'd20', modifier: 4, modifierSource: 'sheet', target: 30, requestedTarget: 30, degree: 'failure', tier: 'miss' })
+    expect(result.body.campaignRoll.total).toBeLessThan(30)
+    expect((await call(route, 'POST', request)).body).toEqual(result.body)
+
+    const pendingId = 'd20-gm-check'
+    const gm = await call('/api/messages', 'POST', { id: pendingId, chatId: chat.body.id, role: 'assistant', text: 'A check is required.', createdAt: Date.now(),
+      gm: { adjudication: { source: 'roll_needed', moveId: campaign.moves[0].id, target: 20 } } })
+    expect(gm.status).toBe(201)
+    const gmRequest = { ...request, messageId: 'd20-gm-roll', target: 20, pendingGmMessageId: pendingId }
+    expect((await call(route, 'POST', { ...gmRequest, pendingGmMessageId: undefined })).status).toBe(409)
+    expect((await call(route, 'POST', { ...gmRequest, target: 10 })).status).toBe(409)
+    const gmRoll = await call(route, 'POST', gmRequest)
+    expect(gmRoll.status).toBe(201)
+    expect(gmRoll.body.campaignRoll).toMatchObject({ target: 20, pendingGmMessageId: pendingId })
+
+    const fixed = { ...campaign, moves: campaign.moves.map((move, index) => index === 0 ? { ...move, target: 15 } : move) }
+    expect((await call(`/api/worlds/${world.body.id}`, 'PUT', { campaign: fixed })).status).toBe(200)
+    const fixedPendingId = 'd20-fixed-gm-check'
+    expect((await call('/api/messages', 'POST', { id: fixedPendingId, chatId: chat.body.id, role: 'assistant', text: 'A fixed check is required.', createdAt: Date.now(),
+      gm: { adjudication: { source: 'roll_needed', moveId: campaign.moves[0].id, target: 15 } } })).status).toBe(201)
+    const fixedRoll = await call(route, 'POST', { ...request, messageId: 'd20-fixed-roll', target: undefined, pendingGmMessageId: fixedPendingId })
+    expect(fixedRoll.status).toBe(201)
+    expect(fixedRoll.body.campaignRoll).toMatchObject({ target: 15, pendingGmMessageId: fixedPendingId })
   })
 })

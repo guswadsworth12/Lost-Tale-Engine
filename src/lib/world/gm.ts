@@ -19,7 +19,7 @@ import type { CampaignConfig, PbtaRoll } from './campaign'
 export const GM_SPEAKER_ID = 'game-master'
 export const GM_NAME = 'Game Master'
 
-/** A PbtA move result the player rolled, stored on the user message that declared it. */
+/** A server-resolved check stored on the player message that declared it. */
 export interface RecordedMove extends PbtaRoll {
   action: string
   /** Keeps the modifier's origin auditable after a sheet changes later. */
@@ -45,6 +45,9 @@ export interface GmAdjudication {
   moveId?: string
   moveName?: string
   tier?: PbtaRoll['tier']
+  degree?: string
+  /** Set before rolling for a scene-specific d20 or Fate check. */
+  target?: number
   total?: number
   rollId?: string
   outcome: string
@@ -132,8 +135,10 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const modeLines = campaign.mode === 'mechanical'
     ? [
         `Resolution mode: MECHANICAL (${campaign.resolver.toUpperCase()} resolver).`,
-        'A recorded roll is binding. Report its tier and outcome exactly; never reroll, change the total, or soften a miss.',
+        'A recorded roll is binding. Report its degree and outcome exactly; never reroll, change the total, or soften a failed check.',
         'If the player declares an action that triggers a move and no roll is recorded, set "move" to that move name and leave "tier" null: the player must roll before it resolves.',
+        campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' || campaign.resolver === 'fate'
+          ? 'When requesting a roll, set adjudication.target to the difficulty or opposition before the player rolls, unless the move has a fixed target. Choose it from the situation and the ruleset; do not change it after the roll.' : '',
         'You may not invent dice, totals, or resources.',
       ]
     : [
@@ -141,7 +146,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
         'Adjudicate with judgment: say plainly what happens because of the declared action. Never claim a die roll, total, or tier.',
       ]
   const moveLines = campaign.moves.length
-    ? ['Moves:', ...campaign.moves.map((m) => `- ${m.name} (+${m.stat || 'modifier'}): when ${m.trigger}. 10+: ${m.strong} 7–9: ${m.mixed} 6-: ${m.miss}`)]
+    ? ['Moves:', ...campaign.moves.map((m) => campaign.resolver === 'pbta'
+      ? `- ${m.name} (+${m.stat || 'modifier'}): when ${m.trigger}. 10+: ${m.strong} 7–9: ${m.mixed} 6-: ${m.miss}`
+      : `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. Success: ${m.strong} Tie: ${m.mixed} Failure: ${m.miss}${m.target !== undefined ? ` Fixed target: ${m.target}.` : ''}`)]
     : []
   const system = [
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
@@ -162,7 +169,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
+    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
   ].join('\n')
 
   const rosterLine = ctx.roster.length
@@ -173,7 +180,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     : '- (none)'
   const m = ctx.recordedMove
   const recorded = m
-    ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+    ? m.resolver && m.resolver !== 'pbta'
+      ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+      : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
     : 'Recorded roll: none this turn.'
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
@@ -233,6 +242,8 @@ function recordedAdjudication(move: RecordedMove): GmAdjudication {
     moveId: move.moveId,
     moveName: move.moveName,
     tier: move.tier,
+    degree: move.degree,
+    target: move.target,
     total: move.total,
     rollId: move.id,
     outcome: move.outcome,
@@ -339,7 +350,13 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       return fallbackGmTurn(ctx, `The GM named an unknown move: ${moveName}.`)
     }
     if (ctx.campaign.mode === 'mechanical' && move) {
-      adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, outcome: `Roll ${move.name} (+${move.stat}) to resolve this.` }
+      const rawTarget = rawAdj.target
+      const target = ctx.campaign.resolver === 'pbta' || ctx.campaign.resolver === 'roll-under' ? undefined
+        : move.target ?? (Number.isInteger(rawTarget) && (rawTarget as number) >= -30 && (rawTarget as number) <= 100 ? rawTarget as number : undefined)
+      if ((ctx.campaign.resolver === 'd20' || ctx.campaign.resolver === 'd20-degree' || ctx.campaign.resolver === 'fate') && target === undefined) {
+        return fallbackGmTurn(ctx, `The GM requested ${move.name} without setting a difficulty.`)
+      }
+      adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, ...(target !== undefined ? { target } : {}), outcome: `Roll ${move.name}${target !== undefined ? ` vs ${target}` : ''} to resolve this.` }
       if (claimedTier) corrections.push('No dice were recorded, so the claimed tier was discarded and a roll was requested.')
     } else {
       const outcome = str(rawAdj.outcome, 1000)
@@ -418,8 +435,8 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
 }
 
 export function adjudicationLabel(adj: GmAdjudication): string {
-  if (adj.source === 'recorded_roll') return `${adj.moveName}: ${adj.tier ? TIER_LABEL[adj.tier] : ''} (${adj.total}, recorded roll)`
-  if (adj.source === 'roll_needed') return `${adj.moveName}: roll needed`
+  if (adj.source === 'recorded_roll') return `${adj.moveName}: ${adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : '')} (${adj.total}, recorded roll)`
+  if (adj.source === 'roll_needed') return `${adj.moveName}: roll needed${adj.target !== undefined ? ` vs ${adj.target}` : ''}`
   return 'GM judgment (guided, not a rules result)'
 }
 

@@ -980,7 +980,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     icon: 'dice',
     summary: 'Guided outcomes, moves and rolls, and the Game Master turn policy.',
     condition: 'Only in worlds with Story rules turned on.',
-    keywords: ['campaign', 'pbta', 'rules', 'ruleset', 'moves', 'roll', 'dice', '2d6', 'game master', 'gm', 'proposals', 'guided', 'mechanical'],
+    keywords: ['campaign', 'pbta', 'd20', 'fate', 'starfinder', 'sheet', 'rules', 'ruleset', 'moves', 'roll', 'dice', '2d6', 'game master', 'gm', 'proposals', 'guided', 'mechanical'],
     related: ['worlds', 'story-panel'],
     sections: [
       {
@@ -989,7 +989,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'In a world, Overview → World modules → **Story rules** chooses **Guided outcomes** or **Roll for outcomes**. The **Story Rules** tab then holds the ruleset: **Load starter PbtA moves**, **Import campaign file**, **Export campaign file**, the ruleset name and edition, **Game Master continuity notes**, and the **Moves** (a trigger, a stat, and what happens on 10+, 7–9 and 6 or less).',
+            text: 'In a world, Overview → World modules → **Story rules** chooses **Guided outcomes** or **Roll for outcomes**. In **Story Rules**, load a core-check preset or import a campaign file, choose the resolver, and edit the sheet fields and moves. Presets include 2d6 moves, D&D 5e SRD d20 checks, Starfinder 2e four-degree checks, Fate Core dice, and a custom 3d6 roll-under check. You can export the edited campaign as a file.',
           },
         ],
       },
@@ -1003,7 +1003,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           },
           {
             kind: 'note',
-            text: 'Guided mode is not rules enforcement. The app does not track stats, hit points or other rules on its own; keep important facts in GM notes or canon.',
+            text: 'Guided mode is not rules enforcement. Character sheets can still be saved, but the app does not roll or track hit points and other resources in guided mode.',
           },
         ],
       },
@@ -1013,9 +1013,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'Build stats in **World → Story Rules → Character sheet builder**, assign a stat to each move, then set each character’s values in **Cast → Sheet**. When a story has a player character with a sheet, rolls use that saved modifier and the server checks it. Older stories without a sheet can still enter a modifier manually. With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. If the GM identifies a move after you describe an action, play pauses at **Roll required**. Roll that move or withdraw the action before continuing. A saved roll can be resumed with **Resolve recorded roll**.',
+            text: 'Build fields in **World → Story Rules → Character sheet builder**, assign one to each move, then open **Cast → Sheet** and choose the world’s ruleset for the character. One character can keep sheets for several worlds without changing their home world. Rolls use the selected sheet’s saved score, bonus, or roll-under target; the server checks it before rolling. Older stories with no sheet can enter a value manually. D20 and Fate checks compare with a difficulty or opposition: a world-authored fixed target takes precedence, and the GM sets a scene-specific target before asking you to roll. For a roll you start yourself, enter the target before rolling. With **Roll for outcomes** and at least one move, **Make a move / roll** appears above the composer. If the GM identifies a move after you describe an action, play pauses at **Roll required**.',
           },
-          { kind: 'note', text: 'A failed check shows the recorded miss outcome and cannot be turned into success by GM narration or a proposed fact. Character sheet values currently cover 2d6 move modifiers from −5 to +5; other ruleset resources are not applied automatically.' },
+          { kind: 'note', text: 'A failed check is recorded and cannot be turned into success by GM narration. Presets implement core checks, not complete published rules or character options; add your own sheet fields, move effects, and world rules for the rest of the game.' },
         ],
       },
       {

@@ -153,7 +153,7 @@ export const assistantThreadsApi = makeResource<AssistantThread>('assistant-thre
 export const chatsApi = {
   ...makeResource<Chat>('chats', '/chats'),
   /** The server draws and records both dice before the GM sees the result. */
-  async roll(id: string, body: { messageId: string; moveId: string; modifier: number; action: string; text: string }): Promise<StoredMessage> {
+  async roll(id: string, body: { messageId: string; moveId: string; modifier: number; action: string; text: string; target?: number; rollMode?: 'normal' | 'advantage' | 'disadvantage'; pendingGmMessageId?: string }): Promise<StoredMessage> {
     const result = await request<StoredMessage>('POST', `/chats/${id}/roll`, body)
     invalidate('messages')
     return result

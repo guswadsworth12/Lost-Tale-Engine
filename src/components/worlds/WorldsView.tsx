@@ -31,7 +31,7 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
-import { DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
+import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
 import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
 import type { PromptItem } from '@/lib/prompt/items'
 
@@ -273,6 +273,17 @@ export function setCampaignSheetStats(campaign: CampaignConfig, stats: CampaignS
   }
 }
 
+/** Loading a rules template should not switch off this world's relationship or dating features. */
+export function loadCampaignPreset(current: CampaignConfig, preset: CampaignConfig): CampaignConfig {
+  return {
+    ...preset,
+    relationships: current.relationships,
+    dating: current.dating,
+    stats: preset.stats?.map((stat) => ({ ...stat })),
+    moves: preset.moves.map((move) => ({ ...move })),
+  }
+}
+
 function WorldEditor({
   world,
   initialTemplate,
@@ -288,6 +299,7 @@ function WorldEditor({
   const base = world ?? { id: '', createdAt: 0, updatedAt: 0, ...blankWorld(initialTemplate) }
   const [tab, setTab] = useState<string>(() => WORLD_TAB_ALIASES[initialTab as keyof typeof WORLD_TAB_ALIASES] ?? initialTab ?? 'overview')
   const [name, setName] = useState(base.name)
+  const [selectedCampaignPreset, setSelectedCampaignPreset] = useState('')
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
@@ -590,7 +602,7 @@ function WorldEditor({
     if (sheetStats.length >= 30) return
     let number = sheetStats.length + 1
     while (sheetNames.includes(`stat ${number}`)) number++
-    setCampaign(setCampaignSheetStats(campaign, [...sheetStats, { id: newId(), name: `Stat ${number}` }]))
+    setCampaign(setCampaignSheetStats(campaign, [...sheetStats, { id: newId(), name: `Stat ${number}`, valueMode: campaign.resolver === 'roll-under' ? 'target' : 'modifier' }]))
   }
 
   const updateSheetStat = (id: string, patch: Partial<CampaignStat>) =>
@@ -716,10 +728,21 @@ function WorldEditor({
       {tab === 'story-rules' && (
         <div className="space-y-6">
           <Section title="Story rules" description="Choose how outcomes are decided for this world. Existing chats in this world use these settings." surface="bare">
+            <p className="mb-3 text-xs text-text-muted">Presets cover core checks. You can edit their fields and moves for this world. Loading a preset replaces the current rules and sheet builder fields.</p>
+            <div className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <SelectField label="Ruleset preset" value={selectedCampaignPreset} onChange={(e) => setSelectedCampaignPreset(e.target.value)}>
+                <option value="">Choose a preset</option>
+                {CAMPAIGN_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+              </SelectField>
+              <Button variant="secondary" disabled={!selectedCampaignPreset} onClick={() => {
+                const preset = CAMPAIGN_PRESETS.find((entry) => entry.id === selectedCampaignPreset)
+                if (!preset) return
+                const next = loadCampaignPreset(campaign, preset.campaign)
+                setCampaign(next)
+                setModules((current) => ({ ...current, campaignRules: next.mode }))
+              }}>Load preset</Button>
+            </div>
             <div className="mb-4 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => { setCampaign({ ...STARTER_PBTA_CAMPAIGN, moves: STARTER_PBTA_CAMPAIGN.moves.map((move) => ({ ...move })) }); setModules((current) => ({ ...current, campaignRules: STARTER_PBTA_CAMPAIGN.mode, relationships: false, dating: false })) }}>
-                Load starter PbtA moves
-              </Button>
               <FileButton
                 accept=".json,application/json"
                 title="Replace these rules with a campaign file exported from this or another world"
@@ -752,27 +775,39 @@ function WorldEditor({
             </div>
             <TextField label="Ruleset" value={campaign.ruleset} onChange={(e) => setCampaign({ ...campaign, ruleset: e.target.value })} />
             <TextField label="Version or edition" value={campaign.edition ?? ''} onChange={(e) => setCampaign({ ...campaign, edition: e.target.value })} />
+            <SelectField label="Check resolver" value={campaign.resolver} onChange={(e) => setCampaign({ ...campaign, resolver: e.target.value as CampaignConfig['resolver'] })} hint="Choose how the engine rolls and decides success. Changing this does not convert saved character sheets.">
+              <option value="pbta">PbtA · 2d6 tiers</option>
+              <option value="d20">D20 · pass or fail</option>
+              <option value="d20-degree">D20 · four degrees</option>
+              <option value="fate">Fate · four Fate dice</option>
+              <option value="roll-under">3d6 · roll under</option>
+            </SelectField>
             <div className="mb-4 flex flex-wrap gap-2">
               <Chip on={campaign.mode === 'guided'} onClick={() => setModule('campaignRules', 'guided')}>Guided outcomes</Chip>
               <Chip on={campaign.mode === 'mechanical'} onClick={() => setModule('campaignRules', 'mechanical')}>Roll for outcomes</Chip>
             </div>
-            <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a 2d6 move result before the narrator describes it. The player chooses when to roll.</p>
+            <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a {campaign.resolver === 'pbta' ? '2d6' : campaign.resolver === 'fate' ? 'four Fate dice' : campaign.resolver === 'roll-under' ? '3d6' : 'd20'} check before the narrator describes it. The player chooses when to roll.</p>
             <TextAreaField label="Game Master continuity notes" hint="Only the Game Master sees these. Record secrets, relationship visibility, and future story threads here; character agents receive only what their own cards and public lore permit." rows={6} value={gmNotes} onChange={(e) => setGmNotes(e.target.value)} />
             <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.relationships} onChange={(e) => setModule('relationships', e.target.checked)} /> Use RP relationship scoring</label>
             <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Enable dating features</label>
           </Section>
-          <Section title="Character sheet builder" description="Define the stats characters in this world can have. Set each character’s modifier on their sheet, then choose which stat each move rolls." surface="bare">
+          <Section title="Character sheet builder" description="Define the fields characters in this world can have. Set each character’s values on their sheet, then choose which field each move checks." surface="bare">
             <div className="space-y-3">
               {sheetStats.map((stat) => <div key={stat.id} className="rounded-xl border border-border bg-bg-sunken p-4">
                 <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm text-text">Sheet stat</strong><Button variant="secondary" onClick={() => removeSheetStat(stat.id)}>Remove</Button></div>
                 <TextField label="Name" maxLength={100} value={stat.name} onChange={(e) => updateSheetStat(stat.id, { name: e.target.value })} />
                 <TextField label="Description (optional)" maxLength={500} value={stat.description ?? ''} onChange={(e) => updateSheetStat(stat.id, { description: e.target.value })} />
+                <SelectField label="Value type" value={stat.valueMode ?? 'modifier'} onChange={(e) => updateSheetStat(stat.id, { valueMode: e.target.value as CampaignStat['valueMode'] })}>
+                  <option value="modifier">Modifier or skill bonus</option>
+                  <option value="ability">Ability score</option>
+                  <option value="target">Roll-under target</option>
+                </SelectField>
               </div>)}
               {!sheetStatsValid && <p className="text-xs text-danger">Give each stat a unique, nonempty name before saving.</p>}
               <Button variant="secondary" disabled={sheetStats.length >= 30} onClick={addSheetStat}>Add stat{sheetStats.length >= 30 ? ' (maximum 30)' : ''}</Button>
             </div>
           </Section>
-          <Section title="Moves" description="These are editable campaign moves. Write the trigger and the consequence for each result tier." surface="bare">
+          <Section title="Moves" description="These are editable campaign checks. Write the trigger and guidance for each result. Degree-specific effects beyond these core checks need custom rules." surface="bare">
             <div className="space-y-4">
               {campaign.moves.map((move, index) => {
                 const update = (patch: Partial<PbtaMove>) => setCampaign({ ...campaign, stats: sheetStats, moves: campaign.moves.map((entry) => entry.id === move.id ? { ...entry, ...patch } : entry) })
@@ -787,9 +822,13 @@ function WorldEditor({
                     <option value="">Choose a sheet stat</option>
                     {sheetStats.map((stat) => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
                   </SelectField>
-                  <TextAreaField label="10+ result" value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
-                  <TextAreaField label="7–9 result" value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
-                  <TextAreaField label="6 or less result" value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
+                  {campaign.resolver !== 'pbta' && campaign.resolver !== 'roll-under' && <NumberField label="Fixed target / opposition (optional)" hint="Leave blank for the GM or player to set a scene target before rolling." min={-30} max={100} step={1} value={move.target ?? ''} onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    if (value === undefined || Number.isInteger(value) && value >= -30 && value <= 100) update({ target: value })
+                  }} />}
+                  <TextAreaField label={campaign.resolver === 'pbta' ? '10+ result' : 'Success result'} value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
+                  <TextAreaField label={campaign.resolver === 'pbta' ? '7–9 result' : 'Tie or complication result'} value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
+                  <TextAreaField label={campaign.resolver === 'pbta' ? '6 or less result' : 'Failure result'} value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
                 </div>
               })}
               <Button variant="secondary" onClick={() => setCampaign({ ...campaign, stats: sheetStats, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: sheetStats[0]?.name ?? '', statId: sheetStats[0]?.id, strong: '', mixed: '', miss: '' }] })}>Add move</Button>

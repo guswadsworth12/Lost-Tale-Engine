@@ -38,6 +38,7 @@ import { useBgmSceneStore } from '@/lib/store/useBgmSceneStore'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { getEnergyRemaining, PHASES, presenceLabel, resolveScheduledPresence } from '@/lib/world/calendar'
 import { getWorldTemplate, modulesForWorld } from '@/lib/world/worldTemplates'
+import { sheetForWorld } from '@/lib/world/campaign'
 import {
   computeWarmth,
   formatRelationshipStage,
@@ -221,7 +222,7 @@ export function ChatWindow({
   const [showAuthorNote, setShowAuthorNote] = useState(false)
   const [showScene, setShowScene] = useState(false)
   const [showCampaignMove, setShowCampaignMove] = useState(false)
-  const [pendingCheck, setPendingCheck] = useState<{ moveId: string; action: string } | null>(null)
+  const [pendingCheck, setPendingCheck] = useState<{ messageId: string; moveId: string; action: string; target?: number } | null>(null)
   const [showScenery, setShowScenery] = useState(false)
   const [showWorldFact, setShowWorldFact] = useState(false)
   const [worldFactText, setWorldFactText] = useState('')
@@ -476,7 +477,7 @@ export function ChatWindow({
     pendingCheckMessageId: pendingGmMessageId,
     rollForCheck: (messageId: string, moveId: string, action: string) => {
       if (messageId !== pendingGmMessageId) return
-      setPendingCheck({ moveId, action })
+      setPendingCheck({ messageId, moveId, action, target: pendingGmAdjudication?.target })
       setShowCampaignMove(true)
     },
   }
@@ -1048,17 +1049,20 @@ export function ChatWindow({
       {showCampaignMove && world?.campaign && (
         <CampaignMovePanel
           campaign={world.campaign}
-          sheet={playerCharacter?.sheet}
-          sheetWorldMismatch={!!playerCharacter?.sheet && (playerCharacter.worldId !== world.id || !!playerCharacter.sheet.worldId && playerCharacter.sheet.worldId !== world.id)}
+          sheet={sheetForWorld(playerCharacter, world.id)}
+          sheetWorldMismatch={!!playerCharacter && !!(playerCharacter.sheet || Object.keys(playerCharacter.sheets ?? {}).length) && !sheetForWorld(playerCharacter, world.id)}
           playerName={playerCharacter?.card.name}
           pendingCheck={pendingCheck ?? undefined}
           onClose={() => { setShowCampaignMove(false); setPendingCheck(null) }}
-          onSubmit={async (moveId, modifier, action, messageId) => {
+          onSubmit={async (moveId, modifier, action, messageId, target, rollMode) => {
             const moveName = world.campaign?.moves.find((move) => move.id === moveId)?.name ?? 'the check'
             await rollCampaignMove({
               messageId,
               moveId,
               modifier,
+              target,
+              rollMode,
+              pendingGmMessageId: pendingCheck?.messageId,
               action,
               text: pendingCheck ? `I roll ${moveName} to resolve my previous action.` : action,
             })

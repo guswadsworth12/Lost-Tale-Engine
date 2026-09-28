@@ -150,6 +150,8 @@ export interface Character {
   worldId?: string
   /** Campaign stat values, keyed by the bound world's sheet field ids. */
   sheet?: import('@/lib/world/campaign').CharacterSheet
+  /** Portable profiles for each world's rules, kept when the character changes worlds. */
+  sheets?: Record<string, import('@/lib/world/campaign').CharacterSheet>
   /** Expression art, keyed by expression id (vn/expressions.ts) for the base outfit, or
    *  `<outfitId>--<expressionId>` for an outfit (vn/outfits.ts). Falls back to the avatar when missing. */
   sprites?: Record<string, string>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCharacterSheet, parseCampaignFile, resolvePbtaRoll, sheetModifier, statForMove } from './campaign'
+import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCharacterSheet, normalizeCharacterSheets, parseCampaignFile, resolveCampaignRoll, resolvePbtaRoll, sheetForWorld, sheetModifier, statForMove } from './campaign'
 
 describe('campaign prompt emphasis', () => {
   it('keeps focus guidance and leaves natural/off turns free of campaign romance steering', () => {
@@ -39,7 +39,7 @@ describe('campaign character sheets', () => {
     const legacy = { ...STARTER_PBTA_CAMPAIGN, stats: undefined, moves: STARTER_PBTA_CAMPAIGN.moves.map(({ statId: _id, ...move }) => move) }
     expect(campaignStats(legacy).map((stat) => stat.id)).toEqual(['legacy:nerve', 'legacy:wits', 'legacy:heart', 'legacy:grit'])
     expect(sheetModifier(legacy, legacy.moves[0], { stats: { 'legacy:nerve': -1 } })).toBe(-1)
-    expect(normalizeCharacterSheet({ stats: { nerve: 2, bad: 9, fraction: 1.5 } })).toEqual({ stats: { nerve: 2 } })
+    expect(normalizeCharacterSheet({ stats: { nerve: 2, otherSystemRating: 9, fraction: 1.5 } })).toEqual({ stats: { nerve: 2, otherSystemRating: 9 } })
   })
 })
 
@@ -51,5 +51,40 @@ describe('campaign files', () => {
       .toMatchObject({ ruleset: 'Bare', mode: 'guided', dating: false, moves: [{ id: 'move-1', name: 'Go' }] })
     expect(() => parseCampaignFile('not json')).toThrow('not valid JSON')
     expect(() => parseCampaignFile('{"ruleset":"x"}')).toThrow('"moves"')
+  })
+})
+
+describe('portable sheets and core check resolvers', () => {
+  const preset = (id: string) => CAMPAIGN_PRESETS.find((entry) => entry.id === id)!.campaign
+
+  it('keeps separate sheets for worlds and derives a d20 modifier from an ability score', () => {
+    const character = { worldId: 'old', sheet: { worldId: 'old', stats: { nerve: 2 } }, sheets: { new: { worldId: 'new', stats: { strength: 18 } } } }
+    expect(sheetForWorld(character, 'old')?.stats.nerve).toBe(2)
+    expect(sheetForWorld(character, 'new')?.stats.strength).toBe(18)
+    expect(sheetModifier(preset('dnd-5-2'), preset('dnd-5-2').moves[0], sheetForWorld(character, 'new'))).toBe(4)
+    expect(normalizeCharacterSheets({ new: { stats: { strength: 18, invalid: 101 } } })).toEqual({ new: { worldId: 'new', stats: { strength: 18 } } })
+  })
+
+  it('resolves a d20 check against its DC without automatic success on a natural 20', () => {
+    const campaign = preset('dnd-5-2')
+    const move = campaign.moves[0]
+    expect(resolveCampaignRoll(campaign, move, -10, [20], 15)).toMatchObject({ total: 10, target: 15, tier: 'miss', degree: 'failure' })
+    expect(resolveCampaignRoll(campaign, move, 4, [6], 10)).toMatchObject({ total: 10, tier: 'strong', degree: 'success' })
+    expect(resolveCampaignRoll(campaign, move, 4, [2, 19], 20, 'advantage')).toMatchObject({ natural: 19, total: 23, degree: 'success' })
+  })
+
+  it('uses four degrees and natural die shifts for Starfinder 2e checks', () => {
+    const campaign = preset('starfinder-2')
+    const move = campaign.moves[0]
+    expect(resolveCampaignRoll(campaign, move, 0, [20], 25)).toMatchObject({ total: 20, degree: 'success', tier: 'strong' })
+    expect(resolveCampaignRoll(campaign, move, 0, [1], 5)).toMatchObject({ total: 1, degree: 'critical failure', tier: 'miss' })
+  })
+
+  it('records Fate ties and 3d6 roll-under failures explicitly', () => {
+    const fate = preset('fate-core')
+    expect(resolveCampaignRoll(fate, fate.moves[0], 2, [1, -1, 0, 0], 2)).toMatchObject({ total: 2, degree: 'tie', tier: 'mixed' })
+    const under = preset('roll-under')
+    expect(resolveCampaignRoll(under, under.moves[0], 12, [6, 6, 6])).toMatchObject({ total: 18, target: 12, degree: 'critical failure', tier: 'miss' })
+    expect(resolveCampaignRoll(under, under.moves[0], 12, [2, 3, 4])).toMatchObject({ total: 9, degree: 'success', tier: 'strong' })
   })
 })

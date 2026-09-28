@@ -9,7 +9,7 @@ import { PHASES } from '@/lib/world/calendar'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import { StoryScenes } from '@/components/story/StoryScenes'
-import { campaignStats } from '@/lib/world/campaign'
+import { campaignStats, sheetForWorld } from '@/lib/world/campaign'
 
 export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'sheet' | 'canon' | 'notes' | 'rules'
 const TABS: { id: StoryTab; label: string }[] = [
@@ -90,9 +90,8 @@ export function StoryPanel({
   const currentScene = scenes?.find((scene) => scene.id === (currentSceneId ?? chat.id)) ?? chat
   const canEndScene = !!onEndScene && !currentScene.endedAt && !chat.endedAt
   const sheetFields = world?.campaign?.mode === 'mechanical' ? campaignStats(world.campaign) : []
-  const sheetWorldMismatch = !!playerCharacter?.sheet && !!world && (
-    playerCharacter.worldId !== world.id || (!!playerCharacter.sheet.worldId && playerCharacter.sheet.worldId !== world.id)
-  )
+  const playerSheet = world ? sheetForWorld(playerCharacter, world.id) : undefined
+  const sheetWorldMismatch = !playerSheet && !!(playerCharacter?.sheet || Object.keys(playerCharacter?.sheets ?? {}).length)
   const panel = <section className="flex h-full w-full min-w-0 flex-col border-l border-border bg-bg-elevated md:w-80" aria-label="Story panel">
     <div className="flex items-center justify-between border-b border-border px-4 py-3">
       <strong className="font-display text-sm text-text">Story</strong>
@@ -144,11 +143,11 @@ export function StoryPanel({
         {datingToolsVisible && <div className="flex flex-wrap gap-2"><button className={actionClass} onClick={onOpenRelationship}>Dating details</button><button className={actionClass} onClick={onOpenBag}>Bag and gifts</button></div>}
       </>}
       {tab === 'sheet' && <>
-        <div><h3 className="font-medium">{playerCharacter?.card.name ?? 'Player character'} sheet</h3><p className="mt-1 text-xs text-text-muted">These saved modifiers are used for 2d6 campaign rolls.</p></div>
+        <div><h3 className="font-medium">{playerCharacter?.card.name ?? 'Player character'} sheet</h3><p className="mt-1 text-xs text-text-muted">These saved values are used for this world’s checks.</p></div>
         {!playerCharacter ? <p className="text-xs text-text-muted">Choose a player character in Scene Rules, then fill in their Sheet tab in Cast.</p>
-          : !playerCharacter.sheet ? <p className="text-xs text-text-muted">This character has no sheet yet. Set their stats in Cast → Sheet; rolls use a manual modifier until then.</p>
-          : sheetWorldMismatch ? <p className="text-xs text-text-muted">This sheet belongs to another world. Bind the player character to this world and save their Sheet tab in Cast.</p>
-          : sheetFields.map((stat) => <div key={stat.id} className="flex items-center justify-between gap-3 rounded-lg bg-bg-sunken px-3 py-2"><div><strong className="text-sm">{stat.name}</strong>{stat.description && <p className="text-xs text-text-muted">{stat.description}</p>}</div><span className="font-mono text-sm">{typeof playerCharacter.sheet?.stats[stat.id] === 'number' ? `${playerCharacter.sheet.stats[stat.id] >= 0 ? '+' : ''}${playerCharacter.sheet.stats[stat.id]}` : '—'}</span></div>)}
+          : sheetWorldMismatch ? <p className="text-xs text-text-muted">This character has other sheets, but none for this world. Add one in Cast → Sheet.</p>
+          : !playerSheet ? <p className="text-xs text-text-muted">This character has no sheet yet. Set their stats in Cast → Sheet; rolls use a manual value until then.</p>
+          : sheetFields.map((stat) => <div key={stat.id} className="flex items-center justify-between gap-3 rounded-lg bg-bg-sunken px-3 py-2"><div><strong className="text-sm">{stat.name}</strong>{stat.description && <p className="text-xs text-text-muted">{stat.description}</p>}</div><span className="font-mono text-sm">{typeof playerSheet.stats[stat.id] === 'number' ? `${playerSheet.stats[stat.id] >= 0 && stat.valueMode !== 'ability' && stat.valueMode !== 'target' ? '+' : ''}${playerSheet.stats[stat.id]}` : '—'}</span></div>)}
       </>}
       {tab === 'canon' && <>
         <h3 className="font-medium">Confirmed world facts</h3>

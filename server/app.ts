@@ -27,8 +27,8 @@ import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
-import { createCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
-import { normalizeCampaignStats, normalizeCharacterSheet, sheetModifier, statForMove, type CampaignConfig, type CharacterSheet } from '../src/lib/world/campaign.ts'
+import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
+import { isCampaignResolver, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 
 /**
  * Express app: REST routes for characters, personas, chats/messages, world info books, sampler
@@ -107,7 +107,7 @@ function normalizeCampaign(raw: unknown) {
     ruleset: ruleset || 'Custom',
     edition: typeof value.edition === 'string' ? value.edition.trim().slice(0, 100) : undefined,
     mode: value.mode === 'mechanical' ? 'mechanical' : 'guided',
-    resolver: 'pbta',
+    resolver: isCampaignResolver(value.resolver) ? value.resolver : 'pbta',
     relationships: value.relationships === true,
     dating: value.dating === true && value.relationships === true,
     ...(Array.isArray(value.stats) ? { stats: normalizeCampaignStats(value.stats) ?? [] } : {}),
@@ -119,6 +119,7 @@ function normalizeCampaign(raw: unknown) {
         trigger: typeof move.trigger === 'string' ? move.trigger.slice(0, 2000) : '',
         stat: typeof move.stat === 'string' ? move.stat.slice(0, 100) : '',
         ...(typeof move.statId === 'string' && move.statId.trim() ? { statId: move.statId.slice(0, 100) } : {}),
+        ...(Number.isInteger(move.target) && (move.target as number) >= -30 && (move.target as number) <= 100 ? { target: move.target } : {}),
         strong: typeof move.strong === 'string' ? move.strong.slice(0, 4000) : '',
         mixed: typeof move.mixed === 'string' ? move.mixed.slice(0, 4000) : '',
         miss: typeof move.miss === 'string' ? move.miss.slice(0, 4000) : '',
@@ -603,6 +604,7 @@ app.post('/api/characters', (req, res) => {
     playerOnly: req.body.playerOnly === true || undefined,
     playerDescription: normalizePlayerDescription(req.body.playerDescription),
     sheet: normalizeCharacterSheet(req.body.sheet),
+    sheets: normalizeCharacterSheets(req.body.sheets),
     vrm: normalizeVrm(id, req.body.vrm),
     spriteSources: normalizeSpriteSources(req.body.spriteSources),
     avatarDataUrl,
@@ -657,6 +659,7 @@ app.put('/api/characters/:id', (req, res) => {
   if ('playerOnly' in req.body) patch.playerOnly = req.body.playerOnly === true || undefined
   if ('playerDescription' in req.body) patch.playerDescription = normalizePlayerDescription(req.body.playerDescription)
   if ('sheet' in req.body) patch.sheet = normalizeCharacterSheet(req.body.sheet)
+  if ('sheets' in req.body) patch.sheets = normalizeCharacterSheets(req.body.sheets)
   if ('worldId' in req.body) patch.worldId = req.body.worldId || undefined
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
   if ('sprites' in req.body) patch.sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
@@ -979,16 +982,22 @@ app.post('/api/chats/:id/roll', (req, res) => {
   let action: string
   let text: string
   const modifier = req.body?.modifier
+  const target = req.body?.target
+  const rollMode = req.body?.rollMode ?? 'normal'
+  const pendingGmMessageId = req.body?.pendingGmMessageId
   try {
     messageId = requiredRollText(req.body?.messageId, 'Message id', 100)
     moveId = requiredRollText(req.body?.moveId, 'Move id', 100)
     action = requiredRollText(req.body?.action, 'Action', 500)
     text = requiredRollText(req.body?.text, 'Message', 10_000)
-    if (!Number.isInteger(modifier) || modifier < -5 || modifier > 5) throw new Error('Modifier must be an integer from -5 to 5.')
+    if (!Number.isInteger(modifier) || modifier < -100 || modifier > 100) throw new Error('Sheet value must be an integer from -100 to 100.')
+    if (target !== undefined && (!Number.isInteger(target) || target < -30 || target > 100)) throw new Error('Difficulty must be an integer from -30 to 100.')
+    if (rollMode !== 'normal' && rollMode !== 'advantage' && rollMode !== 'disadvantage') throw new Error('Unknown roll mode.')
+    if (pendingGmMessageId !== undefined && (typeof pendingGmMessageId !== 'string' || !pendingGmMessageId.trim() || pendingGmMessageId.length > 100)) throw new Error('Invalid pending GM message id.')
   } catch (error) {
     return res.status(400).json({ error: (error as Error).message })
   }
-  const request = { chatId: req.params.id, moveId, modifier: modifier as number, action, text }
+  const request = { chatId: req.params.id, moveId, modifier: modifier as number, action, text, target: target as number | undefined, rollMode: rollMode as 'normal' | 'advantage' | 'disadvantage', pendingGmMessageId: pendingGmMessageId as string | undefined }
   const existing = messageStore.get(messageId)
   if (existing) return sameRollRequest(existing, request)
     ? res.json(existing)
@@ -1000,22 +1009,43 @@ app.post('/api/chats/:id/roll', (req, res) => {
   if (campaign?.mode !== 'mechanical') return res.status(400).json({ error: 'This chat has no mechanical campaign.' })
   const move = campaign.moves.find((entry) => entry.id === moveId)
   if (!move) return res.status(400).json({ error: 'That campaign move is no longer available.' })
+  const latestMessage = messageStore.list({ where: 'chatId = ?', params: [req.params.id], orderBy: 'createdAt' }).at(-1)
+  const pending = (latestMessage?.gm as { adjudication?: { source?: string; moveId?: string; target?: number } } | undefined)?.adjudication
+  if (pending?.source === 'roll_needed') {
+    if (pendingGmMessageId !== latestMessage?.id || pending.moveId !== moveId) return res.status(409).json({ error: 'Resolve the pending GM check before making another roll.' })
+    if (pending.target !== undefined && (move.target ?? target) !== pending.target) return res.status(409).json({ error: 'The GM set a different difficulty for this check.' })
+  } else if (pendingGmMessageId !== undefined) return res.status(409).json({ error: 'That GM check is no longer pending.' })
   const player = typeof chat.playerCharacterId === 'string' ? characterStore.get(chat.playerCharacterId) : undefined
-  const sheet = player?.sheet as CharacterSheet | undefined
+  const sheet = typeof world?.id === 'string' ? sheetForWorld(player, world.id) : undefined
   const sheetStat = sheet ? statForMove(campaign, move) : undefined
   if (sheet) {
-    if (player?.worldId !== world?.id) return res.status(400).json({ error: 'The player sheet belongs to a different world.' })
-    if (sheet.worldId && sheet.worldId !== world?.id) return res.status(400).json({ error: 'The player sheet was built for a different world. Save it again in Cast.' })
     if (!sheetStat) return res.status(400).json({ error: 'This move has no character sheet stat. Assign one in the world editor.' })
     const savedModifier = sheetModifier(campaign, move, sheet)
     if (savedModifier === undefined) return res.status(400).json({ error: `Set ${sheetStat.name} on the player character sheet before rolling.` })
-    if (modifier !== savedModifier) return res.status(409).json({ error: `The ${sheetStat.name} modifier changed. Reopen the roll panel and try again.` })
+    if (modifier !== savedModifier) return res.status(409).json({ error: `The ${sheetStat.name} roll value changed. Reopen the roll panel and try again.` })
+  } else if (player?.sheet || player?.sheets && Object.keys(player.sheets).length) {
+    return res.status(400).json({ error: 'This character needs a sheet for the story world. Add one in Cast.' })
   }
+  if (campaign.resolver === 'pbta' && (modifier < -5 || modifier > 5)) return res.status(400).json({ error: '2d6 move modifiers must be from -5 to 5.' })
+  if (campaign.resolver === 'roll-under' && modifier < 0) return res.status(400).json({ error: 'Roll-under targets cannot be negative.' })
+  if (move.target !== undefined && target !== undefined && target !== move.target) return res.status(409).json({ error: 'This move has a fixed difficulty set by the world.' })
+  if (campaign.resolver !== 'd20' && campaign.resolver !== 'd20-degree' && rollMode !== 'normal') return res.status(400).json({ error: 'Advantage is only available for d20 checks.' })
   const now = Date.now()
-  const roll = {
-    ...createCampaignRoll(move, modifier as number, [randomInt(1, 7), randomInt(1, 7)], action, newId(), now),
-    modifierSource: sheet ? 'sheet' : 'manual',
-    ...(sheetStat ? { sheetStatId: sheetStat.id } : {}),
+  const dice = campaign.resolver === 'pbta' ? [randomInt(1, 7), randomInt(1, 7)]
+    : campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' ? Array.from({ length: rollMode === 'normal' ? 1 : 2 }, () => randomInt(1, 21))
+    : campaign.resolver === 'fate' ? Array.from({ length: 4 }, () => randomInt(-1, 2))
+    : Array.from({ length: 3 }, () => randomInt(1, 7))
+  let roll
+  try {
+    roll = {
+      ...createResolvedCampaignRoll(campaign, move, modifier as number, dice, target as number | undefined, rollMode, action, newId(), now),
+      modifierSource: sheet ? 'sheet' as const : 'manual' as const,
+      ...(target !== undefined ? { requestedTarget: target as number } : {}),
+      ...(pendingGmMessageId !== undefined ? { pendingGmMessageId: pendingGmMessageId as string } : {}),
+      ...(sheetStat ? { sheetStatId: sheetStat.id } : {}),
+    }
+  } catch (error) {
+    return res.status(400).json({ error: (error as Error).message })
   }
   const card = player?.card as Record<string, unknown> | undefined
   const name = typeof card?.name === 'string' && card.name.trim() ? card.name : 'You'

@@ -33,7 +33,7 @@ import { VoiceSampleField } from '@/components/settings/VoiceSampleField'
 import { EditorShell, type EditorTab } from '@/components/ui/EditorShell'
 import { CHARACTER_TAB_ALIASES } from '@/lib/ui/navigation'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
-import { campaignStats } from '@/lib/world/campaign'
+import { campaignStats, type CharacterSheet } from '@/lib/world/campaign'
 import { ListEditor } from '@/components/ui/ListEditor'
 import { FileButton } from '@/components/ui/FileButton'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
@@ -99,6 +99,14 @@ const TABS: EditorTab[] = [
   { id: 'presentation', label: 'Presentation' },
   { id: 'advanced', label: 'Advanced' },
 ]
+
+function savedSheets(character: Character | null | undefined): Record<string, CharacterSheet> {
+  const legacyWorldId = character?.sheet?.worldId || character?.worldId
+  return {
+    ...(legacyWorldId && character?.sheet ? { [legacyWorldId]: character.sheet } : {}),
+    ...character?.sheets,
+  }
+}
 
 /** The regions an authored sensitivity map scores at exactly this value. */
 function regionsAt(sensitivity: Partial<Record<string, number>> | undefined, value: number): string {
@@ -245,7 +253,8 @@ export function CharacterEditor({
   const [instructTemplateId, setInstructTemplateId] = useState(character?.instructTemplateId ?? '')
   const [replyLength, setReplyLength] = useState<ReplyLength>(character?.replyLength ?? 'auto')
   const [worldId, setWorldId] = useState(character?.worldId ?? '')
-  const [sheetStats, setSheetStats] = useState<Record<string, number>>(character?.sheet?.stats ?? {})
+  const [sheetWorldId, setSheetWorldId] = useState(character?.worldId ?? character?.sheet?.worldId ?? Object.keys(character?.sheets ?? {})[0] ?? '')
+  const [sheets, setSheets] = useState<Record<string, CharacterSheet>>(() => savedSheets(character))
   const [gmEligible, setGmEligible] = useState(character?.gmEligible !== false)
   const [playerOnly, setPlayerOnly] = useState(character ? character.playerOnly === true : initialPlayerOnly)
   const [playerDescription, setPlayerDescription] = useState(character?.playerDescription ?? '')
@@ -276,7 +285,9 @@ export function CharacterEditor({
   const [saving, setSaving] = useState(false)
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const editingWorld = worlds.find((w) => w.id === worldId)
-  const sheetFields = editingWorld?.campaign ? campaignStats(editingWorld.campaign) : []
+  const sheetWorld = worlds.find((w) => w.id === sheetWorldId)
+  const sheetFields = sheetWorld?.campaign ? campaignStats(sheetWorld.campaign) : []
+  const currentSheet = sheets[sheetWorldId]
   const datingEnabled = modulesForWorld(editingWorld).dating
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
@@ -317,7 +328,8 @@ export function CharacterEditor({
     setWeatherHates(character?.weatherPreferences?.hates ?? [])
     setSchedule(character?.schedule ?? [])
     setWorldId(character?.worldId ?? '')
-    setSheetStats(character?.sheet?.stats ?? {})
+    setSheetWorldId(character?.worldId ?? character?.sheet?.worldId ?? Object.keys(character?.sheets ?? {})[0] ?? '')
+    setSheets(savedSheets(character))
     setGmEligible(character?.gmEligible !== false)
     setPlayerOnly(character ? character.playerOnly === true : initialPlayerOnly)
     setPlayerDescription(character?.playerDescription ?? '')
@@ -478,7 +490,8 @@ export function CharacterEditor({
       weatherPreferences,
       schedule: schedule.length ? schedule : null,
       worldId: worldId || null,
-      sheet: sheetFields.length ? { worldId, stats: Object.fromEntries(sheetFields.map(({ id }) => [id, sheetStats[id] ?? 0])) } : character?.worldId === worldId ? character?.sheet ?? null : null,
+      sheets,
+      sheet: worldId ? sheets[worldId] ?? (character?.sheet && !character.sheet.worldId && !character.worldId ? character.sheet : null) : character?.sheet ?? null,
       gmEligible,
       playerOnly,
       // Always sent, as a string: the server treats '' as "cleared, fall back to the description".
@@ -871,7 +884,7 @@ export function CharacterEditor({
             </div>
             <div className="flex-1 space-y-0">
               <TextField label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} />
-              <SelectField label="World" value={worldId} onChange={(e) => { setWorldId(e.target.value); if (e.target.value !== worldId) setSheetStats({}) }}>
+              <SelectField label="World" value={worldId} onChange={(e) => { setWorldId(e.target.value); if (!sheetWorldId) setSheetWorldId(e.target.value) }}>
                 <option value="">No world (standalone)</option>
                 {worlds.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -935,27 +948,38 @@ export function CharacterEditor({
         </div>
       )}
       {tab === 'sheet' && (
-        <Section title="Character sheet" description="These stats are the modifiers added to 2d6 when this character makes a campaign move." surface="bare">
-          {!worldId ? <p className="text-sm text-text-muted">Choose a world on the Character tab to fill in a sheet.</p>
-            : !editingWorld?.campaign ? <p className="text-sm text-text-muted">This world has no story rules. Add stats in its Story Rules tab first.</p>
+        <Section title="Character sheets" description="Keep a separate sheet for each world's rules. Switching sheets does not change this character's home world or erase other sheets." surface="bare">
+          <SelectField label="Sheet ruleset" value={sheetWorldId} onChange={(event) => setSheetWorldId(event.target.value)}>
+            <option value="">Choose a world and ruleset</option>
+            {sheetWorldId && !worlds.some((entry) => entry.id === sheetWorldId && entry.campaign) && <option value={sheetWorldId} disabled>{sheetWorld?.name ?? 'Unavailable world'} · no story rules</option>}
+            {worlds.filter((entry) => entry.campaign).map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.campaign!.ruleset}{entry.campaign!.edition ? ` (${entry.campaign!.edition})` : ''}{sheets[entry.id] ? ' · saved' : ''}</option>)}
+          </SelectField>
+          {!sheetWorldId ? <p className="text-sm text-text-muted">Choose a ruleset to create or edit its sheet.</p>
+            : !sheetWorld?.campaign ? <p className="text-sm text-text-muted">This world's ruleset is unavailable. Existing sheets remain saved.</p>
             : sheetFields.length === 0 ? <p className="text-sm text-text-muted">This world has no stats yet. Add them in its Story Rules tab first.</p>
-            : sheetFields.map((stat) => (
+            : !currentSheet ? <Button variant="secondary" onClick={() => setSheets((current) => ({ ...current, [sheetWorldId]: { worldId: sheetWorldId, stats: Object.fromEntries(sheetFields.map((stat) => [stat.id, stat.valueMode === 'ability' || stat.valueMode === 'target' ? 10 : 0])) } }))}>Add sheet for {sheetWorld.name}</Button>
+            : <>
+              <Button variant="secondary" onClick={() => setSheets((current) => { const next = { ...current }; delete next[sheetWorldId]; return next })}>Remove this sheet</Button>
+              {sheetFields.map((stat) => (
               <NumberField
                 key={stat.id}
                 label={stat.name}
-                hint={stat.description || 'Modifier for moves using this stat.'}
-                min={-5}
-                max={5}
+                hint={stat.description || (stat.valueMode === 'ability' ? 'Ability score.' : stat.valueMode === 'target' ? 'Roll-under target.' : 'Roll modifier.')}
+                min={stat.valueMode === 'ability' ? 1 : stat.valueMode === 'target' ? 0 : -100}
+                max={stat.valueMode === 'ability' ? 30 : 100}
                 step={1}
-                value={sheetStats[stat.id] ?? 0}
+                value={currentSheet.stats[stat.id] ?? ''}
                 onChange={(event) => {
                   const value = Number(event.target.value)
-                  if (Number.isInteger(value) && value >= -5 && value <= 5) {
-                    setSheetStats((current) => ({ ...current, [stat.id]: value }))
+                  const min = stat.valueMode === 'ability' ? 1 : stat.valueMode === 'target' ? 0 : -100
+                  const max = stat.valueMode === 'ability' ? 30 : 100
+                  if (Number.isInteger(value) && value >= min && value <= max) {
+                    setSheets((current) => ({ ...current, [sheetWorldId]: { worldId: sheetWorldId, stats: { ...current[sheetWorldId].stats, [stat.id]: value } } }))
                   }
                 }}
               />
-            ))}
+              ))}
+            </>}
         </Section>
       )}
 

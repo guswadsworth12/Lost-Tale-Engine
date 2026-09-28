@@ -91,8 +91,9 @@ describe('importCharacterPack — bundled scene shapes', () => {
 describe('character pack campaign sheets', () => {
   it('keeps the sheet, campaign stat definitions, and new world binding together', async () => {
     const pack = await buildCharacterPack({
-      id: 'player-1', card: { name: 'Player' }, playerOnly: true,
+      id: 'player-1', card: { name: 'Player' }, playerOnly: true, worldId: 'old-world',
       sheet: { worldId: 'old-world', stats: { nerve: 2 } },
+      sheets: { 'old-world': { worldId: 'old-world', stats: { nerve: 2 } } },
     } as never, {
       id: 'old-world', name: 'Test world', description: '', lorebook: { entries: [] },
       campaign: STARTER_PBTA_CAMPAIGN,
@@ -101,5 +102,6 @@ describe('character pack campaign sheets', () => {
     expect(created.world?.campaign).toEqual(STARTER_PBTA_CAMPAIGN)
     expect(created.character?.playerOnly).toBe(true)
     expect(created.character?.sheet).toEqual({ worldId: 'world-1', stats: { nerve: 2 } })
+    expect(created.character?.sheets).toEqual({ 'world-1': { worldId: 'world-1', stats: { nerve: 2 } } })
   })
 })
