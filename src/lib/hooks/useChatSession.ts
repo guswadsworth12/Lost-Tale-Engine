@@ -25,6 +25,7 @@ import {
   GM_SPEAKER_ID,
   branchConsequencesFrom,
   earlierRollFrom,
+  pendingChoiceFrom,
   buildGmPrompt,
   formatGmMessage,
   gmDirectionFor,
@@ -3448,6 +3449,7 @@ export function useChatSession(chatId: string | null) {
         recordedMove: playerMsg.campaignRoll,
         // Only when this turn has no dice of its own: a fresh roll always governs its own beat.
         earlierRoll: playerMsg.campaignRoll ? undefined : earlierRollFrom(upTo.slice(0, -1)),
+        pendingChoice: playerMsg.campaignRoll ? undefined : pendingChoiceFrom(upTo.slice(0, -1)),
         maxSpeakers: 3,
       }
       const { system, user } = buildGmPrompt(ctx)
@@ -3500,6 +3502,11 @@ export function useChatSession(chatId: string | null) {
         text: formatGmMessage(turn),
         gm: turn,
         createdAt: startAt,
+        // A result waiting on the player's pick offers its options as one-tap replies.
+        ...(turn.adjudication?.awaitingChoice?.length ? {
+          choiceCards: turn.adjudication.awaitingChoice.map((option) => ({ id: newId(), kind: 'action' as const, label: option, text: `I choose ${option}.` })),
+          choices: turn.adjudication.awaitingChoice.map((option) => `I choose ${option}.`),
+        } : {}),
       }
       await messagesApi.create(gmMsg)
       if (turn.addCharacterIds?.length) {

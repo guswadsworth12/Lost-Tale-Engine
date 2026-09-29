@@ -52,7 +52,23 @@ export interface GmAdjudication {
   rollId?: string
   /** A question answered from an earlier recorded roll that granted it, so no new dice were due. */
   followUp?: boolean
+  /** The recorded outcome asks the player to pick (a cost, an option). Until they do, nobody reacts. */
+  awaitingChoice?: string[]
+  /** The player's pick that completed an earlier roll's outcome (`awaitingChoice`). */
+  choice?: string
   outcome: string
+}
+
+/** A recorded roll whose outcome is waiting for the player's pick (`pendingChoiceFrom`). */
+export interface PendingChoice {
+  rollId: string
+  moveId?: string
+  moveName: string
+  tier?: PbtaRoll['tier']
+  degree?: string
+  total?: number
+  outcome: string
+  options: string[]
 }
 
 /** A recent recorded roll whose result still grants questions the player hasn't asked yet. */
@@ -78,16 +94,28 @@ export function grantedQuestions(outcome: string): number {
   return Math.max(0, Math.min(n, 5))
 }
 
-function looksLikeQuestion(action: string): boolean {
-  return action.includes('?') || /\b(?:ask|question|wonder|find out|tell me)\b/i.test(action)
+/**
+ * What a recorded outcome asks the player to choose between ("choose a cost: strain, time, or
+ * unwanted attention" gives the four). Undefined when it asks for no choice; an empty list when it
+ * asks for one without naming the options in the text.
+ */
+export function choiceOptions(outcome: string): string[] | undefined {
+  const m = /\b(?:choose|pick)\b([^.;\n]*)/i.exec(outcome)
+  if (!m) return undefined
+  // "They can help and choose what that support looks like": someone else's choice, not the player's.
+  const sentence = outcome.slice(Math.max(...['.', ';', '!', '?', '\n'].map((c) => outcome.lastIndexOf(c, m.index))) + 1, m.index)
+  if (/^\s*(?:they|he|she|the gm)\b/i.test(sentence)) return undefined
+  const colon = m[1].indexOf(':')
+  if (colon < 0) return []
+  return m[1].slice(colon + 1)
+    .split(/,|\bor\b|\//i)
+    .map((o) => o.trim().replace(/^(?:or|and|a|an|the)\s+/i, '').trim())
+    .filter((o) => o && o.length <= 40)
+    .slice(0, 6)
 }
 
-/**
- * The latest roll in this scene can grant questions until they are answered. The server record is
- * authoritative; older stories without one can still use their GM adjudication. Follow-up answers
- * are counted by roll id, regardless of how many character replies intervened.
- */
-export function earlierRollFrom(branch: readonly { gm?: GmTurn; campaignRoll?: RecordedMove }[]): EarlierRoll | undefined {
+/** Where a roll was recorded in the branch: the saved roll itself, or for older stories its GM adjudication. */
+function latestRecordedRoll(branch: readonly { gm?: GmTurn; campaignRoll?: RecordedMove }[]): { index: number; adj: GmAdjudication } | undefined {
   let index = -1
   for (let i = branch.length - 1; i >= 0; i--) {
     if (branch[i].campaignRoll) { index = i; break }
@@ -99,7 +127,39 @@ export function earlierRollFrom(branch: readonly { gm?: GmTurn; campaignRoll?: R
   if (index < 0) return undefined
   const savedRoll = branch[index].campaignRoll
   const adj = savedRoll ? recordedAdjudication(savedRoll) : branch[index].gm?.adjudication
-  if (!adj?.rollId || adj.tier === 'miss') return undefined
+  return adj ? { index, adj } : undefined
+}
+
+/**
+ * The latest roll, if its outcome asks the player to choose and they have not yet. The player's
+ * next message is that choice: it completes the roll rather than starting a new action.
+ */
+export function pendingChoiceFrom(branch: readonly { gm?: GmTurn; campaignRoll?: RecordedMove }[]): PendingChoice | undefined {
+  const found = latestRecordedRoll(branch)
+  const rollId = found?.adj.rollId
+  if (!found || !rollId) return undefined
+  const { index, adj } = found
+  const options = choiceOptions(adj.outcome)
+  if (!options) return undefined
+  const chosen = branch.slice(index + 1).some((message) => message.gm?.adjudication?.rollId === rollId && !!message.gm?.adjudication?.choice)
+  if (chosen) return undefined
+  return { rollId, moveId: adj.moveId, moveName: adj.moveName ?? 'the earlier roll', tier: adj.tier, degree: adj.degree, total: adj.total, outcome: adj.outcome, options }
+}
+
+function looksLikeQuestion(action: string): boolean {
+  return action.includes('?') || /\b(?:ask|question|wonder|find out|tell me)\b/i.test(action)
+}
+
+/**
+ * The latest roll in this scene can grant questions until they are answered. The server record is
+ * authoritative; older stories without one can still use their GM adjudication. Follow-up answers
+ * are counted by roll id, regardless of how many character replies intervened.
+ */
+export function earlierRollFrom(branch: readonly { gm?: GmTurn; campaignRoll?: RecordedMove }[]): EarlierRoll | undefined {
+  const found = latestRecordedRoll(branch)
+  if (!found) return undefined
+  const { index, adj } = found
+  if (!adj.rollId || adj.tier === 'miss') return undefined
   const granted = grantedQuestions(adj.outcome)
   const used = branch.slice(index + 1).filter((message) => message.gm?.adjudication?.followUp && message.gm.adjudication.rollId === adj.rollId).length
   if (granted - used <= 0) return undefined
@@ -181,6 +241,8 @@ export interface GmContext {
   recordedMove?: RecordedMove
   /** A recent recorded roll whose granted questions aren't used up yet (`earlierRollFrom`). */
   earlierRoll?: EarlierRoll
+  /** A recorded roll still waiting for the player's pick (`pendingChoiceFrom`); this message is that pick. */
+  pendingChoice?: PendingChoice
   maxSpeakers: number
 }
 
@@ -234,12 +296,13 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
     'Established conditions are true when the player checks them, even if the outline expected their discovery later. On a successful investigation, give truthful, actionable evidence within the declared scope; never conceal it to preserve a planned reveal. If a recorded result grants questions, answer the player’s questions from that result without demanding another roll: set adjudication.followUp to true, name the earlier move, and put the answer in adjudication.outcome. A follow-up question never needs new dice. Describe what the character can observe, not their private interpretation or next choice.',
+    'When a recorded result asks the player to choose (a cost, a complication, an option), the roll is not resolved until they do. Narrate only what the result has already settled, never pick for them, end by asking them to choose, and list no speakers: nobody reacts until the choice is made. When the player then makes that choice, apply it from the earlier roll: set adjudication.followUp to true, adjudication.choice to their pick, name the earlier move, put what the choice costs in the fiction in adjudication.outcome, and do not request a roll.',
     'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}`,
+    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "choice": string|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}`,
   ].join('\n')
 
   const describe = (r: GmRosterEntry) => `- ${r.name}${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).length ? ` (${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).join('; ')})` : ''}`
@@ -253,6 +316,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     : 'Recorded roll: none this turn.'
   const earlier = ctx.earlierRoll
     ? `Earlier roll still in effect: ${ctx.earlierRoll.moveName} (${ctx.earlierRoll.total ?? '?'}${ctx.earlierRoll.tier ? `, ${TIER_LABEL[ctx.earlierRoll.tier]}` : ''}). It granted: ${ctx.earlierRoll.outcome} Questions left: ${ctx.earlierRoll.remaining}. If the player asks about this result, answer one question now as a follow-up (adjudication.followUp true) and do not request a roll. If several questions are asked together, answer the first and leave the others for later turns.`
+    : ''
+  const pending = ctx.pendingChoice
+    ? `Waiting on the player's choice from ${ctx.pendingChoice.moveName} (${ctx.pendingChoice.total ?? '?'}${ctx.pendingChoice.tier ? `, ${TIER_LABEL[ctx.pendingChoice.tier]}` : ''}): ${ctx.pendingChoice.outcome}${ctx.pendingChoice.options.length ? ` Options: ${ctx.pendingChoice.options.join(', ')}.` : ''} The player's declared action below is that choice. Apply it as a follow-up to the earlier roll (adjudication.followUp true, adjudication.choice set) and do not request a roll.`
     : ''
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
@@ -280,6 +346,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     `${ctx.playerName}'s declared action: ${ctx.playerAction.trim() || '(no action, only waiting)'}`,
     recorded,
     earlier,
+    pending,
     'JSON:',
   ].filter(Boolean).join('\n\n')
   return { system, user }
@@ -439,6 +506,34 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     if (claimedTier && claimedTier !== ctx.recordedMove.tier) {
       corrections.push(`The GM narrated a ${claimedTier} result; the recorded ${ctx.recordedMove.tier} result stands.`)
     }
+    const options = choiceOptions(adjudication.outcome)
+    if (options) adjudication.awaitingChoice = options
+  } else if (ctx.pendingChoice) {
+    // This message is the player's pick for the earlier roll: it completes that roll, no new dice.
+    const p = ctx.pendingChoice
+    const picked = p.options
+      .map((option) => ({ option, at: ctx.playerAction.search(new RegExp(`\\b${escapeRe(option)}\\b`, 'i')) }))
+      .filter((hit) => hit.at >= 0)
+      .sort((a, b) => a.at - b.at)
+      .map((hit) => hit.option)
+    const choice = picked.join(', ') || str(rawAdj?.choice, 200) || ctx.playerAction.trim().replace(/^\[|\]$/g, '').slice(0, 200)
+    const proposed = str(rawAdj?.outcome, 1000)
+    const outcome = proposed && proposed !== p.outcome && !/^(?:roll\b|make (?:a|another) roll\b|a roll is needed\b)/i.test(proposed)
+      ? proposed : `Chosen: ${choice}.`
+    if (rawAdj && rawAdj.followUp !== true) corrections.push(`Recorded the choice for the earlier ${p.moveName} roll instead of asking for a new one.`)
+    adjudication = {
+      action: ctx.playerAction.trim().slice(0, 500),
+      source: 'recorded_roll',
+      followUp: true,
+      choice,
+      moveId: p.moveId,
+      moveName: p.moveName,
+      tier: p.tier,
+      degree: p.degree,
+      total: p.total,
+      rollId: p.rollId,
+      outcome,
+    }
   } else if (ctx.earlierRoll && (rawAdj?.followUp === true || looksLikeQuestion(ctx.playerAction) || (
     str(rawAdj?.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
   ))) {
@@ -484,6 +579,12 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       if (outcome) adjudication = { action, source: 'guided_judgment', outcome }
       if (claimedTier) corrections.push(`${ctx.campaign.mode === 'guided' ? 'Guided mode' : 'A ruling without dice'} cannot claim a mechanical tier; it was discarded.`)
     }
+  }
+  if (adjudication?.awaitingChoice) {
+    // The roll is not resolved until the player picks: nobody reacts to half a result.
+    if (speakerIds.length || addCharacterIds.length) corrections.push('Held character replies until the player makes the choice this result asks for.')
+    speakerIds.length = 0
+    addCharacterIds.length = 0
   }
   if (adjudication?.source === 'guided_judgment') {
     const namedInRuling = namedCardIn(adjudication.outcome)
@@ -560,6 +661,9 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
 }
 
 export function adjudicationLabel(adj: GmAdjudication): string {
+  const rolled = adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : 'roll')
+  if (adj.source === 'recorded_roll' && adj.choice) return `${adj.moveName}: ${adj.choice} chosen (${rolled}, ${adj.total})`
+  if (adj.source === 'recorded_roll' && adj.awaitingChoice) return `${adj.moveName}: ${rolled} (${adj.total}, recorded roll), your choice`
   if (adj.source === 'recorded_roll' && adj.followUp) return `${adj.moveName}: question from the earlier ${adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : 'roll')} (${adj.total})`
   if (adj.source === 'recorded_roll') return `${adj.moveName}: ${adj.degree ?? (adj.tier ? TIER_LABEL[adj.tier] : '')} (${adj.total}, recorded roll)`
   if (adj.source === 'roll_needed') return `${adj.moveName}: roll needed${adj.target !== undefined ? ` vs ${adj.target}` : ''}`
@@ -573,6 +677,7 @@ export function formatGmMessage(turn: GmTurn): string {
   if (turn.adjudication) {
     const failed = turn.adjudication.source === 'recorded_roll' && turn.adjudication.tier === 'miss'
     parts.push(`[${failed ? 'Failed check — ' : ''}${adjudicationLabel(turn.adjudication)}] ${turn.adjudication.outcome}`)
+    if (turn.adjudication.awaitingChoice) parts.push('[Waiting for your choice. Nobody reacts until you make it.]')
   }
   if (turn.pacing === 'cut') parts.push('[Scene ends]')
   return parts.filter(Boolean).join('\n\n') || '[The GM lets the moment play out.]'

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, resolvePbtaRoll } from './campaign'
 import {
   branchConsequencesFrom,
+  choiceOptions,
+  pendingChoiceFrom,
   buildGmPrompt,
   formatGmMessage,
   earlierRollFrom,
@@ -524,5 +526,67 @@ describe('buildGmPrompt character memory', () => {
     const { user } = buildGmPrompt(ctx())
     expect(user).not.toContain('What the characters remember')
     expect(user).not.toContain('Knowledge boundaries')
+  })
+})
+
+describe('a result that asks the player to choose', () => {
+  const shape = { ...STARTER_PBTA_CAMPAIGN.moves[0], id: 'shape', name: 'Shape Magic', mixed: 'It works, but choose a cost: strain, time, unstable effect, or unwanted attention.' }
+  const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' as const, moves: [shape, ...STARTER_PBTA_CAMPAIGN.moves] }
+  const shapeRoll: RecordedMove = { ...resolvePbtaRoll(shape, 1, [4, 4]), id: 'roll-s', createdAt: 1, action: 'I set warning runes at each junction.' }
+
+  it('reads the options out of the outcome text', () => {
+    expect(choiceOptions(shape.mixed)).toEqual(['strain', 'time', 'unstable effect', 'unwanted attention'])
+    expect(choiceOptions('You get through, but choose: hurt, spent, or noticed.')).toEqual(['hurt', 'spent', 'noticed'])
+    expect(choiceOptions('Choose two from the list below.')).toEqual([])
+    expect(choiceOptions('You do it, but the GM names a cost.')).toBeUndefined()
+    expect(choiceOptions('They can help and choose what that support looks like.')).toBeUndefined()
+    expect(choiceOptions('The magic works within its known limits; choose an added benefit.')).toEqual([])
+  })
+
+  it('holds every character reply on the roll beat and asks for the pick', () => {
+    const raw = JSON.stringify({
+      narration: 'The runes take hold along the tunnel wall.', pacing: 'linger', speakers: ['Hana Pike', 'Ivo Brand'], addCharacters: [],
+      adjudication: { action: 'runes', move: 'Shape Magic', tier: 'mixed', outcome: shape.mixed },
+    })
+    const turn = parseGmTurn(raw, ctx({ campaign, recordedMove: shapeRoll, availableRoster: [{ id: 'mae', name: 'Mae Rook' }] }), ids)
+    expect(turn.speakerIds).toEqual([])
+    expect(turn.addCharacterIds).toBeUndefined()
+    expect(turn.adjudication).toMatchObject({ rollId: 'roll-s', awaitingChoice: ['strain', 'time', 'unstable effect', 'unwanted attention'] })
+    expect(turn.corrections?.join(' ')).toContain('Held character replies')
+    expect(formatGmMessage(turn)).toContain('Nobody reacts until you make it.')
+  })
+
+  it('stays pending until a later beat records the choice', () => {
+    const rollMsg = { campaignRoll: shapeRoll } as never
+    const rollBeat = { gm: { adjudication: { ...shapeRoll, source: 'recorded_roll', rollId: 'roll-s', awaitingChoice: ['time'] } } } as never
+    expect(pendingChoiceFrom([rollMsg, rollBeat])).toMatchObject({ rollId: 'roll-s', moveName: 'Shape Magic', options: ['strain', 'time', 'unstable effect', 'unwanted attention'] })
+    const chosen = { gm: { adjudication: { source: 'recorded_roll', followUp: true, rollId: 'roll-s', choice: 'time', outcome: 'x' } } } as never
+    expect(pendingChoiceFrom([rollMsg, rollBeat, chosen])).toBeUndefined()
+    const plainRoll = { campaignRoll: mixedRoll } as never
+    expect(pendingChoiceFrom([plainRoll])).toBeUndefined()
+  })
+
+  it('takes the next message as the pick, never as a new roll, and lets the cast answer', () => {
+    const pendingChoice = pendingChoiceFrom([{ campaignRoll: shapeRoll } as never])!
+    const raw = JSON.stringify({
+      narration: '', pacing: 'advance', speakers: ['Hana Pike'],
+      adjudication: { action: 'choose', move: 'Shape Magic', tier: null, followUp: false, outcome: 'Roll Shape Magic to resolve this.' },
+    })
+    const turn = parseGmTurn(raw, ctx({ campaign, pendingChoice, playerAction: '[I choose Time] "These only last thirty minutes, so hurry."' }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true, choice: 'time', rollId: 'roll-s', outcome: 'Chosen: time.' })
+    expect(turn.speakerIds).toEqual(['hana'])
+    expect(turn.corrections?.join(' ')).toContain('instead of asking for a new one')
+    expect(formatGmMessage(turn)).toContain('[Shape Magic: time chosen')
+  })
+
+  it('tells the GM a pending pick is due and keeps the GM’s own description of the cost', () => {
+    const pendingChoice = pendingChoiceFrom([{ campaignRoll: shapeRoll } as never])!
+    const { user } = buildGmPrompt(ctx({ campaign, pendingChoice }))
+    expect(user).toContain("Waiting on the player's choice from Shape Magic")
+    const turn = parseGmTurn(JSON.stringify({
+      narration: '', speakers: [], adjudication: { move: 'Shape Magic', followUp: true, choice: 'time', outcome: 'The runes will fade within half an hour.' },
+    }), ctx({ campaign, pendingChoice, playerAction: 'Time.' }), ids)
+    expect(turn.adjudication?.outcome).toBe('The runes will fade within half an hour.')
+    expect(turn.corrections).toBeUndefined()
   })
 })
