@@ -125,12 +125,13 @@ export function StoryPanel({
         {datingToolsVisible && <div className="flex flex-wrap gap-2"><button className={actionClass} onClick={onOpenEvent}>Date or event</button>{world && modules.worldSimulation && <button className={actionClass} onClick={onOpenDayPlanner}>Day planner</button>}</div>}
       </>}
       {tab === 'scenes' && <>
-        <div><h3 className="font-medium">Scenes</h3><p className="mt-1 text-xs text-text-muted">Each scene is its own chat. Ending one writes a recap and opens the next with the story's state.</p></div>
+        <div><h3 className="font-medium">Scenes</h3><p className="mt-1 text-xs text-text-muted">Chapters hold numbered scenes. Each scene is its own chat; ending one writes a recap and opens the next with the story's state. End a chapter from the End scene dialog.</p></div>
         {canEndScene || onReadStory ? <div className="flex flex-wrap gap-2">
           {canEndScene && <button className={actionClass} onClick={onEndScene}>End scene…</button>}
           {onReadStory && <button className={actionClass} onClick={onReadStory}>Read the whole story</button>}
         </div> : null}
-        <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} showSequelLink />
+        <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} showSequelLink
+          onEditChapter={async (edit) => { await session.updateChapter(edit) }} />
       </>}
       {tab === 'goals' && <>
         {activeObjective ? <>

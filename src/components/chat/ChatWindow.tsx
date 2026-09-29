@@ -90,6 +90,7 @@ import { StoryTranscript } from '@/components/story/StoryTranscript'
 import { nextSceneOf } from '@/lib/story/library'
 import { sceneBreakHint } from '@/lib/story/sceneBreak'
 import { sceneLabel } from '@/lib/story/recaps'
+import { chapterIdOf, chapterLabel, chaptersOf } from '@/lib/story/chapters'
 import type { RecapDraft } from '@/lib/story/recapWriter'
 import { MAIN_STORYLINE_ID } from '@/lib/types'
 import { Modal } from '@/components/ui/Modal'
@@ -166,6 +167,7 @@ export function ChatWindow({
     storyScenes,
     contextUsage,
     draftSceneRecap,
+    draftChapterRecap,
     finishScene,
     updateMemorySummary,
     continueMessage,
@@ -1046,6 +1048,11 @@ export function ChatWindow({
           storylines={[{ id: MAIN_STORYLINE_ID, name: 'Main story' }, ...(story?.storylines ?? [])]}
           currentStorylineId={chat.storylineId ?? MAIN_STORYLINE_ID}
           consequences={[...(chat.carriedConsequences ?? []), ...branchConsequencesFrom(messages)]}
+          chapter={(() => {
+            const chapters = chaptersOf(story, storyScenes.length ? storyScenes : [chat])
+            const current = chapters.find((c) => c.id === chapterIdOf(chat)) ?? chapters[0]
+            return { label: chapterLabel(current), nextNumber: Math.max(...chapters.map((c) => c.number)) + 1, canEnd: !current.endedAt, onDraft: draftChapterRecap }
+          })()}
           onConfirm={async (input: EndSceneConfirmInput) => {
             const next = await finishScene(input)
             setShowEndScene(false)

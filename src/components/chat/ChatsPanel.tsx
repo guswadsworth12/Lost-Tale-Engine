@@ -38,7 +38,7 @@ function StoryPreview({ chat, world }: { chat: Chat; world?: WorldCard }) {
   )
 }
 
-const sceneBadge = (group: StoryGroup) => `scene ${group.current.sceneNumber ?? 1} of ${group.sceneCount}`
+const sceneBadge = (group: StoryGroup) => `${group.position.toLowerCase()}, ${group.sceneCount} scenes in all`
 
 export function ChatsPanel({
   activeChatId,
@@ -176,7 +176,7 @@ export function ChatsPanel({
                         : <div className="flex items-center gap-1.5 font-medium text-text">{pinned && <Star size={13} fill="currentColor" className="shrink-0 text-accent" />}{chat.parentChatId && <GitFork size={13} className="shrink-0 text-text-muted" />}<span className="truncate">{group.title}</span></div>}
                       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-text-muted">
                         <span className="truncate">{world?.name ?? 'Freeform world'}</span>
-                        {group.sceneCount > 1 && <span className="shrink-0 rounded-full bg-bg-sunken px-2 py-0.5 text-[11px]" title={`${group.sceneCount} scenes`}>Scene {chat.sceneNumber ?? 1}</span>}
+                        {group.sceneCount > 1 && <span className="shrink-0 rounded-full bg-bg-sunken px-2 py-0.5 text-[11px]" title={`${group.sceneCount} scenes`}>{group.position}</span>}
                         {group.storylineCount > 1 && <span className="shrink-0 rounded-full bg-bg-sunken px-2 py-0.5 text-[11px]">{group.storylineCount} storylines</span>}
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import { Copy } from 'lucide-react'
 import type { Chat, StoredMessage, Story } from '@/lib/types'
 import { messagesApi } from '@/lib/api/client'
 import { sceneLabel } from '@/lib/story/recaps'
+import { chapterIdOf, chapterLabel, chaptersOf } from '@/lib/story/chapters'
 import { messageDisplayText, sceneLocation, transcriptAsText, transcriptScenes } from '@/lib/story/library'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { Modal } from '@/components/ui/Modal'
@@ -49,7 +50,7 @@ export function StoryTranscript({ open, onClose, story, scenes, fromSceneId }: {
       return { scene, messages: entry?.status === 'ready' ? entry.messages : [] }
     })
     try {
-      await navigator.clipboard.writeText(transcriptAsText(title, parts))
+      await navigator.clipboard.writeText(transcriptAsText(title, parts, story))
       toastSuccess('Story copied as text.')
     } catch (e) { toastError(errorMessage(e)) }
   }
@@ -59,12 +60,20 @@ export function StoryTranscript({ open, onClose, story, scenes, fromSceneId }: {
       description={path.length > 1 ? `${path.length} scenes, read from the beginning.` : 'The story so far.'}
       headerExtra={<Button variant="ghost" onClick={copy} disabled={!allReady} className="flex items-center gap-1.5" title="Copy the whole story as plain text"><Copy size={14} aria-hidden="true" />Copy as text</Button>}>
       <div className="-mx-1 min-h-0 flex-1 space-y-8 overflow-y-auto px-1" tabIndex={0} aria-label="Story transcript">
-        {path.map((scene) => {
+        {path.map((scene, i) => {
           const location = sceneLocation(scene)
+          // A chapter heading where each chapter starts, once the story has named or ended one.
+          const chapter = story?.chapters?.length ? chaptersOf(story, scenes).find((c) => c.id === chapterIdOf(scene)) : undefined
+          const startsChapter = !!chapter && (i === 0 || chapterIdOf(path[i - 1]) !== chapter.id)
           const entry = loaded[scene.id]
           const recap = scene.recap?.text?.trim()
           return (
             <article key={scene.id} aria-labelledby={`transcript-${scene.id}`}>
+              {startsChapter && chapter && <div className="mb-4 border-b border-border pb-3">
+                <h2 className="font-display text-lg text-text">{chapterLabel(chapter)}</h2>
+                {chapter.goal?.trim() && <p className="mt-1 text-xs text-text-muted">Goal: {chapter.goal.trim()}</p>}
+                {chapter.recap?.text.trim() && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-text-muted"><span className="font-medium text-text">Chapter recap: </span>{chapter.recap.text.trim()}</p>}
+              </div>}
               <h3 id={`transcript-${scene.id}`} className="font-display text-base text-text">
                 {sceneLabel(scene)}{location && <span className="text-text-muted"> · {location}</span>}
               </h3>

@@ -115,3 +115,30 @@ describe('transcript', () => {
     expect(text).toBe('# T\n\n## Scene 1 · Inn\n\nRecap: They met.\n\nAnn: Hi')
   })
 })
+
+describe('chapters in the library', () => {
+  const base = (id: string, extra: Partial<Chat> = {}) => ({ id, title: id, characterId: 'c', createdAt: 1, updatedAt: 1, storyId: 'st', ...extra }) as Chat
+  const a = base('a', { sceneNumber: 1, endedAt: 2, recap: { text: 'They met.', presentIds: [], writtenAt: 2 } })
+  const b = base('b', { sceneNumber: 2, chapterId: 'c2', chapterSceneNumber: 1, previousSceneId: 'a', updatedAt: 5 })
+  const chaptered = { id: 'st', title: 'Night', createdAt: 0, updatedAt: 0, chapters: [
+    { id: 'chapter-1', number: 1, startedAt: 1, endedAt: 2, recap: { text: 'Arc one.', sceneIds: ['a'], writtenAt: 2 } },
+    { id: 'c2', number: 2, title: 'Low Tide', goal: 'Find the bell.', startedAt: 2 },
+  ] }
+
+  it('says which chapter and scene a story is at', () => {
+    expect(groupStories([a, b], [chaptered])[0].position).toBe('Chapter 2 · Scene 1')
+    expect(groupStories([a, { ...b, chapterId: undefined, chapterSceneNumber: undefined }], [{ id: 'st', title: 'Night', createdAt: 0, updatedAt: 0 }])[0].position).toBe('Scene 2')
+  })
+
+  it('heads each chapter in the plain-text story', () => {
+    const text = transcriptAsText('Night', [{ scene: a, messages: [] }, { scene: b, messages: [] }], chaptered)
+    expect(text).toContain('# Chapter 1\n\n## Scene 1')
+    expect(text).toContain('# Chapter 2 · Low Tide\n\nGoal: Find the bell.\n\n## Scene 1')
+    expect(transcriptAsText('Night', [{ scene: a, messages: [] }])).not.toContain('# Chapter')
+  })
+
+  it('still reads a branch back through earlier chapters', () => {
+    expect(transcriptScenes([a, b], 'b').map((s) => s.id)).toEqual(['a', 'b'])
+    expect(nextSceneOf([a, b], 'a')?.id).toBe('b')
+  })
+})

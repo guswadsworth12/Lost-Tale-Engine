@@ -12,6 +12,20 @@ export interface EndSceneConfirmInput {
   openThreads: string[]
   canonFacts: string[]
   next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
+  /** Set when the chapter ends too. */
+  chapter?: { recapText: string; openThreads: string[]; next: { title?: string; goal?: string } }
+}
+
+/** The chapter this scene is in, for ending it along with the scene. */
+export interface EndSceneChapter {
+  /** e.g. "Chapter 1 · The Fog" */
+  label: string
+  /** The number the next chapter would get. */
+  nextNumber: number
+  /** False when the chapter already ended in another branch: the scene can only carry on in it. */
+  canEnd: boolean
+  /** Drafts the chapter recap from its scenes, this one as its recap reads now. */
+  onDraft: (scene: { recapText: string; openThreads: string[] }) => Promise<{ text: string; openThreads: string[]; fallback?: string }>
 }
 
 interface EndSceneDialogProps {
@@ -32,6 +46,8 @@ interface EndSceneDialogProps {
   currentStorylineId: string
   /** Confirmed consequences carried forward (read-only). */
   consequences: string[]
+  /** Omitted: no chapter controls. */
+  chapter?: EndSceneChapter
   onConfirm: (input: EndSceneConfirmInput) => Promise<void>
 }
 
@@ -71,6 +87,7 @@ export function EndSceneDialog({
   storylines,
   currentStorylineId,
   consequences,
+  chapter,
   onConfirm,
 }: EndSceneDialogProps) {
   const ids = useId()
@@ -85,6 +102,13 @@ export function EndSceneDialog({
   const [storylineName, setStorylineName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [endChapter, setEndChapter] = useState(false)
+  const [chapterRecap, setChapterRecap] = useState('')
+  const [chapterThreads, setChapterThreads] = useState('')
+  const [draftingChapter, setDraftingChapter] = useState(false)
+  const [chapterNote, setChapterNote] = useState('')
+  const [nextChapterTitle, setNextChapterTitle] = useState('')
+  const [nextChapterGoal, setNextChapterGoal] = useState('')
 
   // A fresh draft (first one, or a rewrite) replaces the recap section's edits.
   useEffect(() => {
@@ -103,6 +127,12 @@ export function EndSceneDialog({
     setStorylineName('')
     setSubmitError(null)
     setNewThread('')
+    setEndChapter(false)
+    setChapterRecap('')
+    setChapterThreads('')
+    setChapterNote('')
+    setNextChapterTitle('')
+    setNextChapterGoal('')
     // Only on open: re-seeding on every prop change would wipe choices mid-edit.
   }, [open])
 
@@ -111,7 +141,24 @@ export function EndSceneDialog({
   const currentStoryline = storylines.find((s) => s.id === currentStorylineId)?.name ?? 'Main story'
   const lastingChanges = draft?.lastingChanges ?? []
   const splitNameMissing = mode === 'split' && !storylineName.trim()
-  const canConfirm = !drafting && !submitting && !!recapText.trim() && !splitNameMissing
+  const endingChapter = endChapter && !!chapter?.canEnd
+  const canConfirm = !drafting && !submitting && !!recapText.trim() && !splitNameMissing && (!endingChapter || (!draftingChapter && !!chapterRecap.trim()))
+
+  const draftChapter = async () => {
+    if (!chapter) return
+    setDraftingChapter(true)
+    setChapterNote('')
+    try {
+      const draft = await chapter.onDraft({ recapText: recapText.trim(), openThreads: threads.map((t) => t.trim()).filter(Boolean) })
+      setChapterRecap(draft.text)
+      setChapterThreads(draft.openThreads.join('\n'))
+      if (draft.fallback) setChapterNote(`The model couldn't write it (${draft.fallback}), so the scene recaps were joined. Edit them into one.`)
+    } catch (e) {
+      setChapterNote(`Couldn't draft the chapter recap: ${errorMessage(e)}`)
+    } finally {
+      setDraftingChapter(false)
+    }
+  }
 
   const togglePresent = (id: string) => {
     if (id === leadId) return
@@ -155,6 +202,11 @@ export function EndSceneDialog({
           storylineId: mode === 'continue' ? currentStorylineId : undefined,
           newStorylineName: mode === 'split' ? storylineName.trim() : undefined,
         },
+        ...(endingChapter ? { chapter: {
+          recapText: chapterRecap.trim(),
+          openThreads: chapterThreads.split('\n').map((t) => t.trim()).filter(Boolean),
+          next: { title: nextChapterTitle.trim() || undefined, goal: nextChapterGoal.trim() || undefined },
+        } } : {}),
       })
     } catch (e) {
       setSubmitError(errorMessage(e))
@@ -289,8 +341,44 @@ export function EndSceneDialog({
           </DialogSection>
         )}
 
+        {chapter && (
+          <DialogSection title="Chapter" description={chapter.canEnd ? undefined : `${chapter.label} already ended in another branch. This scene carries on in it.`}>
+            {chapter.canEnd && <>
+              <label className={CHECK_ROW}>
+                <input type="checkbox" checked={endChapter} className="mt-0.5" onChange={(e) => {
+                  setEndChapter(e.target.checked)
+                  if (e.target.checked && !chapterRecap.trim()) void draftChapter()
+                }} />
+                <span className="min-w-0">
+                  <span className="block text-text">Also end {chapter.label}</span>
+                  <span className="block text-xs text-text-muted">The chapter keeps a recap of its scenes, and the next scene opens Chapter {chapter.nextNumber}.</span>
+                </span>
+              </label>
+              {endChapter && <div className="mt-3 space-y-3">
+                {draftingChapter ? (
+                  <div role="status" className="flex items-center gap-2 rounded-xl bg-bg-sunken px-3 py-6 text-sm text-text-muted"><Spinner />Writing the chapter recap…</div>
+                ) : <>
+                  <div className="flex justify-end">
+                    <Button onClick={draftChapter} disabled={submitting || !recapText.trim()} className="flex items-center gap-1.5">
+                      <RefreshCw size={14} strokeWidth={2} aria-hidden="true" />Rewrite
+                    </Button>
+                  </div>
+                  {chapterNote && <p className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-text">{chapterNote}</p>}
+                  <TextAreaField label="Chapter recap" rows={6} value={chapterRecap} onChange={(e) => setChapterRecap(e.target.value)}
+                    hint="Later chapters hear this instead of the chapter's scenes." placeholder="A short past-tense account of the whole chapter." />
+                  <TextAreaField label="Left open, one per line" rows={3} value={chapterThreads} onChange={(e) => setChapterThreads(e.target.value)} />
+                </>}
+                <div className="grid gap-x-3 sm:grid-cols-2">
+                  <TextField label={`Chapter ${chapter.nextNumber} name (optional)`} value={nextChapterTitle} maxLength={120} onChange={(e) => setNextChapterTitle(e.target.value)} placeholder="Low Tide" />
+                  <TextField label="Its goal (optional)" value={nextChapterGoal} maxLength={500} onChange={(e) => setNextChapterGoal(e.target.value)} placeholder="What the next chapter works toward" />
+                </div>
+              </div>}
+            </>}
+          </DialogSection>
+        )}
+
         {/* 3. Next scene */}
-        <DialogSection title="Next scene">
+        <DialogSection title={endingChapter ? `Next scene, the first of Chapter ${chapter!.nextNumber}` : 'Next scene'}>
           <div className="grid gap-x-3 sm:grid-cols-2">
             <TextField label="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The morning after" />
             <TextField label="Location" value={nextLocation} onChange={(e) => setNextLocation(e.target.value)} placeholder="Where it opens" />
@@ -375,7 +463,7 @@ export function EndSceneDialog({
           </Button>
           <Button variant="primary" onClick={confirm} disabled={!canConfirm} aria-busy={submitting} className="flex items-center gap-2">
             {submitting && <Spinner />}
-            End scene and continue
+            {endingChapter ? 'End chapter and continue' : 'End scene and continue'}
           </Button>
         </div>
       </div>
