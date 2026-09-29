@@ -52,6 +52,12 @@ describe('planNextScene', () => {
     expect(newChat.createdAt).toBe(1000)
   })
 
+  it('opens the next scene on the state the last one ended with, not the one it started with', () => {
+    const started = { ...source, gameState: { supplies: 3 } }
+    expect(planNextScene(started, [], undefined, { recap }, 1000, ids(), { supplies: 1, 'hurt@hero': true }).newChat.gameState).toEqual({ supplies: 1, 'hurt@hero': true })
+    expect(planNextScene(started, [], undefined, { recap }, 1000, ids(), undefined).newChat.gameState).toBeUndefined()
+  })
+
   it('sets up who is there and where, always keeping the lead and never the player', () => {
     const { newChat } = planNextScene(source, [], undefined, { recap, next: { presentIds: ['ally', 'hero'], location: 'The docks', title: '  Low tide  ' } }, 1000, ids())
     expect(newChat.scene).toMatchObject({ turnPolicy: 'gm', location: 'The docks', presentCharacterIds: ['lead', 'ally'], roundRobinIndex: 0 })

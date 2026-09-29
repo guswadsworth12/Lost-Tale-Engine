@@ -36,6 +36,7 @@ import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemo
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
+import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
@@ -133,6 +134,7 @@ function normalizeCampaign(raw: unknown) {
     dating: value.dating === true && value.relationships === true,
     ...(Array.isArray(value.stats) ? { stats: normalizeCampaignStats(value.stats) ?? [] } : {}),
     ...(Array.isArray(value.ranks) ? { ranks: normalizeCampaignRanks(value.ranks) ?? [] } : {}),
+    ...(Array.isArray(value.tracks) ? { tracks: normalizeTracks(value.tracks) ?? [] } : {}),
     moves: Array.isArray(value.moves) ? value.moves.slice(0, 100)
       .filter((move): move is Record<string, unknown> => !!move && typeof move === 'object')
       .map((move) => ({
@@ -145,6 +147,7 @@ function normalizeCampaign(raw: unknown) {
         strong: typeof move.strong === 'string' ? move.strong.slice(0, 4000) : '',
         mixed: typeof move.mixed === 'string' ? move.mixed.slice(0, 4000) : '',
         miss: typeof move.miss === 'string' ? move.miss.slice(0, 4000) : '',
+        ...normalizeMoveEffects(move),
       })) : [],
   }
 }
@@ -916,6 +919,8 @@ app.put('/api/chats/:id', (req, res) => {
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
   const { characterId: _c, id: _id, createdAt: _ca, skipTouch, ...patch } = req.body
+  // Starting values for tracked state: known shapes only. `null` clears them.
+  if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
   const updated = chatStore.update(req.params.id, {
     ...patch,
     ...(skipTouch ? {} : { updatedAt: Date.now() }),
@@ -1074,8 +1079,15 @@ app.post('/api/chats/:id/roll', (req, res) => {
     : Array.from({ length: 3 }, () => randomInt(1, 7))
   let roll
   try {
+    const resolved = createResolvedCampaignRoll(campaign, move, modifier as number, dice, target as number | undefined, rollMode, action, newId(), now)
+    // What the move says this result does to tracked state rides on the roll itself: recorded with
+    // the dice, as immutable as they are, and replayed by `gameStateFrom` wherever the branch goes.
+    const stateChanges = campaign.tracks?.length
+      ? effectsForRoll(move, resolved.tier, resolved.id, typeof chat.playerCharacterId === 'string' ? chat.playerCharacterId : undefined)
+      : []
     roll = {
-      ...createResolvedCampaignRoll(campaign, move, modifier as number, dice, target as number | undefined, rollMode, action, newId(), now),
+      ...resolved,
+      ...(stateChanges.length ? { stateChanges } : {}),
       modifierSource: sheet ? 'sheet' as const : 'manual' as const,
       ...(target !== undefined ? { requestedTarget: target as number } : {}),
       ...(pendingGmMessageId !== undefined ? { pendingGmMessageId: pendingGmMessageId as string } : {}),

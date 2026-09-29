@@ -19,6 +19,14 @@ Choose the **Game Master** turn policy in the scene. The GM judges declared acti
 
 The rank ladder gives the GM context for what should be routine, uncertain, or out of reach at a character's standing. Rank guidance is not a replacement for a recorded check. The GM can propose lasting world facts, which require player confirmation; confirmed facts become shared canon. Branch consequences belong to their scene history, so rewinding or forking does not carry later branch events backward.
 
+## Tracked state
+
+**Story Rules → Tracked state** defines what play keeps count of: resources (a number, optionally capped), conditions (on or off), clocks (segments that fill, optionally emptied at each new scene), and item lists. Any of them can be kept per character, and any can be hidden from characters so only the GM sees it. The starter moves include a small sample: Hurt, Supplies, and a Trouble clock.
+
+Each move can say what each result changes and what each option costs when a result asks the player to choose, written in a short form such as `Supplies -1, Hurt on, Trouble +1` or `Gear + rope`. Set events take the same field; a set event without one applies any condition its consequence names ("Bea is hurt"). The server records a roll's changes with its dice, so a repeated submission cannot apply them twice, and model prose cannot change them. The GM can propose other changes (`Hurt on for Bea`); they apply only after the player confirms them, and can be corrected first.
+
+Changes are stored on the messages that caused them, so rewinding or forking restores the state at that point. Ending a scene carries the state into the next one. The GM sees every tracked value; each character sees the shared values that aren't GM-only, plus their own. The Story panel's **State** tab shows current values and recent changes, and lets the player correct them.
+
 ## Prompts and characters
 
 Worlds and characters store ordered, enabled prompt items. The TavernAI 2 card importer retains the prompt tree's order. Unsupported activation or replacement rules and executable macros are imported disabled for review. Imported text is story data, not instructions to the engine. The Prompt Inspector shows the assembled request.
@@ -35,7 +43,7 @@ The separate **Writer's Room** can search saved worlds, cast, lore, stories, goa
 
 ## Current limits and next work
 
-- The mechanical presets cover core checks. Hit points, spell slots, combat turns, and other system-specific resources are not enforced.
+- The mechanical presets cover core checks. A world can track its own resources, conditions, and clocks, but hit points, spell slots, combat turns, and other system-specific rules are not built in.
 - Guided mode is narrative guidance, including when a named ruleset has no mechanical adapter.
 - Player confirmation is required for new shared world canon. Branch consequences remain on their branch.
 - The GM uses the global model; separate GM provider credentials are not available.

@@ -78,6 +78,7 @@ import { ScenePanel } from './ScenePanel'
 import { CampaignMovePanel } from './CampaignMovePanel'
 import { SceneryPicker } from './SceneryPicker'
 import { GmActionsContext } from './GmTurnCard'
+import type { TrackEffect } from '@/lib/world/gameState'
 import { currentScenery } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
@@ -472,8 +473,8 @@ export function ChatWindow({
   const pendingRulingMessageId = lastMessage?.gm?.mode === 'mechanical' && lastMessage.gm.fallback && !lastMessage.gm.adjudication ? lastMessage.id : undefined
   const earnedQuestions = modules.campaignRules === 'mechanical' && chat.scene?.turnPolicy === 'gm' ? earlierRollFrom(messages) : undefined
   const gmActions = {
-    decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
-      void decideGmProposal(messageId, proposalId, decision).catch((e) => toastError(errorMessage(e))),
+    decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected', changes?: TrackEffect[]) =>
+      void decideGmProposal(messageId, proposalId, decision, changes).catch((e) => toastError(errorMessage(e))),
     nameOf: (id: string) =>
       id === GM_SPEAKER_ID ? GM_NAME : [character, ...participantCharacters].find((c) => c?.id === id)?.card.name ?? id,
     openChat: (id: string) => setActiveChatId(id),
@@ -483,6 +484,8 @@ export function ChatWindow({
       setPendingCheck({ messageId, moveId, action, target: pendingGmAdjudication?.target })
       setShowCampaignMove(true)
     },
+    tracks: modules.campaignRules ? world?.campaign?.tracks : undefined,
+    people: allCharacters.map((c) => ({ id: c.id, name: c.card.name })),
   }
   const toolbarActions: ChatToolbarAction[] = [
     {

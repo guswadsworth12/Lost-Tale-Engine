@@ -1,6 +1,7 @@
 import express from 'express'
-import { chatFactStore, chatStore, newId, objectiveStore, relationshipEventStore, storyStore } from './db.ts'
+import { characterStore, chatFactStore, chatStore, messageStore, newId, objectiveStore, relationshipEventStore, storyStore, worldStore } from './db.ts'
 import { planNextScene, type NextSceneRequest } from './storyPlan.ts'
+import { carryGameState, gameStateFrom, type CampaignTrack, type GameState } from '../src/lib/world/gameState.ts'
 
 /**
  * Stories made of scenes. A scene is an ordinary chat carrying `storyId`; ending one writes its
@@ -71,7 +72,13 @@ storiesRouter.post('/chats/:id/next-scene', (req, res) => {
   const existingStory = str(source.storyId) ? storyStore.get(str(source.storyId)) : undefined
   const storyScenes = existingStory ? chatStore.list().filter((c) => c.storyId === existingStory.id) : []
   const now = Date.now()
-  const plan = planNextScene(source, storyScenes, existingStory, body, now, newId)
+  // Tracked state is folded here, from the saved branch, rather than taken from the client.
+  const lead = str(source.characterId) ? characterStore.get(str(source.characterId)) : undefined
+  const world = str(lead?.worldId) ? worldStore.get(str(lead?.worldId)) : undefined
+  const tracks = (world?.campaign as { tracks?: CampaignTrack[] } | undefined)?.tracks
+  const messages = messageStore.list({ where: 'chatId = ?', params: [source.id], orderBy: 'createdAt' })
+  const { state } = gameStateFrom(tracks, source.gameState as GameState | undefined, messages, { playerId: str(source.playerCharacterId) || undefined })
+  const plan = planNextScene(source, storyScenes, existingStory, body, now, newId, carryGameState(state, tracks))
 
   if (plan.storyIsNew) storyStore.insert(plan.story)
   else storyStore.update(str(plan.story.id), plan.story)

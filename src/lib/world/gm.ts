@@ -1,4 +1,5 @@
 import { scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
+import { choiceEffectsText, effectsForChoice, effectsForSetEvent, effectsText, parseEffects, PLAYER_HOLDER, type StateChange, type TrackEffect } from './gameState'
 
 /**
  * The game master agent. Separate from the character agents on purpose: the GM paces the scene,
@@ -25,6 +26,8 @@ export interface RecordedMove extends PbtaRoll {
   /** Keeps the modifier's origin auditable after a sheet changes later. */
   modifierSource?: 'sheet' | 'manual'
   sheetStatId?: string
+  /** What this result did to tracked state, per the move's rules (`gameState.ts`). Set by the server with the dice. */
+  stateChanges?: StateChange[]
 }
 
 export type GmPacing = 'linger' | 'advance' | 'cut'
@@ -36,6 +39,8 @@ export interface GmProposal {
   text: string
   status: 'pending' | 'confirmed' | 'rejected'
   decidedAt?: number
+  /** Changes to tracked state this proposal makes. They apply only once the player confirms it. */
+  changes?: TrackEffect[]
 }
 
 export interface GmAdjudication {
@@ -69,7 +74,7 @@ export interface GmAdjudication {
  */
 export interface SetEvent {
   id: string
-  /** What happens, in plain terms: "Rend binds the Unbound into Emily's form". */
+  /** What happens, in plain terms: "Wren binds the sleeper into Lyra's form". */
   trigger: string
   /** The fixed result, applied without dice. */
   outcome: string
@@ -78,6 +83,8 @@ export interface SetEvent {
   /** Words that identify the action even when the GM misses it. Each entry must appear in the
    *  player's action; `a|b` accepts either. */
   match?: string[]
+  /** What it does to tracked state when it happens. Unset: conditions its consequence names. */
+  effects?: TrackEffect[]
 }
 
 /** Set events already carried out in this branch. */
@@ -225,6 +232,8 @@ export interface GmTurn {
   fallback?: string
   /** Engine corrections applied to the model's decision (e.g. a tier that disagreed with the dice). */
   corrections?: string[]
+  /** Tracked state this beat changed by rule: the player's pick for a roll, or a set event carried out. */
+  stateChanges?: StateChange[]
 }
 
 export interface GmRosterEntry {
@@ -270,6 +279,10 @@ export interface GmContext {
   canFork?: boolean
   loreIndex?: { id: string; title: string }[]
   playerName: string
+  /** The player's card, for per-character tracked state. */
+  playerId?: string
+  /** Tracked state now (`gameState.ts` `stateLines`, GM audience). */
+  stateLines?: string[]
   /** The player's standing on the world's rank ladder, from their sheet. */
   playerRank?: string
   transcript: { speaker: string; text: string }[]
@@ -344,9 +357,12 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
+    ...(campaign.tracks?.length ? [
+      'Tracked state (resources, conditions, clocks, items) is kept by the engine, not by you. A recorded result, the player\'s choice for it, and a set event apply their own changes: describe what they cost in the fiction, and never state a different value. For any other lasting change to tracked state, add a proposal with "change" written as "Track +1", "Track -1", "Track = 2", "Track on", "Track off", "Track + item" or "Track - item", ending "for Name" for a per-character track; it applies only when the player confirms it. When a clock is full, what it counts toward happens now.',
+    ] : []),
     'Rumors and beliefs are not facts. A remembered line tagged "claim" is only what someone said, and "belief" only what someone thinks; "unverified" means nobody has ruled on it, "true" or "FALSE" is the player\'s ruling. Never narrate a claim or belief as true unless it is ruled true. Characters who heard a FALSE claim still believe it until they learn otherwise in play; let them act on it, but the world does not bend to it. Never put an unconfirmed claim or a belief in a "world" proposal.',
     'Reply with one JSON object and nothing else:',
-    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "remote": [at most one available character reached from afar], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "choice": string|null, "setEvent": string|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}`,
+    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "remote": [at most one available character reached from afar], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "choice": string|null, "setEvent": string|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string${campaign.tracks?.length ? ', "change": string|null' : ''}}]}`,
   ].join('\n')
 
   const describe = (r: GmRosterEntry) => `- ${r.name}${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).length ? ` (${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).join('; ')})` : ''}`
@@ -358,12 +374,17 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
       ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
       : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
     : 'Recorded roll: none this turn.'
+  const people = gmPeople(ctx)
+  const rollChanges = m?.stateChanges?.length ? `This result's tracked-state changes, already applied: ${effectsText(m.stateChanges, campaign.tracks, people)}.` : ''
   const earlier = ctx.earlierRoll
     ? `Earlier roll still in effect: ${ctx.earlierRoll.moveName} (${ctx.earlierRoll.total ?? '?'}${ctx.earlierRoll.tier ? `, ${TIER_LABEL[ctx.earlierRoll.tier]}` : ''}). It granted: ${ctx.earlierRoll.outcome} Questions left: ${ctx.earlierRoll.remaining}. If the player asks about this result, answer one question now as a follow-up (adjudication.followUp true) and do not request a roll. If several questions are asked together, answer the first and leave the others for later turns.`
     : ''
   const pending = ctx.pendingChoice
     ? `Waiting on the player's choice from ${ctx.pendingChoice.moveName} (${ctx.pendingChoice.total ?? '?'}${ctx.pendingChoice.tier ? `, ${TIER_LABEL[ctx.pendingChoice.tier]}` : ''}): ${ctx.pendingChoice.outcome}${ctx.pendingChoice.options.length ? ` Options: ${ctx.pendingChoice.options.join(', ')}.` : ''} The player's declared action below is that choice. Apply it as a follow-up to the earlier roll (adjudication.followUp true, adjudication.choice set) and do not request a roll.`
     : ''
+  const choiceMove = ctx.pendingChoice ? campaign.moves.find((mv) => mv.id === ctx.pendingChoice!.moveId) : undefined
+  const choiceCosts = choiceMove?.choiceEffects?.length && campaign.tracks?.length
+    ? `What each option does to tracked state (the engine applies it): ${choiceEffectsText(choiceMove.choiceEffects, campaign.tracks)}.` : ''
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
     ctx.worldRules?.trim() ? `World rules: ${ctx.worldRules.trim()}` : '',
@@ -377,6 +398,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.recentRolls?.length ? `Earlier recorded checks in this scene (binding):\n${ctx.recentRolls.map((roll) => `- ${roll}`).join('\n')}` : '',
+    campaign.tracks?.length ? `Tracked state now (kept by the engine):\n${ctx.stateLines?.length ? ctx.stateLines.map((line) => `- ${line}`).join('\n') : '- (nothing tracked has changed yet)'}` : '',
     ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
@@ -389,12 +411,19 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.playerRank ? `${ctx.playerName}'s rank: ${ctx.playerRank}` : '',
     `${ctx.playerName}'s declared action: ${ctx.playerAction.trim() || '(no action, only waiting)'}`,
     recorded,
+    rollChanges,
     earlier,
     pending,
-    ctx.setEvents?.length ? `Set events still to come (canon; when the player carries one out, it happens as written with no roll):\n${ctx.setEvents.map((e) => `- [${e.id}] ${e.trigger} → ${e.outcome}${e.consequence ? ` (${e.consequence})` : ''}`).join('\n')}` : '',
+    choiceCosts,
+    ctx.setEvents?.length ? `Set events still to come (canon; when the player carries one out, it happens as written with no roll):\n${ctx.setEvents.map((e) => `- [${e.id}] ${e.trigger} → ${e.outcome}${e.consequence ? ` (${e.consequence})` : ''}${e.effects?.length && campaign.tracks?.length ? ` [tracked: ${effectsText(e.effects, campaign.tracks, people)}]` : ''}`).join('\n')}` : '',
     'JSON:',
   ].filter(Boolean).join('\n\n')
   return { system, user }
+}
+
+/** Everyone the GM can name in a tracked-state change: the cast, who could arrive, and the player. */
+function gmPeople(ctx: GmContext): { id: string; name: string }[] {
+  return [...ctx.roster, ...(ctx.availableRoster ?? []), { id: ctx.playerId ?? PLAYER_HOLDER, name: ctx.playerName }]
 }
 
 function extractJsonObject(raw: string): Record<string, unknown> | undefined {
@@ -466,6 +495,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
   const obj = extractJsonObject(raw)
   if (!obj) return fallbackGmTurn(ctx, 'The GM reply was not valid JSON.')
   const corrections: string[] = []
+  const stateChanges: StateChange[] = []
 
   let narration = str(obj.narration, 1500)
   // The GM narrates the world, not the player: drop any line that puts words in the player's mouth.
@@ -598,6 +628,8 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     const outcome = proposed && proposed !== p.outcome && !/^(?:roll\b|make (?:a|another) roll\b|a roll is needed\b)/i.test(proposed)
       ? proposed : `Chosen: ${choice}.`
     if (rawAdj && rawAdj.followUp !== true) corrections.push(`Recorded the choice for the earlier ${p.moveName} roll instead of asking for a new one.`)
+    // The pick's cost is the move's rule, not the model's prose.
+    stateChanges.push(...effectsForChoice(ctx.campaign.moves.find((mv) => mv.id === p.moveId), picked.length ? picked : [choice], p.rollId, ctx.playerId))
     adjudication = {
       action: ctx.playerAction.trim().slice(0, 500),
       source: 'recorded_roll',
@@ -618,6 +650,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     const event = ctx.setEvents.find((e) => e.id === str(rawAdj?.setEvent, 100)) ?? matchSetEvent(ctx.playerAction, ctx.setEvents)!
     if (str(rawAdj?.setEvent, 100) !== event.id) corrections.push(`Carried out the story's set event "${event.trigger}" without a roll.`)
     adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'set_event', setEventId: event.id, outcome: event.outcome }
+    stateChanges.push(...effectsForSetEvent(event, ctx.campaign.tracks, gmPeople(ctx), ctx.playerId))
   } else if (ctx.earlierRoll && (rawAdj?.followUp === true || looksLikeQuestion(ctx.playerAction) || (
     str(rawAdj?.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
   ))) {
@@ -704,10 +737,19 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
 
   const proposals: GmProposal[] = (Array.isArray(obj.proposals) ? obj.proposals : [])
     .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
-    .map((p) => ({ scope: p.scope === 'world' ? 'world' as const : 'branch' as const, text: str(p.text, 400) }))
+    .map((p) => ({ scope: p.scope === 'world' ? 'world' as const : 'branch' as const, text: str(p.text, 400), change: str(p.change, 300) }))
     .filter((p) => p.text)
     .slice(0, 3)
-    .map((p) => ({ id: newId(), ...p, status: 'pending' as GmProposal['status'] }))
+    .map(({ change, ...p }) => {
+      // A proposed state change is read by the engine's own syntax; what it can't read is dropped, never guessed.
+      const parsed = change && ctx.campaign.tracks?.length ? parseEffects(change, ctx.campaign.tracks, gmPeople(ctx)) : undefined
+      if (parsed?.errors.length) corrections.push(`Dropped a proposed state change the engine could not read: "${change}".`)
+      const changes = parsed && !parsed.errors.length && parsed.effects.length
+        ? parsed.effects.map((effect) => (effect.who || !ctx.playerId ? effect : { ...effect, who: ctx.playerId }))
+        : undefined
+      // Tracked state belongs to this story branch, never to world canon.
+      return { id: newId(), ...p, ...(changes ? { scope: 'branch' as const, changes } : {}), status: 'pending' as GmProposal['status'] }
+    })
   const setEvent = adjudication?.setEventId ? ctx.setEvents?.find((e) => e.id === adjudication!.setEventId) : undefined
   // A set event's consequence is canon for this branch the moment it happens; nobody needs to confirm it.
   if (setEvent?.consequence) proposals.unshift({ id: newId(), scope: 'branch', text: setEvent.consequence, status: 'confirmed', decidedAt: Date.now() })
@@ -748,6 +790,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     proposals,
     scenery: ctx.scenery,
     corrections: corrections.length ? corrections : undefined,
+    ...(stateChanges.length ? { stateChanges } : {}),
   }
 }
 

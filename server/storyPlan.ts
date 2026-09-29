@@ -38,8 +38,9 @@ const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =>
 /**
  * Plans ending `source` and opening the scene after it. Pure, so it can be tested without a
  * database. Carried over: the relationship track, gifts, inventory, gallery unlocks, flags, assist
- * settings, the player, and confirmed consequences. Left behind: the transcript, the rolling
- * summary (the recap replaces it), and per-scene bookkeeping (World Info timers, a live date read).
+ * settings, the player, confirmed consequences, and tracked state as the scene ended (`endState`,
+ * from `carryGameState`). Left behind: the transcript, the rolling summary (the recap replaces it),
+ * and per-scene bookkeeping (World Info timers, a live date read).
  */
 export function planNextScene(
   source: Row,
@@ -48,6 +49,7 @@ export function planNextScene(
   body: NextSceneRequest,
   now: number,
   id: () => string,
+  endState?: Row,
 ): NextScenePlan {
   const storyIsNew = !existingStory
   const story: Row = existingStory
@@ -81,7 +83,7 @@ export function planNextScene(
   const {
     id: _id, createdAt: _ca, updatedAt: _ua, deletedAt: _da, worldInfoState: _wis, rapport: _rap,
     summary: _sum, summaryUpToTimestamp: _sut, endedAt: _end, recap: _rec, parentChatId: _pc,
-    forkedFromMessageId: _ff, sceneTitle: _st, lastOutreachCheckedAt: _lo, memoryScribedUpTo: _msu, ...rest
+    forkedFromMessageId: _ff, sceneTitle: _st, lastOutreachCheckedAt: _lo, memoryScribedUpTo: _msu, gameState: _gs, ...rest
   } = source
   const lead = str(source.characterId)
   const player = str(source.playerCharacterId)
@@ -112,6 +114,7 @@ export function planNextScene(
     scene: nextScene,
     carriedConsequences: carried.length ? carried : undefined,
     setEventsDone: eventsDone.length ? eventsDone : undefined,
+    gameState: endState && Object.keys(endState).length ? endState : undefined,
     createdAt: now,
     updatedAt: now,
   }

@@ -76,4 +76,11 @@ describe('world editor modules', () => {
     expect(loaded.stats?.[0]).not.toBe(preset.campaign.stats?.[0])
     expect(loaded.moves).not.toBe(preset.campaign.moves)
   })
+
+  it('keeps the world\'s tracked state when a preset has none, and takes a preset\'s own', () => {
+    const d20 = CAMPAIGN_PRESETS.find((entry) => entry.campaign.resolver === 'd20')!.campaign
+    const current = { ...DEFAULT_CAMPAIGN, tracks: [{ id: 'gear', name: 'Gear', kind: 'items' as const }] }
+    expect(loadCampaignPreset(current, d20).tracks).toEqual(current.tracks)
+    expect(loadCampaignPreset(current, STARTER_PBTA_CAMPAIGN).tracks).toEqual(STARTER_PBTA_CAMPAIGN.tracks)
+  })
 })

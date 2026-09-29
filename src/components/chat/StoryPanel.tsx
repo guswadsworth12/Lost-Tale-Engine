@@ -13,11 +13,13 @@ import { campaignStats, sheetForWorld } from '@/lib/world/campaign'
 import { setEventsDoneFrom } from '@/lib/world/gm'
 import { SetEventsEditor } from '@/components/story/SetEventsEditor'
 import { ClaimReview } from '@/components/story/ClaimReview'
+import { GameStatePanel } from '@/components/story/GameStatePanel'
+import { effectsText, gameStateFrom } from '@/lib/world/gameState'
 
-export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'sheet' | 'canon' | 'notes' | 'rules'
+export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'sheet' | 'state' | 'canon' | 'notes' | 'rules'
 const TABS: { id: StoryTab; label: string }[] = [
   { id: 'scene', label: 'Scene' }, { id: 'scenes', label: 'Scenes' }, { id: 'goals', label: 'Goals' }, { id: 'people', label: 'People' },
-  { id: 'sheet', label: 'Sheet' }, { id: 'canon', label: 'Canon' }, { id: 'notes', label: 'Notes' }, { id: 'rules', label: 'Scene Rules' },
+  { id: 'sheet', label: 'Sheet' }, { id: 'state', label: 'State' }, { id: 'canon', label: 'Canon' }, { id: 'notes', label: 'Notes' }, { id: 'rules', label: 'Scene Rules' },
 ]
 const POLICIES: { id: ScenePolicy; label: string }[] = [
   { id: 'manual', label: 'Manual' }, { id: 'round_robin', label: 'Round robin' },
@@ -95,6 +97,8 @@ export function StoryPanel({
   const sheetFields = world?.campaign?.mode === 'mechanical' ? campaignStats(world.campaign) : []
   const playerSheet = world ? sheetForWorld(playerCharacter, world.id) : undefined
   const sheetWorldMismatch = !playerSheet && !!(playerCharacter?.sheet || Object.keys(playerCharacter?.sheets ?? {}).length)
+  const tracks = modules.campaignRules ? world?.campaign?.tracks ?? [] : []
+  const tracked = tracks.length ? gameStateFrom(tracks, chat.gameState, messages, { playerId: chat.playerCharacterId }) : undefined
   const panel = <section className="flex h-full w-full min-w-0 flex-col border-l border-border bg-bg-elevated md:w-80" aria-label="Story panel">
     <div className="flex items-center justify-between border-b border-border px-4 py-3">
       <strong className="font-display text-sm text-text">Story</strong>
@@ -104,7 +108,7 @@ export function StoryPanel({
       </div>
     </div>
     <div role="tablist" aria-label="Story sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2 py-2">
-      {TABS.filter((entry) => entry.id !== 'sheet' || world?.campaign?.mode === 'mechanical').map((entry) => <button key={entry.id} role="tab" aria-selected={tab === entry.id} onClick={() => onTabChange(entry.id)}
+      {TABS.filter((entry) => (entry.id !== 'sheet' || world?.campaign?.mode === 'mechanical') && (entry.id !== 'state' || !!tracked)).map((entry) => <button key={entry.id} role="tab" aria-selected={tab === entry.id} onClick={() => onTabChange(entry.id)}
         className={`shrink-0 rounded-lg px-2 py-1.5 text-xs ${tab === entry.id ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-bg-sunken hover:text-text'}`}>
         {entry.label}{entry.id === 'canon' && proposals.length > 0 ? ` · ${proposals.length}` : ''}
       </button>)}
@@ -152,12 +156,15 @@ export function StoryPanel({
           : !playerSheet ? <p className="text-xs text-text-muted">This character has no sheet yet. Set their stats in Cast → Sheet; rolls use a manual value until then.</p>
           : sheetFields.map((stat) => <div key={stat.id} className="flex items-center justify-between gap-3 rounded-lg bg-bg-sunken px-3 py-2"><div><strong className="text-sm">{stat.name}</strong>{stat.description && <p className="text-xs text-text-muted">{stat.description}</p>}</div><span className="font-mono text-sm">{typeof playerSheet.stats[stat.id] === 'number' ? `${playerSheet.stats[stat.id] >= 0 && stat.valueMode !== 'ability' && stat.valueMode !== 'target' ? '+' : ''}${playerSheet.stats[stat.id]}` : '—'}</span></div>)}
       </>}
+      {tab === 'state' && tracked && <GameStatePanel tracks={tracks} state={tracked.state} log={tracked.log} playerId={chat.playerCharacterId} busy={busy}
+        people={[...(playerCharacter ? [playerCharacter] : []), ...loaded].map((member) => ({ id: member.id, name: member.card.name }))}
+        onEdit={(effects) => run(() => session.editGameState(effects))} />}
       {tab === 'canon' && <>
         <h3 className="font-medium">Confirmed world facts</h3>
         {world?.canonFacts?.length ? world.canonFacts.map((fact) => <p key={fact.id} className="rounded-lg bg-bg-sunken p-2 text-xs">{fact.text}</p>) : <p className="text-xs text-text-muted">No confirmed world facts yet.</p>}
         <button className={actionClass} onClick={onOpenWorldFact} disabled={!world}>Record a fact</button>
         <h3 className="font-medium">Pending GM proposals {proposals.length > 0 && <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">{proposals.length}</span>}</h3>
-        {proposals.length ? proposals.map(({ message, proposal }) => <div key={`${message.id}-${proposal.id}`} className="rounded-xl border border-border p-3"><p className="text-xs">{proposal.text}</p><p className="my-2 text-xs text-text-muted">{proposal.scope === 'world' ? 'World canon' : 'This branch'}</p><div className="flex gap-2"><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'confirmed'))}>Confirm</button><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'rejected'))}>Reject</button></div></div>) : <p className="text-xs text-text-muted">No pending proposals.</p>}
+        {proposals.length ? proposals.map(({ message, proposal }) => <div key={`${message.id}-${proposal.id}`} className="rounded-xl border border-border p-3"><p className="text-xs">{proposal.text}</p>{!!proposal.changes?.length && <p className="mt-1 text-xs">State: {effectsText(proposal.changes, tracks, allCharacters.map((member) => ({ id: member.id, name: member.card.name })))}</p>}<p className="my-2 text-xs text-text-muted">{proposal.scope === 'world' ? 'World canon' : 'This branch'}</p><div className="flex gap-2"><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'confirmed'))}>Confirm</button><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'rejected'))}>Reject</button></div></div>) : <p className="text-xs text-text-muted">No pending proposals.</p>}
         <ClaimReview chatId={chat.id} worldId={world?.id} nameOf={(id) => allCharacters.find((member) => member.id === id)?.card.name} />
       </>}
       {tab === 'notes' && <>
@@ -176,7 +183,8 @@ export function StoryPanel({
         <button className={actionClass} disabled={busy} onClick={() => run(() => session.updateGmNotes(gmNotes))}>Save GM notes</button>
         {modules.campaignRules && <SetEventsEditor events={chat.setEvents ?? []}
           doneIds={[...(chat.setEventsDone ?? []), ...setEventsDoneFrom(messages)]}
-          onSave={(events) => run(() => session.updateSetEvents(events))} />}
+          onSave={(events) => run(() => session.updateSetEvents(events))}
+          tracks={tracks} characters={allCharacters.map((member) => ({ id: member.id, name: member.card.name }))} />}
         {onSwitchPlayer && <>
           <h3 className="font-medium">Play As</h3>
           <PlayAsSelect value={playAs} onChange={setPlayAs} characters={allCharacters} excludeIds={character ? [character.id] : []} allowNone={!chat.playerCharacterId} />
