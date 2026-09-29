@@ -34,6 +34,10 @@ import { WorldTemplateGallery } from './WorldTemplateGallery'
 import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignRank, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
 import { MAX_RANKS, RANK_NAME_MAX, RANK_NOTE_MAX, moveItem, nextRankName, rankLadderProblem } from './rankLadder'
 import { ChoiceEffectsField, EffectsField, TracksEditor } from './TracksEditor'
+import { ExportPackDialog } from './ExportPackDialog'
+import { ImportPackDialog } from './ImportPackDialog'
+import { VisibilityField } from '@/components/ui/VisibilityField'
+import type { Visibility } from '@/lib/packs/contract'
 import { removeTrack, tracksProblem } from './tracks'
 import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
 import type { PromptItem } from '@/lib/prompt/items'
@@ -128,6 +132,7 @@ export function WorldsView({
   // time `WorldEditor` actually mounts, silently dropping the deep-linked tab.
   const [resolvedTab, setResolvedTab] = useState<string | undefined>(undefined)
   const [showTemplateGallery, setShowTemplateGallery] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   useEffect(() => {
     if (!initialWorldId) return
@@ -157,11 +162,26 @@ export function WorldsView({
       width="wide"
       description="A world is a shared setting: its tone, its rules, its lore, and its scene backgrounds. Any number of characters can live in one; assign a world from the character's editor."
       actions={
-        <Button variant="primary" onClick={() => setShowTemplateGallery(true)}>
-          New world
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setShowImport(true)}>
+            Import pack…
+          </Button>
+          <Button variant="primary" onClick={() => setShowTemplateGallery(true)}>
+            New world
+          </Button>
+        </div>
       }
     >
+      {showImport && (
+        <ImportPackDialog
+          onClose={() => setShowImport(false)}
+          onImported={async (worldId) => {
+            setShowImport(false)
+            const imported = await worldsApi.get(worldId)
+            if (imported) setSelected(imported)
+          }}
+        />
+      )}
       {showTemplateGallery && (
         <WorldTemplateGallery
           onChoose={(template) => {
@@ -375,6 +395,8 @@ function WorldEditor({
   const [description, setDescription] = useState(base.description)
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
+  const [visibility, setVisibility] = useState<Visibility>(base.visibility ?? 'shared')
+  const [showExport, setShowExport] = useState(false)
   const initialModules = initialWorldEditorModules(base)
   const [campaign, setCampaign] = useState<CampaignConfig>(initialModules.campaign)
   const [modules, setModules] = useState<WorldModuleChoices>(initialModules.modules)
@@ -467,6 +489,7 @@ function WorldEditor({
       // would survive being cleared. Same reason `Chat.activeEvent`/`authorNote` use null.
       intimacyLevel: intimacyLevel ?? null,
       triggers,
+      visibility,
     }
     try {
       if (world) {
@@ -716,9 +739,14 @@ function WorldEditor({
       footer={
         <>
           {world ? (
-            <Button variant="danger" onClick={remove}>
-              Delete world
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="danger" onClick={remove}>
+                Delete world
+              </Button>
+              <Button variant="secondary" onClick={() => setShowExport(true)}>
+                Export pack…
+              </Button>
+            </div>
           ) : (
             <span />
           )}
@@ -728,6 +756,7 @@ function WorldEditor({
         </>
       }
     >
+      {showExport && world && <ExportPackDialog world={world} onClose={() => setShowExport(false)} />}
       {tab === 'overview' && (
         <div className="space-y-6">
           <div className="flex items-start gap-4">
@@ -754,6 +783,7 @@ function WorldEditor({
               <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </div>
+          <VisibilityField value={visibility} row={world ?? undefined} onChange={setVisibility} />
 
           <TextAreaField
             label="Description"
