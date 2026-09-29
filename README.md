@@ -26,6 +26,8 @@ Choose **Classic** for a transcript or **Visual Novel** for a staged scene. On d
 
 In **Story Rules**, build character-sheet fields, moves, targets, and a rank ladder. **Cast → Sheet** stores a separate sheet for each world, so a character can have different stats across settings. Starter presets cover 2d6 moves, D&D 5e SRD core checks, Starfinder 2e core checks, Fate Core skill checks, and a generic 3d6 roll-under check. These provide editable fields and check resolvers, not full implementations of those games.
 
+A world can travel as a **world pack**: its settings, rules, lore, cast templates, and chosen art and music, without anyone's stories or private notes. Imports are previewed before anything is written and stay private to the importing account until shared. See [world packs](docs/WORLD_PACKS.md).
+
 In **mechanical** mode, the server records the dice, modifier or sheet value, target, and outcome before the GM narrates. A failed check remains a failure even if a model response claims success. A successful check establishes the result while leaving room to ask follow-up questions and choose what happens next. **Guided** mode gives the GM rules context without enforcing a dice result. See the [campaign guide](docs/CAMPAIGN_ENGINE.md) for the GM contract.
 
 ### Give characters a look and a sheet
