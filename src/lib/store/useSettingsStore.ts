@@ -237,6 +237,9 @@ interface SettingsState {
   autoSummarize: boolean
   keepRecentMessages: number
   summaryDetail: 'concise' | 'detailed'
+  /** Per-character memory (`memory/`): a background call after each beat records what each character saw, heard, or was told, and each character is prompted only with their own. */
+  characterMemory: boolean
+  setCharacterMemory: (v: boolean) => void
   setAutoSummarize: (v: boolean) => void
   setKeepRecentMessages: (n: number) => void
   setSummaryDetail: (d: 'concise' | 'detailed') => void
@@ -465,6 +468,8 @@ export const useSettingsStore = create<SettingsState>()(
       autoSummarize: true,
       keepRecentMessages: 12,
       summaryDetail: 'concise',
+      characterMemory: true,
+      setCharacterMemory: (v) => set({ characterMemory: v }),
       setAutoSummarize: (v) => set({ autoSummarize: v }),
       setKeepRecentMessages: (n) => set({ keepRecentMessages: n }),
       setSummaryDetail: (d) => set({ summaryDetail: d }),

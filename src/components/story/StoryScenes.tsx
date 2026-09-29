@@ -3,19 +3,29 @@ import { GitBranch } from 'lucide-react'
 import type { Chat, Story } from '@/lib/types'
 import { sceneLabel } from '@/lib/story/recaps'
 import { sceneLocation, storyLanes } from '@/lib/story/library'
+import { StorySequelLink } from './StorySequelLink'
 
 /**
  * A story's timeline: its scenes, one lane per storyline (the main line first), each scene with
  * where it happened, whether it's over, and its recap. Opening a scene hands its chat id back.
+ * `showSequelLink` adds the story's "Continues from" setting underneath.
  */
-export function StoryScenes({ story, scenes, currentSceneId, onOpenScene }: {
+export function StoryScenes({ story, scenes, currentSceneId, onOpenScene, showSequelLink = false }: {
   story?: Story
   scenes: Chat[]
   currentSceneId?: string
   onOpenScene?: (chatId: string) => void
+  showSequelLink?: boolean
 }) {
   const lanes = storyLanes(story, scenes)
-  if (!lanes.length) return <p className="text-xs text-text-muted">No scenes yet.</p>
+  const sequelLink = showSequelLink && story
+    // Keyed on the saved link so the form resets when it changes underneath (another window, a refetch).
+    ? <StorySequelLink key={`${story.id}:${story.continuesFrom?.storyId ?? ''}:${story.continuesFrom?.sceneId ?? ''}`} story={story} />
+    : null
+  if (!lanes.length) {
+    const empty = <p className="text-xs text-text-muted">No scenes yet.</p>
+    return sequelLink ? <div className="space-y-5">{empty}{sequelLink}</div> : empty
+  }
   const multiLane = lanes.length > 1
   return (
     <div className="space-y-5">
@@ -23,6 +33,7 @@ export function StoryScenes({ story, scenes, currentSceneId, onOpenScene }: {
         <Lane key={lane.storylineId} name={multiLane ? lane.name : undefined}
           splitFrom={lane.splitFrom} scenes={lane.scenes} currentSceneId={currentSceneId} onOpenScene={onOpenScene} />
       ))}
+      {sequelLink}
     </div>
   )
 }

@@ -508,3 +508,21 @@ describe('rank scaling', () => {
     expect(user).not.toContain('rank:')
   })
 })
+
+describe('buildGmPrompt character memory', () => {
+  it('gives the GM every memory with who knows it, and the knowledge boundaries in the scene', () => {
+    const { user } = buildGmPrompt(ctx({
+      memoryDigest: ['- Ash broke the east ward. (known by: Ash, Bea)'],
+      knowledgeGaps: ['Cole does not know: Ash broke the east ward.'],
+    }))
+    expect(user).toContain('What the characters remember (and who knows it):\n- Ash broke the east ward. (known by: Ash, Bea)')
+    expect(user).toContain('Knowledge boundaries in this scene.')
+    expect(user).toContain('- Cole does not know: Ash broke the east ward.')
+  })
+
+  it('says nothing about memory when there is none', () => {
+    const { user } = buildGmPrompt(ctx())
+    expect(user).not.toContain('What the characters remember')
+    expect(user).not.toContain('Knowledge boundaries')
+  })
+})

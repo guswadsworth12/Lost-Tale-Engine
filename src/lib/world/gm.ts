@@ -148,6 +148,10 @@ export interface GmContext {
   scenario?: string
   storySoFar?: string
   openThreads?: string[]
+  /** What the characters remember (`memory/gmKnowledge.ts`), each line naming who knows it. The GM sees all of it. */
+  memoryDigest?: string[]
+  /** Who present does not know what (`memory/gmKnowledge.ts`), so no character acts on what they never learned. */
+  knowledgeGaps?: string[]
   activeObjective?: string
   canonFacts: string[]
   branchConsequences: string[]
@@ -257,6 +261,8 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.gmNotes?.trim() ? `Storyteller-only continuity (do not disclose without an in-story cause): ${ctx.gmNotes.trim()}` : '',
     ctx.storySoFar?.trim() ? `Story so far: ${ctx.storySoFar.trim()}` : '',
     ctx.openThreads?.length ? `Open threads:\n${ctx.openThreads.map((t) => `- ${t}`).join('\n')}` : '',
+    ctx.memoryDigest?.length ? `What the characters remember (and who knows it):\n${ctx.memoryDigest.join('\n')}` : '',
+    ctx.knowledgeGaps?.length ? `Knowledge boundaries in this scene. These characters have not learned these things; do not narrate them knowing it, and let them find out only in play:\n${ctx.knowledgeGaps.map((g) => `- ${g}`).join('\n')}` : '',
     ctx.activeObjective?.trim() ? `Current objective: ${ctx.activeObjective.trim()}` : '',
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',

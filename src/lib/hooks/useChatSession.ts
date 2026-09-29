@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, memoriesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
 import { sceneChain, storyRecapBlock } from '@/lib/story/recaps'
 import { writeSceneRecap, type RecapDraft } from '@/lib/story/recapWriter'
 import { playerViewOf, switchPlayer as planPlayerSwitch } from '@/lib/characters/player'
@@ -243,6 +243,11 @@ import { appearanceForCharacter, isPhysicalForm } from '@/lib/vn/appearances'
 import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
+import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
+import { latestJournal, memoryBlock, selectMemories } from '@/lib/memory/rank'
+import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
+import { buildScribePrompt, parseScribeResponse } from '@/lib/memory/scribe'
+import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastInfo, toastSuccess } from '@/lib/store/useToastStore'
 import { playSendBlip } from '@/lib/audio/sfx'
@@ -252,6 +257,8 @@ import type { ChoiceOption, RelationshipDimension, RelationshipWarning, Scene, S
 
 /** Minimum number of newly-eligible messages before auto-summarize bothers running (avoids a summarization call on every single turn). */
 const MIN_BATCH_FOR_AUTO_SUMMARY = 6
+/** Most messages the memory scribe reads in one call. */
+const SCRIBE_BATCH = 16
 
 /** Extra generation rounds `runGeneration` allows itself when a reply looks cut off by hitting max_length, before giving up and leaving it as-is. */
 const MAX_AUTO_CONTINUE_ROUNDS = 2
@@ -435,6 +442,7 @@ export function useChatSession(chatId: string | null) {
   const chatCompletionSampler = useSettingsStore((s) => s.chatCompletionSampler)
   const instructTemplateId = useSettingsStore((s) => s.instructTemplateId)
   const autoSummarize = useSettingsStore((s) => s.autoSummarize)
+  const characterMemoryOn = useSettingsStore((s) => s.characterMemory)
   const keepRecentMessages = useSettingsStore((s) => s.keepRecentMessages)
   const summaryDetail = useSettingsStore((s) => s.summaryDetail)
   const autoDetectTasks = useSettingsStore((s) => s.autoDetectTasks)
@@ -540,6 +548,7 @@ export function useChatSession(chatId: string | null) {
   const abortRef = useRef<AbortController | null>(null)
   const genKeyRef = useRef<string>('')
   const summarizingRef = useRef(false)
+  const scribingRef = useRef(false)
   // Synchronous lock guarding against double-dispatch within one tick — `isGenerating` state alone is one render too slow. Lazy-built to avoid allocating every render.
   const generationLockRef = useRef<GenerationLock | null>(null)
   if (!generationLockRef.current) generationLockRef.current = createGenerationLock()
@@ -583,7 +592,7 @@ export function useChatSession(chatId: string | null) {
       )
   }, [])
   // Fixed order so the strip doesn't reshuffle as tasks finish at different times.
-  const assistActivity = ['gm', 'relationship', 'rapport', 'choices', 'tasks', 'summary', 'vision']
+  const assistActivity = ['gm', 'relationship', 'rapport', 'choices', 'tasks', 'summary', 'memory', 'vision']
     .map((k) => assistTasks[k])
     .filter((label): label is string => !!label)
 
@@ -685,6 +694,25 @@ export function useChatSession(chatId: string | null) {
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
+      // Character memory: this speaker hears only what they witnessed or were told, in this story.
+      // The transcript leaves out messages from while they were not there (before they arrived, or
+      // while they were away), and the scene summary reaches them only if they missed none of it.
+      const memoryOn = characterMemoryOn && !opts?.impersonateAsUser
+      const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id).catch(() => []) : []
+      const missedIds = new Set(memoryOn ? branchMessages.filter((m) => !witnessedMessage(m, speaker.id)).map((m) => m.id) : [])
+      const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
+      const memoryText = memoryOn
+        ? memoryBlock(
+            speaker.card.name,
+            selectMemories(sceneMemories, {
+              characterId: speaker.id,
+              presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
+              recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
+            }),
+            latestJournal(sceneMemories, speaker.id),
+            speaker.id,
+          )
+        : ''
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
       const recentRolls = modules.campaignRules === 'mechanical' ? recentRollsFrom(branchMessages) : []
@@ -994,9 +1022,10 @@ export function useChatSession(chatId: string | null) {
       // Messages already folded into chat.summary are represented there, not sent verbatim.
       const cutoff = freshChat.summaryUpToTimestamp ?? 0
       const createdAtById = new Map(messages.map((m) => [m.id, m.createdAt]))
-      const recentHistory = cutoff
+      const recentHistory = (cutoff
         ? historyForPrompt.filter((m) => (createdAtById.get(m.id) ?? Infinity) > cutoff)
         : historyForPrompt
+      ).filter((m) => !missedIds.has(m.id))
 
       // Impersonating {{user}}'s line withholds every steer built for {{char}}'s reply; world/persona/history context and plain style rules still apply.
       const impersonating = !!opts?.impersonateAsUser
@@ -1155,14 +1184,14 @@ export function useChatSession(chatId: string | null) {
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
-        characterProfile: [buildCharacterProfileNote(speaker), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : ''].filter(Boolean).join('\n\n'),
+        characterProfile: [buildCharacterProfileNote(speaker), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
         personaName: persona?.name || 'You',
         personaDescription: persona?.description || '',
         globalSystemPrompt,
         chatSystemPrompt: builtinSystemPrompt?.prompt,
         globalPostHistory,
         history: recentHistory,
-        chatSummary: freshChat.summary,
+        chatSummary: missedSummarized ? undefined : freshChat.summary,
         storyRecap,
         worldDescription,
         worldMoment,
@@ -1225,6 +1254,7 @@ export function useChatSession(chatId: string | null) {
       autoTrackRelationship,
       avoidEmDashes,
       character,
+      characterMemoryOn,
       chat,
       countTokens,
       globalIntimacyLevel,
@@ -1301,6 +1331,143 @@ export function useChatSession(chatId: string | null) {
     const updatedTasks = objective.tasks.map((t) => (completedIds.has(t.id) ? { ...t, status: 'done' as const, completedAt: now } : t))
     await objectivesApi.update(objective.id, { tasks: updatedTasks })
   }, [])
+
+  /**
+   * The memory scribe (`memory/scribe.ts`): reads the messages since it last ran and records what
+   * each character will remember. Who witnessed a message comes from the presence stamped on it,
+   * never from the model. Best effort: a failed call leaves the watermark, so the next run retries.
+   * A chat's first run only reads its most recent messages; older history stays with the summary.
+   */
+  const scribeMemories = useCallback(async (opts?: { flush?: boolean }) => {
+    if (!chatId || !character || !characterMemoryOn) return
+    if (scribingRef.current) {
+      if (!opts?.flush) return
+      for (let waited = 0; scribingRef.current && waited < 60_000; waited += 250) await new Promise((r) => setTimeout(r, 250))
+      if (scribingRef.current) return
+    }
+    scribingRef.current = true
+    try {
+      for (let round = 0; round < (opts?.flush ? 4 : 1); round++) {
+        const fresh = await chatsApi.get(chatId)
+        if (!fresh || fresh.endedAt) return
+        const branch = await messagesApi.listByChat(chatId)
+        const unread = branch.filter((m) => m.createdAt > (fresh.memoryScribedUpTo ?? 0) && !m.failed && m.text.trim())
+        if (!unread.length) return
+        const batch = (fresh.memoryScribedUpTo === undefined ? unread.slice(-SCRIBE_BATCH) : unread.slice(0, SCRIBE_BATCH))
+        const cards = [character, ...participantCharacters, ...arrivalsRef.current, ...(playerCharacter ? [playerCharacter] : [])]
+        const cast = [...new Map(cards.map((c) => [c.id, { id: c.id, name: c.card.name }])).values()]
+        const playerName = persona?.name || 'You'
+        const messagesForScribe = batch.map((m, i) => ({
+          n: i + 1,
+          id: m.id,
+          name: m.role === 'user' ? playerName : m.name,
+          text: m.text,
+          witnessIds: messageWitnesses(m, fresh).filter((id) => id !== GM_SPEAKER_ID),
+        }))
+        const involved = new Set(messagesForScribe.flatMap((m) => m.witnessIds))
+        const known = (await memoriesApi.forChat(chatId).catch(() => []))
+          .filter((m) => m.active && m.kind !== 'journal' && m.knownBy.some((id) => involved.has(id)))
+          .slice(-20)
+        const input = {
+          worldName: world?.name,
+          playerName,
+          playerId: fresh.playerCharacterId,
+          cast,
+          messages: messagesForScribe,
+          existing: known.map((m, i) => ({ n: i + 1, id: m.id, text: m.text, knownByIds: m.knownBy, unresolved: m.unresolved })),
+        }
+        const raw = await generateWithTimeout(
+          client,
+          {
+            prompt: buildScribePrompt(input),
+            max_length: 700,
+            max_context_length: sampler.max_context_length,
+            temperature: 0.3,
+            top_p: 1,
+            top_k: 0,
+            min_p: 0,
+            typical: 1,
+            tfs: 1,
+            rep_pen: 1.05,
+            rep_pen_range: 1024,
+            rep_pen_slope: 0.7,
+          },
+          'Record character memories',
+          undefined,
+          assistShaping,
+        )
+        const result = parseScribeResponse(raw, input)
+        if (result.add.length) {
+          await memoriesApi.createMany(result.add.map((a) => ({
+            chatId,
+            text: a.text,
+            kind: a.kind,
+            importance: a.importance,
+            witnesses: a.witnessIds,
+            about: a.aboutIds,
+            feelings: a.feelings,
+            unresolved: a.unresolved,
+            sourceMessageId: a.messageId,
+            origin: 'scribe' as const,
+          })))
+        }
+        await Promise.all([
+          ...result.told.map((t) => memoriesApi.share(t.memoryId, { to: t.toIds, by: t.byId, messageId: t.messageId, chatId }).catch(() => {})),
+          ...result.retire.map((r) => memoriesApi.update(r.memoryId, { active: false, retiredReason: r.reason }).catch(() => {})),
+          ...result.resolve.map((id) => memoriesApi.update(id, { unresolved: false }).catch(() => {})),
+        ])
+        await memoriesApi.setWatermark(chatId, batch[batch.length - 1].createdAt, fresh.memoryScribedUpTo ?? null)
+        if (batch.length < unread.length && fresh.memoryScribedUpTo !== undefined) continue
+        return
+      }
+    } finally {
+      scribingRef.current = false
+    }
+  }, [assistShaping, character, characterMemoryOn, chatId, client, participantCharacters, persona?.name, playerCharacter, sampler.max_context_length, world?.name])
+
+  /**
+   * When a scene ends, each character there folds their older, settled memories into their own
+   * journal (`memory/journal.ts`), so a long campaign stays a short read for every one of them.
+   */
+  const writeJournals = useCallback(async (sceneId: string, characterIds: string[]) => {
+    if (!characterMemoryOn) return
+    const all = await memoriesApi.forChat(sceneId)
+    for (const id of characterIds) {
+      const card = allCharactersById.get(id) ?? arrivalsRef.current.find((c) => c.id === id)
+      if (!card || id === playerCharacter?.id) continue
+      const toFold = pickForJournal(all, id)
+      if (!toFold.length) continue
+      const raw = await generateWithTimeout(
+        client,
+        {
+          prompt: buildJournalPrompt({
+            name: card.card.name,
+            previousJournal: latestJournal(all, id)?.text,
+            toFold: toFold.map((m) => ({ text: m.text, feeling: m.feelings?.[id] })),
+            worldName: world?.name,
+          }),
+          max_length: 400,
+          max_context_length: sampler.max_context_length,
+          temperature: 0.4,
+          top_p: 1,
+          top_k: 0,
+          min_p: 0,
+          typical: 1,
+          tfs: 1,
+          rep_pen: 1.1,
+          rep_pen_range: 1024,
+          rep_pen_slope: 0.7,
+        },
+        'Update character journal',
+        undefined,
+        assistShaping,
+      ).catch(() => '')
+      const text = parseJournalResponse(raw)
+      if (!text) continue
+      await memoriesApi.create({ chatId: sceneId, kind: 'journal', text, witnesses: [id], importance: 1, origin: 'journal' })
+      await memoriesApi.consolidate(id, toFold.map((m) => m.id))
+    }
+  }, [allCharactersById, assistShaping, characterMemoryOn, client, playerCharacter?.id, sampler.max_context_length, world?.name])
 
   /** Checks whether the reply that just landed completed any pending objective tasks. Standalone path only — see `runGeneration` for the merged one. */
   const detectAndMarkTasks = useCallback(
@@ -2454,6 +2621,8 @@ export function useChatSession(chatId: string | null) {
       next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
     }): Promise<Chat> => {
       if (!chatId) throw new Error('No scene is open.')
+      // Everything said in the scene is remembered before it closes.
+      await scribeMemories({ flush: true }).catch(() => {})
       const fresh = await chatsApi.get(chatId)
       if (!fresh) throw new Error('This scene no longer exists.')
       const branch = await messagesApi.listByChat(chatId)
@@ -2469,7 +2638,7 @@ export function useChatSession(chatId: string | null) {
         })
       }
       const location = input.next.location?.trim()
-      return chatsApi.nextScene(chatId, {
+      const nextScene = await chatsApi.nextScene(chatId, {
         recap: {
           text: input.recapText.trim(),
           presentIds,
@@ -2485,8 +2654,10 @@ export function useChatSession(chatId: string | null) {
           newStorylineName: input.next.newStorylineName?.trim() || undefined,
         },
       })
+      runAssist('memory', 'Writing journals', () => writeJournals(chatId, presentIds))
+      return nextScene
     },
-    [chatId, world],
+    [chatId, runAssist, scribeMemories, world, writeJournals],
   )
 
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
@@ -2710,6 +2881,8 @@ export function useChatSession(chatId: string | null) {
         hardFailRetriesLeft?: number
         /** Only meaningful alongside `continuing: true` — the pre-continue snapshot to persist as `continueUndo`, constant across every auto-continue round of this same call. */
         continueUndo?: { text: string; rawText?: string; scene?: SceneTag }
+        /** One reply of a Game Master beat: the beat runs the memory scribe once, after its last reply. */
+        inGmBeat?: boolean
       },
     ) => {
       // Callers claim the generation lock themselves before reaching here (their own placeholder-message writes need to be inside it too) — this only mirrors state into the UI.
@@ -3140,6 +3313,9 @@ export function useChatSession(chatId: string | null) {
         if (autoSummarize) {
           runAssist('summary', 'Updating memory', () => updateMemorySummary())
         }
+        if (characterMemoryOn && !opts?.inGmBeat) {
+          runAssist('memory', 'Remembering', () => scribeMemories())
+        }
         runAssist('vision', 'Reading the scene', async () => {
           if (visionSceneDetection) await refineSceneWithVision(targetMessageId, speaker, combined, images)
           else await refineExpressionFromText(targetMessageId, speaker, combined)
@@ -3237,6 +3413,15 @@ export function useChatSession(chatId: string | null) {
           ? [activeObjective.title, ...activeObjective.tasks.filter((t) => t.status === 'pending').map((t) => t.description)].join(' — ')
           : undefined,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
+        ...(characterMemoryOn ? await (async () => {
+          const memories = await memoriesApi.forChat(chatId).catch(() => [])
+          const nameOf = (id: string) => (id === freshChat?.playerCharacterId ? playerName : fullRoster.find((c) => c.id === id)?.name)
+          return {
+            memoryDigest: gmMemoryDigest(memories, nameOf),
+            // Present, the player, and anyone loaded to arrive: an entrance this beat must not arrive knowing too much.
+            knowledgeGaps: knowledgeGaps(memories, [...cast.map((c) => c.id), ...(freshChat?.playerCharacterId ? [freshChat.playerCharacterId] : []), ...loadedRoster.map((c) => c.id)], nameOf),
+          }
+        })() : {}),
         branchConsequences: [...(freshChat?.carriedConsequences ?? []), ...branchConsequencesFrom(upTo)],
         recentRolls: recentRollsFrom(upTo.slice(0, -1)),
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
@@ -3291,7 +3476,7 @@ export function useChatSession(chatId: string | null) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeFacts, activeObjective, character, chat, chatId, client, participantCharacters, persona, world, callableLore],
+    [activeFacts, activeObjective, character, characterMemoryOn, chat, chatId, client, participantCharacters, persona, world, callableLore],
   )
 
   /** The GM rules, its turn is stored as its own message, then each chosen character agent replies in order. */
@@ -3328,6 +3513,12 @@ export function useChatSession(chatId: string | null) {
         }
         const arrivals = await Promise.all(turn.addCharacterIds.map((id) => charactersApi.get(id).catch(() => undefined)))
         arrivalsRef.current = [...arrivalsRef.current, ...arrivals.filter((c): c is Character => !!c)]
+        // Whoever arrives hears the beat that brought them: the player's call and the GM's framing.
+        for (const beatMsg of await messagesApi.listByChat(chatId)) {
+          if (beatMsg.id !== playerMsg.id && beatMsg.id !== gmMsg.id) continue
+          const presentIds = [...new Set([...(beatMsg.presentIds ?? []), ...turn.addCharacterIds])]
+          await messagesApi.update(beatMsg.id, { presentIds }).catch(() => {})
+        }
       }
       runAssist('vision', 'Reading the scene', () => refineCharacterForms(gmMsg.id, gmMsg.text))
       if (turn.fork) {
@@ -3366,6 +3557,7 @@ export function useChatSession(chatId: string | null) {
           .map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
         await runGeneration(history, replyMsg.id, [], {
           speakerId: agent.id,
+          inGmBeat: true,
           extraStyleGuidance: [
             gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
             ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
@@ -3373,8 +3565,9 @@ export function useChatSession(chatId: string | null) {
         })
         if (abortRef.current?.signal.aborted) break
       }
+      if (characterMemoryOn) runAssist('memory', 'Remembering', () => scribeMemories())
     },
-    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration, callableLore, refineCharacterForms, runAssist],
+    [character, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */

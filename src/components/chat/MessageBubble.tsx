@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { AlertCircle, ChevronLeft, ChevronRight, Compass, GitFork, Heart, History, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
+import { AlertCircle, Brain, ChevronLeft, ChevronRight, Compass, GitFork, Heart, History, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
 import { useSettingsStore, type AvatarShape } from '@/lib/store/useSettingsStore'
 import { messageAnchorId } from '@/lib/scrollToMessage'
@@ -31,6 +31,36 @@ function Avatar({ name, shape, dataUrl }: { name: string; shape: AvatarShape; da
   return <div className={base}>{name.slice(0, 2).toUpperCase()}</div>
 }
 
+/** Memories this message produced (`MessageLog` builds it once per scene): the "Ash will remember this" line and what they remember. */
+export interface MemoryNote {
+  line: string
+  texts: string[]
+}
+
+/** The quiet line under a message that produced memories; opens to show what was remembered. */
+function MemoryMarker({ note }: { note: MemoryNote }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-1 text-[11px] text-text-muted">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 rounded-md transition-colors hover:text-text"
+        title={open ? 'Hide what they remember' : 'Show what they remember'}
+      >
+        <Brain size={11} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+        {note.line}
+      </button>
+      {open && (
+        <ul className="mt-1 space-y-0.5 border-l border-border pl-2">
+          {note.texts.map((text, i) => <li key={i} className="leading-snug">{text}</li>)}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 interface MessageBubbleProps {
   message: StoredMessage
   avatarDataUrl?: string
@@ -40,6 +70,8 @@ interface MessageBubbleProps {
   isHighlighted?: boolean
   /** SFX-burst policy for this message's speaker (global toggle + their `sfxWords`). */
   sfx?: SfxConfig
+  /** Set when this message produced character memories. Must be the same object across renders for `memo` to skip. */
+  memoryNote?: MemoryNote
   // Every callback below takes this message's own id as its first argument, rather than
   // `MessageLog` pre-binding a fresh `() => onX(m.id)` closure per message per render — the whole
   // point of wrapping this component in `memo` below is to skip re-rendering a bubble whose props
@@ -64,6 +96,7 @@ export const MessageBubble = memo(function MessageBubble({
   streamingText,
   isHighlighted,
   sfx,
+  memoryNote,
   onEdit,
   onDelete,
   onRewind,
@@ -386,6 +419,7 @@ export const MessageBubble = memo(function MessageBubble({
       <GmTurnCard message={message} />
     </>
   ) : null
+  const memoryMarker = memoryNote && !isStreaming ? <MemoryMarker note={memoryNote} /> : null
   const anchorId = messageAnchorId(message.id)
   const highlightClass = isHighlighted ? 'bg-accent/10' : ''
 
@@ -413,6 +447,7 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </span>
         {campaignExtras}
+        {memoryMarker}
         <span className={`ml-2 transition-opacity ${steering ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>{meta}</span>
       </div>
     )
@@ -437,6 +472,7 @@ export const MessageBubble = memo(function MessageBubble({
             {textBlock}
             {campaignExtras}
           </div>
+          {memoryMarker}
           <div className="flex items-center gap-1.5">
             {pinBadge}
             {boundaryBadge}
@@ -470,6 +506,7 @@ export const MessageBubble = memo(function MessageBubble({
         {imageStrip}
         {textBlock}
         {campaignExtras}
+        {memoryMarker}
         {metaHoverable}
       </div>
     </div>
