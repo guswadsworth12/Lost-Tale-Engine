@@ -746,3 +746,78 @@ describe('set events', () => {
     expect(turn.adjudication?.source).toBe('recorded_roll')
   })
 })
+
+describe('tracked state', () => {
+  const pushThrough = STARTER_PBTA_CAMPAIGN.moves.find((m) => m.id === 'push-through')!
+  const mixedPush: RecordedMove = { ...resolvePbtaRoll(pushThrough, 0, [4, 3]), id: 'roll-push', createdAt: 1, action: 'I shoulder the door.' }
+  const people = { playerId: 'wren' }
+
+  it('tells the GM the state and that the engine keeps it, only when the world tracks any', () => {
+    const { system, user } = buildGmPrompt(ctx({ ...people, stateLines: ['Supplies: 1/3', 'Hurt: Wren Calloway'] }))
+    expect(system).toContain('Tracked state (resources, conditions, clocks, items) is kept by the engine')
+    expect(system).toContain('"change": string|null')
+    expect(user).toContain('Tracked state now (kept by the engine):\n- Supplies: 1/3\n- Hurt: Wren Calloway')
+    const untracked = buildGmPrompt(ctx({ campaign: { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical', tracks: undefined } }))
+    expect(untracked.system).not.toContain('Tracked state')
+    expect(untracked.user).not.toContain('Tracked state')
+  })
+
+  it('names what a recorded result already changed, and what each choice would cost', () => {
+    const miss: RecordedMove = { ...resolvePbtaRoll(pushThrough, 0, [1, 2]), id: 'roll-miss', createdAt: 1, action: 'I shoulder the door.',
+      stateChanges: [{ trackId: 'hurt', set: true, who: 'wren', source: 'roll', rollId: 'roll-miss' }] }
+    expect(buildGmPrompt(ctx({ ...people, recordedMove: miss })).user).toContain("This result's tracked-state changes, already applied: Hurt on for Wren Calloway.")
+    const pendingChoice = pendingChoiceFrom([{ campaignRoll: mixedPush } as never])!
+    expect(buildGmPrompt(ctx({ ...people, pendingChoice })).user).toContain('hurt: Hurt on; spent: Supplies -1; noticed: Trouble +1')
+  })
+
+  it('applies the chosen cost by the move\'s rule, whatever the model narrates', () => {
+    const pendingChoice = pendingChoiceFrom([{ campaignRoll: mixedPush } as never])!
+    expect(pendingChoice.options).toEqual(['hurt', 'spent', 'noticed'])
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The door gives.', speakers: [],
+      adjudication: { followUp: true, choice: 'spent', outcome: 'You lose nothing at all.' },
+    }), ctx({ ...people, pendingChoice, playerAction: 'I choose spent.' }), ids)
+    expect(turn.adjudication).toMatchObject({ choice: 'spent', rollId: 'roll-push' })
+    expect(turn.stateChanges).toEqual([{ trackId: 'supplies', delta: -1, who: 'wren', source: 'choice', rollId: 'roll-push' }])
+  })
+
+  it('applies a set event\'s effects, or the condition its consequence names', () => {
+    const events = [
+      { id: 'cache', trigger: 'Wren opens the cache', outcome: 'The cache is empty.', effects: [{ trackId: 'supplies', delta: -2 }], match: ['cache'] },
+      { id: 'fall', trigger: 'Wren jumps the gap', outcome: 'Wren lands badly.', consequence: 'Wren is hurt.', match: ['jump'] },
+    ]
+    const opened = parseGmTurn(JSON.stringify({ speakers: [] }), ctx({ ...people, setEvents: events, playerAction: 'I open the cache.' }), ids)
+    expect(opened.stateChanges).toEqual([{ trackId: 'supplies', delta: -2, who: 'wren', source: 'set_event', setEventId: 'cache' }])
+    const jumped = parseGmTurn(JSON.stringify({ speakers: [] }), ctx({ ...people, setEvents: events, playerAction: 'I jump the gap.' }), ids)
+    expect(jumped.stateChanges).toEqual([{ trackId: 'hurt', set: true, who: 'wren', source: 'set_event', setEventId: 'fall' }])
+  })
+
+  it('reads a proposed change as pending and branch-only, and drops one it cannot read', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'Rain soaks the packs.', speakers: [],
+      proposals: [
+        { scope: 'world', text: 'The rain spoils food.', change: 'Supplies -1' },
+        { scope: 'branch', text: 'Hana twists an ankle.', change: 'Hurt on for Hana' },
+        { scope: 'branch', text: 'Morale drops.', change: 'Morale -1' },
+      ],
+    }), ctx({ ...people, recordedMove: undefined }), ids)
+    expect(turn.proposals[0]).toMatchObject({ scope: 'branch', status: 'pending', changes: [{ trackId: 'supplies', delta: -1, who: 'wren' }] })
+    expect(turn.proposals[1]).toMatchObject({ changes: [{ trackId: 'hurt', set: true, who: 'hana' }] })
+    expect(turn.proposals[2].changes).toBeUndefined()
+    expect(turn.corrections).toContain('Dropped a proposed state change the engine could not read: "Morale -1".')
+  })
+
+  it('never lets model prose rewrite a recorded miss or its cost', () => {
+    const miss: RecordedMove = { ...resolvePbtaRoll(pushThrough, 0, [1, 2]), id: 'roll-miss', createdAt: 1, action: 'I shoulder the door.',
+      stateChanges: [{ trackId: 'hurt', set: true, who: 'wren', source: 'roll', rollId: 'roll-miss' }] }
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'You burst through unharmed.', speakers: ['Hana Pike'],
+      adjudication: { move: 'Push Through', tier: 'strong', outcome: 'You get through with nothing lost.' },
+      proposals: [{ scope: 'branch', text: 'Wren is fine.', change: 'Hurt off' }],
+    }), ctx({ ...people, recordedMove: miss, playerAction: 'I shoulder the door.' }), ids)
+    expect(turn.adjudication).toMatchObject({ tier: 'miss', source: 'recorded_roll' })
+    expect(turn.narration).toBe('')
+    expect(turn.proposals).toEqual([])
+    expect(turn.stateChanges).toBeUndefined()
+  })
+})

@@ -1,4 +1,5 @@
 import type { RomanceEmphasis } from './worldTemplates'
+import { normalizeMoveEffects, normalizeTracks, type CampaignTrack, type MoveEffects } from './gameState'
 
 export interface CampaignConfig {
   ruleset: string
@@ -14,6 +15,8 @@ export interface CampaignConfig {
    *  counts as routine, risky, or out of reach by it. A note can mark a rank that sits outside the
    *  ladder's order, such as an exceptional status. */
   ranks?: CampaignRank[]
+  /** Resources, conditions, clocks, and item lists play keeps track of (`gameState.ts`). */
+  tracks?: CampaignTrack[]
   moves: PbtaMove[]
 }
 
@@ -39,7 +42,8 @@ export interface CharacterSheet {
   rank?: string
 }
 
-export interface PbtaMove {
+/** A move, with the state effects of each result (`MoveEffects`). */
+export interface PbtaMove extends MoveEffects {
   id: string
   name: string
   trigger: string
@@ -92,11 +96,25 @@ export const STARTER_PBTA_CAMPAIGN: CampaignConfig = {
     { id: 'heart', name: 'Heart', description: 'Empathy and connection.' },
     { id: 'grit', name: 'Grit', description: 'Endurance and persistence.' },
   ],
+  // A small sample of tracked state: a condition, a resource, and a threat clock the moves feed.
+  tracks: [
+    { id: 'hurt', name: 'Hurt', kind: 'condition', perCharacter: true, description: 'Injured badly enough that it shows.' },
+    { id: 'supplies', name: 'Supplies', kind: 'resource', max: 3, description: 'Food, light, and odds and ends for the road.' },
+    { id: 'trouble', name: 'Trouble', kind: 'clock', max: 4, perScene: true, gmOnly: true, description: 'Fills as the scene turns against you. When it is full, the trouble arrives.' },
+  ],
   moves: [
-    { id: 'take-a-risk', name: 'Take a Risk', trigger: 'you act despite real danger or pressure', stat: 'Nerve', statId: 'nerve', strong: 'You do it cleanly.', mixed: 'You do it, but the GM names a cost, a complication, or a worse position.', miss: 'Things go wrong; the GM says how and asks what you do.' },
-    { id: 'look-closer', name: 'Look Closer', trigger: 'you study a person, place, or situation for what matters', stat: 'Wits', statId: 'wits', strong: 'Ask two questions; the GM answers honestly.', mixed: 'Ask one question; the GM answers honestly.', miss: 'You learn something, but at a bad moment or with a wrong assumption.' },
+    { id: 'take-a-risk', name: 'Take a Risk', trigger: 'you act despite real danger or pressure', stat: 'Nerve', statId: 'nerve', strong: 'You do it cleanly.', mixed: 'You do it, but the GM names a cost, a complication, or a worse position.', miss: 'Things go wrong; the GM says how and asks what you do.',
+      effects: { miss: [{ trackId: 'trouble', delta: 1 }] } },
+    { id: 'look-closer', name: 'Look Closer', trigger: 'you study a person, place, or situation for what matters', stat: 'Wits', statId: 'wits', strong: 'Ask two questions; the GM answers honestly.', mixed: 'Ask one question; the GM answers honestly.', miss: 'You learn something, but at a bad moment or with a wrong assumption.',
+      effects: { miss: [{ trackId: 'trouble', delta: 1 }] } },
     { id: 'lend-a-hand', name: 'Lend a Hand', trigger: 'you help someone who is already acting', stat: 'Heart', statId: 'heart', strong: 'They take +1 to their roll.', mixed: 'They take +1, and you share whatever it costs them.', miss: 'Your help makes things harder for both of you.' },
-    { id: 'push-through', name: 'Push Through', trigger: 'you force your way past something by effort alone', stat: 'Grit', statId: 'grit', strong: 'You get through with nothing lost.', mixed: 'You get through, but choose: hurt, spent, or noticed.', miss: 'You are stopped, and the GM makes it hurt.' },
+    { id: 'push-through', name: 'Push Through', trigger: 'you force your way past something by effort alone', stat: 'Grit', statId: 'grit', strong: 'You get through with nothing lost.', mixed: 'You get through, but choose: hurt, spent, or noticed.', miss: 'You are stopped, and the GM makes it hurt.',
+      effects: { miss: [{ trackId: 'hurt', set: true }] },
+      choiceEffects: [
+        { option: 'hurt', effects: [{ trackId: 'hurt', set: true }] },
+        { option: 'spent', effects: [{ trackId: 'supplies', delta: -1 }] },
+        { option: 'noticed', effects: [{ trackId: 'trouble', delta: 1 }] },
+      ] },
   ],
 }
 
@@ -272,6 +290,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
     dating: relationships && v.dating === true,
     ...(Array.isArray(v.stats) ? { stats: normalizeCampaignStats(v.stats) ?? [] } : {}),
     ...(Array.isArray(v.ranks) ? { ranks: normalizeCampaignRanks(v.ranks) ?? [] } : {}),
+    ...(Array.isArray(v.tracks) ? { tracks: normalizeTracks(v.tracks) ?? [] } : {}),
     moves: v.moves.slice(0, 100)
       .filter((m): m is Record<string, unknown> => !!m && typeof m === 'object' && !!text((m as Record<string, unknown>).name, 200))
       .map((m, i) => ({
@@ -284,6 +303,7 @@ export function parseCampaignFile(raw: string): CampaignConfig {
         strong: text(m.strong, 4000),
         mixed: text(m.mixed, 4000),
         miss: text(m.miss, 4000),
+        ...normalizeMoveEffects(m),
       })),
   }
 }

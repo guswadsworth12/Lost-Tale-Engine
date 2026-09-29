@@ -427,6 +427,8 @@ export interface StoredMessage extends ChatMessage {
   campaignRoll?: import('@/lib/world/gm').RecordedMove
   /** A location/atmosphere edit the player made while this was the latest message of the branch (`chat/sceneSetting.ts`). */
   sceneSetting?: import('@/lib/chat/sceneSetting').SceneSettingEvent
+  /** Tracked-state corrections the player made while this was the latest message of the branch (`world/gameState.ts`). */
+  stateEdits?: import('@/lib/world/gameState').StateChange[]
   /** A scenery choice the player made while this was the latest message of the branch (`vn/scenery.ts`). */
   scenery?: import('@/lib/vn/scenery').SceneryChoice
   /** Who was in the scene when this message was written: the AI cast present and the card the player played. Decides who witnessed it for character memory (`memory/witnesses.ts`). Unset on older messages. */
@@ -547,6 +549,9 @@ export interface Chat {
   setEvents?: import('@/lib/world/gm').SetEvent[]
   /** Set events already carried out in earlier scenes of this story. */
   setEventsDone?: string[]
+  /** Tracked state (`world/gameState.ts`) when this scene opened: carried from the scene before it.
+   *  What happens in the scene rides on its messages and is replayed over this. */
+  gameState?: import('@/lib/world/gameState').GameState
   /** Messages with `createdAt <=` this have been read by the memory scribe (`memory/scribe.ts`). Rolled back when a scribed message is edited, so it is read again. */
   memoryScribedUpTo?: number
   /** Set when this chat was created by forking another one — the source chat's id. */
