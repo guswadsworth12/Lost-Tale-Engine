@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatMemoryLine, keywordOverlap, keywords, latestJournal, memoriesKnownBy, memoryBlock, selectMemories } from './rank'
+import { formatMemoryLine, keywordOverlap, keywords, latestJournal, memoriesKnownBy, memoryBlock, selectMemories, selectMemoriesExplained } from './rank'
 import type { CharacterMemory } from '@/lib/types'
 
 let n = 0
@@ -145,5 +145,19 @@ describe('memoryBlock', () => {
       + 'I came north looking for my brother.\n'
       + '- Bea lied about the map.',
     )
+  })
+})
+
+describe('selectMemoriesExplained', () => {
+  it('picks exactly what selectMemories picks, with the reasons', () => {
+    const list = [
+      { id: 'p', chatId: 'c', text: 'Ash swore to guard the east gate.', kind: 'promise' as const, witnesses: ['ash'], knownBy: ['ash'], about: ['bea'], importance: 0.8, pinned: true, unresolved: true, active: true, origin: 'scribe' as const, createdAt: 1 },
+      { id: 'q', chatId: 'c', text: 'The ward on the gate cracked at dusk.', kind: 'event' as const, witnesses: ['ash'], knownBy: ['ash'], importance: 0.4, active: true, origin: 'scribe' as const, createdAt: 2 },
+    ]
+    const opts = { characterId: 'ash', presentIds: ['bea'], recentText: 'Who cracked the ward?' }
+    const explained = selectMemoriesExplained(list, opts)
+    expect(explained.map((e) => e.memory.id)).toEqual(selectMemories(list, opts).map((m) => m.id))
+    expect(explained[0].reasons).toMatchObject({ pinned: true, openThread: true, aboutPresent: ['bea'], important: true })
+    expect(explained.find((e) => e.memory.id === 'q')!.reasons.matchedWords).toEqual(expect.arrayContaining(['ward', 'crack']))
   })
 })
