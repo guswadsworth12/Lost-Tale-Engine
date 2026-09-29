@@ -6,7 +6,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, memoriesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
-import { sceneChain, storyRecapBlock } from '@/lib/story/recaps'
+import { sceneChain, sceneLabel, storyRecapBlock } from '@/lib/story/recaps'
+import { chapterBriefing, chapterIdOf, chapterLabel, chapterLine, chaptersOf } from '@/lib/story/chapters'
+import { writeChapterRecap, type ChapterRecapDraft } from '@/lib/story/chapterRecap'
 import { writeSceneRecap, type RecapDraft } from '@/lib/story/recapWriter'
 import { playerViewOf, switchPlayer as planPlayerSwitch } from '@/lib/characters/player'
 import { newId } from '@/lib/id'
@@ -1193,9 +1195,11 @@ export function useChatSession(chatId: string | null) {
       const contextBudget = sampler.max_context_length - sampler.max_length - 32
       // Earlier scenes this speaker was actually there for, read fresh so a just-ended scene counts.
       const scenesForRecap = freshChat.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => storyScenes) : []
+      const storyForRecap = freshChat.storyId ? await storiesApi.get(freshChat.storyId) : undefined
       const storyRecap = storyRecapBlock(sceneChain(scenesForRecap, freshChat), { characterId: speaker.id }, {
         maxTokens: Math.floor(contextBudget * 0.15),
         speakerName: speaker.card.name,
+        chapters: chaptersOf(storyForRecap, scenesForRecap),
       })
       const built: PromptInspection = await buildPrompt({
         character: speaker.card,
@@ -2647,7 +2651,8 @@ export function useChatSession(chatId: string | null) {
     if (!chat || !character || !chatId) throw new Error('No scene is open.')
     const branch = await messagesApi.listByChat(chatId)
     const scenes = chat.storyId ? await storiesApi.scenes(chat.storyId).catch(() => [] as Chat[]) : []
-    const earlier = storyRecapBlock(sceneChain(scenes, chat), 'narrator', { maxTokens: 600 })
+    const storyNow = chat.storyId ? await storiesApi.get(chat.storyId) : undefined
+    const earlier = storyRecapBlock(sceneChain(scenes, chat), 'narrator', { maxTokens: 600, chapters: chaptersOf(storyNow, scenes) })
     const playerName = persona?.name || 'You'
     return writeSceneRecap({
       messages: branch
@@ -2683,6 +2688,41 @@ export function useChatSession(chatId: string | null) {
   }, [assistShaping, character, chat, chatId, client, participantCharacters, persona?.name, sampler.max_context_length, world])
 
   /**
+   * Drafts the recap of this scene's chapter, for the End scene dialog when it ends the chapter too:
+   * from the recaps of the chapter's earlier scenes in this line of play, and this scene's recap as
+   * the player has it now. Without a working model it joins the scene recaps instead.
+   */
+  const draftChapterRecap = useCallback(async (current: { recapText: string; openThreads: string[] }): Promise<ChapterRecapDraft> => {
+    if (!chat) throw new Error('No scene is open.')
+    const scenes = chat.storyId ? await storiesApi.scenes(chat.storyId).catch(() => [] as Chat[]) : []
+    const storyNow = chat.storyId ? await storiesApi.get(chat.storyId) : undefined
+    const chapters = chaptersOf(storyNow, scenes.length ? scenes : [chat])
+    const chapter = chapters.find((c) => c.id === chapterIdOf(chat)) ?? chapters[0]
+    const earlier = chapterLine(scenes.some((s) => s.id === chat.id) ? scenes : [...scenes, chat], chat).slice(0, -1)
+    return writeChapterRecap({
+      chapterLabel: chapterLabel(chapter),
+      goal: chapter.goal,
+      playerName: persona?.name || 'You',
+      scenes: [
+        ...earlier.filter((s) => s.recap?.text.trim()).map((s) => ({ label: sceneLabel(s), recap: s.recap!.text, openThreads: s.recap!.openThreads })),
+        { label: sceneLabel(chat), recap: current.recapText, openThreads: current.openThreads },
+      ],
+      generate: (prompt) =>
+        generateWithTimeout(client, { prompt, max_length: 700, max_context_length: sampler.max_context_length, temperature: 0.4, top_p: 1, top_k: 0, min_p: 0, typical: 1, tfs: 1, rep_pen: 1.1, rep_pen_range: 1024, rep_pen_slope: 0.7 },
+          'Write chapter recap', undefined, assistShaping),
+    })
+  }, [assistShaping, chat, client, persona?.name, sampler.max_context_length])
+
+  /** Names this scene's chapter or sets its goal; with `chapterId`, another chapter's, or an ended chapter's recap. */
+  const updateChapter = useCallback(
+    async (edit: { chapterId?: string; title?: string; goal?: string; recap?: { text: string; openThreads?: string[] } }) => {
+      if (!chatId) throw new Error('No scene is open.')
+      return chatsApi.updateChapter(chatId, edit)
+    },
+    [chatId],
+  )
+
+  /**
    * Ends this scene and opens the next. The recap remembers who was there, so later scenes only
    * tell it to characters who were. Ticked lasting changes become world canon first.
    */
@@ -2692,6 +2732,8 @@ export function useChatSession(chatId: string | null) {
       openThreads: string[]
       canonFacts: string[]
       next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
+      /** Ends the chapter too (`story/chapters.ts`). */
+      chapter?: { recapText: string; openThreads: string[]; next: { title?: string; goal?: string } }
     }): Promise<Chat> => {
       if (!chatId) throw new Error('No scene is open.')
       // Everything said in the scene is remembered before it closes.
@@ -2720,6 +2762,10 @@ export function useChatSession(chatId: string | null) {
         },
         consequences: branchConsequencesFrom(branch),
         setEventsDone: [...new Set([...(fresh.setEventsDone ?? []), ...setEventsDoneFrom(branch)])],
+        ...(input.chapter ? { chapter: {
+          recap: { text: input.chapter.recapText.trim(), openThreads: input.chapter.openThreads.map((t) => t.trim()).filter(Boolean) },
+          next: { title: input.chapter.next.title?.trim() || undefined, goal: input.chapter.next.goal?.trim() || undefined },
+        } } : {}),
         next: {
           title: input.next.title?.trim() || undefined,
           ...(location !== undefined ? { location: location || null } : {}),
@@ -3459,7 +3505,9 @@ export function useChatSession(chatId: string | null) {
       const playerName = persona?.name || 'You'
       // The Game Master narrates the whole story, so it hears every earlier scene's recap.
       const gmScenes = freshChat?.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => [] as Chat[]) : []
-      const narratorRecap = freshChat ? storyRecapBlock(sceneChain(gmScenes, freshChat), 'narrator', { maxTokens: 900 }) : ''
+      const gmStory = freshChat?.storyId ? await storiesApi.get(freshChat.storyId) : undefined
+      const gmChapters = chaptersOf(gmStory, gmScenes.length ? gmScenes : freshChat ? [freshChat] : [])
+      const narratorRecap = freshChat ? storyRecapBlock(sceneChain(gmScenes, freshChat), 'narrator', { maxTokens: 900, chapters: gmChapters }) : ''
       const fullRoster = await charactersApi.roster(world.id).catch(() =>
         [character, ...participantCharacters].map((c) => ({ id: c.id, name: c.card.name, occupation: c.occupation, gmEligible: c.gmEligible !== false, rank: sheetForWorld(c, world.id)?.rank })))
       const loadedIds = [character.id, ...(freshChat?.participants ?? [])]
@@ -3482,6 +3530,7 @@ export function useChatSession(chatId: string | null) {
         gmNotes: [world.gmNotes, freshChat?.gmNotes].filter(Boolean).join('\n\n'),
         scenario: freshChat?.authorNote?.text,
         storySoFar: [narratorRecap, freshChat?.summary].filter(Boolean).join('\n\n') || undefined,
+        chapterBriefing: freshChat ? chapterBriefing(gmChapters, freshChat) || undefined : undefined,
         openThreads: activeFacts.filter((f) => f.unresolved).map((f) => f.text),
         activeObjective: activeObjective?.status === 'active'
           ? [activeObjective.title, ...activeObjective.tasks.filter((t) => t.status === 'pending').map((t) => t.description)].join(' — ')
@@ -4789,6 +4838,8 @@ export function useChatSession(chatId: string | null) {
     storyScenes,
     contextUsage,
     draftSceneRecap,
+    draftChapterRecap,
+    updateChapter,
     finishScene,
     updateMemorySummary,
     continueMessage,

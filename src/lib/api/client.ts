@@ -203,6 +203,16 @@ export const chatsApi = {
     invalidate('objectives')
     return result
   },
+  /**
+   * Names this scene's chapter, sets its goal, or corrects an ended chapter's recap (`chapterId` for
+   * another chapter of the story). Makes a lone chat scene 1 of a story when it needs one. Returns the story.
+   */
+  async updateChapter(id: string, edit: { chapterId?: string; title?: string; goal?: string; recap?: { text: string; openThreads?: string[] } }): Promise<Story> {
+    const result = await request<Story>('PUT', `/chats/${id}/chapter`, edit)
+    invalidate('chats')
+    invalidate('stories')
+    return result
+  },
   /** Ends this scene with its recap and opens the next one (`server/stories.ts`). Returns the new scene. */
   async nextScene(id: string, body: NextSceneBody): Promise<Chat> {
     const result = await request<Chat>('POST', `/chats/${id}/next-scene`, body)
@@ -219,6 +229,8 @@ export interface NextSceneBody {
   consequences?: string[]
   /** Set events carried out so far, so later scenes do not repeat them. */
   setEventsDone?: string[]
+  /** Ends the chapter too: its recap, and the next chapter's name and goal. */
+  chapter?: { recap: { text: string; openThreads?: string[] }; next?: { title?: string; goal?: string } }
   next?: {
     title?: string
     location?: string | null

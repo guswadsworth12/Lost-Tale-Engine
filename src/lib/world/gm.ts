@@ -252,6 +252,8 @@ export interface GmContext {
   gmNotes?: string
   scenario?: string
   storySoFar?: string
+  /** The current chapter's name and goal, and what the chapter before it left (`story/chapters.ts` `chapterBriefing`). */
+  chapterBriefing?: string
   openThreads?: string[]
   /** What the characters remember (`memory/gmKnowledge.ts`), each line naming who knows it. The GM sees all of it. */
   memoryDigest?: string[]
@@ -391,6 +393,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.scenario?.trim() ? `Current scenario: ${ctx.scenario.trim()}` : '',
     ctx.gmNotes?.trim() ? `Storyteller-only continuity (do not disclose without an in-story cause): ${ctx.gmNotes.trim()}` : '',
     ctx.storySoFar?.trim() ? `Story so far: ${ctx.storySoFar.trim()}` : '',
+    ctx.chapterBriefing?.trim() ? `${ctx.chapterBriefing.trim()}\nSteer the scene toward the chapter's goal when the fiction allows, without forcing it or deciding for the player.` : '',
     ctx.openThreads?.length ? `Open threads:\n${ctx.openThreads.map((t) => `- ${t}`).join('\n')}` : '',
     ctx.memoryDigest?.length ? `What the characters remember (and who knows it):\n${ctx.memoryDigest.join('\n')}` : '',
     ctx.knowledgeGaps?.length ? `Knowledge boundaries in this scene. These characters have not learned these things; do not narrate them knowing it, and let them find out only in play:\n${ctx.knowledgeGaps.map((g) => `- ${g}`).join('\n')}` : '',
