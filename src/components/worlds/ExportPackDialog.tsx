@@ -97,7 +97,7 @@ export function ExportPackDialog({ world, onClose }: { world: WorldCard; onClose
   }
 
   return <Modal title="Export world pack" size="2xl" scrollable onClose={onClose}
-    description="A pack carries this world's setup to another install. Stories, chats, memories, and accounts never go in.">
+    description="A pack carries this world's saved setup to another install. Save any changes first. Stories, chats, memories, and accounts never go in.">
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
       <ExportChecklist selection={selection} preview={preview} onChange={setSelection} />
       <div className="grid gap-3 sm:grid-cols-2">

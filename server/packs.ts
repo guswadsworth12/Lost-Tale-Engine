@@ -255,6 +255,8 @@ interface Upload {
 }
 
 const uploads = new Map<string, Upload>()
+// Uploads live in memory, so any folder left from before a restart belongs to no one: clear them.
+fs.rmSync(uploadsDir(), { recursive: true, force: true })
 
 function sweepUploads() {
   const now = Date.now()
