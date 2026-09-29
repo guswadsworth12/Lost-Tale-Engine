@@ -8,6 +8,7 @@ import { cleanModelOutput } from '@/lib/text/slop'
 import { newId } from '@/lib/id'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { resolveInstructTemplate } from '@/lib/prompt/instructTemplates'
 import { draftFullCharacter, isAbortError } from '@/lib/characters/generateFullCharacter'
 import { assistantStopSequences, buildAssistantPrompt } from '@/lib/assistant/prompt'
@@ -37,6 +38,7 @@ export interface AssistantProgress {
 
 export function useAssistant(threadId: string | null, onThreadsChanged?: () => void) {
   const settings = useSettingsStore()
+  const { saved: secrets } = useSecretStatus()
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
   const [thread, setThread] = useState<AssistantThread | null>(null)
   const [streamingText, setStreamingText] = useState('')
@@ -52,10 +54,10 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
         chatBackend: settings.chatBackend,
         baseUrl: settings.baseUrl,
         chatBackendBaseUrl: settings.chatBackendBaseUrl,
-        chatBackendApiKey: settings.chatBackendApiKey,
         chatBackendModel: settings.chatBackendModel,
+        secrets,
       }),
-    [settings.chatBackend, settings.baseUrl, settings.chatBackendBaseUrl, settings.chatBackendApiKey, settings.chatBackendModel],
+    [settings.chatBackend, settings.baseUrl, settings.chatBackendBaseUrl, settings.chatBackendModel, secrets],
   )
 
   const load = useCallback(async (id: string) => {

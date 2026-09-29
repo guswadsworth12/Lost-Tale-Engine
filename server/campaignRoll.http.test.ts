@@ -10,6 +10,7 @@ let server: http.Server
 let dataDir: string
 let originalDataDir: string | undefined
 let originalLoadEnvFile: typeof process.loadEnvFile
+let sessionCookie = ''
 
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lost-tales-roll-http-'))
@@ -23,6 +24,10 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => server.once('listening', resolve))
   const db = await import('./db.ts')
   expect(db.dataDir).toBe(dataDir)
+  // The API needs a signed-in user: set up the first account (allowed from loopback) and keep its cookie.
+  const setup = await call('/api/auth/setup', 'POST', { username: 'test_owner', password: 'test-owner-password' })
+  expect(setup.status).toBe(201)
+  sessionCookie = String(setup.headers['set-cookie']?.[0] ?? '').split(';')[0]
 })
 
 afterAll(async () => {
@@ -35,13 +40,13 @@ afterAll(async () => {
   if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
 })
 
-function call(route: string, method: string, body?: unknown): Promise<{ status: number; body: Record<string, any> }> {
+function call(route: string, method: string, body?: unknown): Promise<{ status: number; body: Record<string, any>; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http.request({ hostname: '127.0.0.1', port: (server.address() as AddressInfo).port,
-      path: route, method, headers: { 'Content-Type': 'application/json' } }, (res) => {
+      path: route, method, headers: { 'Content-Type': 'application/json', ...(sessionCookie ? { Cookie: sessionCookie } : {}) } }, (res) => {
       let content = ''
       res.on('data', (data) => { content += data })
-      res.on('end', () => resolve({ status: res.statusCode!, body: JSON.parse(content) }))
+      res.on('end', () => resolve({ status: res.statusCode!, body: JSON.parse(content), headers: res.headers }))
     })
     req.on('error', reject)
     req.end(body === undefined ? undefined : JSON.stringify(body))

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { createImageBackend } from '@/lib/api/createImageBackend'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { Button } from '@/components/ui/Button'
 import { TextAreaField } from '@/components/ui/Field'
@@ -26,13 +27,12 @@ export function GenerateImageButton({
   const [busy, setBusy] = useState(false)
   const controllerRef = useRef<AbortController | null>(null)
 
-  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
+  const { saved: secrets } = useSecretStatus()
   const imageBackend = useSettingsStore((s) => s.imageBackend)
   const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
   const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
-  const imageBackendPassword = useSettingsStore((s) => s.imageBackendPassword)
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
-  useEffect(() => () => controllerRef.current?.abort(), [imageBackend, imageBackendModel, imageBackendBaseUrl, openMayhemApiKey, imageBackendUsername, imageBackendPassword])
+  useEffect(() => () => controllerRef.current?.abort(), [imageBackend, imageBackendModel, imageBackendBaseUrl, secrets, imageBackendUsername])
 
   const generate = async () => {
     if (!prompt.trim() || busy) return
@@ -40,12 +40,12 @@ export function GenerateImageButton({
     const controller = new AbortController()
     controllerRef.current = controller
     try {
-      const backend = createImageBackend({ openMayhemApiKey,
+      const backend = createImageBackend({
         imageBackend,
         imageBackendBaseUrl,
         imageBackendUsername,
-        imageBackendPassword,
         imageBackendModel,
+        secrets,
       })
       const result = await backend.generateImage({
         prompt: prompt.trim(),

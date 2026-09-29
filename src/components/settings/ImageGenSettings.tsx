@@ -11,6 +11,8 @@ import { NOVELAI_IMAGE_MODELS } from '@/lib/api/novelaiImage'
 import { TextField, SelectField } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
 import { SettingsPage } from '@/components/ui/SettingsPage'
+import { changeImageBackendConfig, useSecretStatus } from '@/lib/accounts/secrets'
+import { SecretKeyField } from './SecretKeyField'
 
 const IMAGE_BACKENDS = Object.keys(IMAGE_BACKEND_LABELS) as ImageBackendId[]
 
@@ -24,9 +26,9 @@ export function ImageGenSettings() {
   const imageBackend = useSettingsStore((s) => s.imageBackend)
   const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
   const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
-  const imageBackendPassword = useSettingsStore((s) => s.imageBackendPassword)
+  const { saved: secrets } = useSecretStatus()
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
-  const setImageBackendConfig = useSettingsStore((s) => s.setImageBackendConfig)
+  const setImageBackendConfig = changeImageBackendConfig
 
   const { models, loading, reload } = useOpenMayhemModels('IMAGES', imageBackend === 'openmayhem')
   const [preview, setPreview] = useState('')
@@ -96,12 +98,7 @@ export function ImageGenSettings() {
               value={imageBackendUsername}
               onChange={(e) => setImageBackendConfig({ imageBackendUsername: e.target.value })}
             />
-            <TextField
-              label="Password (optional)"
-              type="password"
-              value={imageBackendPassword}
-              onChange={(e) => setImageBackendConfig({ imageBackendPassword: e.target.value })}
-            />
+            <SecretKeyField name="imageBackendPassword" label="Password (optional)" saved={secrets.imageBackendPassword} />
           </>
         )}
 
@@ -138,19 +135,18 @@ export function ImageGenSettings() {
         )}
 
         {imageBackend === 'novelai-image' && (
-          <TextField
+          <SecretKeyField
+            name="imageBackendPassword"
             label="API key"
-            type="password"
-            value={imageBackendUsername}
-            onChange={(e) => setImageBackendConfig({ imageBackendUsername: e.target.value })}
+            saved={secrets.imageBackendPassword}
             hint="Same NovelAI account as the chat backend, if you use both. Not shared automatically since either can be configured alone."
           />
         )}
 
         <p className="mt-2 text-xs text-text-muted">
           {imageBackend === 'openmayhem' ? 'Images are downloaded into Lost Tales Engine, so saved assets remain available after OpenMayhem artifacts expire.' : imageBackend === 'novelai-image'
-            ? 'Keys are stored only in this browser and sent directly to NovelAI. Never through any other server.'
-            : 'Requests go straight from this browser to the server URL above. Never through any other server.'}
+            ? 'Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches the key and forwards requests to NovelAI.'
+            : 'Requests pass through your Lost Tales Engine server to the server URL above; it attaches the saved password, if any.'}
         </p>
       </Section>
     </SettingsPage>

@@ -3,6 +3,7 @@ import { OpenAICompatibleClient } from './openaiCompatible'
 import { KoboldApiError } from './types'
 import type { GenerateRequest } from './types'
 import type { ChatBackend } from './chatBackend'
+import { stubRelayedFetch } from './relayTestUtils'
 
 /**
  * Section 8's "additional model backends" — these tests check `OpenAICompatibleClient` against the
@@ -55,9 +56,9 @@ afterEach(() => {
 describe('OpenAICompatibleClient — request building', () => {
   it('wraps a plain prompt as a single user message when no messages[] is supplied', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await client.generate(BASE_REQUEST)
 
     const [, init] = fetchMock.mock.calls[0]
@@ -69,9 +70,9 @@ describe('OpenAICompatibleClient — request building', () => {
 
   it('sends a supplied messages[] as-is instead of wrapping prompt', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await client.generate({
       ...BASE_REQUEST,
       messages: [
@@ -90,9 +91,9 @@ describe('OpenAICompatibleClient — request building', () => {
 
   it('maps only the fields with a real Chat Completions equivalent, dropping KoboldCpp-only ones', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await client.generate({
       ...BASE_REQUEST,
       temperature: 0.9,
@@ -119,8 +120,8 @@ describe('OpenAICompatibleClient — request building', () => {
 
   it('maps frequency_penalty/reasoning_effort/verbosity when the caller sets them, and omits them otherwise', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
 
     await client.generate({ ...BASE_REQUEST, frequency_penalty: -0.4, reasoning_effort: 'high', verbosity: 'low' })
     let body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -143,8 +144,8 @@ describe('OpenAICompatibleClient — request building', () => {
   describe('reasoning — OpenRouter only', () => {
     it("requests reasoning off by default, since a hidden 'thinking' phase only costs reply budget in a roleplay app", async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
 
       await client.generate(BASE_REQUEST)
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -153,8 +154,8 @@ describe('OpenAICompatibleClient — request building', () => {
 
     it("translates an explicit reasoning_effort into OpenRouter's own shape too, alongside the OpenAI-style field", async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
 
       await client.generate({ ...BASE_REQUEST, reasoning_effort: 'low' })
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -164,8 +165,8 @@ describe('OpenAICompatibleClient — request building', () => {
 
     it('never sends the OpenRouter-only field to a different host', async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-4o-mini')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-4o-mini')
 
       await client.generate(BASE_REQUEST)
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -174,8 +175,8 @@ describe('OpenAICompatibleClient — request building', () => {
 
     it('recognises openrouter.ai regardless of a trailing slash or path', async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1/', '', 'some/model:free')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1/', false, 'some/model:free')
 
       await client.generate(BASE_REQUEST)
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -184,8 +185,8 @@ describe('OpenAICompatibleClient — request building', () => {
 
     it('does not mistake a look-alike host for the real one', async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://openrouter.ai.evil.example.com/v1', '', 'some/model:free')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://openrouter.ai.evil.example.com/v1', false, 'some/model:free')
 
       await client.generate(BASE_REQUEST)
       const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -193,27 +194,32 @@ describe('OpenAICompatibleClient — request building', () => {
     })
   })
 
-  it('sends an Authorization header only when an API key is configured', async () => {
+  it('asks the relay for the saved chat key (bearer) only when one is saved, and never sends a key itself', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
+    const raw = stubRelayedFetch(fetchMock)
 
-    const withKey = new OpenAICompatibleClient('https://api.example.com/v1', 'sk-test-123', 'gpt-4o-mini')
+    const withKey = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
     await withKey.generate(BASE_REQUEST)
-    let [, init] = fetchMock.mock.calls[0]
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test-123')
+    let [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.example.com/v1/chat/completions')
+    expect(init.relay).toEqual({ secret: 'chatBackendApiKey', auth: 'bearer', username: null })
+    expect(init.headers.authorization).toBeUndefined()
+    expect(raw.mock.calls[0][0]).toBe('/api/relay')
 
     fetchMock.mockClear()
-    const withoutKey = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const withoutKey = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await withoutKey.generate(BASE_REQUEST)
-    ;[, init] = fetchMock.mock.calls[0]
-    expect((init.headers as Record<string, string>).Authorization).toBeUndefined()
+    ;[url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.example.com/v1/chat/completions')
+    expect(init.relay).toEqual({ secret: null, auth: null, username: null })
+    expect(init.headers.authorization).toBeUndefined()
   })
 
   it('posts to <baseUrl>/chat/completions, trimming a trailing slash', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1/', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1/', false, 'gpt-4o-mini')
     await client.generate(BASE_REQUEST)
 
     const [url] = fetchMock.mock.calls[0]
@@ -237,8 +243,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
 
   it('sends max_tokens on the first request, same as ever', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     await client.generate({ ...BASE_REQUEST, max_length: 300 })
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
@@ -251,8 +257,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
       .fn()
       .mockResolvedValueOnce(maxTokensRejection())
       .mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'Hello.' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     const text = await client.generate({ ...BASE_REQUEST, max_length: 300 })
     expect(text).toBe('Hello.')
@@ -271,8 +277,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
       .mockResolvedValueOnce(maxTokensRejection())
       .mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'first' } }] }))
       .mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'second' } }] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     await client.generate(BASE_REQUEST)
     fetchMock.mockClear()
@@ -287,8 +293,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
 
   it('only ever retries once — a second, different rejection surfaces as a real error instead of looping', async () => {
     const fetchMock = vi.fn().mockResolvedValue(maxTokensRejection())
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/max_completion_tokens/)
     expect(fetchMock).toHaveBeenCalledTimes(2) // the one legitimate retry, then it gives up
@@ -296,8 +302,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
 
   it('leaves an unrelated 400 alone — never mistaken for the max_tokens rejection', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(400, { error: { message: 'Invalid API key' } }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/Invalid API key/)
     expect(fetchMock).toHaveBeenCalledTimes(1) // no retry for a different kind of 400
@@ -306,8 +312,8 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
   it('applies the same retry to generateStream()', async () => {
     const events = [`data: ${JSON.stringify({ choices: [{ delta: { content: 'Hi' } }] })}`, 'data: [DONE]'].map((e) => e + '\n\n').join('')
     const fetchMock = vi.fn().mockResolvedValueOnce(maxTokensRejection()).mockResolvedValueOnce(sseResponse(events))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
 
     const tokens: string[] = []
     const full = await client.generateStream(BASE_REQUEST, (t) => tokens.push(t))
@@ -320,9 +326,9 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
 
   it("still resolves quietly (not a throw) on generateStream() when the signal was already aborted — same contract as before this retry existed", async () => {
     const controller = new AbortController()
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')))
+    stubRelayedFetch(vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')))
     controller.abort()
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', '', 'gpt-5.1')
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'gpt-5.1')
     const full = await client.generateStream(BASE_REQUEST, () => {}, controller.signal)
     expect(full).toBe('')
   })
@@ -330,15 +336,15 @@ describe('OpenAICompatibleClient — max_tokens / max_completion_tokens', () => 
 
 describe('OpenAICompatibleClient — generate()', () => {
   it('extracts choices[0].message.content from a successful response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'Hello, world.' } }] })))
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'Hello, world.' } }] })))
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const text = await client.generate(BASE_REQUEST)
     expect(text).toBe('Hello, world.')
   })
 
   it('returns an empty string when the response has no choices', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, {})))
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, {})))
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const text = await client.generate(BASE_REQUEST)
     expect(text).toBe('')
   })
@@ -348,7 +354,7 @@ describe('OpenAICompatibleClient — generate()', () => {
       'fetch',
       vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: '', reasoning: 'thinking about it for a while...' } }] })),
     )
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/hidden reasoning/)
   })
 
@@ -357,36 +363,36 @@ describe('OpenAICompatibleClient — generate()', () => {
       'fetch',
       vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: '', reasoning_content: 'thinking...' } }] })),
     )
-    const client = new OpenAICompatibleClient('https://api.deepseek.com/v1', '', 'deepseek-reasoner')
+    const client = new OpenAICompatibleClient('https://api.deepseek.com/v1', false, 'deepseek-reasoner')
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/hidden reasoning/)
   })
 
   it('leaves an ordinary empty reply (no reasoning either) exactly as it always returned — an empty string, not a throw', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: '' } }] })))
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: '' } }] })))
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
     const text = await client.generate(BASE_REQUEST)
     expect(text).toBe('')
   })
 
   it('throws a KoboldApiError with the provider error message on a non-2xx response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, { error: { message: 'Invalid API key' } })))
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', 'bad-key', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, { error: { message: 'Invalid API key' } })))
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(KoboldApiError)
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/Invalid API key/)
   })
 
   it('throws a KoboldApiError when the network request itself fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')))
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockRejectedValue(new TypeError('fetch failed')))
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await expect(client.generate(BASE_REQUEST)).rejects.toThrow(KoboldApiError)
   })
 
   it('rethrows the original error instead of a KoboldApiError when the caller aborted', async () => {
     const controller = new AbortController()
     const abortError = new DOMException('Aborted', 'AbortError')
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError))
+    stubRelayedFetch(vi.fn().mockRejectedValue(abortError))
     controller.abort()
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await expect(client.generate(BASE_REQUEST, controller.signal)).rejects.toBe(abortError)
   })
 
@@ -399,25 +405,25 @@ describe('OpenAICompatibleClient — generate()', () => {
         'fetch',
         vi.fn().mockResolvedValue(jsonResponse(429, { error: { message: 'Daily limit reached.' } }, { 'retry-after': '45' })),
       )
-      const client = new OpenAICompatibleClient('https://api.example.com/v1', 'key', 'gpt-4o-mini')
+      const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
       await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/Daily limit reached\..*retry in about 45s/)
     })
 
     it('renders a Retry-After of 60+ seconds in minutes, not seconds', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(429, { error: { message: 'Rate limited.' } }, { 'retry-after': '125' })))
-      const client = new OpenAICompatibleClient('https://api.example.com/v1', 'key', 'gpt-4o-mini')
+      stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(429, { error: { message: 'Rate limited.' } }, { 'retry-after': '125' })))
+      const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
       await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/retry in about 3m/)
     })
 
     it('falls back to a soft, honest hedge — never a fabricated time — when no Retry-After header comes back', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(429, { error: { message: 'Daily limit reached. Credits do not affect this cap.' } })))
-      const client = new OpenAICompatibleClient('https://api.example.com/v1', 'key', 'gpt-4o-mini')
+      stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(429, { error: { message: 'Daily limit reached. Credits do not affect this cap.' } })))
+      const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
       await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/Daily limit reached\. Credits do not affect this cap\..*can sometimes clear on its own/)
     })
 
     it('never adds a rate-limit hint for a non-429 error', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, { error: { message: 'Internal error' } })))
-      const client = new OpenAICompatibleClient('https://api.example.com/v1', 'key', 'gpt-4o-mini')
+      stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(500, { error: { message: 'Internal error' } })))
+      const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
       await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/Internal error$/)
     })
   })
@@ -432,9 +438,9 @@ describe('OpenAICompatibleClient — generateStream()', () => {
     ]
       .map((e) => e + '\n\n')
       .join('')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(events)))
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse(events)))
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const tokens: string[] = []
     const full = await client.generateStream(BASE_REQUEST, (token) => tokens.push(token))
 
@@ -444,18 +450,18 @@ describe('OpenAICompatibleClient — generateStream()', () => {
 
   it('ignores malformed/keepalive events without throwing', async () => {
     const events = [': keepalive', `data: ${JSON.stringify({ choices: [{ delta: { content: 'ok' } }] })}`, 'data: not json'].map((e) => e + '\n\n').join('')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(events)))
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse(events)))
 
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const full = await client.generateStream(BASE_REQUEST, () => {})
     expect(full).toBe('ok')
   })
 
   it('returns an empty string instead of throwing when the caller aborted before the request landed', async () => {
     const controller = new AbortController()
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')))
+    stubRelayedFetch(vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')))
     controller.abort()
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const full = await client.generateStream(BASE_REQUEST, () => {}, controller.signal)
     expect(full).toBe('')
   })
@@ -471,9 +477,9 @@ describe('OpenAICompatibleClient — generateStream()', () => {
     ]
       .map((e) => e + '\n\n')
       .join('')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(events)))
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse(events)))
 
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
     const tokens: string[] = []
     await expect(client.generateStream(BASE_REQUEST, (t) => tokens.push(t))).rejects.toThrow(/hidden reasoning/)
     // The reasoning text is never handed to the caller as if it were the reply.
@@ -488,9 +494,9 @@ describe('OpenAICompatibleClient — generateStream()', () => {
     ]
       .map((e) => e + '\n\n')
       .join('')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(events)))
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse(events)))
 
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
     const tokens: string[] = []
     const full = await client.generateStream(BASE_REQUEST, (t) => tokens.push(t))
     expect(tokens).toEqual(['Hi'])
@@ -499,8 +505,8 @@ describe('OpenAICompatibleClient — generateStream()', () => {
 
   it('leaves a genuinely empty stream (no reasoning either) returning an empty string, same as always', async () => {
     const events = ['data: [DONE]'].map((e) => e + '\n\n').join('')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(events)))
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', '', 'some/model:free')
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse(events)))
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', false, 'some/model:free')
     const full = await client.generateStream(BASE_REQUEST, () => {})
     expect(full).toBe('')
   })
@@ -508,30 +514,30 @@ describe('OpenAICompatibleClient — generateStream()', () => {
 
 describe('OpenAICompatibleClient — no-op / fallback surface', () => {
   it('getEffectiveMaxContext always returns the caller-supplied fallback (no introspection endpoint)', async () => {
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     expect(await client.getEffectiveMaxContext(8192)).toBe(8192)
     expect(await client.getEffectiveMaxContext()).toBe(4096)
   })
 
   it('tokenCount falls back to the same character-based estimate the rest of the app uses', async () => {
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     const { count } = await client.tokenCount('twelve characters here')
     expect(count).toBe(Math.ceil('twelve characters here'.length / 4))
   })
 
   it('abort() resolves without making any request', async () => {
     const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     // Typed as the shared interface, not the concrete class — every real call site holds a
     // `ChatBackend`, and the interface's `abort(genkey)` takes an argument this implementation
     // itself just ignores.
-    const client: ChatBackend = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client: ChatBackend = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     await expect(client.abort('some-genkey')).resolves.toBeUndefined()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('getChatTemplate always returns null (not a locally loaded GGUF)', async () => {
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', '', 'gpt-4o-mini')
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
     expect(await client.getChatTemplate()).toBeNull()
   })
 })
@@ -541,24 +547,24 @@ describe('OpenAICompatibleClient — no-op / fallback surface', () => {
 describe('checkConnection', () => {
   it("hits GET {baseUrl}/models for a non-OpenRouter provider, and treats 200 as ok", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { data: [{ id: 'gpt-4o-mini' }] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', 'sk-real', 'gpt-4o-mini')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', true, 'gpt-4o-mini')
     const result = await client.checkConnection()
     expect(result).toEqual({ ok: true })
     expect(fetchMock).toHaveBeenCalledWith('https://api.openai.com/v1/models', expect.objectContaining({ headers: expect.any(Object) }))
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-real')
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.relay).toMatchObject({ secret: 'chatBackendApiKey', auth: 'bearer' })
   })
 
   it('reports a rejected key distinctly on 401/403, for a non-OpenRouter provider', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {})))
-    const client = new OpenAICompatibleClient('https://api.openai.com/v1', 'sk-bad', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, {})))
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', true, 'gpt-4o-mini')
     expect(await client.checkConnection()).toEqual({ ok: false, detail: 'The API key was rejected.' })
   })
 
   it('reports unreachable (not a key problem) when the fetch itself fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-    const client = new OpenAICompatibleClient('https://api.example.com/v1', 'sk-real', 'gpt-4o-mini')
+    stubRelayedFetch(vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const client = new OpenAICompatibleClient('https://api.example.com/v1', true, 'gpt-4o-mini')
     const result = await client.checkConnection()
     expect(result.ok).toBe(false)
     expect(result.detail).toContain('Could not reach')
@@ -566,8 +572,8 @@ describe('checkConnection', () => {
 
   it('refuses to check with no base URL set, without making a request', async () => {
     const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('', 'sk-real', 'gpt-4o-mini')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('', true, 'gpt-4o-mini')
     expect(await client.checkConnection()).toEqual({ ok: false, detail: 'No base URL set.' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -576,8 +582,8 @@ describe('checkConnection', () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(200, { data: { is_free_tier: true, usage: 0, limit: null } }),
     )
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', 'sk-or-real', 'minimax/minimax-m3:free')
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', true, 'minimax/minimax-m3:free')
     await client.checkConnection()
     expect(fetchMock).toHaveBeenCalledWith('https://openrouter.ai/api/v1/key', expect.anything())
   })
@@ -587,19 +593,19 @@ describe('checkConnection', () => {
       'fetch',
       vi.fn().mockResolvedValue(jsonResponse(200, { data: { is_free_tier: false, usage: 25.5, limit: 100 } })),
     )
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', 'sk-or-real', 'anthropic/claude-3.5-sonnet')
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', true, 'anthropic/claude-3.5-sonnet')
     expect(await client.checkConnection()).toEqual({ ok: true, detail: '$25.50 used of $100 limit' })
   })
 
   it('falls back to noting a free-tier key when OpenRouter reports no usage yet', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { data: { is_free_tier: true, limit: null } })))
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', 'sk-or-real', 'minimax/minimax-m3:free')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { data: { is_free_tier: true, limit: null } })))
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', true, 'minimax/minimax-m3:free')
     expect(await client.checkConnection()).toEqual({ ok: true, detail: 'Free-tier key' })
   })
 
   it("still reports a rejected key on OpenRouter's /key endpoint", async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {})))
-    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', 'sk-or-bad', 'minimax/minimax-m3:free')
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, {})))
+    const client = new OpenAICompatibleClient('https://openrouter.ai/api/v1', true, 'minimax/minimax-m3:free')
     expect(await client.checkConnection()).toEqual({ ok: false, detail: 'The API key was rejected.' })
   })
 
@@ -609,17 +615,17 @@ describe('checkConnection', () => {
   describe('Nano-GPT', () => {
     it('POSTs to /api/check-balance (not /v1/models), sending the key as x-api-key', async () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { usd_balance: '5.00', nano_balance: '1.0', nanoDepositAddress: 'nano_x' }))
-      vi.stubGlobal('fetch', fetchMock)
-      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', 'sk-nano-real', 'anthropic/claude-sonnet-5')
+      stubRelayedFetch(fetchMock)
+      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', true, 'anthropic/claude-sonnet-5')
       await client.checkConnection()
       expect(fetchMock).toHaveBeenCalledWith('https://nano-gpt.com/api/check-balance', expect.objectContaining({ method: 'POST' }))
-      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-      expect((init.headers as Record<string, string>)['x-api-key']).toBe('sk-nano-real')
+      const [, init] = fetchMock.mock.calls[0]
+      expect(init.relay).toMatchObject({ secret: 'chatBackendApiKey', auth: 'header:x-api-key' })
     })
 
     it('surfaces the USD balance as the success detail', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { usd_balance: '12.3456', nano_balance: '4.2', nanoDepositAddress: 'nano_x' })))
-      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', 'sk-nano-real', 'anthropic/claude-sonnet-5')
+      stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { usd_balance: '12.3456', nano_balance: '4.2', nanoDepositAddress: 'nano_x' })))
+      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', true, 'anthropic/claude-sonnet-5')
       expect(await client.checkConnection()).toEqual({ ok: true, detail: '$12.35 balance' })
     })
 
@@ -628,20 +634,20 @@ describe('checkConnection', () => {
         'fetch',
         vi.fn().mockResolvedValue(jsonResponse(401, { error: { message: 'Malformed API key.', code: 'malformed_api_key' } })),
       )
-      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', 'sk-nano-bad', 'anthropic/claude-sonnet-5')
+      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', true, 'anthropic/claude-sonnet-5')
       expect(await client.checkConnection()).toEqual({ ok: false, detail: 'The API key was rejected.' })
     })
 
     it('reports unreachable (not a key problem) when the balance fetch itself fails', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', 'sk-nano-real', 'anthropic/claude-sonnet-5')
+      stubRelayedFetch(vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', true, 'anthropic/claude-sonnet-5')
       const result = await client.checkConnection()
       expect(result.ok).toBe(false)
       expect(result.detail).toContain('Could not reach')
     })
 
     it('still reports ok (just without a figure) when the balance body is unparseable', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      stubRelayedFetch(vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers(),
@@ -650,7 +656,7 @@ describe('checkConnection', () => {
         },
         text: async () => 'not json',
       } as unknown as Response))
-      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', 'sk-nano-real', 'anthropic/claude-sonnet-5')
+      const client = new OpenAICompatibleClient('https://nano-gpt.com/api/v1', true, 'anthropic/claude-sonnet-5')
       expect(await client.checkConnection()).toEqual({ ok: true })
     })
   })

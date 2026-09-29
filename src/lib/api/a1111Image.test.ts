@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { A1111Client } from './a1111Image'
 import { KoboldApiError } from './types'
 import type { ImageGenerateParams } from './imageBackend'
+import { stubRelayedFetch } from './relayTestUtils'
 
 const BASE_PARAMS: ImageGenerateParams = { prompt: 'a cat', width: 512, height: 512, steps: 20, cfgScale: 7 }
 
@@ -14,7 +15,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe('A1111Client', () => {
   it('posts to /sdapi/v1/txt2img with the documented field names', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { images: ['base64png'], info: '{"seed": 123}' }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
     const client = new A1111Client('http://127.0.0.1:7860')
     const result = await client.generateImage({ ...BASE_PARAMS, negativePrompt: 'blurry', seed: 42, sampler: 'DPM++ 2M' })
@@ -36,26 +37,31 @@ describe('A1111Client', () => {
 
   it('defaults seed to -1 (random) when not specified', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { images: ['x'] }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     await new A1111Client('http://127.0.0.1:7860').generateImage(BASE_PARAMS)
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
     expect(body.seed).toBe(-1)
   })
 
-  it('sends HTTP Basic auth only when a username is configured', async () => {
+  it('asks the relay for HTTP Basic auth only when a username is configured and the password is saved', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { images: ['x'] }))
-    vi.stubGlobal('fetch', fetchMock)
-    await new A1111Client('http://127.0.0.1:7860', 'user', 'pass').generateImage(BASE_PARAMS)
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
-    expect(headers.Authorization).toBe(`Basic ${btoa('user:pass')}`)
+    stubRelayedFetch(fetchMock)
+    await new A1111Client('http://127.0.0.1:7860', 'user', true).generateImage(BASE_PARAMS)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:7860/sdapi/v1/txt2img')
+    expect(fetchMock.mock.calls[0][1].relay).toEqual({ secret: 'imageBackendPassword', auth: 'basic', username: 'user' })
+    expect(fetchMock.mock.calls[0][1].headers.authorization).toBeUndefined()
 
     fetchMock.mockClear()
     await new A1111Client('http://127.0.0.1:7860').generateImage(BASE_PARAMS)
-    expect((fetchMock.mock.calls[0][1].headers as Record<string, string>).Authorization).toBeUndefined()
+    expect(fetchMock.mock.calls[0][1].relay).toEqual({ secret: null, auth: null, username: null })
+
+    fetchMock.mockClear()
+    await new A1111Client('http://127.0.0.1:7860', 'user', false).generateImage(BASE_PARAMS)
+    expect(fetchMock.mock.calls[0][1].relay?.secret).toBeNull()
   })
 
   it('throws a KoboldApiError on a non-2xx response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, { error: 'OOM' })))
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(500, { error: 'OOM' })))
     await expect(new A1111Client('http://127.0.0.1:7860').generateImage(BASE_PARAMS)).rejects.toThrow(KoboldApiError)
   })
 

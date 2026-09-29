@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { KoboldClient } from '@/lib/api/kobold'
 import { fetchOpenAiModelContext } from '@/lib/api/detectBackend'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 
 /**
  * Keeps `sampler.max_context_length` matched to whatever the connected model actually supports,
@@ -17,7 +18,7 @@ export function useAutoContextLength() {
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const baseUrl = useSettingsStore((s) => s.baseUrl)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
+  const chatKeySaved = useSecretStatus().saved.chatBackendApiKey
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
   const setDetectedContextLength = useSettingsStore((s) => s.setDetectedContextLength)
 
@@ -31,7 +32,7 @@ export function useAutoContextLength() {
         const client = new KoboldClient(baseUrl)
         detected = await client.getTrueMaxContextLength().catch(() => client.getMaxContextLength().catch(() => null))
       } else if (chatBackend === 'openai-compatible') {
-        detected = await fetchOpenAiModelContext(chatBackendBaseUrl, chatBackendModel, chatBackendApiKey)
+        detected = await fetchOpenAiModelContext(chatBackendBaseUrl, chatBackendModel, chatKeySaved)
       }
       if (!cancelled && typeof detected === 'number' && detected >= 512) {
         setDetectedContextLength(detected)
@@ -48,5 +49,5 @@ export function useAutoContextLength() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [auto, chatBackend, baseUrl, chatBackendBaseUrl, chatBackendApiKey, chatBackendModel, setDetectedContextLength])
+  }, [auto, chatBackend, baseUrl, chatBackendBaseUrl, chatKeySaved, chatBackendModel, setDetectedContextLength])
 }

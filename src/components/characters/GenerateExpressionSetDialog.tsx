@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { createImageBackend } from '@/lib/api/createImageBackend'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage } from '@/lib/store/useToastStore'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -53,11 +54,10 @@ export function GenerateExpressionSetDialog({
   })
   const [results, setResults] = useState<{ succeeded: string[]; failed: string[] } | null>(null)
 
-  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
+  const { saved: secrets } = useSecretStatus()
   const imageBackend = useSettingsStore((s) => s.imageBackend)
   const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
   const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
-  const imageBackendPassword = useSettingsStore((s) => s.imageBackendPassword)
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
 
   const toggle = (id: string) =>
@@ -78,7 +78,7 @@ export function GenerateExpressionSetDialog({
     setResults(null)
     setProgress({ done: 0, total: targets.length, currentLabel: targets[0].label })
 
-    const backend = createImageBackend({ openMayhemApiKey, imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendPassword, imageBackendModel })
+    const backend = createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, secrets })
     const succeeded: string[] = []
     const failed: string[] = []
 

@@ -1,11 +1,25 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 const UPSTREAM = 'https://api.openmayhem.ai'
 
-/** Fixed API destinations. Artifact redirects come only from that API and receive no credentials. */
-export function openMayhemRouter() {
+/** The signed-in user's saved OpenMayhem key, attached server-side and never sent to the browser. */
+export type SavedKeyLookup = (req: Request) => string | undefined | Promise<string | undefined>
+
+// Imported lazily so this module (and its tests) don't open the database just by being loaded.
+const vaultKeyLookup: SavedKeyLookup = async (req) => {
+  const [{ currentUser }, { revealSecretForOutgoingRequest }] = await Promise.all([import('./auth.ts'), import('./vault.ts')])
+  const user = currentUser(req)
+  return user ? revealSecretForOutgoingRequest(user.id, 'openMayhemApiKey') : undefined
+}
+
+/**
+ * Fixed API destinations. Artifact redirects come only from that API and receive no credentials.
+ * A request without its own Authorization header uses the signed-in user's saved key.
+ */
+export function openMayhemRouter(options: { savedKey?: SavedKeyLookup } = {}) {
+  const savedKey = options.savedKey ?? vaultKeyLookup
   const router = Router()
   const routes = [
     ['get', '/models', '/v1/models?endpoint_family=CHAT&limit=100'],
@@ -20,8 +34,8 @@ export function openMayhemRouter() {
   ] as const
   for (const [method, localPath, remotePath] of routes) {
     router[method](localPath, async (req, res) => {
-      const authorization = req.get('authorization')
       const isPublic = localPath === '/models' || localPath === '/campaign'
+      let authorization = req.get('authorization')
       let destination = `${UPSTREAM}${remotePath}`
       if (localPath === '/models') {
         const endpoint = req.query.endpoint_family ?? 'CHAT'
@@ -40,6 +54,11 @@ export function openMayhemRouter() {
           res.status(400).json({ error: { message: 'Invalid OpenMayhem resource ID.' } }); return
         }
         destination += id
+      }
+      if (!isPublic && !authorization) {
+        let saved: string | undefined
+        try { saved = await savedKey(req) } catch { saved = undefined }
+        if (saved && !/[\r\n]/.test(saved)) authorization = `Bearer ${saved.trim()}`
       }
       if (!isPublic && !/^Bearer\s+\S+$/.test(authorization ?? '')) {
         res.status(401).json({ error: { message: 'Enter your OpenMayhem API key first.' } })

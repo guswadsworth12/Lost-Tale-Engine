@@ -12,20 +12,23 @@ import { Section } from '@/components/ui/Section'
 import { VoiceSampleField } from './VoiceSampleField'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { errorMessage } from '@/lib/store/useToastStore'
+import { changeVoiceConfig, useSecretStatus } from '@/lib/accounts/secrets'
+import { SecretKeyField } from './SecretKeyField'
 
 const PROVIDERS = Object.keys(TTS_PROVIDER_LABELS) as TtsProviderId[]
 
 export function VoiceSettings() {
   const baseUrl = useSettingsStore((s) => s.baseUrl)
   const ttsProvider = useSettingsStore((s) => s.ttsProvider)
-  const ttsApiKey = useSettingsStore((s) => s.ttsApiKey)
   const ttsBaseUrl = useSettingsStore((s) => s.ttsBaseUrl)
   const ttsRegion = useSettingsStore((s) => s.ttsRegion)
   const ttsVoice = useSettingsStore((s) => s.ttsVoice)
   const ttsModel = useSettingsStore((s) => s.ttsModel)
-  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
+  const { saved: secrets } = useSecretStatus()
+  const ttsKeySaved = secrets.ttsApiKey
+  const openMayhemKeySaved = secrets.openMayhemApiKey
   const { models, loading, reload } = useOpenMayhemModels('AUDIO_SPEECH', ttsProvider === 'openmayhem')
-  const setVoiceConfig = useSettingsStore((s) => s.setVoiceConfig)
+  const setVoiceConfig = changeVoiceConfig
   const [speakers, setSpeakers] = useState<string[]>([])
   const [loadingSpeakers, setLoadingSpeakers] = useState(false)
   const [testState, setTestState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
@@ -50,7 +53,7 @@ export function VoiceSettings() {
   useEffect(() => {
     setTestState('idle')
     return stopTest
-  }, [ttsProvider, ttsModel, ttsVoice, ttsApiKey, ttsBaseUrl, ttsRegion, openMayhemApiKey])
+  }, [ttsProvider, ttsModel, ttsVoice, ttsKeySaved, ttsBaseUrl, ttsRegion, openMayhemKeySaved])
 
   const loadSpeakers = async () => {
     setLoadingSpeakers(true)
@@ -69,7 +72,7 @@ export function VoiceSettings() {
     setTestError('')
     try {
       const blob = await synthesizeSpeech(
-        { provider: ttsProvider, apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey, model: ttsModel, baseUrl: ttsBaseUrl, region: ttsRegion, voice: ttsVoice },
+        { provider: ttsProvider, keySaved: ttsProvider === 'openmayhem' ? openMayhemKeySaved : ttsKeySaved, model: ttsModel, baseUrl: ttsBaseUrl, region: ttsRegion, voice: ttsVoice },
         'Testing, one two three.',
         baseUrl,
         controller.signal,
@@ -112,7 +115,7 @@ export function VoiceSettings() {
     <SettingsPage>
       <Section
         title="Voice (text-to-speech)"
-        description="Read a character's lines aloud from Visual Novel mode. Keys are stored in this browser. OpenMayhem uses Lost Tales Engine's local relay; other providers are contacted directly."
+        description="Read a character's lines aloud from Visual Novel mode. Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches them and forwards each request; the browser never holds them."
       >
           <label className="mb-3 block">
             <span className="mb-1 block text-xs font-medium text-text-muted">Provider</span>
@@ -192,12 +195,7 @@ export function VoiceSettings() {
                 onChange={(e) => setVoiceConfig({ ttsBaseUrl: e.target.value })}
                 placeholder="e.g. http://localhost:8880 for local Kokoro-FastAPI"
               />
-              <TextField
-                label="API key (optional)"
-                type="password"
-                value={ttsApiKey}
-                onChange={(e) => setVoiceConfig({ ttsApiKey: e.target.value })}
-              />
+              <SecretKeyField name="ttsApiKey" label="API key (optional)" saved={ttsKeySaved} />
               <TextField
                 label="Voice"
                 value={ttsVoice}
@@ -209,12 +207,7 @@ export function VoiceSettings() {
 
           {ttsProvider === 'elevenlabs' && (
             <>
-              <TextField
-                label="API key"
-                type="password"
-                value={ttsApiKey}
-                onChange={(e) => setVoiceConfig({ ttsApiKey: e.target.value })}
-              />
+              <SecretKeyField name="ttsApiKey" label="API key" saved={ttsKeySaved} />
               <TextField
                 label="Voice ID"
                 value={ttsVoice}
@@ -226,12 +219,7 @@ export function VoiceSettings() {
 
           {ttsProvider === 'azure' && (
             <>
-              <TextField
-                label="Subscription key"
-                type="password"
-                value={ttsApiKey}
-                onChange={(e) => setVoiceConfig({ ttsApiKey: e.target.value })}
-              />
+              <SecretKeyField name="ttsApiKey" label="Subscription key" saved={ttsKeySaved} />
               <TextField
                 label="Region"
                 value={ttsRegion}
@@ -249,7 +237,7 @@ export function VoiceSettings() {
 
           {ttsProvider !== 'alibaba' && (
             <div className="mt-3 flex items-center gap-2.5">
-              <Button onClick={testConnection} disabled={testState === 'loading' || ttsProvider === 'openmayhem' && (!openMayhemApiKey.trim() || !models?.some((m) => m.id === ttsModel))} className="flex items-center gap-1.5">
+              <Button onClick={testConnection} disabled={testState === 'loading' || ttsProvider === 'openmayhem' && (!openMayhemKeySaved || !models?.some((m) => m.id === ttsModel))} className="flex items-center gap-1.5">
                 {testState === 'loading' ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : null}
                 {testState === 'loading' ? 'Testing…' : 'Test connection'}
               </Button>

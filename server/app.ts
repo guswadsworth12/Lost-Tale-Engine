@@ -28,6 +28,9 @@ import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveA
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
+import { authGate, authRouter, requireOwner } from './auth.ts'
+import { meRouter } from './me.ts'
+import { relayRouter } from './relay.ts'
 import { storiesRouter } from './stories.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
@@ -49,8 +52,17 @@ export const app = express()
 // Rejects a request whose Origin is another website; any loopback origin is allowed. See originCheck.ts.
 app.use(originGuard)
 
-// Raised generously (a bulk sprite upload easily clears 25MB) — local-only app, no untrusted-request concern.
+// Accounts (auth.ts): every /api route and the /avatars files need a signed-in user, bar status,
+// setup and login. The gate runs before any body parsing, so nobody signed out can make the server
+// read a large body; the sign-in routes carry their own small parser.
+app.use(authGate)
+app.use(authRouter)
+// The relay forwards request bodies byte for byte, so it is mounted before the JSON parser.
+app.use(relayRouter)
+
+// Raised generously (a bulk sprite upload easily clears 25MB); only signed-in users get this far.
 app.use(express.json({ limit: '150mb' }))
+app.use(meRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', memoriesRouter)
@@ -1497,6 +1509,9 @@ app.put('/api/chat-facts/:id', (req, res) => {
 // ---- Full backup / restore ----
 // One self-contained JSON snapshot of every table plus every avatar/sprite/background file (base64),
 // preserving original ids — unlike character packs (importExport.ts / pack.ts), which mint new ones.
+// Accounts (users, sessions, user_secrets, user_settings) are security state and deliberately not
+// listed: a backup never carries password hashes or credentials, and a restore never touches who
+// can sign in, so restoring can't lock the owner out.
 
 const BACKUP_VERSION = 1
 const BACKUP_STORES = {
@@ -1532,7 +1547,8 @@ function listAvatarFiles(): { relPath: string; base64: string }[] {
   return results
 }
 
-app.get('/api/backup', (_req, res) => {
+// Backup and restore cover everyone's shared data, so they are the owner's to run.
+app.get('/api/backup', requireOwner, (_req, res) => {
   const data: Record<string, unknown[]> = {}
   for (const [key, store] of Object.entries(BACKUP_STORES)) data[key] = store.list()
   res.json({ version: BACKUP_VERSION, exportedAt: Date.now(), data, avatarFiles: listAvatarFiles() })
@@ -1540,7 +1556,7 @@ app.get('/api/backup', (_req, res) => {
 
 // A full backup with many/large images can exceed the app's normal 25mb JSON ceiling — this
 // route alone accepts a much larger body instead of raising the limit for every other endpoint.
-app.post('/api/restore', express.json({ limit: '1gb' }), (req, res) => {
+app.post('/api/restore', requireOwner, express.json({ limit: '1gb' }), (req, res) => {
   const body = req.body as Record<string, unknown>
   if (!body || typeof body !== 'object' || body.version !== BACKUP_VERSION || !body.data || typeof body.data !== 'object') {
     return res.status(400).json({ error: 'Not a recognized backup file.' })

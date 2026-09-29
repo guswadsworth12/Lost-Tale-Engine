@@ -1,11 +1,13 @@
 // Speech-to-text via KoboldCpp's own OpenAI-compatible Whisper endpoint — reuses the
 // app's existing connection, no separate provider/config needed for the "Ears".
 
+import { relayFetch } from '../api/relay'
+
 export async function transcribeAudio(koboldBaseUrl: string, audio: Blob): Promise<string> {
   const form = new FormData()
   form.append('file', audio, 'speech.webm')
   form.append('model', 'whisper-1')
-  const res = await fetch(`${koboldBaseUrl.replace(/\/+$/, '')}/v1/audio/transcriptions`, {
+  const res = await relayFetch(`${koboldBaseUrl.replace(/\/+$/, '')}/v1/audio/transcriptions`, {
     method: 'POST',
     body: form,
   })

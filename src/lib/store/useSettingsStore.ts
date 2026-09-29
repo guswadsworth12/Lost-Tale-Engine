@@ -16,6 +16,7 @@ import type { QuickReply, RegexScript } from '@/lib/types'
 import type { ThemePreset } from '@/lib/store/themePresets'
 import type { PromptSectionId } from '@/lib/prompt/builder'
 import { DEFAULT_PROMPT_SECTIONS } from '@/lib/prompt/builder'
+import { omitSecrets } from '@/lib/accounts/settingsSnapshot'
 
 /** Seeded on first run only; a returning user's own edits/deletions are never overwritten. */
 const DEFAULT_QUICK_REPLIES: QuickReply[] = [
@@ -569,6 +570,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'rp-settings',
+      // Credentials never touch localStorage: they live encrypted on the server. They stay in the
+      // in-memory state (an older install's persisted keys still hydrate, for the one-time upload).
+      partialize: (s) => omitSecrets(s),
       // Deep-merge just these nested keys so new tokens/params backfill instead of being hidden by an old persisted object.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<SettingsState>
