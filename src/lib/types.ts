@@ -527,6 +527,10 @@ export interface Chat {
   recap?: SceneRecap
   /** Confirmed branch consequences from earlier scenes (their GM turns stay with those scenes). */
   carriedConsequences?: string[]
+  /** Canon beats of this story (`world/gm.ts` `SetEvent`): when one happens, it happens as written, with no roll. Carried into later scenes. */
+  setEvents?: import('@/lib/world/gm').SetEvent[]
+  /** Set events already carried out in earlier scenes of this story. */
+  setEventsDone?: string[]
   /** Messages with `createdAt <=` this have been read by the memory scribe (`memory/scribe.ts`). Rolled back when a scribed message is edited, so it is read again. */
   memoryScribedUpTo?: number
   /** Set when this chat was created by forking another one — the source chat's id. */

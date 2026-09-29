@@ -214,6 +214,8 @@ export interface NextSceneBody {
   recap: Pick<SceneRecap, 'text' | 'presentIds' | 'openThreads' | 'location'>
   /** Confirmed consequences from this scene's GM turns, kept in force afterwards. */
   consequences?: string[]
+  /** Set events carried out so far, so later scenes do not repeat them. */
+  setEventsDone?: string[]
   next?: {
     title?: string
     location?: string | null

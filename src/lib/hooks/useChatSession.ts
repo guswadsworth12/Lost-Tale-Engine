@@ -26,6 +26,8 @@ import {
   branchConsequencesFrom,
   earlierRollFrom,
   pendingChoiceFrom,
+  setEventsDoneFrom,
+  type SetEvent,
   buildGmPrompt,
   formatGmMessage,
   gmDirectionFor,
@@ -607,15 +609,20 @@ export function useChatSession(chatId: string | null) {
   // Cards of characters the GM brought in during the current beat. The reactive
   // `participantCharacters` only catches up on the next render, too late for the arrival's own reply.
   const arrivalsRef = useRef<Character[]>([])
+  // Cards of characters reached from afar this beat. They can speak, but they are not in the scene.
+  const remoteRef = useRef<Character[]>([])
   useEffect(() => {
     arrivalsRef.current = []
+    remoteRef.current = []
   }, [chatId])
   const resolveSpeaker = useCallback(
     (speakerId: string | null | undefined) => {
       const known = character ? [character, ...participantCharacters] : participantCharacters
       const sceneCharacters = [...known, ...arrivalsRef.current.filter((a) => !known.some((c) => c.id === a.id))]
-      const active = (speakerId && sceneCharacters.find((c) => c.id === speakerId)) || character
-      const roster = active ? sceneCharacters.filter((c) => c.id !== active.id) : []
+      const away = speakerId ? remoteRef.current.find((c) => c.id === speakerId) : undefined
+      const active = away || (speakerId && sceneCharacters.find((c) => c.id === speakerId)) || character
+      // Someone answering from afar is with nobody here.
+      const roster = active && !away ? sceneCharacters.filter((c) => c.id !== active.id) : []
       return { active, roster }
     },
     [character, participantCharacters],
@@ -2496,6 +2503,15 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   )
 
+  /** The story's canon beats (`SetEvent`): happen as written, with no roll. An empty list clears them. */
+  const updateSetEvents = useCallback(
+    async (events: SetEvent[]) => {
+      if (!chatId) return
+      await chatsApi.update(chatId, { setEvents: events.length ? events : null } as Partial<Chat>)
+    },
+    [chatId],
+  )
+
   /** Location/atmosphere framing plus the group-chat turn policy. `null` clears it entirely; a partial patch merges onto whatever's already set. */
   const updateScene = useCallback(
     async (patch: Partial<Scene> | null) => {
@@ -2647,6 +2663,7 @@ export function useChatSession(chatId: string | null) {
           location: sceneSettingFrom(branch, fresh.scene, (id) => backgroundLabel(id, world)).location,
         },
         consequences: branchConsequencesFrom(branch),
+        setEventsDone: [...new Set([...(fresh.setEventsDone ?? []), ...setEventsDoneFrom(branch)])],
         next: {
           title: input.next.title?.trim() || undefined,
           ...(location !== undefined ? { location: location || null } : {}),
@@ -3450,6 +3467,10 @@ export function useChatSession(chatId: string | null) {
         // Only when this turn has no dice of its own: a fresh roll always governs its own beat.
         earlierRoll: playerMsg.campaignRoll ? undefined : earlierRollFrom(upTo.slice(0, -1)),
         pendingChoice: playerMsg.campaignRoll ? undefined : pendingChoiceFrom(upTo.slice(0, -1)),
+        setEvents: (() => {
+          const done = new Set([...(freshChat?.setEventsDone ?? []), ...setEventsDoneFrom(upTo)])
+          return (freshChat?.setEvents ?? []).filter((event) => !done.has(event.id))
+        })(),
         maxSpeakers: 3,
       }
       const { system, user } = buildGmPrompt(ctx)
@@ -3527,6 +3548,17 @@ export function useChatSession(chatId: string | null) {
           await messagesApi.update(beatMsg.id, { presentIds }).catch(() => {})
         }
       }
+      const remoteCards = turn.remoteIds?.length
+        ? (await Promise.all(turn.remoteIds.map((id) => charactersApi.get(id).catch(() => undefined)))).filter((c): c is Character => !!c)
+        : []
+      remoteRef.current = remoteCards
+      if (remoteCards.length) {
+        // Whoever was reached heard the player's message, and only that. Read the saved presence
+        // (the server stamps it on create), so the people here stay witnesses too.
+        const saved = await messagesApi.get(playerMsg.id).catch(() => undefined)
+        const presentIds = [...new Set([...(saved?.presentIds ?? playerMsg.presentIds ?? []), ...remoteCards.map((c) => c.id)])]
+        await messagesApi.update(playerMsg.id, { presentIds }).catch(() => {})
+      }
       runAssist('vision', 'Reading the scene', () => refineCharacterForms(gmMsg.id, gmMsg.text))
       if (turn.fork) {
         try {
@@ -3539,9 +3571,12 @@ export function useChatSession(chatId: string | null) {
       }
       const playerName = persona?.name || 'You'
       // Each agent is told who speaks before and after it this beat, so it can answer the others.
-      const castNow = [...participantCharacters, ...arrivalsRef.current]
+      const castNow = [...participantCharacters, ...arrivalsRef.current, ...remoteCards]
       const nameOfAgent = (id: string) => (id === character.id ? character : castNow.find((c) => c.id === id))?.card.name
-      const beatOrder = turn.speakerIds.map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
+      const isRemote = (id: string) => !!turn.remoteIds?.includes(id)
+      // A remote reply is private between the player and whoever was reached; the others speak among themselves.
+      const beatOrder = turn.speakerIds.filter((id) => !isRemote(id)).map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
+      const remoteNames = remoteCards.map((c) => c.card.name)
       let at = startAt + 1
       for (const speakerId of turn.speakerIds) {
         const agent = speakerId === character.id ? character : castNow.find((c) => c.id === speakerId)
@@ -3556,6 +3591,8 @@ export function useChatSession(chatId: string | null) {
           createdAt: at++,
           swipes: [],
           activeSwipe: 0,
+          // Only the player and the one reached share a remote reply.
+          ...(isRemote(agent.id) ? { presentIds: [agent.id, ...(chat?.playerCharacterId ? [chat.playerCharacterId] : [])] } : {}),
         }
         await messagesApi.create(replyMsg)
         // Each agent hears the GM and whoever already answered this beat — the public transcript only.
@@ -3566,15 +3603,21 @@ export function useChatSession(chatId: string | null) {
           speakerId: agent.id,
           inGmBeat: true,
           extraStyleGuidance: [
-            gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
+            isRemote(agent.id)
+              ? gmDirectionFor(turn, agent.card.name, playerName, [agent.card.name], false, true)
+              : gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
+            !isRemote(agent.id) && remoteNames.length
+              ? `${remoteNames.join(' and ')} answered ${playerName} from afar; only ${playerName} heard it. ${agent.card.name} knows only what ${playerName} says aloud about it.`
+              : '',
             ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
-          ].join('\n\n'),
+          ].filter(Boolean).join('\n\n'),
         })
         if (abortRef.current?.signal.aborted) break
       }
+      remoteRef.current = []
       if (characterMemoryOn) runAssist('memory', 'Remembering', () => scribeMemories())
     },
-    [character, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
+    [character, chat?.playerCharacterId, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */
@@ -4668,6 +4711,7 @@ export function useChatSession(chatId: string | null) {
     updateAuthorNote,
     updateScene,
     updateGmNotes,
+    updateSetEvents,
     updateParticipants,
     switchPlayer,
     story,

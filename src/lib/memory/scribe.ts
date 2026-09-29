@@ -91,7 +91,7 @@ export function buildScribePrompt(input: ScribeInput): string {
     `Task: you are the scribe for a roleplay${input.worldName?.trim() ? ` set in ${input.worldName.trim()}` : ''}. Read the new messages below and record what the characters in them will remember.`,
     [
       'Most batches add nothing, or one memory. Only record concrete, durable things: a promise, a revelation, a name or secret learned, a changed relationship, an injury, a decision, a moment that landed hard.',
-      'Skip small talk, greetings, and narration flavour. If nothing here will matter later, add nothing.',
+      'Skip small talk, greetings, and narration flavour. Skip tactical orders, formations, and plans for the next few minutes (who scouts, who watches the rear, a time limit): they matter now, not later. If nothing here will matter in a later scene, add nothing.',
       `${player || 'The player'} is the player's character. Speech or action presented as theirs counts the same as anyone else's.`,
     ].join('\n'),
     castNames.length ? `Characters: ${castNames.join(', ')}.` : '',
@@ -106,7 +106,7 @@ export function buildScribePrompt(input: ScribeInput): string {
       '- "kind" is one of: event, learned, promise, secret, impression. "importance" is 0 to 1 (0.3 minor, 0.6 matters, 0.9 life changing). "about" lists who it concerns.',
       '- "witnesses": only when fewer people perceived it than that message lists (a whisper, a private thought, a note read alone). Never add anyone not listed for that message. Leave it out otherwise.',
       '- "feelings": only when it clearly landed differently on different witnesses. A number per witness name from -1 (hurt, hostile) to 1 (warm, glad).',
-      '- "unresolved": true for an open thread such as a promise, a debt, or an unanswered question.',
+      '- "unresolved": true only for something still owed beyond this scene: a promise to a person, a debt, an unanswered question that matters. An order, a plan, or an intention is not an open thread.',
       '- "told": when a message shows a character telling another something from a remembered memory above, give that memory number, who learned it ("to"), who told it ("by"), and the message number ("from"). If something from these new messages is passed on in a later new message, record it with "add" instead.',
       '- "retire": remembered memories that these messages contradict or supersede, with a short reason.',
       '- "resolve": numbers of remembered open threads that these messages close.',

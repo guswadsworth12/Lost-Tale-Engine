@@ -19,6 +19,7 @@ const SOURCE_TONE = {
   recorded_roll: 'bg-accent/12 text-accent',
   roll_needed: 'bg-warning/15 text-warning',
   guided_judgment: 'bg-bg-sunken text-text-muted',
+  set_event: 'bg-success/15 text-success',
 } as const
 
 /** The recorded dice on a player turn, so the roll that the GM honored is visible where it was made. */

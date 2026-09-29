@@ -4,6 +4,8 @@ import {
   branchConsequencesFrom,
   choiceOptions,
   pendingChoiceFrom,
+  matchSetEvent,
+  setEventsDoneFrom,
   buildGmPrompt,
   formatGmMessage,
   earlierRollFrom,
@@ -461,12 +463,20 @@ describe('bringing characters into the scene', () => {
     expect(turn.speakerIds).toEqual(['mae'])
   })
 
-  it('brings in the character the player addressed when the GM added nobody and nobody is here', () => {
+  it('lets the character the player called answer from where they are when the GM left the call unanswered', () => {
     const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [] }),
       ctx({ roster: [], availableRoster: [...available].reverse(), playerAction: 'I call Mae. "Mae, meet me at the aqueduct and bring Avi."' }), ids)
-    expect(turn.addCharacterIds).toEqual(['mae'])
+    expect(turn.remoteIds).toEqual(['mae'])
+    expect(turn.addCharacterIds).toBeUndefined()
     expect(turn.speakerIds).toEqual(['mae'])
-    expect(turn.corrections?.join(' ')).toContain('Brought in Mae Rook')
+    expect(turn.corrections?.join(' ')).toContain('Mae Rook answers from where they are')
+  })
+
+  it('still brings in someone the player addresses directly when nobody is here', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [] }),
+      ctx({ roster: [], availableRoster: available, playerAction: '"Mae? Are you back there?"' }), ids)
+    expect(turn.addCharacterIds).toEqual(['mae'])
+    expect(turn.remoteIds).toBeUndefined()
   })
 
   it('tells an arriving character to answer the way the player reached them, not to report others', () => {
@@ -588,5 +598,142 @@ describe('a result that asks the player to choose', () => {
     }), ctx({ campaign, pendingChoice, playerAction: 'Time.' }), ids)
     expect(turn.adjudication?.outcome).toBe('The runes will fade within half an hour.')
     expect(turn.corrections).toBeUndefined()
+  })
+})
+
+describe('a result that grants questions', () => {
+  const read = { ...STARTER_PBTA_CAMPAIGN.moves[0], id: 'read', name: 'Read the Threads', strong: 'Ask two useful questions and take an opening you can act on.', mixed: 'Ask one useful question; the GM also reveals a complication.' }
+  const campaign = { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical' as const, moves: [read, ...STARTER_PBTA_CAMPAIGN.moves] }
+  const roll = (dice: [number, number], id: string): RecordedMove => ({ ...resolvePbtaRoll(read, 1, dice), id, createdAt: 1, action: 'I listen to the tapping.' })
+
+  it('holds every reply on the roll beat until the player asks', () => {
+    const mixed = roll([4, 4], 'r-mixed')
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The tapping stops, then starts again closer.', speakers: ['Hana Pike', 'Ivo Brand'],
+      adjudication: { move: 'Read the Threads', tier: 'mixed', outcome: read.mixed },
+    }), ctx({ campaign, recordedMove: mixed }), ids)
+    expect(turn.speakerIds).toEqual([])
+    expect(turn.adjudication).toMatchObject({ awaitingQuestions: 1, rollId: 'r-mixed' })
+    expect(turn.corrections?.join(' ')).toContain('asks the questions')
+    expect(formatGmMessage(turn)).toContain('[Ask your question. Nobody reacts until you do.]')
+  })
+
+  it('keeps holding while questions remain, then lets the cast answer after the last one', () => {
+    const strong = roll([6, 6], 'r-strong')
+    const beat = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'], adjudication: { move: 'Read the Threads', tier: 'strong', outcome: read.strong } }),
+      ctx({ campaign, recordedMove: strong }), ids)
+    expect(beat.adjudication?.awaitingQuestions).toBe(2)
+    expect(formatGmMessage(beat)).toContain('Ask your questions (2 left)')
+
+    const branch = [{ campaignRoll: strong }, { gm: beat }] as never[]
+    const first = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'], adjudication: { followUp: true, move: 'Read the Threads', outcome: 'Someone is signalling in guild code.' } }),
+      ctx({ campaign, earlierRoll: earlierRollFrom(branch), playerAction: 'Who is tapping?' }), ids)
+    expect(first.speakerIds).toEqual([])
+    expect(first.adjudication).toMatchObject({ followUp: true, awaitingQuestions: 1 })
+
+    const second = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'], adjudication: { followUp: true, move: 'Read the Threads', outcome: 'The code means stay back.' } }),
+      ctx({ campaign, earlierRoll: earlierRollFrom([...branch, { gm: first }] as never[]), playerAction: 'What are they saying?' }), ids)
+    expect(second.adjudication?.awaitingQuestions).toBeUndefined()
+    expect(second.speakerIds).toEqual(['hana'])
+  })
+
+  it('does not hold on a miss', () => {
+    const miss = roll([1, 1], 'r-miss')
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'], adjudication: { move: 'Read the Threads', tier: 'miss', outcome: read.miss } }),
+      ctx({ campaign, recordedMove: miss }), ids)
+    expect(turn.adjudication?.awaitingQuestions).toBeUndefined()
+    expect(turn.speakerIds).toEqual(['hana'])
+  })
+})
+
+describe('someone reached from afar', () => {
+  const guildmaster = [{ id: 'sera', name: 'Sera Vale' }, { id: 'mae', name: 'Mae Rook' }]
+
+  it('gives an away character the reply the GM tried to write for them', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'Sera Vale answers in his mind: guard the lower vault.', pacing: 'advance', speakers: ['Hana Pike', 'Ivo Brand'],
+    }), ctx({ availableRoster: guildmaster, playerAction: 'Wren activates the link. "Sera, there are three intruders in the tunnels. What are they after?"' }), ids)
+    expect(turn.narration).toBe('')
+    expect(turn.remoteIds).toEqual(['sera'])
+    expect(turn.speakerIds).toEqual(['sera', 'hana', 'ivo'])
+    expect(turn.addCharacterIds).toBeUndefined()
+  })
+
+  it('takes a remote reply the GM asks for, and never adds them to the scene', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'], remote: ['Sera Vale'] }),
+      ctx({ availableRoster: guildmaster, playerAction: 'I send word to the guild.' }), ids)
+    expect(turn.remoteIds).toEqual(['sera'])
+    expect(turn.speakerIds).toEqual(['sera', 'hana'])
+  })
+
+  it('reaches out by telepathy without the GM noticing', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'] }),
+      ctx({ availableRoster: guildmaster, playerAction: 'Wren activates the Archive telepathy and reaches out to Sera with the news.' }), ids)
+    expect(turn.remoteIds).toEqual(['sera'])
+  })
+
+  it('tells the one reached to answer through that means and never join the scene', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [], remote: ['Sera Vale'] }), ctx({ availableRoster: guildmaster }), ids)
+    const direction = gmDirectionFor(turn, 'Sera Vale', 'Wren Calloway', ['Sera Vale'], false, true)
+    expect(direction).toContain('Sera Vale is not in this scene')
+    expect(direction).toContain('does not join it')
+    expect(direction).not.toContain('drawn into this scene')
+  })
+
+  it('does not treat a stray word as a call', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: ['Hana Pike'] }),
+      ctx({ availableRoster: guildmaster, playerAction: 'Let us call it a night. Mae would have liked this place.' }), ids)
+    expect(turn.remoteIds).toBeUndefined()
+    expect(turn.speakerIds).toEqual(['hana'])
+  })
+
+  it('waits for a pending choice before anyone, remote or not, replies', () => {
+    const shape = { ...STARTER_PBTA_CAMPAIGN.moves[0], mixed: 'It works, but choose a cost: strain, or time.' }
+    const recordedMove: RecordedMove = { ...resolvePbtaRoll(shape, 1, [4, 4]), id: 'r', createdAt: 1, action: 'x' }
+    const turn = parseGmTurn(JSON.stringify({ speakers: [], adjudication: { move: shape.name, tier: 'mixed', outcome: shape.mixed } }),
+      ctx({ campaign: { ...STARTER_PBTA_CAMPAIGN, mode: 'mechanical', moves: [shape] }, recordedMove, availableRoster: guildmaster, playerAction: 'I reach out to Sera.' }), ids)
+    expect(turn.speakerIds).toEqual([])
+    expect(turn.remoteIds).toBeUndefined()
+  })
+})
+
+describe('set events', () => {
+  const bind = { id: 'bind-lyra', trigger: 'Wren binds the sleeper into Lyra\'s form', outcome: 'The binding takes: the sleeper becomes Lyra.', consequence: 'Wren is strained from binding Lyra\'s form.', match: ['bind', 'Lyra|sleeper'] }
+  const events = [bind]
+
+  it('matches an action by its words, not a stray mention', () => {
+    expect(matchSetEvent('Wren binds the sleeper into a new shape.', events)?.id).toBe('bind-lyra')
+    expect(matchSetEvent('Wren asks Lyra about the seal.', events)).toBeUndefined()
+  })
+
+  it('happens as written with no roll, even when the GM asks for one, and records the strain', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'Light folds inward.', speakers: ['Hana Pike'], adjudication: { move: 'Take a Risk', tier: null, outcome: 'Roll Take a Risk to resolve this.' },
+    }), ctx({ setEvents: events, playerAction: 'Wren binds the sleeper, pouring the script into its new shape.' }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'set_event', setEventId: 'bind-lyra', outcome: bind.outcome })
+    expect(turn.corrections?.join(' ')).toContain('without a roll')
+    expect(turn.proposals[0]).toMatchObject({ scope: 'branch', status: 'confirmed', text: bind.consequence })
+    expect(branchConsequencesFrom([{ gm: turn }])).toContain(bind.consequence)
+    expect(formatGmMessage(turn)).toContain('[Set event (canon, no roll)]')
+    expect(turn.speakerIds).toEqual(['hana'])
+  })
+
+  it('takes the GM naming the event, and lists pending events in the prompt', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [], adjudication: { setEvent: 'bind-lyra', outcome: 'x' } }),
+      ctx({ setEvents: events, playerAction: 'I finish the working.' }), ids)
+    expect(turn.adjudication?.setEventId).toBe('bind-lyra')
+    expect(turn.corrections).toBeUndefined()
+    expect(buildGmPrompt(ctx({ setEvents: events })).user).toContain('[bind-lyra] Wren binds the sleeper')
+  })
+
+  it('knows which events already happened', () => {
+    const turn = parseGmTurn(JSON.stringify({ speakers: [], adjudication: { setEvent: 'bind-lyra' } }), ctx({ setEvents: events }), ids)
+    expect(setEventsDoneFrom([{ gm: turn }, {}])).toEqual(['bind-lyra'])
+  })
+
+  it('leaves a recorded roll alone', () => {
+    const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [], adjudication: { move: move.name, tier: 'mixed', outcome: move.mixed } }),
+      ctx({ setEvents: events, recordedMove: mixedRoll, playerAction: 'Wren binds the sleeper.' }), ids)
+    expect(turn.adjudication?.source).toBe('recorded_roll')
   })
 })

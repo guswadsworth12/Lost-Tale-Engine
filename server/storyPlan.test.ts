@@ -22,6 +22,7 @@ const source = {
   rapport: { mood: 'warm' },
   scene: { turnPolicy: 'gm', location: 'Guildhall', presentCharacterIds: ['lead', 'ally', 'rival'], roundRobinIndex: 2 },
   carriedConsequences: ['The gate is sealed.'],
+  setEventsDone: ['bind-one'],
   createdAt: 1,
   updatedAt: 2,
 }
@@ -46,6 +47,7 @@ describe('planNextScene', () => {
     const { newChat } = planNextScene(source, [], undefined, { recap, consequences: ['The ally owes a favor.', 'The gate is sealed.'] }, 1000, ids())
     expect(newChat).toMatchObject({ affection: 12, relationshipStats: { trust: 3 }, giftCoins: 40, playerCharacterId: 'hero', participants: ['ally', 'rival'] })
     expect(newChat.carriedConsequences).toEqual(['The gate is sealed.', 'The ally owes a favor.'])
+    expect(planNextScene(source, [], undefined, { recap, setEventsDone: ['bind-two', 'bind-one'] }, 1000, ids()).newChat.setEventsDone).toEqual(['bind-one', 'bind-two'])
     for (const gone of ['summary', 'summaryUpToTimestamp', 'worldInfoState', 'rapport', 'endedAt', 'recap', 'memoryScribedUpTo']) expect(newChat).not.toHaveProperty(gone)
     expect(newChat.createdAt).toBe(1000)
   })
