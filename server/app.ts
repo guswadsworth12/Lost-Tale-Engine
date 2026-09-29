@@ -37,6 +37,8 @@ import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
+import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
+import { ownershipPatch } from './ownership.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
@@ -63,6 +65,8 @@ app.use(relayRouter)
 
 // Raised generously (a bulk sprite upload easily clears 25MB); only signed-in users get this far.
 app.use(express.json({ limit: '150mb' }))
+// Private worlds, characters, and world-info books, and the chats using them, are their owner's alone (ownership.ts).
+app.use(accessGuards)
 app.use(meRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
@@ -585,15 +589,15 @@ app.get('/api/vrm-library', (_req, res) => {
   res.json(listVrmLibrary())
 })
 
-app.get('/api/characters', (_req, res) => {
-  res.json(characterStore.list({ orderBy: 'updatedAt DESC' }))
+app.get('/api/characters', (req, res) => {
+  res.json(characterStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => canSeeCharacter(req, c)))
 })
 
 // Lightweight public cast list for the GM. Card prompts, private memories, and artwork never leave this route.
 app.get('/api/characters/roster', (req, res) => {
   const worldId = typeof req.query.worldId === 'string' ? req.query.worldId : ''
   if (!worldId) return res.status(400).json({ error: 'worldId is required' })
-  res.json(characterStore.list({ where: 'worldId = ?', params: [worldId] }).map((c) => ({
+  res.json(characterStore.list({ where: 'worldId = ?', params: [worldId] }).filter((c) => canSeeCharacter(req, c)).map((c) => ({
     id: c.id,
     name: (c.card as { name?: string } | undefined)?.name ?? '',
     occupation: c.occupation,
@@ -615,7 +619,28 @@ function normalizePlayerDescription(raw: unknown): string | undefined {
   return typeof raw === 'string' ? raw.slice(0, 20_000) || undefined : undefined
 }
 
+/** Refuses a character or chat pointing at a world or character this user can't see. */
+function refuseHiddenReferences(req: express.Request, res: express.Response, refs: { worldIds?: unknown[]; characterIds?: unknown[] }): boolean {
+  const hidden = [...hiddenIds(req, refs.worldIds ?? [], (id) => worldStore.get(id)), ...hiddenIds(req, refs.characterIds ?? [], lookups.character)]
+  if (!hidden.length) return false
+  res.status(404).json({ error: 'Not found' })
+  return true
+}
+
+/** The ownership part of a create or update; answers 403 itself when a visibility change isn't this user's to make. */
+function ownershipFor(req: express.Request, res: express.Response, existing: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const { patch, refused } = ownershipPatch(req.body ?? {}, existing, userOf(req))
+  if (refused) {
+    res.status(403).json({ error: refused })
+    return undefined
+  }
+  return patch
+}
+
 app.post('/api/characters', (req, res) => {
+  if (refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
   const now = Date.now()
   const id = newId()
   const avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
@@ -669,6 +694,7 @@ app.post('/api/characters', (req, res) => {
     frequentedLocations: normalizeStringArray(req.body.frequentedLocations),
     dateModeOptOut: req.body.dateModeOptOut === true,
     outreach: normalizeOutreach(req.body.outreach),
+    ...ownership,
     createdAt: now,
     updatedAt: now,
   })
@@ -677,8 +703,12 @@ app.post('/api/characters', (req, res) => {
 
 app.put('/api/characters/:id', (req, res) => {
   const id = req.params.id
-  if (!characterStore.get(id)) return notFound(res)
-  const patch: Record<string, unknown> = { updatedAt: Date.now() }
+  const existing = characterStore.get(id)
+  if (!existing) return notFound(res)
+  if ('worldId' in req.body && refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const patch: Record<string, unknown> = { updatedAt: Date.now(), ...ownership }
   if ('card' in req.body) patch.card = req.body.card
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
@@ -863,15 +893,15 @@ export function purgeExpiredTrash(): void {
   if (expired.length) console.log(`[rp-server] purged ${expired.length} chat(s) past the ${TRASH_RETENTION_MS / 86400000}-day trash retention window`)
 }
 
-app.get('/api/chats', (_req, res) => {
-  res.json(chatStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => !c.deletedAt))
+app.get('/api/chats', (req, res) => {
+  res.json(chatStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => !c.deletedAt && canSeeChat(req, c)))
 })
 
 // Registered before `/api/chats/:id`, or Express would match "trash" as an :id.
-app.get('/api/chats/trash', (_req, res) => {
+app.get('/api/chats/trash', (req, res) => {
   const trashed = chatStore
     .list()
-    .filter((c) => typeof c.deletedAt === 'number')
+    .filter((c) => typeof c.deletedAt === 'number' && canSeeChat(req, c))
     .sort((a, b) => (b.deletedAt as number) - (a.deletedAt as number))
   res.json(trashed)
 })
@@ -887,6 +917,8 @@ app.get('/api/chats/:id/messages', (req, res) => {
 })
 
 app.post('/api/chats', (req, res) => {
+  const participants = Array.isArray(req.body.participants) ? req.body.participants : []
+  if (refuseHiddenReferences(req, res, { characterIds: [req.body.characterId, req.body.playerCharacterId, ...participants] })) return
   const now = Date.now()
   const created = chatStore.insert({
     id: newId(),
@@ -919,6 +951,7 @@ app.put('/api/chats/:id', (req, res) => {
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
   const { characterId: _c, id: _id, createdAt: _ca, skipTouch, ...patch } = req.body
+  if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
   const updated = chatStore.update(req.params.id, {
@@ -1129,6 +1162,7 @@ app.get('/api/messages/search', (req, res) => {
   const hits = messageStore
     .list({ orderBy: 'createdAt DESC' })
     .filter((m) => String(m.text ?? '').toLowerCase().includes(q))
+    .filter((m) => canSeeChat(req, typeof m.chatId === 'string' ? chatStore.get(m.chatId) : undefined))
     .slice(0, 50)
   res.json(hits)
 })
@@ -1191,14 +1225,19 @@ app.delete('/api/messages/:id', (req, res) => {
 
 // ---- World info books (global lorebooks) ----
 
-app.get('/api/world-info-books', (_req, res) => {
-  res.json(worldInfoBookStore.list({ orderBy: 'createdAt' }))
+app.get('/api/world-info-books', (req, res) => {
+  res.json(worldInfoBookStore.list({ orderBy: 'createdAt' }).filter((b) => canSee(req, b)))
 })
 
 app.post('/api/world-info-books', (req, res) => {
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
   const created = worldInfoBookStore.insert({
-    ...req.body,
-    id: req.body.id || newId(),
+    ...body,
+    ...ownership,
+    // A client-chosen id may not take over an existing book.
+    id: typeof req.body.id === 'string' && req.body.id && !worldInfoBookStore.get(req.body.id) ? req.body.id : newId(),
     boundChatIds: normalizeIdArray(req.body.boundChatIds),
     boundCharacterIds: normalizeIdArray(req.body.boundCharacterIds),
     boundWorldIds: normalizeIdArray(req.body.boundWorldIds),
@@ -1208,7 +1247,12 @@ app.post('/api/world-info-books', (req, res) => {
 })
 
 app.put('/api/world-info-books/:id', (req, res) => {
-  const patch: Record<string, unknown> = { ...req.body }
+  const existing = worldInfoBookStore.get(req.params.id)
+  if (!existing) return notFound(res)
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
+  const patch: Record<string, unknown> = { ...body, ...ownership }
   for (const key of ['boundChatIds', 'boundCharacterIds', 'boundWorldIds'] as const) {
     if (key in req.body) patch[key] = normalizeIdArray(req.body[key])
   }
@@ -1269,13 +1313,21 @@ app.get('/api/assistant-library/search', (req, res) => {
   const query = typeof req.query.q === 'string' ? req.query.q : ''
   if (!query.trim()) return res.json([])
   res.json(searchLocalLibrary(query, {
-    worlds: worldStore.list() as unknown as WorldCard[],
-    characters: characterStore.list() as unknown as Character[],
-    books: worldInfoBookStore.list() as unknown as WorldInfoBook[],
-    chats: chatStore.list() as unknown as Chat[],
-    messages: messageStore.list() as unknown as StoredMessage[],
-    objectives: objectiveStore.list() as unknown as Objective[],
-    facts: chatFactStore.list() as unknown as ChatFact[],
+    ...(() => {
+      // Only what this user can see: private things of others, and the chats using them, stay out.
+      const chats = chatStore.list().filter((c) => canSeeChat(req, c))
+      const chatIds = new Set(chats.map((c) => c.id))
+      const inChat = (row: Record<string, unknown>) => chatIds.has(row.chatId)
+      return {
+        worlds: worldStore.list().filter((w) => canSee(req, w)) as unknown as WorldCard[],
+        characters: characterStore.list().filter((c) => canSeeCharacter(req, c)) as unknown as Character[],
+        books: worldInfoBookStore.list().filter((b) => canSee(req, b)) as unknown as WorldInfoBook[],
+        chats: chats as unknown as Chat[],
+        messages: messageStore.list().filter(inChat) as unknown as StoredMessage[],
+        objectives: objectiveStore.list().filter(inChat) as unknown as Objective[],
+        facts: chatFactStore.list().filter(inChat) as unknown as ChatFact[],
+      }
+    })(),
   }))
 })
 
@@ -1359,8 +1411,8 @@ app.delete('/api/instruct-templates/:id', (req, res) => {
 
 // ---- Worlds ----
 
-app.get('/api/worlds', (_req, res) => {
-  res.json(worldStore.list({ orderBy: 'updatedAt DESC' }))
+app.get('/api/worlds', (req, res) => {
+  res.json(worldStore.list({ orderBy: 'updatedAt DESC' }).filter((w) => canSee(req, w)))
 })
 
 app.get('/api/worlds/:id', (req, res) => {
@@ -1370,6 +1422,8 @@ app.get('/api/worlds/:id', (req, res) => {
 })
 
 app.post('/api/worlds', (req, res) => {
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
   const now = Date.now()
   const id = newId()
   const avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)
@@ -1404,6 +1458,7 @@ app.post('/api/worlds', (req, res) => {
     intimacyLevel: normalizeIntimacyLevel(req.body.intimacyLevel),
     triggers: normalizeTriggers(req.body.triggers),
     customIntimacyOptions: Array.isArray(req.body.customIntimacyOptions) ? req.body.customIntimacyOptions : undefined,
+    ...ownership,
     createdAt: now,
     updatedAt: now,
   })
@@ -1414,7 +1469,10 @@ app.put('/api/worlds/:id', (req, res) => {
   const id = req.params.id
   const existing = worldStore.get(id)
   if (!existing) return notFound(res)
-  const patch: Record<string, unknown> = { ...req.body, updatedAt: Date.now() }
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
+  const patch: Record<string, unknown> = { ...body, ...ownership, updatedAt: Date.now() }
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
