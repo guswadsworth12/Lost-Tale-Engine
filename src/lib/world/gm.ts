@@ -72,28 +72,38 @@ const NUMBER_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, thre
 
 /** How many questions a move's outcome text grants ("Ask one useful question", "ask 3 questions"). 0 when it grants none. */
 export function grantedQuestions(outcome: string): number {
-  const m = /\bask\s+(\d+|a|an|one|two|three|four|five)\b[^.]{0,40}?\bquestions?\b/i.exec(outcome)
+  const m = /\bask\b[^.;\n]{0,100}?\b(\d+|a|an|one|two|three|four|five)\b[^.;\n]{0,100}?(?:\bquestions?\b|\bof the following\b)/i.exec(outcome)
   if (!m) return 0
   const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()] ?? 0
   return Math.max(0, Math.min(n, 5))
 }
 
+function looksLikeQuestion(action: string): boolean {
+  return action.includes('?') || /\b(?:ask|question|wonder|find out|tell me)\b/i.test(action)
+}
+
 /**
- * The latest recorded roll in the recent branch that still has granted questions left. Follow-up
- * answers are counted by `rollId`, so the allowance runs out after exactly the number granted.
- * Only the last `window` messages count: an old result doesn't cover a question asked much later.
+ * The latest roll in this scene can grant questions until they are answered. The server record is
+ * authoritative; older stories without one can still use their GM adjudication. Follow-up answers
+ * are counted by roll id, regardless of how many character replies intervened.
  */
-export function earlierRollFrom(branch: readonly { gm?: GmTurn }[], window = 10): EarlierRoll | undefined {
-  const recent = branch.slice(-window)
-  for (let i = recent.length - 1; i >= 0; i--) {
-    const adj = recent[i].gm?.adjudication
-    if (adj?.source !== 'recorded_roll' || adj.followUp || !adj.rollId) continue
-    const granted = adj.tier === 'miss' ? 0 : grantedQuestions(adj.outcome)
-    const used = recent.slice(i + 1).filter((m) => m.gm?.adjudication?.followUp && m.gm.adjudication.rollId === adj.rollId).length
-    if (granted - used <= 0) return undefined
-    return { rollId: adj.rollId, moveId: adj.moveId, moveName: adj.moveName ?? 'the earlier roll', tier: adj.tier, degree: adj.degree, total: adj.total, outcome: adj.outcome, granted, remaining: granted - used }
+export function earlierRollFrom(branch: readonly { gm?: GmTurn; campaignRoll?: RecordedMove }[]): EarlierRoll | undefined {
+  let index = -1
+  for (let i = branch.length - 1; i >= 0; i--) {
+    if (branch[i].campaignRoll) { index = i; break }
   }
-  return undefined
+  if (index < 0) for (let i = branch.length - 1; i >= 0; i--) {
+    const adj = branch[i].gm?.adjudication
+    if (adj?.source === 'recorded_roll' && !adj.followUp) { index = i; break }
+  }
+  if (index < 0) return undefined
+  const savedRoll = branch[index].campaignRoll
+  const adj = savedRoll ? recordedAdjudication(savedRoll) : branch[index].gm?.adjudication
+  if (!adj?.rollId || adj.tier === 'miss') return undefined
+  const granted = grantedQuestions(adj.outcome)
+  const used = branch.slice(index + 1).filter((message) => message.gm?.adjudication?.followUp && message.gm.adjudication.rollId === adj.rollId).length
+  if (granted - used <= 0) return undefined
+  return { rollId: adj.rollId, moveId: adj.moveId, moveName: adj.moveName ?? 'the earlier roll', tier: adj.tier, degree: adj.degree, total: adj.total, outcome: adj.outcome, granted, remaining: granted - used }
 }
 
 export interface GmTurn {
@@ -141,6 +151,8 @@ export interface GmContext {
   activeObjective?: string
   canonFacts: string[]
   branchConsequences: string[]
+  /** Recent engine-owned results, kept visible after their transcript lines leave context. */
+  recentRolls?: string[]
   scenery: string
   /** Where the scene currently is and how it feels, derived from the branch. */
   location?: string
@@ -184,7 +196,8 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const modeLines = campaign.mode === 'mechanical'
     ? [
         `Resolution mode: MECHANICAL (${campaign.resolver.toUpperCase()} resolver).`,
-        'A recorded roll is binding. Report its degree and outcome exactly; never reroll, change the total, or soften a failed check.',
+        'A recorded roll is binding. In adjudication, copy its move, tier, and outcome exactly; use narration to describe how that result looks in the fiction. Never reroll, change the total, or soften a failed check.',
+        'A miss can have creative consequences, including a new problem or scene change, but it cannot grant the attempted success unless the recorded miss outcome explicitly says so. Put lasting changes in proposals for the player to confirm.',
         'If the player declares an action that triggers a move and no roll is recorded, set "move" to that move name and leave "tier" null: the player must roll before it resolves.',
         campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' || campaign.resolver === 'fate'
           ? 'When requesting a roll, set adjudication.target to the difficulty or opposition before the player rolls, unless the move has a fixed target. Choose it from the situation and the ruleset; do not change it after the roll.' : '',
@@ -232,7 +245,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
       : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
     : 'Recorded roll: none this turn.'
   const earlier = ctx.earlierRoll
-    ? `Earlier roll still in effect: ${ctx.earlierRoll.moveName} (${ctx.earlierRoll.total ?? '?'}${ctx.earlierRoll.tier ? `, ${TIER_LABEL[ctx.earlierRoll.tier]}` : ''}). It granted: ${ctx.earlierRoll.outcome} Questions left: ${ctx.earlierRoll.remaining}. If the player is asking one of these, answer it as a follow-up (adjudication.followUp true) and do not request a roll.`
+    ? `Earlier roll still in effect: ${ctx.earlierRoll.moveName} (${ctx.earlierRoll.total ?? '?'}${ctx.earlierRoll.tier ? `, ${TIER_LABEL[ctx.earlierRoll.tier]}` : ''}). It granted: ${ctx.earlierRoll.outcome} Questions left: ${ctx.earlierRoll.remaining}. If the player asks about this result, answer one question now as a follow-up (adjudication.followUp true) and do not request a roll. If several questions are asked together, answer the first and leave the others for later turns.`
     : ''
   const user = [
     ctx.worldDescription?.trim() ? `Setting: ${ctx.worldDescription.trim()}` : '',
@@ -244,6 +257,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.activeObjective?.trim() ? `Current objective: ${ctx.activeObjective.trim()}` : '',
     ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
+    ctx.recentRolls?.length ? `Earlier recorded checks in this scene (binding):\n${ctx.recentRolls.map((roll) => `- ${roll}`).join('\n')}` : '',
     ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
@@ -411,14 +425,18 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     if (claimedTier && claimedTier !== ctx.recordedMove.tier) {
       corrections.push(`The GM narrated a ${claimedTier} result; the recorded ${ctx.recordedMove.tier} result stands.`)
     }
-  } else if (rawAdj && ctx.earlierRoll && (rawAdj.followUp === true || (
-    str(rawAdj.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
+  } else if (ctx.earlierRoll && (rawAdj?.followUp === true || looksLikeQuestion(ctx.playerAction) || (
+    str(rawAdj?.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
   ))) {
     // A question the earlier roll already paid for: answered from that result, no new dice.
     const e = ctx.earlierRoll
-    if (rawAdj.followUp !== true) corrections.push(`Answered from the earlier ${e.moveName} roll instead of asking for a new one.`)
+    const proposedAnswer = str(rawAdj?.outcome, 1000)
+    const answer = /^(?:roll\b|make (?:a|another) roll\b|a roll is needed\b)/i.test(proposedAnswer) || proposedAnswer === e.outcome
+      ? narration : proposedAnswer || narration
+    if (!answer) return fallbackGmTurn(ctx, `The GM did not answer a question earned by ${e.moveName}; retry without rolling.`)
+    if (rawAdj?.followUp !== true) corrections.push(`Answered from the earlier ${e.moveName} roll instead of asking for a new one.`)
     adjudication = {
-      action: str(rawAdj.action, 500) || ctx.playerAction.trim().slice(0, 500),
+      action: str(rawAdj?.action, 500) || ctx.playerAction.trim().slice(0, 500),
       source: 'recorded_roll',
       followUp: true,
       moveId: e.moveId,
@@ -427,8 +445,9 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       degree: e.degree,
       total: e.total,
       rollId: e.rollId,
-      outcome: str(rawAdj.outcome, 1000) || narration || e.outcome,
+      outcome: answer,
     }
+    if (answer === narration) narration = ''
   } else if (rawAdj) {
     const action = str(rawAdj.action, 500) || ctx.playerAction.trim().slice(0, 500)
     const moveName = str(rawAdj.move, 200)
@@ -446,6 +465,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, ...(target !== undefined ? { target } : {}), outcome: `Roll ${move.name}${target !== undefined ? ` vs ${target}` : ''} to resolve this.` }
       if (claimedTier) corrections.push('No dice were recorded, so the claimed tier was discarded and a roll was requested.')
     } else {
+      if (ctx.campaign.mode === 'mechanical' && claimedTier) return fallbackGmTurn(ctx, 'The GM claimed a mechanical result without a recorded roll.')
       const outcome = str(rawAdj.outcome, 1000)
       if (outcome) adjudication = { action, source: 'guided_judgment', outcome }
       if (claimedTier) corrections.push(`${ctx.campaign.mode === 'guided' ? 'Guided mode' : 'A ruling without dice'} cannot claim a mechanical tier; it was discarded.`)
@@ -487,9 +507,13 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     .slice(0, 3)
     .map((p) => ({ id: newId(), ...p, status: 'pending' as const }))
 
-  if (ctx.recordedMove?.tier === 'miss') {
-    // Arbitrary model prose cannot be checked against a failed roll. Only the move's recorded
-    // miss outcome can establish what happened; let the cast react without inventing success.
+  if (ctx.recordedMove && (claimedTier !== ctx.recordedMove.tier
+    || str(rawAdj?.move, 200).toLowerCase() !== ctx.recordedMove.moveName.toLowerCase()
+    || (typeof rawAdj?.outcome !== 'string' || rawAdj.outcome.trim() !== ctx.recordedMove.outcome.trim()))) {
+    // A reply that cannot repeat the recorded ruling cannot establish new fiction. This applies
+    // to every tier: an invented strong hit on a mixed roll was previously allowed to move the
+    // scene and propose canon even though the adjudication badge showed the correct result.
+    corrections.push('The GM did not confirm the recorded move and outcome; its fictional changes were discarded.')
     return {
       mode: ctx.campaign.mode,
       ruleset: ctx.campaign.ruleset,
@@ -553,7 +577,7 @@ export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: st
   }
   if (turn.adjudication?.source === 'recorded_roll') {
     lines.push(`Binding recorded result: ${adjudicationLabel(turn.adjudication)} — ${turn.adjudication.outcome} Do not reroll, change, or soften it.`)
-    if (turn.adjudication.tier === 'miss') lines.push('The check failed. Apply only the recorded miss outcome; do not portray the attempted action as successful unless that outcome explicitly allows it.')
+    if (turn.adjudication.tier === 'miss') lines.push('The check failed. Follow the recorded miss outcome and any GM-described consequence; do not portray the attempted action as successful unless that outcome explicitly allows it.')
   } else if (turn.adjudication?.source === 'roll_needed') {
     lines.push(`${playerName}'s action is not resolved yet: it needs a ${turn.adjudication.moveName} roll. React without deciding whether it succeeds.`)
   } else if (turn.adjudication) {
@@ -578,4 +602,10 @@ function listNames(names: string[]): string {
 /** Consequences the player confirmed on this branch, in story order. Derived from messages, so fork/rewind need no bookkeeping. */
 export function branchConsequencesFrom(messages: { gm?: GmTurn }[]): string[] {
   return messages.flatMap((m) => (m.gm?.proposals ?? []).filter((p) => p.status === 'confirmed' && p.scope === 'branch').map((p) => p.text))
+}
+
+/** Small authoritative ledger for later turns, independent of model-written summaries. */
+export function recentRollsFrom(messages: readonly { campaignRoll?: RecordedMove }[], limit = 3): string[] {
+  return messages.flatMap((m) => m.campaignRoll ? [m.campaignRoll] : []).slice(-limit).map((roll) =>
+    `${roll.moveName} (${roll.degree ?? roll.tier}, ${roll.total}): ${roll.action.slice(0, 150)} → ${roll.outcome.slice(0, 500)}`)
 }

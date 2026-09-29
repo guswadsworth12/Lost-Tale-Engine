@@ -18,6 +18,8 @@ export interface RecapInput {
   location?: string
   /** Recaps of earlier scenes. Context only: the model is told never to retell it. */
   storySoFar?: string
+  /** Server-recorded checks take precedence over character or GM prose when they disagree. */
+  recordedChecks?: string[]
   /** Transcript budget in characters; older messages are dropped past it. */
   maxChars?: number
 }
@@ -58,6 +60,9 @@ export function buildRecapPrompt(input: RecapInput): string {
       : '',
     cut
       ? '(The start of this scene was cut to fit. Only its later part is shown below; do not guess at what was cut.)'
+      : '',
+    input.recordedChecks?.length
+      ? `Binding check results from this scene (use these if any prose disagrees):\n${input.recordedChecks.map((check) => `- ${check}`).join('\n')}`
       : '',
     `Scene transcript:\n${lines.join('\n')}`,
     [

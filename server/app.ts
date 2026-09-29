@@ -30,6 +30,7 @@ import { storiesRouter } from './stories.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
+import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
 import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
 
@@ -1013,13 +1014,14 @@ app.post('/api/chats/:id/roll', (req, res) => {
   const character = typeof chat.characterId === 'string' ? characterStore.get(chat.characterId) : undefined
   const world = typeof character?.worldId === 'string' ? worldStore.get(character.worldId) : undefined
   const campaign = world?.campaign as CampaignConfig | undefined
-  if (campaign?.mode !== 'mechanical') return res.status(400).json({ error: 'This chat has no mechanical campaign.' })
+  if (!campaign || modulesForWorld(world).campaignRules !== 'mechanical') return res.status(400).json({ error: 'This chat has no mechanical campaign.' })
   const move = campaign.moves.find((entry) => entry.id === moveId)
   if (!move) return res.status(400).json({ error: 'That campaign move is no longer available.' })
   const latestMessage = messageStore.list({ where: 'chatId = ?', params: [req.params.id], orderBy: 'createdAt' }).at(-1)
-  const pending = (latestMessage?.gm as { adjudication?: { source?: string; moveId?: string; target?: number } } | undefined)?.adjudication
+  const pending = (latestMessage?.gm as { adjudication?: { source?: string; moveId?: string; target?: number; action?: string } } | undefined)?.adjudication
   if (pending?.source === 'roll_needed') {
     if (pendingGmMessageId !== latestMessage?.id || pending.moveId !== moveId) return res.status(409).json({ error: 'Resolve the pending GM check before making another roll.' })
+    if (pending.action && pending.action !== action) return res.status(409).json({ error: 'The GM requested a roll for a different action.' })
     if (pending.target !== undefined && (move.target ?? target) !== pending.target) return res.status(409).json({ error: 'The GM set a different difficulty for this check.' })
   } else if (pendingGmMessageId !== undefined) return res.status(409).json({ error: 'That GM check is no longer pending.' })
   const player = typeof chat.playerCharacterId === 'string' ? characterStore.get(chat.playerCharacterId) : undefined

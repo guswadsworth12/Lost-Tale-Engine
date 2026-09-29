@@ -9,6 +9,7 @@ import {
   grantedQuestions,
   isPlayerCharacter,
   parseGmTurn,
+  recentRollsFrom,
   type GmContext,
   type RecordedMove,
 } from './gm'
@@ -79,6 +80,12 @@ describe('Game Master prompt', () => {
     expect(user).toContain('Open threads:\n- A bridge report has not been checked.')
     expect(user).toContain('Current objective: Check the bridge — speak with the ferryman')
   })
+
+  it('keeps recent engine results visible beyond the transcript window', () => {
+    const recentRolls = recentRollsFrom([{ campaignRoll: mixedRoll }, { campaignRoll: { ...mixedRoll, id: 'roll-2', tier: 'miss', outcome: 'The ward fails.' } }], 1)
+    expect(recentRolls).toEqual(['Take a Risk (miss, 8): I throw a ward over Hana. → The ward fails.'])
+    expect(buildGmPrompt(ctx({ recentRolls })).user).toContain('Earlier recorded checks in this scene (binding):')
+  })
 })
 
 describe('Game Master decision validation', () => {
@@ -94,7 +101,7 @@ describe('Game Master decision validation', () => {
     expect(missing.adjudication).toBeUndefined()
   })
 
-  it('honors the recorded roll even when the model narrates a different tier', () => {
+  it('discards fictional changes when the model narrates a different tier', () => {
     const raw = JSON.stringify({
       narration: 'The ward flares as the floor splits.',
       pacing: 'advance',
@@ -106,8 +113,9 @@ describe('Game Master decision validation', () => {
     expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', tier: 'mixed', total: 8, outcome: move.mixed, rollId: 'roll-1' })
     expect(turn.corrections?.join(' ')).toContain('recorded mixed result stands')
     expect(turn.speakerIds).toEqual(['hana', 'ivo'])
-    expect(turn.pacing).toBe('advance')
-    expect(turn.proposals).toEqual([{ id: expect.any(String), scope: 'branch', text: 'The guild hall floor is cracked open.', status: 'pending' }])
+    expect(turn.narration).toBe('')
+    expect(turn.pacing).toBe('linger')
+    expect(turn.proposals).toEqual([])
     expect(formatGmMessage(turn)).toContain('[Take a Risk: 7–9 mixed hit (8, recorded roll)]')
     expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).toContain(`Binding recorded result`)
   })
@@ -130,6 +138,18 @@ describe('Game Master decision validation', () => {
     expect(formatGmMessage(turn)).not.toContain('escapes')
   })
 
+  it('rejects a claimed mechanical tier without a named move or recorded dice', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The gate swings open.', pacing: 'advance',
+      adjudication: { tier: 'strong', outcome: 'The check succeeds.' },
+      setting: { location: 'Beyond the gate' },
+    }), ctx(), ids)
+    expect(turn.fallback).toContain('without a recorded roll')
+    expect(turn.adjudication).toBeUndefined()
+    expect(turn.setting).toBeUndefined()
+    expect(formatGmMessage(turn)).not.toContain('swings open')
+  })
+
   it('makes a recorded miss the only action result, even when the model claims success', () => {
     const miss: RecordedMove = { ...resolvePbtaRoll(move, 0, [1, 2]), id: 'roll-miss', createdAt: 2, action: 'I force the door.' }
     const raw = JSON.stringify({
@@ -149,7 +169,32 @@ describe('Game Master decision validation', () => {
     expect(publicText).toContain(move.miss)
     expect(publicText).not.toContain('door opens')
     expect(publicText).not.toContain('party escaped')
-    expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).toContain('The check failed. Apply only the recorded miss outcome')
+    expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).toContain('The check failed. Follow the recorded miss outcome')
+  })
+
+  it('lets an acknowledged miss create a failure consequence without changing its recorded result', () => {
+    const miss: RecordedMove = { ...resolvePbtaRoll(move, 0, [1, 2]), id: 'roll-miss', createdAt: 2, action: 'I force the door.' }
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The latch jams. Splinters rain down as a watch bell sounds beyond the wall.',
+      pacing: 'advance', speakers: ['Hana Pike'],
+      adjudication: { action: miss.action, move: miss.moveName, tier: 'miss', outcome: miss.outcome },
+      proposals: [{ scope: 'branch', text: 'The watch heard the attempt at the door.' }],
+    }), ctx({ recordedMove: miss }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', tier: 'miss', outcome: miss.outcome })
+    expect(turn.narration).toContain('The latch jams.')
+    expect(turn.proposals).toMatchObject([{ scope: 'branch', status: 'pending' }])
+    expect(formatGmMessage(turn)).toContain('Failed check')
+  })
+
+  it('does not accept a correct tier with an invented outcome', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The ward seals every crack.',
+      adjudication: { move: mixedRoll.moveName, tier: 'mixed', outcome: 'Clean success.' },
+      proposals: [{ scope: 'world', text: 'The hall is perfectly safe.' }],
+    }), ctx({ recordedMove: mixedRoll }), ids)
+    expect(turn.adjudication?.outcome).toBe(mixedRoll.outcome)
+    expect(turn.narration).toBe('')
+    expect(turn.proposals).toEqual([])
   })
 
   it('keeps a guided ruling labeled as judgment, never a tier', () => {
@@ -296,15 +341,41 @@ describe('questions earned by an earlier roll', () => {
     expect(grantedQuestions('Ask one useful question; the GM also reveals a complication.')).toBe(1)
     expect(grantedQuestions('Ask 3 questions from the list.')).toBe(3)
     expect(grantedQuestions('ask two good questions')).toBe(2)
+    expect(grantedQuestions('On a hit, ask the GM any two of the following questions.')).toBe(2)
     expect(grantedQuestions('You learn something troubling.')).toBe(0)
   })
 
-  it('keeps an allowance open until it is used, never for a miss, and only for recent rolls', () => {
+  it('keeps an allowance open until it is used, even after many cast replies', () => {
     const hit = rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')
     expect(earlierRollFrom([hit])).toMatchObject({ moveName: 'Read the Threads', granted: 1, remaining: 1 })
     expect(earlierRollFrom([hit, followUp()])).toBeUndefined()
     expect(earlierRollFrom([rolled('miss', 'Ask one question anyway.')])).toBeUndefined()
-    expect(earlierRollFrom([hit, ...Array.from({ length: 10 }, () => ({}) as never)])).toBeUndefined()
+    expect(earlierRollFrom([hit, ...Array.from({ length: 12 }, () => ({}) as never)])).toMatchObject({ remaining: 1 })
+  })
+
+  it('derives the allowance from the saved dice and counts each answered question', () => {
+    const roll: RecordedMove = { ...resolvePbtaRoll({ ...read, strong: 'Ask two questions; the GM answers honestly.' }, 1, [6, 5]), id: 'saved-read', createdAt: 1, action: 'I read the threads.' }
+    const branch = [{ campaignRoll: roll }, ...Array.from({ length: 12 }, () => ({}) as never)]
+    expect(earlierRollFrom(branch)).toMatchObject({ rollId: 'saved-read', granted: 2, remaining: 2 })
+    expect(earlierRollFrom([...branch, followUp('saved-read')])).toMatchObject({ remaining: 1 })
+    expect(earlierRollFrom([...branch, followUp('saved-read'), followUp('saved-read')])).toBeUndefined()
+  })
+
+  it('carries a saved strong hit through a GM ruling and two later answers', () => {
+    const readMove = { ...read, strong: 'Ask two questions; the GM answers honestly.' }
+    const saved: RecordedMove = { ...resolvePbtaRoll(readMove, 1, [6, 5]), id: 'saved-read', createdAt: 1, action: 'I read the threads.' }
+    const rolledTurn = parseGmTurn(JSON.stringify({
+      adjudication: { move: saved.moveName, tier: saved.tier, outcome: saved.outcome },
+    }), ctx({ campaign, recordedMove: saved, roster: [] }), ids)
+    const branch = [{ campaignRoll: saved }, { gm: rolledTurn }, ...Array.from({ length: 12 }, () => ({}))]
+    const first = parseGmTurn(JSON.stringify({ narration: 'The western seal was cut by hand.' }),
+      ctx({ campaign, earlierRoll: earlierRollFrom(branch), roster: [], playerAction: 'Who damaged the seal?' }), ids)
+    expect(first.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true, rollId: saved.id })
+    expect(earlierRollFrom([...branch, { gm: first }])).toMatchObject({ remaining: 1 })
+    const second = parseGmTurn(JSON.stringify({ narration: 'Fresh ink traces point to the archive.' }),
+      ctx({ campaign, earlierRoll: earlierRollFrom([...branch, { gm: first }]), roster: [], playerAction: 'Where did they go next?' }), ids)
+    expect(second.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true, rollId: saved.id })
+    expect(earlierRollFrom([...branch, { gm: first }, { gm: second }])).toBeUndefined()
   })
 
   it('answers the earned question without new dice when the GM marks it as a follow-up', () => {
@@ -324,6 +395,26 @@ describe('questions earned by an earlier roll', () => {
     }), ctx({ campaign, earlierRoll, roster: [] }), ids)
     expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true })
     expect(turn.corrections?.join(' ')).toContain('Answered from the earlier Read the Threads roll')
+  })
+
+  it('uses an earned question when the GM asks for another roll of the same move', () => {
+    const earlierRoll = earlierRollFrom([rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')])
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The marks point to physical tampering.',
+      adjudication: { move: 'Read the Threads', tier: null, outcome: 'Roll Read the Threads to resolve this.' },
+    }), ctx({ campaign, earlierRoll, roster: [], playerAction: 'Was the ward damaged by magic?' }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', followUp: true, rollId: 'r1', outcome: 'The marks point to physical tampering.' })
+    expect(turn.narration).toBe('')
+    expect(turn.adjudication?.source).not.toBe('roll_needed')
+  })
+
+  it('does not consume an earned question when the GM fails to answer it', () => {
+    const earlierRoll = earlierRollFrom([rolled('mixed', 'Ask one useful question; the GM also reveals a complication.')])
+    const turn = parseGmTurn(JSON.stringify({
+      adjudication: { move: 'Read the Threads', tier: null, outcome: 'Roll Read the Threads to resolve this.' },
+    }), ctx({ campaign, earlierRoll, roster: [], playerAction: 'Was the ward damaged by magic?' }), ids)
+    expect(turn.fallback).toContain('did not answer a question earned')
+    expect(turn.adjudication).toBeUndefined()
   })
 
   it('still asks for a roll when no earlier result covers the question', () => {

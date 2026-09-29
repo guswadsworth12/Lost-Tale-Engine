@@ -1,90 +1,45 @@
-# Lost Tales Engine: campaign engine direction
+# Campaign engine
 
-## What works today
+Lost Tales Engine combines ordered prompts, character agents, a Game Master, and optional recorded checks. The world chooses which modules are enabled; dating and relationship systems are optional. This page describes the current `campaign-engine` branch, including the limits of its rules support.
 
-- **Campaigns.** Create a world, open **Campaign**, and load the starter PbtA moves or import a campaign file (**Import / Export campaign file** moves a world's rules between installs). Each world switches between guided and 2d6 mechanical outcomes. Dating and relationship scoring are optional and off by default for campaigns.
-- **Ordered prompts.** Worlds and characters carry ordered, enabled prompt items. The TavernAI 2 card importer reads a card's prompt tree in order; unsupported activation/replacement rules and executable macros are imported disabled for review, never executed. `{{this_card}}` is substituted with the character's name.
-- **Character agents.** In a group chat each speaker's request carries only their own card prompts, private lore, and private memory; everyone else appears by name and through the public transcript. A hosted model can be overridden per character on the configured provider.
-- **Game Master.** Choose the **Game Master** turn policy in the Scene panel. After each player turn the GM (`src/lib/world/gm.ts`) adjudicates the declared action in the campaign's mode, narrates the observable result, sets pacing, picks up to three characters to act in order, and proposes lasting changes. The engine validates the GM's decision: a recorded roll is binding whatever the model says, guided rulings are labelled as judgment, mechanical mode without dice can only ask for a roll, and the player's own character is never handed to an agent or spoken for. The GM sees public context only. Its turn is stored on its own message, so confirmed branch consequences follow forks and disappear on rewind; confirmed world proposals become shared canon.
-- **Recorded moves.** **Resolve a campaign move** rolls 2d6 + modifier and stores the result on the player's turn; under the GM it is the binding ruling for that beat.
-- **Scenery.** The map-pin toolbar button (and the location chip on the VN stage) picks a world background, uploads a new one with an optional night image, and forces day/night or follows the world clock. A picked place is pinned: model scene tags cannot move it until **Follow the story** is chosen. The choice is saved on the branch's latest message, so rewinding past it restores the earlier choice. The GM and characters are told the current scenery.
-- **Sprite libraries.** `npx tsx scripts/import-sprite-library.ts <folder>` imports a `<character>/<outfit>/<Expression>.png` library into a running server: folders match characters by name or first name (`--map folder="Name"` overrides), `default` is the base outfit, other folders become outfits named after the folder, unknown expression names become custom expressions, and unmatched folders fail the run instead of being skipped. Re-runs only upload changed art; the library is only read.
-- **VRM models.** A character can use a `.vrm` in Visual Novel mode (character editor → 3D model, by upload or from `data/avatars/vrm-library/`). The model shows the scene's expression, blinks, and moves its mouth while that character's reply streams; the 2D sprite is the fallback while loading or on failure. `node scripts/make-test-vrm.mjs out.vrm` writes a small self-made test model.
-- **Scenery sets.** Each world picks its built-in places in World editor → Scenes: **Adventure** (guild halls, taverns, roads, ruins, wilds; the default for story and campaign worlds), **Modern school** (the dating-sim set), or **My places only**. A world's own uploaded places are always offered.
-- **Play as any character.** A persona can be linked to a character (Personas, the new-chat dialog's "You play as", or the Scene panel mid-story). Name and portrait follow the card; other characters only see the persona's public description, never that character's private prompts or memory.
-- **LuxTTS voices.** Settings → Voice → LuxTTS relays speech through this app's server to a LuxTTS voice-cloning server (`LUXTTS_URL`/`LUXTTS_TOKEN` in `.env`). Voice samples (WAV) live in the data folder; each character can have its own sample and speed on its Voice tab. VN mode speaks each line in the active speaker's voice and GM narration in the narrator voice.
-- **Your data.** Characters, chats, worlds, and art live in `data/` (git-ignored), or anywhere you point `LOST_TALES_DATA_DIR` at in a git-ignored `.env` (see `.env.example`).
+## Set up a campaign
 
-Current limits: guided mode is story guidance, not rules enforcement. PbtA modifiers are entered by hand rather than read from a character sheet. The GM uses the globally configured model. World canon requires player confirmation and is shared across chats, while branch consequences stay on their branch.
+Create or edit a world in **Worlds**. Its **Overview** selects modules for campaign rules, relationships, dating, Visual Novel presentation, and world simulation. **Story Rules** sets a ruleset name, guided or mechanical resolution, a check resolver, sheet fields, moves, optional fixed targets, and a rank ladder. A campaign file can be imported or exported between installs.
 
-## Roadmap
+Available presets are starter PbtA-style 2d6 moves, D&D 5e SRD 5.2.1 core checks, Starfinder 2e core checks, Fate Core skill checks, and generic 3d6 roll-under checks. They provide editable fields and core check resolution. They do not bundle complete published rulebooks, combat, classes, spells, or resource systems. You can name any custom ruleset and use it in guided mode.
 
-- Character sheets with automatic PbtA modifiers.
-- Mechanical adapters for Fate, D&D, and Starfinder, one at a time, each checked for rules content and attribution for its version. Until then they are guided only.
-- Separate provider credentials per character (and for the GM).
-- Structured character beliefs separate from campaign facts (hearing a rumor doesn't make it true).
+In **Cast → Sheet**, assign stats and a rank to a character for a world. A character can keep multiple world-specific sheets; changing the active world does not overwrite the others. A move reads its linked sheet field. If a character has no sheet, the player can enter the modifier for that check. If the character has sheets but none for this story's world, the player must add the matching sheet before rolling.
 
-Lost Tales Engine is forked from RP Suite, which is its UI and storage starting point. The core runtime is a storytelling
-engine: scenes, characters, rules, and persistent consequences. Relationship
-and dating mechanics remain available as optional campaign features, rather
-than determining every campaign's structure or outcome logic.
+## Resolution and the GM
 
-## Campaign contract
+Choose the **Game Master** turn policy in the scene. The GM judges declared actions, narrates public results, sets pacing, and selects which non-player characters act next. It sees public context, not another character's private prompts or memory, and it does not speak for the player character.
 
-A world may define a campaign with a ruleset name and version, a resolver mode,
-ordered prompt items, and enabled feature modules (including relationships and
-dating). Each campaign chooses either:
+- **Guided mode:** the ruleset informs GM judgment. The result is labeled as judgment; no die roll or mechanical tier is claimed.
+- **Mechanical mode:** the player resolves a move. The server rolls and stores the dice, sheet-derived value or entered modifier, target, and outcome on the player's turn before GM narration. A recorded miss binds the GM: model text cannot convert it into success. Without a recorded roll, the GM can only ask for one, not claim a mechanical result.
 
-- **Guided:** the selected ruleset informs tone, available actions, and likely
-  consequences. The player or GM confirms lasting changes.
-- **Mechanical:** a rules adapter resolves declared actions using persisted
-  sheets, resources, and dice. The model describes the recorded result.
+The rank ladder gives the GM context for what should be routine, uncertain, or out of reach at a character's standing. Rank guidance is not a replacement for a recorded check. The GM can propose lasting world facts, which require player confirmation; confirmed facts become shared canon. Branch consequences belong to their scene history, so rewinding or forking does not carry later branch events backward.
 
-The interface must show which mode is active and the source of every resolved
-outcome. A custom ruleset can use guided mode without a code adapter.
+## Prompts and characters
 
-## Prompt assembly
+Worlds and characters store ordered, enabled prompt items. The TavernAI 2 card importer retains the prompt tree's order. Unsupported activation or replacement rules and executable macros are imported disabled for review. Imported text is story data, not instructions to the engine. The Prompt Inspector shows the assembled request.
 
-Build an ordered prompt from global, world, scene, active character, and current
-turn items. Every item has a name, enabled state, role, text, and optional
-activation condition. Show the exact assembled request before generation.
-Only the active speaker's full identity and private memories enter that
-speaker's prompt; other participants contribute public information.
+In a group scene, each speaking character receives its own card prompts, private lore, and private memory. Other participants contribute their names and public transcript only. A character can override the configured hosted model on the same provider. The GM uses the configured global model.
 
-Import TavernAI 2 card prompt items as separate items in their exported tree
-order. Preserve original names and text. Unsupported replace rules, macros,
-and scripts must remain visible as disabled import items for review rather than
-silently executing or flattening them. Imported cards and documents are story
-data, never instructions for the engine or its developers.
+## Related play features
 
-## Character agents
+Stories contain numbered scenes. Ending a scene records a recap and opens the next; a separate playable Chapter layer is not yet stored. Scene scenery can be chosen from a world's places or uploaded art, with day and night variants. A pinned location stays until **Follow the story** returns control to story tags. Its choice follows branch history.
 
-Each character has a prompt profile, model/provider override (with global
-fallback), private knowledge, goals, and memory. A director selects the next
-speaker. Characters generate sequentially against the current world revision.
-The GM resolves actions and world changes separately from character speech.
+Visual Novel play uses character sprites, expressions, outfits, and optional VRM models. Stage controls are in a collapsible side rail. The adjustable desktop stage area supports moving characters; mobile emphasizes the current speaker. World clock and dating controls appear only when their modules are enabled.
 
-## Persistent state
+The separate **Writer's Room** can search saved worlds, cast, lore, stories, goals, and facts locally for relevant context. Its guided builder creates a new world, cast, rules, and first scene from a reviewed draft. It can prepare a reviewed update to an existing character and sheet. It does not yet offer the same conversational edit flow for existing worlds or lore.
 
-Keep campaign facts and an append-only event log. Record which branch an event
-belongs to so a swipe, rewind, or chat fork restores its own state. Track
-character beliefs separately from campaign facts: hearing a rumor does not make
-it true, and one character learning a secret does not teach the whole cast.
-Only validated engine actions update dice, resources, or canonical world facts.
+## Current limits and next work
 
-## First playable acceptance
+- The mechanical presets cover core checks. Hit points, spell slots, combat turns, and other system-specific resources are not enforced.
+- Guided mode is narrative guidance, including when a named ruleset has no mechanical adapter.
+- Player confirmation is required for new shared world canon. Branch consequences remain on their branch.
+- The GM uses the global model; separate GM provider credentials are not available.
+- Structured character beliefs separate from campaign facts remain future work. Hearing a rumor should not automatically make it world truth.
+- Playable Chapters and conversational updates to existing worlds and lore remain future work.
 
-1. Import a TavernAI 2 card's ordered prompt items and edit/reorder/enable them in the UI.
-2. Create a world in guided mode with custom rules text; preview the
-   assembled prompt and chat with the character through the RP interface.
-3. Put two characters in one scene; only the selected speaker's
-   private prompt and knowledge appear in that speaker's request.
-4. Switch a campaign to the first mechanical adapter, a configurable PbtA move
-   resolver, roll and record one action, and
-   narrate its stored outcome. An unsupported ruleset cannot claim a faithful
-   mechanical resolution.
-5. Fork or rewind a scene and verify that later world events do not leak into
-   the earlier branch.
-
-After this slice, add versioned Fate, D&D, and Starfinder adapters one at a
-time. Their rules content and attribution must be checked for each version.
+Personal worlds, characters, stories, and art live in the git-ignored `data/` folder or under `LOST_TALES_DATA_DIR`. Back up that folder separately from the source repository.

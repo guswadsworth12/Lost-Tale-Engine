@@ -30,6 +30,7 @@ import {
   gmDirectionFor,
   isPlayerCharacter,
   parseGmTurn,
+  recentRollsFrom,
   fallbackGmTurn,
   type GmContext,
   type GmTurn,
@@ -684,6 +685,7 @@ export function useChatSession(chatId: string | null) {
       const branchMessages = await messagesApi.listByChat(freshChat.id)
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
+      const recentRolls = modules.campaignRules === 'mechanical' ? recentRollsFrom(branchMessages) : []
       // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`), not the chat's opening value.
       const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       const worldMomentLines = [
@@ -717,6 +719,7 @@ export function useChatSession(chatId: string | null) {
         sceneSetting.atmosphere ? `Scene atmosphere: ${sceneSetting.atmosphere}` : '',
         pinnedSceneryGuidance(currentScenery(branchMessages, freshChat.scene), world),
         branchConsequences.length ? `Established in this story so far:\n${branchConsequences.map((c) => `- ${c}`).join('\n')}` : '',
+        recentRolls.length ? `Recorded checks in this scene (binding):\n${recentRolls.map((roll) => `- ${roll}`).join('\n')}` : '',
       ].filter(Boolean)
       const worldDescription = worldDescriptionLines.length > 0 ? worldDescriptionLines.join('\n') : undefined
       const worldMoment = worldMomentLines.length > 0 ? worldMomentLines.join('\n') : undefined
@@ -2401,6 +2404,7 @@ export function useChatSession(chatId: string | null) {
       castNames: [character, ...participantCharacters].map((c) => c.card.name),
       location: sceneSettingFrom(branch, chat.scene, (id) => backgroundLabel(id, world)).location,
       storySoFar: [earlier, chat.summary].filter(Boolean).join('\n\n') || undefined,
+      recordedChecks: recentRollsFrom(branch, 8),
       generate: (prompt) =>
         generateWithTimeout(
           client,
@@ -3145,6 +3149,8 @@ export function useChatSession(chatId: string | null) {
   const decideGmTurn = useCallback(
     async (branch: StoredMessage[], playerMsg: StoredMessage): Promise<GmTurn | null> => {
       if (!world?.campaign || !character || !chatId) return null
+      const rulesMode = modulesForWorld(world).campaignRules
+      if (!rulesMode) return null
       const freshChat = (await chatsApi.get(chatId)) ?? chat
       const playerName = persona?.name || 'You'
       // The Game Master narrates the whole story, so it hears every earlier scene's recap.
@@ -3164,7 +3170,7 @@ export function useChatSession(chatId: string | null) {
       const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
       const night = sceneryIsNight(scenery, isNightPhase(world.currentPhaseIndex))
       const ctx: GmContext = {
-        campaign: world.campaign,
+        campaign: { ...world.campaign, mode: rulesMode },
         worldName: world.name,
         worldDescription: world.description,
         worldRules: world.rules,
@@ -3177,6 +3183,7 @@ export function useChatSession(chatId: string | null) {
           : undefined,
         canonFacts: (world.canonFacts ?? []).map((f) => f.text),
         branchConsequences: [...(freshChat?.carriedConsequences ?? []), ...branchConsequencesFrom(upTo)],
+        recentRolls: recentRollsFrom(upTo.slice(0, -1)),
         scenery: describeScenery(scenery, scenery?.backgroundId ?? lastTagged ?? world.defaultBackgroundId, world, night),
         ...(() => {
           const setting = sceneSettingFrom(upTo, freshChat?.scene, (id) => backgroundLabel(id, world))
@@ -3204,23 +3211,25 @@ export function useChatSession(chatId: string | null) {
       }
       const { system, user } = buildGmPrompt(ctx)
       try {
-        const raw = await generateWithTimeout(
-          client,
-          {
+        const maxContext = await client.getEffectiveMaxContext(8192)
+        const requestRuling = (extra = '') => {
+          const promptUser = extra ? `${user}\n\n${extra}` : user
+          return generateWithTimeout(client, {
             max_length: 700,
-            max_context_length: await client.getEffectiveMaxContext(8192),
+            max_context_length: maxContext,
             temperature: 0.7,
             top_p: 0.95,
             rep_pen: 1.05,
             jsonOutput: true,
-            prompt: `${system}\n\n${user}`,
-            messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-          },
-          'Game Master',
-          abortRef.current?.signal,
-          assistShaping,
-        )
-        return parseGmTurn(raw, ctx)
+            prompt: `${system}\n\n${promptUser}`,
+            messages: [{ role: 'system', content: system }, { role: 'user', content: promptUser }],
+          }, 'Game Master', abortRef.current?.signal, assistShaping)
+        }
+        let turn = parseGmTurn(await requestRuling(), ctx)
+        if (turn.fallback?.startsWith('The GM did not answer a question earned by')) {
+          turn = parseGmTurn(await requestRuling(`Correction: ${playerName}'s question is already paid for by the recorded ${ctx.earlierRoll?.moveName} result. Answer it directly in adjudication.outcome, set followUp true, and do not request another roll.`), ctx)
+        }
+        return turn
       } catch (e) {
         return fallbackGmTurn(ctx, `GM model call failed: ${errorMessage(e)}`)
       }
@@ -3602,7 +3611,7 @@ export function useChatSession(chatId: string | null) {
         const turnPolicy = freshChat.scene?.turnPolicy ?? 'manual'
         // Withdrawal cancels an unresolved declaration without asking the GM to adjudicate it.
         if (opts?.withdrawCheck) return
-        if (world?.campaign && turnPolicy === 'gm') {
+        if (world?.campaign && modulesForWorld(world).campaignRules && turnPolicy === 'gm') {
           await runGmBeat(userMsg, now + 1)
           return
         }

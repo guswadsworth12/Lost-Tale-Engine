@@ -120,6 +120,13 @@ describe('buildRecapPrompt', () => {
     expect(prompt.indexOf('guildhall')).toBeLessThan(prompt.indexOf('Scene transcript:'))
   })
 
+  it('puts binding check results ahead of the transcript', () => {
+    const prompt = buildRecapPrompt({ ...base, recordedChecks: ['Force the gate (miss, 3): Ada tries → The gate stays shut.'] })
+    expect(prompt).toContain('Binding check results from this scene')
+    expect(prompt).toContain('The gate stays shut.')
+    expect(prompt.indexOf('Binding check results')).toBeLessThan(prompt.indexOf('Scene transcript:'))
+  })
+
   it('omits the story-so-far block when empty', () => {
     expect(buildRecapPrompt({ ...base, storySoFar: '  ' })).not.toMatch(/story so far/i)
   })

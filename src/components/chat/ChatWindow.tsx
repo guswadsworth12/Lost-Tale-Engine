@@ -81,7 +81,7 @@ import { GmActionsContext } from './GmTurnCard'
 import { currentScenery } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
-import { GM_NAME, GM_SPEAKER_ID, branchConsequencesFrom } from '@/lib/world/gm'
+import { GM_NAME, GM_SPEAKER_ID, branchConsequencesFrom, earlierRollFrom } from '@/lib/world/gm'
 import { ContextMeter } from '@/components/story/ContextMeter'
 import { EndSceneDialog, type EndSceneConfirmInput } from '@/components/story/EndSceneDialog'
 import { EndedSceneBanner } from '@/components/story/EndedSceneBanner'
@@ -468,6 +468,7 @@ export function ChatWindow({
   const pendingGmMessageId = pendingGmAdjudication?.source === 'roll_needed' ? lastMessage.id : undefined
   const pendingRollMessageId = lastMessage?.campaignRoll ? lastMessage.id : undefined
   const pendingRulingMessageId = lastMessage?.gm?.mode === 'mechanical' && lastMessage.gm.fallback && !lastMessage.gm.adjudication ? lastMessage.id : undefined
+  const earnedQuestions = modules.campaignRules === 'mechanical' && chat.scene?.turnPolicy === 'gm' ? earlierRollFrom(messages) : undefined
   const gmActions = {
     decideProposal: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') =>
       void decideGmProposal(messageId, proposalId, decision).catch((e) => toastError(errorMessage(e))),
@@ -784,7 +785,7 @@ export function ChatWindow({
       onChangeReplyAs={(id) => setReplyAsCharacterId(id === character?.id ? null : id)}
       turnPolicyHint={turnPolicyHint}
       intentRequired={!!pendingGmMessageId || !!pendingRollMessageId || !!pendingRulingMessageId}
-      intentSlot={(pendingGmMessageId || pendingRollMessageId || pendingRulingMessageId || showIntentChips || (modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length)) ? <div className="flex flex-wrap items-center gap-2">
+      intentSlot={(pendingGmMessageId || pendingRollMessageId || pendingRulingMessageId || earnedQuestions || showIntentChips || (modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length)) ? <div className="flex flex-wrap items-center gap-2">
         {pendingGmMessageId && pendingGmAdjudication?.moveId ? <>
           <button type="button" disabled={isGenerating} onClick={() => gmActions.rollForCheck(pendingGmMessageId, pendingGmAdjudication.moveId!, pendingGmAdjudication.action)} className="inline-flex items-center gap-1.5 rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 disabled:opacity-50"><Dices size={14} />Roll {pendingGmAdjudication.moveName}</button>
           <button type="button" disabled={isGenerating} onClick={() => sendUserMessage('I withdraw my previous action before rolling.', [], { withdrawCheck: true })} className="rounded-lg px-2.5 py-1.5 text-xs text-text-muted hover:bg-bg-sunken disabled:opacity-50">Withdraw action</button>
@@ -792,6 +793,7 @@ export function ChatWindow({
           <button type="button" disabled={isGenerating} onClick={() => void regenerate(pendingRulingMessageId).catch((error) => toastError(errorMessage(error)))} className="rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-warning hover:bg-warning/25 disabled:opacity-50">Retry Game Master</button>
           <button type="button" disabled={isGenerating} onClick={() => sendUserMessage('I withdraw my previous action.', [], { withdrawCheck: true })} className="rounded-lg px-2.5 py-1.5 text-xs text-text-muted hover:bg-bg-sunken disabled:opacity-50">Withdraw action</button>
         </> : <>
+          {earnedQuestions && <button type="button" onClick={() => setDraft((current) => current.trim() ? current : `Question from ${earnedQuestions.moveName}: `)} className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-2.5 py-1.5 text-xs text-text hover:bg-bg-sunken">Ask earned question ({earnedQuestions.remaining} left)</button>}
           {showIntentChips && <IntentChips variant={variant} stats={intentStats} armed={armedIntent} onArm={setArmedIntent} />}
           {modules.campaignRules === 'mechanical' && !!world?.campaign?.moves?.length && <button type="button" onClick={() => { setPendingCheck(null); setShowCampaignMove(true) }} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-text hover:bg-bg-sunken"><Dices size={14} />Make a move / roll</button>}
         </>}

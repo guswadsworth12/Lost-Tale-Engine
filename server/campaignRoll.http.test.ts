@@ -96,6 +96,9 @@ describe('server-owned roll HTTP API', () => {
     expect(sheetRoll.body.campaignRoll).toMatchObject({ modifierSource: 'sheet', sheetStatId: 'nerve' })
     expect(sheetRoll.body.campaignRoll.total).toBe(sheetRoll.body.campaignRoll.dice[0] + sheetRoll.body.campaignRoll.dice[1] + 2)
     expect((await call(route, 'POST', sheetRequest)).body).toEqual(sheetRoll.body)
+
+    expect((await call(`/api/worlds/${world.body.id}`, 'PUT', { modules: { campaignRules: false } })).status).toBe(200)
+    expect((await call(route, 'POST', { ...sheetRequest, messageId: 'disabled-roll' })).status).toBe(400)
   })
 
   it('uses a portable d20 sheet and records an actual failed DC check', async () => {
@@ -117,11 +120,12 @@ describe('server-owned roll HTTP API', () => {
 
     const pendingId = 'd20-gm-check'
     const gm = await call('/api/messages', 'POST', { id: pendingId, chatId: chat.body.id, role: 'assistant', text: 'A check is required.', createdAt: Date.now(),
-      gm: { adjudication: { source: 'roll_needed', moveId: campaign.moves[0].id, target: 20 } } })
+      gm: { adjudication: { source: 'roll_needed', moveId: campaign.moves[0].id, target: 20, action: request.action } } })
     expect(gm.status).toBe(201)
     const gmRequest = { ...request, messageId: 'd20-gm-roll', target: 20, pendingGmMessageId: pendingId }
     expect((await call(route, 'POST', { ...gmRequest, pendingGmMessageId: undefined })).status).toBe(409)
     expect((await call(route, 'POST', { ...gmRequest, target: 10 })).status).toBe(409)
+    expect((await call(route, 'POST', { ...gmRequest, action: 'An easier action' })).status).toBe(409)
     const gmRoll = await call(route, 'POST', gmRequest)
     expect(gmRoll.status).toBe(201)
     expect(gmRoll.body.campaignRoll).toMatchObject({ target: 20, pendingGmMessageId: pendingId })
