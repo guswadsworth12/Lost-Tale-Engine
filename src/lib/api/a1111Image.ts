@@ -1,5 +1,6 @@
 import { KoboldApiError } from './types'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
+import { relayFetch, type RelayInit } from './relay'
 
 /**
  * Automatic1111's `stable-diffusion-webui` (and forks like Forge/reForge that keep the same API
@@ -13,7 +14,8 @@ export class A1111Client implements ImageBackend {
     private baseUrl: string,
     /** A1111's own optional `--api-auth user:pass` flag — HTTP Basic, not an API key. */
     private username?: string,
-    private password?: string,
+    /** Whether the password (`imageBackendPassword`) is saved. The server's relay builds the Basic header; the browser never holds the password. */
+    private passwordSaved = false,
   ) {}
 
   private url(path: string): string {
@@ -21,17 +23,20 @@ export class A1111Client implements ImageBackend {
   }
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (this.username) h.Authorization = 'Basic ' + btoa(`${this.username}:${this.password ?? ''}`)
-    return h
+    return { 'Content-Type': 'application/json' }
+  }
+
+  private credential(): Pick<RelayInit, 'secret' | 'auth' | 'username'> {
+    return this.username && this.passwordSaved ? { secret: 'imageBackendPassword', auth: 'basic', username: this.username } : {}
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
     let res: Response
     try {
-      res = await fetch(this.url('/sdapi/v1/txt2img'), {
+      res = await relayFetch(this.url('/sdapi/v1/txt2img'), {
         method: 'POST',
         headers: this.headers(),
+        ...this.credential(),
         signal,
         body: JSON.stringify({
           prompt: params.prompt,
@@ -66,7 +71,7 @@ export class A1111Client implements ImageBackend {
 
   async listModels(): Promise<string[]> {
     try {
-      const res = await fetch(this.url('/sdapi/v1/sd-models'), { headers: this.headers() })
+      const res = await relayFetch(this.url('/sdapi/v1/sd-models'), { headers: this.headers(), ...this.credential() })
       if (!res.ok) return []
       const data = (await res.json()) as { title?: string; model_name?: string }[]
       return data.map((m) => m.title ?? m.model_name ?? '').filter(Boolean)

@@ -158,7 +158,55 @@ db.exec(`
     data TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
+
+  -- Accounts (\`server/auth.ts\`). Security state, never part of a backup or a restore.
+  -- usernameKey / emailKey are the lowercased username and (optional) email, so both are unique
+  -- regardless of case; the display spellings ride in the JSON blob.
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    usernameKey TEXT NOT NULL UNIQUE,
+    emailKey TEXT,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_users_createdAt ON users(createdAt);
+
+  -- A signed-in browser. id is the SHA-256 of the cookie's token, so the database never holds a
+  -- usable token.
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    createdAt INTEGER NOT NULL,
+    expiresAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
+  CREATE INDEX IF NOT EXISTS idx_sessions_expiresAt ON sessions(expiresAt);
+
+  -- A user's encrypted credentials (\`server/vault.ts\`).
+  CREATE TABLE IF NOT EXISTS user_secrets (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_secrets_userId ON user_secrets(userId);
+
+  -- A user's preferences; id is the user's id.
+  CREATE TABLE IF NOT EXISTS user_settings (
+    id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
 `)
+
+// Accounts tables made before sign-in by email existed lack users.emailKey.
+if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'emailKey')) {
+  db.exec('ALTER TABLE users ADD COLUMN emailKey TEXT')
+}
+// Unique where set; SQLite lets any number of rows leave it NULL.
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailKey ON users(emailKey)')
 
 type Row = Record<string, unknown>
 
@@ -278,6 +326,11 @@ export const relationshipEventStore = createStore('relationship_events', [{ name
 export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
+// Accounts: security state, deliberately left out of BACKUP_STORES in app.ts.
+export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 'emailKey' }, { name: 'createdAt' }])
+export const sessionStore = createStore('sessions', [{ name: 'userId' }, { name: 'createdAt' }, { name: 'expiresAt' }])
+export const userSecretStore = createStore('user_secrets', [{ name: 'userId' }, { name: 'name' }, { name: 'createdAt' }])
+export const userSettingsStore = createStore('user_settings', [{ name: 'createdAt' }])
 
 export function newId(): string {
   return crypto.randomUUID()

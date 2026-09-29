@@ -18,6 +18,7 @@ import type {
 import type { AssistantThread } from '@/lib/assistant/thread'
 import type { LocalSource } from '@/lib/assistant/localSources'
 import { toastError, toastSuccess, useToastStore } from '@/lib/store/useToastStore'
+import { useAuthStore } from '@/lib/accounts/useAuthStore'
 
 // The local API server runs on the same machine, but a wedged Node process (or a very large
 // backup/restore payload) shouldn't be able to hang a call forever with no way out.
@@ -85,6 +86,8 @@ async function request<T>(
     clearTimeout(timeout)
   }
   reportReachable()
+  // The session is gone (expired, signed out elsewhere, or never existed): show the sign-in screen.
+  if (res.status === 401 && !path.startsWith('/auth/')) useAuthStore.getState().signedOut()
   if (res.status === 404 && opts?.notFoundIsUndefined) return undefined as T
   if (!res.ok) {
     const text = await res.text().catch(() => '')

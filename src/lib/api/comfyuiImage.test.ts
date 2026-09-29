@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ComfyUIClient } from './comfyuiImage'
 import { KoboldApiError } from './types'
 import type { ImageGenerateParams } from './imageBackend'
+import { stubRelayedFetch } from './relayTestUtils'
 
 const BASE_PARAMS: ImageGenerateParams = { prompt: 'a cat', negativePrompt: 'blurry', width: 512, height: 768, steps: 20, cfgScale: 7 }
 
@@ -39,7 +40,7 @@ describe('ComfyUIClient', () => {
       }
       throw new Error(`unexpected url ${url}`)
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
     const result = await new ComfyUIClient('http://127.0.0.1:8188').generateImage(BASE_PARAMS)
     expect(result.base64.length).toBeGreaterThan(0)
@@ -47,7 +48,7 @@ describe('ComfyUIClient', () => {
   })
 
   it('throws a KoboldApiError when the server rejects the workflow', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(400, { error: 'invalid workflow' })))
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(400, { error: 'invalid workflow' })))
     await expect(new ComfyUIClient('http://127.0.0.1:8188').generateImage(BASE_PARAMS)).rejects.toThrow(KoboldApiError)
   })
 
@@ -57,7 +58,7 @@ describe('ComfyUIClient', () => {
       if (url.endsWith('/prompt')) return jsonResponse(200, { prompt_id: 'x' })
       throw new Error('should not poll after abort')
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     const promise = new ComfyUIClient('http://127.0.0.1:8188').generateImage(BASE_PARAMS, controller.signal)
     controller.abort()
     await expect(promise).rejects.toThrow()
@@ -72,7 +73,7 @@ describe('ComfyUIClient', () => {
   })
 
   it('listModels degrades to [] when the server is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network error')))
+    stubRelayedFetch(vi.fn().mockRejectedValue(new TypeError('network error')))
     expect(await new ComfyUIClient('http://127.0.0.1:8188').listModels()).toEqual([])
   })
 })

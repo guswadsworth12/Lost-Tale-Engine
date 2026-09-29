@@ -6,6 +6,7 @@ import { createChatBackend } from '@/lib/api/createChatBackend'
 import { evaluateOutreach, generateOutreachMessage } from '@/lib/dating/outreach'
 import { resolveInstructTemplate } from '@/lib/prompt/instructTemplates'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { loadSecretFlags } from '@/lib/accounts/secrets'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat, WorldCard } from '@/lib/types'
 
@@ -59,8 +60,8 @@ async function runTick(baseUrl: string) {
     baseUrl,
     chatBackend: backendSettings.chatBackend,
     chatBackendBaseUrl: backendSettings.chatBackendBaseUrl,
-    chatBackendApiKey: backendSettings.chatBackendApiKey,
     chatBackendModel: backendSettings.chatBackendModel,
+    secrets: await loadSecretFlags(),
   })
   const worldsById = new Map<string, WorldCard | undefined>()
   const customTemplates = await instructTemplatesApi.list().catch(() => [])

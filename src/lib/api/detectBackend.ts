@@ -3,6 +3,7 @@
 // can take one address and wire the right backend without asking which protocol it is.
 
 import { hasAvailableOpenMayhemProvider, isOpenMayhem, loadOpenMayhemModels } from './openMayhem'
+import { relayFetch } from './relay'
 
 const PROBE_TIMEOUT_MS = 3500
 
@@ -18,13 +19,15 @@ export interface DetectedBackend {
 
 const strip = (u: string) => u.trim().replace(/\/+$/, '')
 
-async function getJson(url: string, apiKey?: string): Promise<unknown | null> {
+/** `keySaved`: attach the saved chat key (bearer) through the relay. The browser never holds it. */
+async function getJson(url: string, keySaved?: boolean): Promise<unknown | null> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS)
   try {
-    const res = await fetch(url, {
+    const res = await relayFetch(url, {
       signal: ctrl.signal,
-      headers: { Accept: 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+      headers: { Accept: 'application/json' },
+      ...(keySaved ? { secret: 'chatBackendApiKey' as const, auth: 'bearer' as const } : {}),
     })
     if (!res.ok) return null
     return await res.json()
@@ -54,12 +57,12 @@ function openAiCandidates(base: string): string[] {
  * lowest common denominator — and Kobold also serves an OpenAI shim, so an OpenAI-first check
  * would misroute it. Returns null if nothing recognisable answers.
  */
-export async function detectLocalBackend(url: string, apiKey?: string): Promise<DetectedBackend | null> {
+export async function detectLocalBackend(url: string, keySaved?: boolean): Promise<DetectedBackend | null> {
   const base = strip(url)
   if (!base) return null
 
   for (const koboldRoot of [base, base.replace(/\/v\d+$/, '')]) {
-    const body = await getJson(`${koboldRoot}/api/v1/model`, apiKey)
+    const body = await getJson(`${koboldRoot}/api/v1/model`, keySaved)
     const result = (body as { result?: unknown })?.result
     if (typeof result === 'string' && result) {
       return { kind: 'koboldcpp', baseUrl: koboldRoot, model: result }
@@ -67,7 +70,7 @@ export async function detectLocalBackend(url: string, apiKey?: string): Promise<
   }
 
   for (const root of openAiCandidates(base)) {
-    const ids = modelIdsFrom(await getJson(`${root}/models`, apiKey))
+    const ids = modelIdsFrom(await getJson(`${root}/models`, keySaved))
     if (ids) return { kind: 'openai-compatible', baseUrl: root, models: ids }
   }
 
@@ -75,13 +78,13 @@ export async function detectLocalBackend(url: string, apiKey?: string): Promise<
 }
 
 /** `GET {baseUrl}/models` → model ids, or null if it didn't answer usably. Empty array = answered, no models listed. */
-export async function listOpenAiModels(baseUrl: string, apiKey?: string): Promise<string[] | null> {
+export async function listOpenAiModels(baseUrl: string, keySaved?: boolean): Promise<string[] | null> {
   if (isOpenMayhem(baseUrl)) {
     try { return (await loadOpenMayhemModels(true)).filter(hasAvailableOpenMayhemProvider).map((m) => m.id) } catch { return null }
   }
   const root = strip(baseUrl)
   if (!root) return null
-  return modelIdsFrom(await getJson(`${root}/models`, apiKey))
+  return modelIdsFrom(await getJson(`${root}/models`, keySaved))
 }
 
 /**
@@ -89,13 +92,13 @@ export async function listOpenAiModels(baseUrl: string, apiKey?: string): Promis
  * `context_length`, vLLM/llama.cpp return `max_model_len`, some return `context_window`. Null
  * when `/models` didn't answer or carried no size for that id — the caller keeps its own default.
  */
-export async function fetchOpenAiModelContext(baseUrl: string, model: string, apiKey?: string): Promise<number | null> {
+export async function fetchOpenAiModelContext(baseUrl: string, model: string, keySaved?: boolean): Promise<number | null> {
   if (isOpenMayhem(baseUrl)) {
     try { return (await loadOpenMayhemModels()).find((m) => m.id === model)?.context_length ?? null } catch { return null }
   }
   const root = strip(baseUrl)
   if (!root || !model) return null
-  const body = await getJson(`${root}/models`, apiKey)
+  const body = await getJson(`${root}/models`, keySaved)
   const data = (body as { data?: unknown })?.data
   if (!Array.isArray(data)) return null
   const entry = data.find((m) => (m as { id?: unknown }).id === model) as Record<string, unknown> | undefined

@@ -3,6 +3,7 @@ import { NovelAIClient } from './novelai'
 import { KoboldApiError } from './types'
 import type { GenerateRequest } from './types'
 import type { ChatBackend } from './chatBackend'
+import { stubRelayedFetch, type UpstreamInit } from './relayTestUtils'
 
 /**
  * Mocked against the documented/reverse-engineered contract (see novelai.ts's own header comment)
@@ -59,9 +60,9 @@ afterEach(() => {
 describe('NovelAIClient — request building', () => {
   it('sends the prompt as plain text with use_string: true (not tokenized)', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(200, { output: 'hi' }) })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const client = new NovelAIClient('sk-test', 'kayra-v1')
+    const client = new NovelAIClient(true, 'kayra-v1')
     await client.generate(BASE_REQUEST)
 
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/ai/generate') && !String(c[0]).includes('stream'))
@@ -73,28 +74,30 @@ describe('NovelAIClient — request building', () => {
 
   it('routes Kayra to text.novelai.net and Clio to api.novelai.net', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(200, { output: 'hi' }) })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    await new NovelAIClient('sk-test', 'kayra-v1').generate(BASE_REQUEST)
-    await new NovelAIClient('sk-test', 'clio-v1').generate(BASE_REQUEST)
+    await new NovelAIClient(true, 'kayra-v1').generate(BASE_REQUEST)
+    await new NovelAIClient(true, 'clio-v1').generate(BASE_REQUEST)
 
     const urls = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/ai/generate') && !u.includes('stream'))
     expect(urls[0]).toBe('https://text.novelai.net/ai/generate')
     expect(urls[1]).toBe('https://api.novelai.net/ai/generate')
   })
 
-  it('sends a Bearer Authorization header', async () => {
+  it('asks the relay to attach the saved chat key as a bearer token, never sending one itself', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(200, { output: 'hi' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    await new NovelAIClient('my-real-key', 'kayra-v1').generate(BASE_REQUEST)
+    stubRelayedFetch(fetchMock)
+    await new NovelAIClient(true, 'kayra-v1').generate(BASE_REQUEST)
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/ai/generate'))
-    expect((call![1].headers as Record<string, string>).Authorization).toBe('Bearer my-real-key')
+    const init = call![1] as UpstreamInit
+    expect(init.relay).toEqual({ secret: 'chatBackendApiKey', auth: 'bearer', username: null })
+    expect(init.headers.authorization).toBeUndefined()
   })
 
   it('maps this app’s GenerationParams fields onto NovelAI’s own parameter names', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(200, { output: 'hi' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    await new NovelAIClient('sk-test', 'kayra-v1').generate({
+    stubRelayedFetch(fetchMock)
+    await new NovelAIClient(true, 'kayra-v1').generate({
       ...BASE_REQUEST,
       temperature: 1.35,
       top_p: 0.9,
@@ -129,8 +132,8 @@ describe('NovelAIClient — request building', () => {
 
   it('tokenizes stop sequences via the local server into arrays of token ids', async () => {
     const fetchMock = routedFetchMock({ tokenizeIds: [42, 43], generate: () => jsonResponse(200, { output: 'hi' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    await new NovelAIClient('sk-test', 'kayra-v1').generate({ ...BASE_REQUEST, stop_sequence: ['\nYou:', '\nSumire:'] })
+    stubRelayedFetch(fetchMock)
+    await new NovelAIClient(true, 'kayra-v1').generate({ ...BASE_REQUEST, stop_sequence: ['\nYou:', '\nSumire:'] })
 
     const tokenizeCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/novelai/tokenize'))
     expect(tokenizeCalls).toHaveLength(2)
@@ -147,8 +150,8 @@ describe('NovelAIClient — request building', () => {
       if (url.includes('/api/novelai/tokenize')) throw new TypeError('network error')
       return jsonResponse(200, { output: 'hi' })
     })
-    vi.stubGlobal('fetch', fetchMock)
-    const text = await new NovelAIClient('sk-test', 'kayra-v1').generate({ ...BASE_REQUEST, stop_sequence: ['\nYou:'] })
+    stubRelayedFetch(fetchMock)
+    const text = await new NovelAIClient(true, 'kayra-v1').generate({ ...BASE_REQUEST, stop_sequence: ['\nYou:'] })
     expect(text).toBe('hi')
   })
 })
@@ -156,15 +159,15 @@ describe('NovelAIClient — request building', () => {
 describe('NovelAIClient — generate()', () => {
   it('extracts the "output" field from a successful response', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(200, { output: 'A story begins.' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    const text = await new NovelAIClient('sk-test', 'kayra-v1').generate(BASE_REQUEST)
+    stubRelayedFetch(fetchMock)
+    const text = await new NovelAIClient(true, 'kayra-v1').generate(BASE_REQUEST)
     expect(text).toBe('A story begins.')
   })
 
   it('throws a KoboldApiError on a non-2xx response', async () => {
     const fetchMock = routedFetchMock({ generate: () => jsonResponse(401, { message: 'Invalid key' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    await expect(new NovelAIClient('bad-key', 'kayra-v1').generate(BASE_REQUEST)).rejects.toThrow(KoboldApiError)
+    stubRelayedFetch(fetchMock)
+    await expect(new NovelAIClient(true, 'kayra-v1').generate(BASE_REQUEST)).rejects.toThrow(KoboldApiError)
   })
 
   it('rethrows the original error when the caller aborted', async () => {
@@ -178,7 +181,7 @@ describe('NovelAIClient — generate()', () => {
       }),
     )
     controller.abort()
-    await expect(new NovelAIClient('sk-test', 'kayra-v1').generate(BASE_REQUEST, controller.signal)).rejects.toBe(abortError)
+    await expect(new NovelAIClient(true, 'kayra-v1').generate(BASE_REQUEST, controller.signal)).rejects.toBe(abortError)
   })
 })
 
@@ -188,10 +191,10 @@ describe('NovelAIClient — generateStream()', () => {
       .map((e) => e + '\n\n')
       .join('')
     const fetchMock = routedFetchMock({ generateStream: () => sseResponse(events) })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
     const tokens: string[] = []
-    const full = await new NovelAIClient('sk-test', 'kayra-v1').generateStream(BASE_REQUEST, (t) => tokens.push(t))
+    const full = await new NovelAIClient(true, 'kayra-v1').generateStream(BASE_REQUEST, (t) => tokens.push(t))
     expect(tokens).toEqual(['Once ', 'upon a time.'])
     expect(full).toBe('Once upon a time.')
   })
@@ -201,9 +204,9 @@ describe('NovelAIClient — generateStream()', () => {
       generateStream: () => sseResponse(''), // no events at all — the "wrong field name" failure mode this guards against
       generate: () => jsonResponse(200, { output: 'fallback text' }),
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const full = await new NovelAIClient('sk-test', 'kayra-v1').generateStream(BASE_REQUEST, () => {})
+    const full = await new NovelAIClient(true, 'kayra-v1').generateStream(BASE_REQUEST, () => {})
     expect(full).toBe('fallback text')
     const generateCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/ai/generate') && !String(c[0]).includes('stream'))
     expect(generateCalls).toHaveLength(1)
@@ -215,9 +218,9 @@ describe('NovelAIClient — generateStream()', () => {
       if (url.includes('tokenize')) return jsonResponse(200, { ids: [] })
       throw new DOMException('Aborted', 'AbortError')
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     controller.abort()
-    const full = await new NovelAIClient('sk-test', 'kayra-v1').generateStream(BASE_REQUEST, () => {}, controller.signal)
+    const full = await new NovelAIClient(true, 'kayra-v1').generateStream(BASE_REQUEST, () => {}, controller.signal)
     expect(full).toBe('')
     expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes('/ai/generate') && !String(c[0]).includes('stream'))).toHaveLength(0)
   })
@@ -225,14 +228,14 @@ describe('NovelAIClient — generateStream()', () => {
 
 describe('NovelAIClient — fallback surface', () => {
   it('getEffectiveMaxContext returns the caller-supplied fallback', async () => {
-    const client = new NovelAIClient('sk-test', 'kayra-v1')
+    const client = new NovelAIClient(true, 'kayra-v1')
     expect(await client.getEffectiveMaxContext(8192)).toBe(8192)
     expect(await client.getEffectiveMaxContext()).toBe(4096)
   })
 
   it('tokenCount uses the real local tokenizer when reachable', async () => {
-    vi.stubGlobal('fetch', routedFetchMock({ tokenizeIds: [1, 2, 3, 4, 5] }))
-    const { count } = await new NovelAIClient('sk-test', 'kayra-v1').tokenCount('some text')
+    stubRelayedFetch(routedFetchMock({ tokenizeIds: [1, 2, 3, 4, 5] }))
+    const { count } = await new NovelAIClient(true, 'kayra-v1').tokenCount('some text')
     expect(count).toBe(5)
   })
 
@@ -243,22 +246,22 @@ describe('NovelAIClient — fallback surface', () => {
         throw new TypeError('network error')
       }),
     )
-    const { count } = await new NovelAIClient('sk-test', 'kayra-v1').tokenCount('twelve characters here')
+    const { count } = await new NovelAIClient(true, 'kayra-v1').tokenCount('twelve characters here')
     expect(count).toBe(Math.ceil('twelve characters here'.length / 4))
   })
 
   it('abort() resolves without making any request', async () => {
     const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     // Typed as the shared interface, not the concrete class — see the identical note in
     // openaiCompatible.test.ts.
-    const client: ChatBackend = new NovelAIClient('sk-test', 'kayra-v1')
+    const client: ChatBackend = new NovelAIClient(true, 'kayra-v1')
     await expect(client.abort('genkey')).resolves.toBeUndefined()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('getChatTemplate always returns null', async () => {
-    expect(await new NovelAIClient('sk-test', 'kayra-v1').getChatTemplate()).toBeNull()
+    expect(await new NovelAIClient(true, 'kayra-v1').getChatTemplate()).toBeNull()
   })
 })
 
@@ -268,37 +271,37 @@ describe('NovelAIClient — fallback surface', () => {
 describe('checkConnection', () => {
   it('treats a 200 from /user/subscription as ok, with the right auth header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { tier: 3, active: true }))
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await new NovelAIClient('sk-real', 'kayra-v1').checkConnection()
+    stubRelayedFetch(fetchMock)
+    const result = await new NovelAIClient(true, 'kayra-v1').checkConnection()
     expect(result).toEqual({ ok: true })
     expect(fetchMock).toHaveBeenCalledWith('https://api.novelai.net/user/subscription', expect.objectContaining({ headers: expect.any(Object) }))
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-real')
+    const [, init] = fetchMock.mock.calls[0] as [string, UpstreamInit]
+    expect(init.relay).toMatchObject({ secret: 'chatBackendApiKey', auth: 'bearer' })
   })
 
   it('reports a rejected key distinctly on 401', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {})))
-    const result = await new NovelAIClient('sk-bad', 'kayra-v1').checkConnection()
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, {})))
+    const result = await new NovelAIClient(true, 'kayra-v1').checkConnection()
     expect(result).toEqual({ ok: false, detail: 'The API key was rejected.' })
   })
 
   it('reports unreachable (not a key problem) when the fetch itself fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-    const result = await new NovelAIClient('sk-real', 'kayra-v1').checkConnection()
+    stubRelayedFetch(vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const result = await new NovelAIClient(true, 'kayra-v1').checkConnection()
     expect(result.ok).toBe(false)
     expect(result.detail).toContain('Could not reach')
   })
 
   it('reports a generic error for any other non-ok status', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, {})))
-    const result = await new NovelAIClient('sk-real', 'kayra-v1').checkConnection()
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(500, {})))
+    const result = await new NovelAIClient(true, 'kayra-v1').checkConnection()
     expect(result).toEqual({ ok: false, detail: 'Unexpected response (500).' })
   })
 
   it('refuses to check with no API key set, without making a request', async () => {
     const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await new NovelAIClient('', 'kayra-v1').checkConnection()
+    stubRelayedFetch(fetchMock)
+    const result = await new NovelAIClient(false, 'kayra-v1').checkConnection()
     expect(result).toEqual({ ok: false, detail: 'No API key set.' })
     expect(fetchMock).not.toHaveBeenCalled()
   })

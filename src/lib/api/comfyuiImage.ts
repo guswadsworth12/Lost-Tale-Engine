@@ -1,6 +1,7 @@
 import { KoboldApiError } from './types'
 import { uint8ArrayToBase64 } from './binaryUtils'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
+import { relayFetch } from './relay'
 
 type ComfyNode = { class_type: string; inputs: Record<string, unknown> }
 type ComfyWorkflow = Record<string, ComfyNode>
@@ -63,7 +64,7 @@ export class ComfyUIClient implements ImageBackend {
 
     let queueRes: Response
     try {
-      queueRes = await fetch(`${this.base()}/prompt`, {
+      queueRes = await relayFetch(`${this.base()}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal,
@@ -81,7 +82,7 @@ export class ComfyUIClient implements ImageBackend {
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-      const histRes = await fetch(`${this.base()}/history/${promptId}`, { signal }).catch(() => null)
+      const histRes = await relayFetch(`${this.base()}/history/${promptId}`, { signal }).catch(() => null)
       if (histRes?.ok) {
         const history = (await histRes.json()) as Record<
           string,
@@ -91,7 +92,7 @@ export class ComfyUIClient implements ImageBackend {
         if (images.length > 0) {
           const img = images[0]
           const viewUrl = `${this.base()}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder)}&type=${encodeURIComponent(img.type)}`
-          const imgRes = await fetch(viewUrl, { signal })
+          const imgRes = await relayFetch(viewUrl, { signal })
           if (!imgRes.ok) throw new KoboldApiError(`ComfyUI produced an image but it couldn't be fetched (${imgRes.status}).`)
           const base64 = uint8ArrayToBase64(new Uint8Array(await imgRes.arrayBuffer()))
           return { base64, seed }
@@ -105,7 +106,7 @@ export class ComfyUIClient implements ImageBackend {
   /** Reads the checkpoint list straight from the loader node's own schema — best-effort, an unreachable/older server just yields no models rather than an error. */
   async listModels(): Promise<string[]> {
     try {
-      const res = await fetch(`${this.base()}/object_info/CheckpointLoaderSimple`)
+      const res = await relayFetch(`${this.base()}/object_info/CheckpointLoaderSimple`)
       if (!res.ok) return []
       const data = (await res.json()) as {
         CheckpointLoaderSimple?: { input?: { required?: { ckpt_name?: [string[]] } } }

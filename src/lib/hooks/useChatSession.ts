@@ -250,6 +250,7 @@ import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
 import { buildScribePrompt, parseScribeResponse } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage, toastError, toastInfo, toastSuccess } from '@/lib/store/useToastStore'
 import { playSendBlip } from '@/lib/audio/sfx'
 import type { Character, Lorebook } from '@/lib/characters/cardSpec'
@@ -438,7 +439,7 @@ export function useChatSession(chatId: string | null) {
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const baseUrl = useSettingsStore((s) => s.baseUrl)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
+  const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
   const chatCompletionSampler = useSettingsStore((s) => s.chatCompletionSampler)
   const instructTemplateId = useSettingsStore((s) => s.instructTemplateId)
@@ -2891,7 +2892,7 @@ export function useChatSession(chatId: string | null) {
       const { active: speaker } = resolveSpeaker(opts?.speakerId)
       if (!speaker) return
       const replyClient = speaker.modelOverride && chatBackend !== 'koboldcpp'
-        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendApiKey, chatBackendModel: speaker.modelOverride })
+        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel: speaker.modelOverride, secrets })
         : client
       activeGenerationClientRef.current = replyClient
       // Relationship tracking/rapport stay scoped to the primary; choice suggestions apply to anyone.
@@ -3346,7 +3347,7 @@ export function useChatSession(chatId: string | null) {
       baseUrl,
       chatBackend,
       chatBackendBaseUrl,
-      chatBackendApiKey,
+      secrets,
       chatBackendModel,
       autoSummarize,
       autoSuggestChoices,

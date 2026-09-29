@@ -2,12 +2,13 @@ import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { useHostedBackendStatus } from '@/lib/hooks/useHostedBackendStatus'
 import { CHAT_BACKEND_LABELS } from '@/lib/api/chatBackend'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { chatSecretName, useSecretStatus } from '@/lib/accounts/secrets'
 
 export function ConnectionBadge() {
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const baseUrl = useSettingsStore((s) => s.baseUrl)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
+  const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
 
   // Both hooks are always called (hook rules), but only one's result is ever shown — the
@@ -17,7 +18,8 @@ export function ConnectionBadge() {
   // spending calls against a metered external API for a result nobody sees.
   const kobold = useConnectionStatus(baseUrl)
   const hostedBackend = chatBackend === 'novelai' ? 'novelai' : 'openai-compatible'
-  const hosted = useHostedBackendStatus(chatBackend !== 'koboldcpp', hostedBackend, chatBackendBaseUrl, chatBackendApiKey, chatBackendModel)
+  const chatKeySaved = secrets[chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey']
+  const hosted = useHostedBackendStatus(chatBackend !== 'koboldcpp', hostedBackend, chatBackendBaseUrl, chatKeySaved, chatBackendModel)
 
   const status = chatBackend === 'koboldcpp' ? kobold.status : hosted.status
   const backendLabel = CHAT_BACKEND_LABELS[chatBackend]

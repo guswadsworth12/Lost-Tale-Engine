@@ -14,6 +14,8 @@ import { HostedConnectionStatus, STATUS_DOT, STATUS_LABEL } from './HostedConnec
 import { OpenMayhemSetup } from './OpenMayhemSetup'
 import { OpenMayhemModelSelect } from './OpenMayhemModelSelect'
 import { isOpenMayhem } from '@/lib/api/openMayhem'
+import { changeChatBackendConfig, chatSecretName, useSecretStatus } from '@/lib/accounts/secrets'
+import { SecretKeyField } from './SecretKeyField'
 
 const CHAT_BACKENDS = Object.keys(CHAT_BACKEND_LABELS) as ChatBackendId[]
 const BUILTIN_IDS = new Set(BUILTIN_INSTRUCT_TEMPLATES.map((t) => t.id))
@@ -25,9 +27,12 @@ export function ConnectionSettings() {
   const setInstructTemplateId = useSettingsStore((s) => s.setInstructTemplateId)
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
-  const setChatBackendConfig = useSettingsStore((s) => s.setChatBackendConfig)
+  const setChatBackendConfig = changeChatBackendConfig
+  const { saved: secrets } = useSecretStatus()
+  // OpenMayhem chat uses the one OpenMayhem key (its server proxy attaches it); every other provider uses the chat key.
+  const chatKeyName = chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey'
+  const chatKeySaved = secrets[chatKeyName]
   const [draft, setDraft] = useState(baseUrl)
   const { status, model, version, maxContext, detectedTemplateId } = useConnectionStatus(baseUrl)
   // Checked once per distinct config plus on manual demand (`recheck`), not on a timer like the
@@ -39,7 +44,7 @@ export function ConnectionSettings() {
     chatBackend !== 'koboldcpp',
     chatBackend === 'novelai' ? 'novelai' : 'openai-compatible',
     chatBackendBaseUrl,
-    chatBackendApiKey,
+    chatKeySaved,
     chatBackendModel,
   )
 
@@ -57,7 +62,7 @@ export function ConnectionSettings() {
 
   const { models: openAiModels, loading: modelsLoading, reload: reloadModels } = useOpenAiModels(
     chatBackendBaseUrl,
-    chatBackendApiKey,
+    chatKeySaved,
     chatBackend === 'openai-compatible',
   )
   const [typeModel, setTypeModel] = useState(false)
@@ -109,11 +114,12 @@ export function ConnectionSettings() {
               onChange={(e) => setChatBackendConfig({ chatBackendBaseUrl: e.target.value })}
               placeholder="e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1"
             />
-            <TextField
-              label="API key"
-              type="password"
-              value={chatBackendApiKey}
-              onChange={(e) => setChatBackendConfig({ chatBackendApiKey: e.target.value })}
+            <SecretKeyField
+              name={chatKeyName}
+              label={isOpenMayhem(chatBackendBaseUrl) ? 'OpenMayhem API key' : 'API key'}
+              saved={chatKeySaved}
+              hint={isOpenMayhem(chatBackendBaseUrl) ? 'One key for OpenMayhem chat, images and voice.' : undefined}
+              onSaved={() => { reloadModels(); hostedStatus.recheck() }}
             />
             {isOpenMayhem(chatBackendBaseUrl) ? (
               <OpenMayhemModelSelect models={openAiModels} loading={modelsLoading} value={chatBackendModel}
@@ -161,9 +167,10 @@ export function ConnectionSettings() {
             )}
             <HostedConnectionStatus status={hostedStatus.status} detail={hostedStatus.detail} recheck={() => { reloadModels(); hostedStatus.recheck() }} />
             <p className="mt-2 text-xs text-text-muted">
-              Keys are stored in this browser. {isOpenMayhem(chatBackendBaseUrl)
-                ? 'OpenMayhem requests pass through your Lost Tales Engine server, which forwards the key without saving it.'
-                : 'Requests are sent directly to the base URL above.'} Token counts fall back to an estimate for this backend (no
+              Keys are saved encrypted to your account on your Lost Tales Engine server and never sent
+              back to the browser. {isOpenMayhem(chatBackendBaseUrl)
+                ? 'OpenMayhem requests pass through your server, which attaches the key.'
+                : 'Requests pass through your server, which attaches the key and forwards them to the base URL above.'} Token counts fall back to an estimate for this backend (no
               shared tokenizer endpoint); context size is read from the provider's model list when
               it publishes one, otherwise it falls back too. Temperature, top P, penalties and
               reasoning effort for this backend live in Settings → Generation, separate from the
@@ -192,17 +199,17 @@ export function ConnectionSettings() {
                 </option>
               ))}
             </SelectField>
-            <TextField
+            <SecretKeyField
+              name="chatBackendApiKey"
               label="API key"
-              type="password"
-              value={chatBackendApiKey}
-              onChange={(e) => setChatBackendConfig({ chatBackendApiKey: e.target.value })}
+              saved={secrets.chatBackendApiKey}
               hint="From your NovelAI account's user settings, not your login password."
+              onSaved={hostedStatus.recheck}
             />
             <HostedConnectionStatus status={hostedStatus.status} detail={hostedStatus.detail} recheck={hostedStatus.recheck} />
             <p className="mt-2 text-xs text-text-muted">
-              Keys are stored only in this browser and sent directly to NovelAI, never through any
-              other server. The KoboldCpp sampler below supplies temperature/top P/penalties for
+              Keys are saved encrypted to your account on your Lost Tales Engine server, which
+              attaches the key and forwards requests to NovelAI. The KoboldCpp sampler below supplies temperature/top P/penalties for
               this backend too, since NovelAI's own sampler shape is close enough to reuse directly.
             </p>
           </>

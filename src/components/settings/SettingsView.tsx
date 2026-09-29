@@ -8,8 +8,9 @@ import { SamplingControls } from './SamplingControls'
 import { VoiceSettings } from './VoiceSettings'
 import { ImageGenSettings } from './ImageGenSettings'
 import { DataSettings } from './DataSettings'
+import { AccountSettings } from './AccountSettings'
 
-type Tab = 'connection' | 'appearance' | 'generation' | 'voice' | 'images' | 'data'
+type Tab = 'connection' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
 
 export function SettingsView() {
   const [tab, setTab] = useState<Tab>('connection')
@@ -21,6 +22,7 @@ export function SettingsView() {
     ['voice', 'Voice'],
     ['images', 'Images'],
     ['data', 'Data'],
+    ['account', 'Account'],
   ]
 
   return (
@@ -78,6 +80,7 @@ export function SettingsView() {
         {tab === 'voice' && <VoiceSettings />}
         {tab === 'images' && <ImageGenSettings />}
         {tab === 'data' && <><DataSettings /><div className="mt-8"><TutorialSettingsSection /></div></>}
+        {tab === 'account' && <AccountSettings />}
       </div>
     </div>
   )

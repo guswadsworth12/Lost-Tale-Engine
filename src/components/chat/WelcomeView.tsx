@@ -17,6 +17,8 @@ import { HostedConnectionStatus } from '@/components/settings/HostedConnectionSt
 import { OpenMayhemSetup } from '@/components/settings/OpenMayhemSetup'
 import { OpenMayhemModelSelect } from '@/components/settings/OpenMayhemModelSelect'
 import { isOpenMayhem } from '@/lib/api/openMayhem'
+import { changeChatBackendConfig, chatSecretName, useSecretStatus } from '@/lib/accounts/secrets'
+import { SecretKeyField } from '@/components/settings/SecretKeyField'
 import { NewChatDialog } from './NewChatDialog'
 import { TrashPanel } from './TrashPanel'
 
@@ -76,9 +78,12 @@ export function WelcomeView({
 
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
-  const setChatBackendConfig = useSettingsStore((s) => s.setChatBackendConfig)
+  const setChatBackendConfig = changeChatBackendConfig
+  const { saved: secrets } = useSecretStatus()
+  // OpenMayhem chat uses the one OpenMayhem key (its server proxy attaches it); every other provider uses the chat key.
+  const chatKeyName = chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey'
+  const chatKeySaved = secrets[chatKeyName]
 
   // Which panel is showing. Local now covers both KoboldCpp and an OpenAI-compatible server on
   // localhost (LM Studio, llama.cpp, Ollama, ...) — the Check button auto-detects which. Seeded
@@ -94,13 +99,13 @@ export function WelcomeView({
     isHosted,
     chatBackend === 'novelai' ? 'novelai' : 'openai-compatible',
     chatBackendBaseUrl,
-    chatBackendApiKey,
+    chatKeySaved,
     chatBackendModel,
   )
   const localOpenAi = mode === 'local' && chatBackend === 'openai-compatible'
   const activeStatus = mode === 'cloud' || localOpenAi ? hostedStatus.status : koboldStatus
 
-  const { models: cloudModels, loading: cloudModelsLoading, reload: reloadCloudModels } = useOpenAiModels(chatBackendBaseUrl, chatBackendApiKey, chatBackend === 'openai-compatible')
+  const { models: cloudModels, loading: cloudModelsLoading, reload: reloadCloudModels } = useOpenAiModels(chatBackendBaseUrl, chatKeySaved, chatBackend === 'openai-compatible')
 
   // The Local tab's address field. Seeded from whichever local address we already have — a
   // detected local OpenAI server, else the KoboldCpp URL setting. Never the cloud provider URL.
@@ -352,17 +357,15 @@ export function WelcomeView({
                 </select>
               </div>
               {isOpenMayhem(chatBackendBaseUrl) && <OpenMayhemSetup />}
-              <div>
-                <label className="mb-1 block text-text-muted">
-                  API key {chatBackend !== 'novelai' && !isOpenMayhem(chatBackendBaseUrl) && <span className="text-text-muted/70">(some providers don't need one)</span>}
-                </label>
-                <input
-                  type="password"
-                  value={chatBackendApiKey}
-                  onChange={(e) => setChatBackendConfig({ chatBackendApiKey: e.target.value })}
-                  className={`${INPUT_CLASS} w-full`}
-                />
-              </div>
+              <SecretKeyField
+                name={chatKeyName}
+                className=""
+                inputClassName={`${INPUT_CLASS} w-full`}
+                labelClassName="mb-1 block text-text-muted"
+                saved={chatKeySaved}
+                label={<>API key {chatBackend !== 'novelai' && !isOpenMayhem(chatBackendBaseUrl) && <span className="text-text-muted/70">(some providers don't need one)</span>}</>}
+                onSaved={() => { reloadCloudModels(); hostedStatus.recheck() }}
+              />
               {chatBackend === 'novelai' ? (
                 <div>
                   <label className="mb-1 block text-text-muted">Model</label>

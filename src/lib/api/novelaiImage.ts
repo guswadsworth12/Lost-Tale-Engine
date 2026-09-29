@@ -1,6 +1,7 @@
 import { KoboldApiError } from './types'
 import { extractFirstFileFromZip, uint8ArrayToBase64 } from './binaryUtils'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
+import { relayFetch } from './relay'
 
 /** NovelAI's current image models — no confirmed introspection endpoint, so this is a fixed, best-effort list rather than a guessed-at one; lower confidence than the text-model ids in `chatBackend.ts`, which came from a currently-shipping SillyTavern source. */
 export const NOVELAI_IMAGE_MODELS = ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-3']
@@ -14,22 +15,27 @@ export const NOVELAI_IMAGE_MODELS = ['nai-diffusion-4-5-full', 'nai-diffusion-4-
  * sources, none of which this session could cross-check live.
  */
 export class NovelAIImageClient implements ImageBackend {
+  /**
+   * `keySaved`: whether the user saved the image backend's key (`imageBackendPassword`, which holds
+   * NovelAI's image key). The server's relay attaches it as a bearer token; the browser never holds it.
+   */
   constructor(
-    private apiKey: string,
+    private keySaved: boolean,
     private model: string,
   ) {}
 
   private headers(): Record<string, string> {
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` }
+    return { 'Content-Type': 'application/json' }
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
     const seed = params.seed ?? Math.floor(Math.random() * 4_294_967_295)
     let res: Response
     try {
-      res = await fetch('https://image.novelai.net/ai/generate-image', {
+      res = await relayFetch('https://image.novelai.net/ai/generate-image', {
         method: 'POST',
         headers: this.headers(),
+        ...(this.keySaved ? { secret: 'imageBackendPassword' as const, auth: 'bearer' as const } : {}),
         signal,
         body: JSON.stringify({
           input: params.prompt,

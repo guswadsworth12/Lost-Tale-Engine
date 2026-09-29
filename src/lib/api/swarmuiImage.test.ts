@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SwarmUIClient } from './swarmuiImage'
 import { KoboldApiError } from './types'
 import type { ImageGenerateParams } from './imageBackend'
+import { stubRelayedFetch } from './relayTestUtils'
 
 const BASE_PARAMS: ImageGenerateParams = { prompt: 'a cat', width: 512, height: 512, steps: 20, cfgScale: 7 }
 
@@ -22,7 +23,7 @@ describe('SwarmUIClient', () => {
       if (url.endsWith('/API/GenerateText2Image')) return jsonResponse(200, { images: ['data:image/png;base64,Zm9v'] })
       throw new Error(`unexpected ${url}`)
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
     const client = new SwarmUIClient('http://127.0.0.1:7801')
     await client.generateImage(BASE_PARAMS)
@@ -41,7 +42,7 @@ describe('SwarmUIClient', () => {
       expect(body.cfgscale).toBe(7)
       return jsonResponse(200, { images: ['data:image/png;base64,Zm9v'] })
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     await new SwarmUIClient('http://127.0.0.1:7801').generateImage(BASE_PARAMS)
   })
 
@@ -50,7 +51,7 @@ describe('SwarmUIClient', () => {
       if (url.endsWith('/API/GetNewSession')) return jsonResponse(200, { session_id: 'sess-1' })
       return jsonResponse(200, { images: ['data:image/png;base64,aGVsbG8='] })
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     const result = await new SwarmUIClient('http://127.0.0.1:7801').generateImage(BASE_PARAMS)
     expect(result.base64).toBe('aGVsbG8=')
     expect(fetchMock).toHaveBeenCalledTimes(2) // session + generate, no separate image fetch
@@ -63,7 +64,7 @@ describe('SwarmUIClient', () => {
       if (url.endsWith('/View/local/raw/out.png')) return { ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer } as unknown as Response
       throw new Error(`unexpected ${url}`)
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     const result = await new SwarmUIClient('http://127.0.0.1:7801').generateImage(BASE_PARAMS)
     expect(result.base64.length).toBeGreaterThan(0)
   })
@@ -84,7 +85,7 @@ describe('SwarmUIClient', () => {
       }
       throw new Error(`unexpected ${url}`)
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     const result = await new SwarmUIClient('http://127.0.0.1:7801').generateImage(BASE_PARAMS)
     expect(sessionCount).toBe(2)
     expect(generateCount).toBe(2)

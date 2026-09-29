@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NovelAIImageClient } from './novelaiImage'
 import { KoboldApiError } from './types'
 import type { ImageGenerateParams } from './imageBackend'
+import { stubRelayedFetch, type UpstreamInit } from './relayTestUtils'
 
 const BASE_PARAMS: ImageGenerateParams = { prompt: 'a cat', width: 512, height: 512, steps: 28, cfgScale: 5 }
 
@@ -25,7 +26,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe('NovelAIImageClient', () => {
   it('sends the documented request shape and unzips the response into base64', async () => {
     const pngBytes = new Uint8Array([1, 2, 3, 4, 5])
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string, init?: UpstreamInit) => {
       expect(url).toBe('https://image.novelai.net/ai/generate-image')
       const body = JSON.parse(init!.body as string)
       expect(body.input).toBe('a cat')
@@ -34,32 +35,33 @@ describe('NovelAIImageClient', () => {
       expect(body.parameters.width).toBe(512)
       expect(body.parameters.scale).toBe(5)
       expect(body.parameters.steps).toBe(28)
-      expect((init!.headers as Record<string, string>).Authorization).toBe('Bearer sk-nai-test')
+      expect(init!.relay).toEqual({ secret: 'imageBackendPassword', auth: 'bearer', username: null })
+      expect(init!.headers.authorization).toBeUndefined()
       return { ok: true, status: 200, arrayBuffer: async () => buildStoredZip(pngBytes) } as unknown as Response
     })
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
 
-    const result = await new NovelAIImageClient('sk-nai-test', 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)
+    const result = await new NovelAIImageClient(true, 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)
     const decoded = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
     expect(Array.from(decoded)).toEqual(Array.from(pngBytes));
   })
 
   it('reports the seed actually used, generating one when the caller did not supply it', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => buildStoredZip(new Uint8Array([9])) }) as unknown as Response))
-    const result = await new NovelAIImageClient('sk-nai-test', 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)
+    stubRelayedFetch(vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => buildStoredZip(new Uint8Array([9])) }) as unknown as Response))
+    const result = await new NovelAIImageClient(true, 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)
     expect(typeof result.seed).toBe('number')
 
-    const result2 = await new NovelAIImageClient('sk-nai-test', 'nai-diffusion-4-5-full').generateImage({ ...BASE_PARAMS, seed: 777 })
+    const result2 = await new NovelAIImageClient(true, 'nai-diffusion-4-5-full').generateImage({ ...BASE_PARAMS, seed: 777 })
     expect(result2.seed).toBe(777)
   })
 
   it('throws a KoboldApiError on a non-2xx response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 402, text: async () => 'Payment required' } as unknown as Response))
-    await expect(new NovelAIImageClient('sk-nai-test', 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)).rejects.toThrow(KoboldApiError)
+    stubRelayedFetch(vi.fn().mockResolvedValue({ ok: false, status: 402, text: async () => 'Payment required' } as unknown as Response))
+    await expect(new NovelAIImageClient(true, 'nai-diffusion-4-5-full').generateImage(BASE_PARAMS)).rejects.toThrow(KoboldApiError)
   })
 
   it('listModels returns the fixed known-model list', async () => {
-    const models = await new NovelAIImageClient('sk-nai-test', 'nai-diffusion-4-5-full').listModels()
+    const models = await new NovelAIImageClient(true, 'nai-diffusion-4-5-full').listModels()
     expect(models.length).toBeGreaterThan(0)
     expect(models).toContain('nai-diffusion-4-5-full')
   })

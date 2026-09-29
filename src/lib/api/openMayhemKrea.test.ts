@@ -4,6 +4,7 @@ import qualityJson from './fixtures/krea-quality.json'
 import { kreaImageBody, isKreaImageModel, openMayhemImageLabel } from './openMayhemKrea'
 import { loadOpenMayhemImageModels, hasAvailableOpenMayhemProvider, type OpenMayhemModel } from './openMayhem'
 import { OpenMayhemImageClient } from './openMayhemMedia'
+import { stubRelayedFetch } from './relayTestUtils'
 
 const turbo = turboJson as unknown as OpenMayhemModel
 const quality = qualityJson as unknown as OpenMayhemModel
@@ -66,7 +67,7 @@ describe('Krea base images from public catalog metadata', () => {
     const fetchMock = vi.fn(async (url: string) => url.includes('IMAGES') ? json({ data: [zimage] })
       : url.includes('cursor=next') ? json({ data: [quality, { ...turbo, id: 'new/turbo' }] })
         : json({ data: [turbo, { ...turbo, id: 'busy', providers_available: 0 }, { ...turbo, id: 'stale', availability_stale: true }, { id: 'video', endpoints: ['WORKFLOWS'] }], next_cursor: 'next' }))
-    vi.stubGlobal('fetch', fetchMock)
+    stubRelayedFetch(fetchMock)
     const models = (await loadOpenMayhemImageModels(true)).filter(hasAvailableOpenMayhemProvider)
     expect(models.map((m) => m.id)).toEqual([zimage.id, turbo.id, quality.id, 'new/turbo'])
     expect(fetchMock).toHaveBeenCalledTimes(3)
@@ -78,13 +79,13 @@ describe('Krea base images from public catalog metadata', () => {
         const body = JSON.parse(String(init?.body))
         expect(body.model).toBe(model.id)
         expect(body.workflow.sampler.inputs.seed).toBe(42)
-        expect(init?.headers).toMatchObject({ Authorization: 'Bearer example-key' })
+        expect((init?.headers as Record<string, string>).authorization).toBeUndefined()
         return json({ id: 'job', status: 'completed', artifacts: [{ id: 'image', contentType: 'image/png' }] })
       }
       return new Response('image data', { headers: { 'Content-Type': 'image/png' } })
     })
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await new OpenMayhemImageClient('example-key', model.id).generateImage(params)
+    stubRelayedFetch(fetchMock)
+    const result = await new OpenMayhemImageClient(true, model.id).generateImage(params)
     expect(result).toMatchObject({ mimeType: 'image/png', seed: 42 })
     expect(atob(result.base64)).toBe('image data')
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
