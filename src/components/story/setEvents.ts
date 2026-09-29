@@ -23,7 +23,7 @@ export function draftOf(event: SetEvent): SetEventDraft {
   }
 }
 
-/** "bind, Emily | Unbound" → ['bind', 'Emily|Unbound']: commas separate required words, a bar offers alternatives. */
+/** "bind, Lyra | sleeper" → ['bind', 'Lyra|sleeper']: commas separate required words, a bar offers alternatives. */
 export function wordsToMatch(words: string): string[] {
   return words
     .split(',')
@@ -31,7 +31,7 @@ export function wordsToMatch(words: string): string[] {
     .filter(Boolean)
 }
 
-/** A readable id from the trigger, kept unique among `taken`: "Rend binds Emily's form" → "rend-binds-emilys-form". */
+/** A readable id from the trigger, kept unique among `taken`: "Wren binds Lyra's form" → "wren-binds-lyras-form". */
 export function setEventId(trigger: string, taken: readonly string[]): string {
   const base = trigger.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'event'
   let id = base

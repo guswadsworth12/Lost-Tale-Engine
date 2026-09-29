@@ -41,12 +41,12 @@ export function SetEventsEditor({ events, doneIds, onSave, tracks = [], characte
           <span className={`rounded-full px-2 py-0.5 text-[11px] ${done ? 'bg-success/15 text-success' : 'bg-bg-sunken text-text-muted'}`}>{done ? 'Happened' : 'To come'}</span>
           <button className="text-xs text-text-muted hover:text-text" onClick={() => setDrafts((all) => all.filter((_, i) => i !== index))}>Remove</button>
         </div>
-        <label className="block space-y-1 text-xs text-text-muted">What happens<input className={inputClass} value={draft.trigger} placeholder="Rend binds the Unbound into Emily's form" onChange={(e) => change(index, { trigger: e.target.value })} /></label>
+        <label className="block space-y-1 text-xs text-text-muted">What happens<input className={inputClass} value={draft.trigger} placeholder="Wren binds the sleeper into Lyra's form" onChange={(e) => change(index, { trigger: e.target.value })} /></label>
         <label className="block space-y-1 text-xs text-text-muted">Result, applied with no roll<textarea className={`${inputClass} min-h-16`} value={draft.outcome} onChange={(e) => change(index, { outcome: e.target.value })} /></label>
-        <label className="block space-y-1 text-xs text-text-muted">Lasting consequence (optional)<input className={inputClass} value={draft.consequence} placeholder="Rend is strained." onChange={(e) => change(index, { consequence: e.target.value })} /></label>
+        <label className="block space-y-1 text-xs text-text-muted">Lasting consequence (optional)<input className={inputClass} value={draft.consequence} placeholder="Wren is strained." onChange={(e) => change(index, { consequence: e.target.value })} /></label>
         {tracks.length > 0 && <EffectsField label="Tracked-state change (optional)" tracks={tracks} characters={characters} effects={draft.effects}
           placeholder="Hurt on for Bea, Supplies -1" onChange={(effects) => change(index, { effects })} />}
-        <label className="block space-y-1 text-xs text-text-muted">Recognise by words (commas: all needed; | : either)<input className={inputClass} value={draft.words} placeholder="bind, Emily | Unbound" onChange={(e) => change(index, { words: e.target.value })} /></label>
+        <label className="block space-y-1 text-xs text-text-muted">Recognise by words (commas: all needed; | : either)<input className={inputClass} value={draft.words} placeholder="bind, Lyra | sleeper" onChange={(e) => change(index, { words: e.target.value })} /></label>
       </div>
     })}
     <div className="flex gap-2">

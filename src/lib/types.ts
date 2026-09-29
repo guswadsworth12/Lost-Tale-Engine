@@ -245,7 +245,7 @@ export interface CharacterMemory {
   chatId: string
   storyId?: string
   worldId?: string
-  /** Third person, one or two sentences: "Rend broke the ward on the east gate to reach Aveline." */
+  /** Third person, one or two sentences: "Wren broke the ward on the east gate to reach Bea." */
   text: string
   kind: MemoryKind
   /** Character ids who saw or heard it happen (the card the player plays included). Never widened after the fact. */

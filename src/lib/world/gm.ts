@@ -74,7 +74,7 @@ export interface GmAdjudication {
  */
 export interface SetEvent {
   id: string
-  /** What happens, in plain terms: "Rend binds the Unbound into Emily's form". */
+  /** What happens, in plain terms: "Wren binds the sleeper into Lyra's form". */
   trigger: string
   /** The fixed result, applied without dice. */
   outcome: string
