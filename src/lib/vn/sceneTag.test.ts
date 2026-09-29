@@ -138,6 +138,12 @@ describe('scene tag — outfits', () => {
     expect(out).toContain('currently wearing "base"')
   })
 
+  it('asks for a physical form when variants are forms', () => {
+    const out = buildSceneInstruction({ expressionIds: ['neutral'], backgroundIds: [], outfitIds: ['base', 'dragon', 'human'], formIds: ['dragon', 'human'], currentOutfitId: 'dragon' })
+    expect(out).toContain('Physical form IDs: dragon, human')
+    expect(out).toContain('human hands, hair, and face')
+  })
+
   it('composes correctly with mood', () => {
     const out = buildSceneInstruction({
       expressionIds: ['neutral'],

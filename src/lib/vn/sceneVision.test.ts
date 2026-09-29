@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KoboldClient } from '@/lib/api/kobold'
 import {
   classifyAttachedImageScene,
+  detectCharacterForms,
   detectExpressionFromSprites,
   detectExpressionTextMismatch,
   detectGreetingScene,
@@ -35,6 +36,25 @@ const SPRITES = [
   { id: 'angry', label: 'Angry', base64: 'BBBB' },
   { id: 'smitten', label: 'Smitten', base64: 'CCCC' },
 ]
+
+describe('detectCharacterForms', () => {
+  const candidates = [{ id: 'lira', name: 'Lira', current: 'dragon', forms: [{ id: 'human', label: 'Human' }, { id: 'dragon', label: 'Dragon' }] }]
+
+  it('accepts only a valid form for a named character', async () => {
+    const result = await detectCharacterForms(stubClient('{"lira":"human"}'), { text: 'Lira climbs down, basket in hand.', candidates })
+    expect(result).toEqual({ lira: 'human' })
+  })
+
+  it('finds a two-word card name by its first name', async () => {
+    const zin = [{ id: 'zin', name: 'Wren Talley', current: 'base', forms: [{ id: 'wisp', label: 'Wisp' }, { id: 'construct', label: 'Construct' }] }]
+    expect(await detectCharacterForms(stubClient('{"zin":"wisp"}'), { text: 'Wren flickers into a wisp.', candidates: zin })).toEqual({ zin: 'wisp' })
+  })
+
+  it('rejects invented IDs and skips beats that do not mention the character', async () => {
+    expect(await detectCharacterForms(stubClient('{"lira":"griffin"}'), { text: 'Lira arrives.', candidates })).toEqual({})
+    expect(await detectCharacterForms(stubClient('{"lira":"human"}'), { text: 'Cole arrives.', candidates })).toEqual({})
+  })
+})
 
 describe('detectExpressionFromSprites', () => {
   it('returns a validated id when the model answers with JSON', async () => {

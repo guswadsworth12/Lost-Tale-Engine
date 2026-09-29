@@ -54,6 +54,7 @@ import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
 import type { PromptItem } from '@/lib/prompt/items'
 import { parseTavernAi2Card } from '@/lib/characters/tavernAi2Import'
 import { PromptItemsEditor } from './PromptItemsEditor'
+import { MemoriesPanel } from './MemoriesPanel'
 import { OpenMayhemVoiceField } from '@/components/settings/OpenMayhemVoiceField'
 import { maximumImmersionChecklist, maximumImmersionSamplerParams, maximumImmersionSystemPrompt } from '@/lib/prompt/immersionPreset'
 import {
@@ -764,10 +765,14 @@ export function CharacterEditor({
     ...customExpressions.map((e) => ({ id: e.id, label: e.label, emoji: '', custom: true })),
   ]
 
-  const tabs = TABS.map((t) => {
-    if (t.id === 'presentation') return { ...t, badge: Object.keys(sprites).length }
-    if (t.id === 'knowledge') return { ...t, badge: form.character_book?.entries.length ?? 0 }
-    return t
+  const tabs = TABS.flatMap((t) => {
+    if (t.id === 'presentation') return [{ ...t, badge: Object.keys(sprites).length }]
+    if (t.id === 'knowledge') {
+      const knowledge = { ...t, badge: form.character_book?.entries.length ?? 0 }
+      // Memories belong to a saved character (they are keyed by its id), so a new card has no tab.
+      return character ? [knowledge, { id: 'memories', label: 'Memories' }] : [knowledge]
+    }
+    return [t]
   })
 
   return (
@@ -1003,6 +1008,8 @@ export function CharacterEditor({
         </Section>
       )}
 
+      {tab === 'memories' && character && <MemoriesPanel character={character} />}
+
       {tab === 'knowledge' && (
         <Section title="Private memory" description="Only this character sees these notes when speaking. Keep secrets and promises here rather than in shared world canon." surface="bare">
           <TextAreaField label="Private memory" hint="Only this character sees these notes when speaking. Use this for beliefs, secrets, and promises that should not become shared world canon." value={privateMemory} onChange={(e) => setPrivateMemory(e.target.value)} rows={6} />
@@ -1203,7 +1210,7 @@ export function CharacterEditor({
               and always exists; it's what a partially-drawn outfit falls back to at render time. */}
           <div className="mb-4 rounded-xl bg-bg-sunken/60 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[11px] font-medium text-text-muted">Outfit</span>
+              <span className="mr-1 text-[11px] font-medium text-text-muted">Appearance</span>
               {[{ id: BASE_OUTFIT_ID, label: 'Base' }, ...outfits].map((o) => {
                 const cov = outfitCoverage(sprites, o.id, allExpressions.map((e) => e.id))
                 const active = activeOutfit === o.id
@@ -1227,8 +1234,8 @@ export function CharacterEditor({
                 value={newOutfitLabel}
                 onChange={(e) => setNewOutfitLabel(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addOutfit()}
-                placeholder="New outfit (e.g. Swimsuit)"
-                aria-label="New outfit name"
+                placeholder="New outfit or form"
+                aria-label="New appearance name"
                 className="ml-1 w-44 rounded-full bg-bg px-2.5 py-1 text-[11px] text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40"
               />
               <Button onClick={addOutfit} disabled={!newOutfitLabel.trim()} variant="ghost" className="!px-2 !py-1 !text-[11px]">
@@ -1254,6 +1261,15 @@ export function CharacterEditor({
                         onChange={(e) => updateOutfit(outfit.id, { label: e.target.value })}
                         className="w-32 rounded-md bg-bg px-2 py-1 text-[11px] text-text outline-none"
                       />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                      Type
+                      <select value={outfit.kind ?? (/^(human|dragon|wolf|fox|cat|beast|animal|true-form|humanoid)$/i.test(outfit.id) ? 'form' : 'outfit')}
+                        onChange={(e) => updateOutfit(outfit.id, { kind: e.target.value as Outfit['kind'] })}
+                        className="rounded-md bg-bg px-2 py-1 text-[11px] text-text outline-none">
+                        <option value="outfit">Outfit</option>
+                        <option value="form">Physical form</option>
+                      </select>
                     </label>
                     <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
                       Unlocks at warmth

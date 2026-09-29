@@ -18,6 +18,8 @@ export const BASE_OUTFIT_ID = 'base'
 export interface Outfit {
   id: string
   label: string
+  /** Physical alternate form; existing named human/dragon variants are recognized automatically. */
+  kind?: 'outfit' | 'form'
   /** Affection gate, same convention/default as `Character.spriteUnlocks`. */
   unlockAffection?: number
   /** Every one of these scene flags must be set before the outfit unlocks. */

@@ -10,6 +10,8 @@ export interface SceneTag {
   mood?: string
   /** Wardrobe state (src/lib/vn/outfits.ts). Unset means "no change", not "base outfit". */
   outfit?: string
+  /** Per-character appearance changes inferred from narration, keyed by character id. */
+  appearances?: Record<string, string>
 }
 
 const TAG_PREFIX = '<<scene:'
@@ -64,6 +66,8 @@ export function buildSceneInstruction(options?: {
   moodIds?: string[]
   /** Passed only when the character has more than one selectable wardrobe state — see `selectableOutfitIds` in `outfits.ts`. */
   outfitIds?: string[]
+  /** Physical form IDs among the selectable appearances, if any. */
+  formIds?: string[]
   /** What the character is wearing right now, so the model knows what it would be *changing from*. */
   currentOutfitId?: string
 }): string {
@@ -89,9 +93,11 @@ export function buildSceneInstruction(options?: {
     options.expressionIds.length ? `Valid expression IDs: ${options.expressionIds.join(', ')}` : '',
     options.backgroundIds.length ? `Valid background IDs: ${options.backgroundIds.join(', ')}` : '',
     wantsMood ? `Valid mood IDs: ${options.moodIds!.join(', ')}` : '',
-    wantsOutfit ? `Valid outfit IDs: ${options.outfitIds!.join(', ')}` : '',
+    wantsOutfit ? `${options.formIds?.length ? 'Valid appearance' : 'Valid outfit'} IDs: ${options.outfitIds!.join(', ')}` : '',
     wantsOutfit
-      ? `The character is currently wearing "${options.currentOutfitId || 'base'}". Only use a different outfit ID when the story has actually changed what they are wearing — they got changed, arrived somewhere needing different clothes, undressed. Otherwise repeat the current one. Never change an outfit just because the mood shifted.`
+      ? options.formIds?.length
+        ? `The character's current appearance is "${options.currentOutfitId || 'base'}". Physical form IDs: ${options.formIds.join(', ')}. Choose the form shown by their body and actions in this scene; human hands, hair, and face indicate a human form even if the character is also a dragon. Change appearance only when the scene establishes a different form or outfit. Otherwise repeat the current ID. A nickname or metaphor is not a transformation.`
+        : `The character is currently wearing "${options.currentOutfitId || 'base'}". Only use a different outfit ID when the story has actually changed what they are wearing — they got changed, arrived somewhere needing different clothes, undressed. Otherwise repeat the current one. Never change an outfit just because the mood shifted.`
       : '',
     options.expressionIds.length || options.backgroundIds.length
       ? wantsMood

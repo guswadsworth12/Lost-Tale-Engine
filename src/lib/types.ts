@@ -197,6 +197,8 @@ export interface Scene {
   turnPolicy: ScenePolicy
   /** Characters physically in the scene for GM turns. Unset keeps older chats' loaded roster behavior. */
   presentCharacterIds?: string[]
+  /** Player-selected stage appearances; a missing key follows the story automatically. */
+  appearanceOverrides?: Record<string, string>
   /** Round-robin bookkeeping: index into `[primaryId, ...participantIds]`. Read defensively (clamped/modulo) since the roster can shrink. */
   roundRobinIndex?: number
   /** Per-chat override of the shared `WorldCard` clock's time-of-day, so a chat that has narrated
@@ -223,6 +225,54 @@ export interface ChatFact {
   valence?: number
   /** An open thread the story hasn't closed (a slight, an unkept promise). Gets stronger prompt treatment until the judge marks it resolved. */
   unresolved?: boolean
+}
+
+/** What kind of thing a character remembers. `journal` is a character's own condensed account of older memories (`memory/journal.ts`), one per character per ended scene; the newest visible one is used. */
+export type MemoryKind = 'event' | 'learned' | 'promise' | 'secret' | 'impression' | 'journal'
+
+/**
+ * Something a character remembers (`memory/`). Scoped by scene: a memory made in scene X is
+ * visible in X and every later scene that follows on from X (the `previousSceneId` chain, and a
+ * sequel story's `continuesFrom`), never in another story. Known only by `knownBy`: the witnesses
+ * the engine recorded when it happened, plus anyone later told.
+ */
+export interface CharacterMemory {
+  id: string
+  /** The scene (chat) it happened in. */
+  chatId: string
+  storyId?: string
+  worldId?: string
+  /** Third person, one or two sentences: "Rend broke the ward on the east gate to reach Aveline." */
+  text: string
+  kind: MemoryKind
+  /** Character ids who saw or heard it happen (the card the player plays included). Never widened after the fact. */
+  witnesses: string[]
+  /** Spread by telling: who learned it later, from whom, in which message. */
+  /** `chatId`: the scene the telling happened in. A telling counts only in that scene and the ones
+   *  that follow on from it, so another branch of the story does not learn it too. */
+  toldVia?: { to: string[]; by?: string; messageId?: string; chatId?: string; at: number }[]
+  /** `witnesses` plus everyone in `toldVia`. Denormalized so reads need no merge. */
+  knownBy: string[]
+  /** Character ids it concerns, for retrieval when they are around. */
+  about?: string[]
+  /** 0-1. How much it matters long-term. */
+  importance: number
+  /** -1..1 per knower id: the same event can land differently on each of them. */
+  feelings?: Record<string, number>
+  /** An open thread (a promise, a debt, a question) until marked resolved. */
+  unresolved?: boolean
+  /** Core memory: always included, never folded into a journal. */
+  pinned?: boolean
+  /** False once retired (contradicted or superseded). Kept for the audit trail. */
+  active: boolean
+  retiredReason?: string
+  /** Characters whose journal already holds this memory. For them it is no longer retrieved as its own line; for other knowers it still is. */
+  consolidatedFor?: string[]
+  /** The message it came from. Deleting that message removes the memory; editing it re-reads it. */
+  sourceMessageId?: string
+  origin: 'scribe' | 'manual' | 'journal'
+  createdAt: number
+  updatedAt?: number
 }
 
 /** A per-chat steering note (SillyTavern's Author's Note) — distinct from card-level `post_history_instructions`. A blank `text` is cleared to `null` rather than persisted empty. */
@@ -363,6 +413,8 @@ export interface StoredMessage extends ChatMessage {
   sceneSetting?: import('@/lib/chat/sceneSetting').SceneSettingEvent
   /** A scenery choice the player made while this was the latest message of the branch (`vn/scenery.ts`). */
   scenery?: import('@/lib/vn/scenery').SceneryChoice
+  /** Who was in the scene when this message was written: the AI cast present and the card the player played. Decides who witnessed it for character memory (`memory/witnesses.ts`). Unset on older messages. */
+  presentIds?: string[]
 }
 
 /** 10b: how a player meant a tagged line. Labels/judge behavior live in `src/lib/dating/intent.ts`. */
@@ -475,6 +527,8 @@ export interface Chat {
   recap?: SceneRecap
   /** Confirmed branch consequences from earlier scenes (their GM turns stay with those scenes). */
   carriedConsequences?: string[]
+  /** Messages with `createdAt <=` this have been read by the memory scribe (`memory/scribe.ts`). Rolled back when a scribed message is edited, so it is read again. */
+  memoryScribedUpTo?: number
   /** Set when this chat was created by forking another one — the source chat's id. */
   parentChatId?: string
   /** The message (in the parent chat) this fork branched off from. */
@@ -554,6 +608,8 @@ export interface Story {
   worldId?: string
   /** Beyond the implicit main line (`MAIN_STORYLINE_ID`). */
   storylines?: Storyline[]
+  /** A sequel: this story's first scene follows on from `sceneId` of another story, so its characters keep what they remembered by the end of it. Unset: a story remembers only its own scenes. */
+  continuesFrom?: { storyId: string; sceneId: string }
   createdAt: number
   updatedAt: number
 }

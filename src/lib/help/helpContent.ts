@@ -288,7 +288,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     group: 'Play',
     icon: 'book',
     summary: 'Why a story is a chain of scenes, the context meter, ending a scene, and reading it all back.',
-    keywords: ['scene', 'scenes', 'recap', 'recaps', 'context', 'context window', 'context meter', 'tokens', 'split', 'storyline', 'storylines', 'parallel', 'timeline', 'long story', 'local model', 'end scene', 'chapter', 'history', 'old chats'],
+    keywords: ['scene', 'scenes', 'recap', 'recaps', 'context', 'context window', 'context meter', 'tokens', 'split', 'storyline', 'storylines', 'parallel', 'timeline', 'long story', 'local model', 'end scene', 'chapter', 'history', 'old chats', 'memory', 'memories', 'character memory', 'journal', 'sequel', 'continues from', 'forget'],
     related: ['stories', 'story-panel', 'campaign'],
     sections: [
       {
@@ -353,6 +353,25 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               'Characters only hear the recaps of scenes they were present for.',
               'The Game Master hears all of them.',
               'A parallel storyline only knows what happened up to the point where it split off.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'scenes-memory',
+        heading: 'Character memory',
+        blocks: [
+          {
+            kind: 'text',
+            text: 'After each reply or Game Master beat, the engine notes what each character saw, heard, or was told. Turn it off in Settings → Generation → **Character memory**.',
+          },
+          {
+            kind: 'list',
+            items: [
+              'Each character knows only what they witnessed or were told. A line under a message says who will remember it.',
+              "Memories stay within the story they happened in. To carry them into a new story, set **Continues from** in the Story panel's **Scenes** tab.",
+              "When a scene ends, older memories are condensed into each character's journal.",
+              'Cast → a character → **Memories** lists everything they know. **Pin** keeps a memory forever; **Forget** removes it.',
             ],
           },
         ],

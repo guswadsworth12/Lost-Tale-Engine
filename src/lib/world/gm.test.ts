@@ -435,6 +435,23 @@ describe('questions earned by an earlier roll', () => {
 describe('bringing characters into the scene', () => {
   const available = [{ id: 'mae', name: 'Mae Rook' }, { id: 'avi', name: 'Avi Pyre' }]
 
+  it('tells the GM that both loaded characters are awaited and may arrive together', () => {
+    const { system, user } = buildGmPrompt(ctx({ roster: [], availableRoster: available, loadedRoster: available }))
+    expect(system).toContain('If two arrive together, add both in the same beat')
+    expect(user).toContain('Loaded for this scene but still awaited: Mae Rook, Avi Pyre')
+    expect(user).toContain('add at most 2')
+  })
+
+  it('admits two arrivals and reserves response slots for both', () => {
+    const availableWithThird = [...available, { id: 'elle', name: 'Elle Finch' }]
+    const turn = parseGmTurn(JSON.stringify({
+      addCharacters: ['Mae Rook', 'Avi Pyre', 'Elle Finch'],
+      speakers: ['Ivo Brand', 'Hana Pike', 'Tobin Reed'],
+    }), ctx({ availableRoster: availableWithThird }), ids)
+    expect(turn.addCharacterIds).toEqual(['mae', 'avi'])
+    expect(turn.speakerIds).toEqual(['ivo', 'mae', 'avi'])
+  })
+
   it('lets a character the GM adds answer in the same beat when nobody else is here', () => {
     const turn = parseGmTurn(JSON.stringify({ narration: '', addCharacters: ['Mae Rook'], speakers: [] }),
       ctx({ roster: [], availableRoster: available, playerAction: 'I call Mae through the link.' }), ids)
@@ -489,5 +506,23 @@ describe('rank scaling', () => {
     const { system, user } = buildGmPrompt(ctx())
     expect(system).not.toContain('Rank ladder')
     expect(user).not.toContain('rank:')
+  })
+})
+
+describe('buildGmPrompt character memory', () => {
+  it('gives the GM every memory with who knows it, and the knowledge boundaries in the scene', () => {
+    const { user } = buildGmPrompt(ctx({
+      memoryDigest: ['- Ash broke the east ward. (known by: Ash, Bea)'],
+      knowledgeGaps: ['Cole does not know: Ash broke the east ward.'],
+    }))
+    expect(user).toContain('What the characters remember (and who knows it):\n- Ash broke the east ward. (known by: Ash, Bea)')
+    expect(user).toContain('Knowledge boundaries in this scene.')
+    expect(user).toContain('- Cole does not know: Ash broke the east ward.')
+  })
+
+  it('says nothing about memory when there is none', () => {
+    const { user } = buildGmPrompt(ctx())
+    expect(user).not.toContain('What the characters remember')
+    expect(user).not.toContain('Knowledge boundaries')
   })
 })

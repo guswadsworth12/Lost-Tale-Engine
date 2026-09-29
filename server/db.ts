@@ -149,6 +149,15 @@ db.exec(`
     updatedAt INTEGER NOT NULL,
     data TEXT NOT NULL
   );
+
+  -- Per-character memories (\`server/memories.ts\`), each kept in the scene (chat) it happened in.
+  CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    chatId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 `)
 
 type Row = Record<string, unknown>
@@ -268,6 +277,7 @@ export const objectiveStore = createStore('objectives', [
 export const relationshipEventStore = createStore('relationship_events', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
+export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
 
 export function newId(): string {
   return crypto.randomUUID()

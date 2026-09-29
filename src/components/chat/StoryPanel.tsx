@@ -123,7 +123,7 @@ export function StoryPanel({
           {canEndScene && <button className={actionClass} onClick={onEndScene}>End scene…</button>}
           {onReadStory && <button className={actionClass} onClick={onReadStory}>Read the whole story</button>}
         </div> : null}
-        <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} />
+        <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} showSequelLink />
       </>}
       {tab === 'goals' && <>
         {activeObjective ? <>

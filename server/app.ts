@@ -6,10 +6,12 @@ import { randomInt } from 'node:crypto'
 import {
   characterStore,
   chatFactStore,
+  storyStore,
   chatStore,
   db,
   assistantThreadStore,
   instructTemplateStore,
+  memoryStore,
   messageStore,
   newId,
   objectiveStore,
@@ -27,6 +29,8 @@ import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
 import { storiesRouter } from './stories.ts'
+import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
+import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
@@ -49,6 +53,7 @@ app.use(originGuard)
 app.use(express.json({ limit: '150mb' }))
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
+app.use('/api', memoriesRouter)
 app.use('/avatars', express.static(avatarsDir))
 
 function notFound(res: express.Response) {
@@ -820,12 +825,13 @@ app.delete('/api/personas/:id', (req, res) => {
 // How long a deleted chat sits recoverable before `purgeExpiredTrash` purges it for real (called at server startup).
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-/** Permanent cascading delete: messages/objectives/relationship events/facts, un-parents any fork, then the chat row. */
+/** Permanent cascading delete: messages/objectives/relationship events/facts/memories, un-parents any fork, then the chat row. */
 function purgeChat(chatId: string): void {
   for (const msg of messageStore.list({ where: 'chatId = ?', params: [chatId] })) messageStore.remove(msg.id as string)
   for (const o of objectiveStore.list({ where: 'chatId = ?', params: [chatId] })) objectiveStore.remove(o.id as string)
   for (const e of relationshipEventStore.list({ where: 'chatId = ?', params: [chatId] })) relationshipEventStore.remove(e.id as string)
   for (const f of chatFactStore.list({ where: 'chatId = ?', params: [chatId] })) chatFactStore.remove(f.id as string)
+  purgeChatMemories(chatId)
   // Un-parent any chat forked from this one (parentChatId isn't indexed, so a full scan).
   for (const chat of chatStore.list()) {
     if (chat.parentChatId !== chatId) continue
@@ -924,6 +930,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
 
   const now = Date.now()
   const newChatId = newId()
+  const cutoffCreatedAt = keptMessages[keptMessages.length - 1]?.createdAt as number | undefined
   // worldInfoState (turn-numbered bookkeeping) and rapport (a live-date scene read) don't carry over to a fork.
   // A fork of a scene is another take on that scene: it keeps its place in the story (storyId,
   // sceneNumber, previousSceneId) but is live again, so an ended scene's ending and recap stay behind.
@@ -934,13 +941,20 @@ app.post('/api/chats/:id/fork', (req, res) => {
     title: `${title} (fork)`,
     parentChatId: sourceChatId,
     forkedFromMessageId,
+    // The memory scribe has read no further than the fork point in this branch.
+    memoryScribedUpTo: typeof rest.memoryScribedUpTo === 'number' && cutoffCreatedAt !== undefined
+      ? Math.min(rest.memoryScribedUpTo, cutoffCreatedAt)
+      : undefined,
     createdAt: now,
     updatedAt: now,
   })
 
+  const messageIdMap = new Map<string, string>()
   for (const m of keptMessages) {
-    const { id: _mid, ...mRest } = m
-    messageStore.insert({ ...mRest, id: newId(), chatId: newChatId })
+    const { id: mid, ...mRest } = m
+    const copiedId = newId()
+    messageIdMap.set(mid as string, copiedId)
+    messageStore.insert({ ...mRest, id: copiedId, chatId: newChatId })
   }
 
   const activeObjective = objectiveStore.list({ where: 'chatId = ? AND status = ?', params: [sourceChatId, 'active'] })[0]
@@ -950,7 +964,6 @@ app.post('/api/chats/:id/fork', (req, res) => {
   }
 
   // Only events up to the fork point actually happened in this branch's shared past.
-  const cutoffCreatedAt = keptMessages[keptMessages.length - 1]?.createdAt as number | undefined
   const sourceEvents = relationshipEventStore.list({ where: 'chatId = ?', params: [sourceChatId], orderBy: 'createdAt' })
   for (const e of sourceEvents) {
     if (cutoffCreatedAt !== undefined && (e.createdAt as number) > cutoffCreatedAt) continue
@@ -965,6 +978,9 @@ app.post('/api/chats/:id/fork', (req, res) => {
     const { id: _fid, chatId: _fcid, ...fRest } = f
     chatFactStore.insert({ ...fRest, id: newId(), chatId: newChatId })
   }
+
+  // Memories from the kept messages, re-pointed at their copies.
+  forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId)
 
   res.status(201).json(forkedChat)
 })
@@ -1059,7 +1075,8 @@ app.post('/api/chats/:id/roll', (req, res) => {
   const card = player?.card as Record<string, unknown> | undefined
   const name = typeof card?.name === 'string' && card.name.trim() ? card.name : 'You'
   try {
-    const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, createdAt: now })
+    const presentIds = Array.isArray(req.body?.presentIds) ? uniqueIds(req.body.presentIds) : presenceOf(chat)
+    const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, presentIds, createdAt: now })
     return res.status(201).json(created)
   } catch (error) {
     // A concurrent retry may have won the unique message-id insert in another server process.
@@ -1100,7 +1117,15 @@ app.get('/api/messages/:id', (req, res) => {
 
 app.post('/api/messages', (req, res) => {
   if ('campaignRoll' in req.body) return res.status(409).json({ error: 'Use the server roll endpoint to record a campaign move.' })
-  const created = messageStore.insert({ ...req.body, id: req.body.id || newId(), createdAt: req.body.createdAt ?? Date.now() })
+  // Who was there when it was written decides who witnessed it (character memory).
+  const chat = Array.isArray(req.body.presentIds) || typeof req.body.chatId !== 'string' ? undefined : chatStore.get(req.body.chatId)
+  const presentIds = chat ? presenceOf(chat) : undefined
+  const created = messageStore.insert({
+    ...req.body,
+    ...(presentIds ? { presentIds } : {}),
+    id: req.body.id || newId(),
+    createdAt: req.body.createdAt ?? Date.now(),
+  })
   res.status(201).json(created)
 })
 
@@ -1118,11 +1143,24 @@ app.put('/api/messages/:id', (req, res) => {
   )) {
     return res.status(400).json({ error: 'A rolled action cannot change chat, role, or text. Rewind and roll again.' })
   }
+  // New text (an edit, a regeneration, a swipe): what was remembered from the old text goes, and the
+  // memory scribe reads this message again.
+  if ('text' in body && body.text !== existing.text) {
+    const chatId = existing.chatId as string
+    retractMessageMemories(chatId, req.params.id)
+    const chat = chatStore.get(chatId)
+    const createdAt = existing.createdAt as number
+    if (chat && typeof chat.memoryScribedUpTo === 'number' && chat.memoryScribedUpTo >= createdAt) {
+      chatStore.update(chatId, { memoryScribedUpTo: createdAt - 1 })
+    }
+  }
   const updated = messageStore.update(req.params.id, body)
   res.json(updated)
 })
 
 app.delete('/api/messages/:id', (req, res) => {
+  const existing = messageStore.get(req.params.id)
+  if (existing) retractMessageMemories(existing.chatId as string, req.params.id)
   messageStore.remove(req.params.id)
   res.status(204).end()
 })
@@ -1475,6 +1513,8 @@ const BACKUP_STORES = {
   objectives: objectiveStore,
   relationshipEvents: relationshipEventStore,
   chatFacts: chatFactStore,
+  memories: memoryStore,
+  stories: storyStore,
 } as const
 
 function listAvatarFiles(): { relPath: string; base64: string }[] {
@@ -1510,6 +1550,8 @@ app.post('/api/restore', express.json({ limit: '1gb' }), (req, res) => {
   db.exec('BEGIN')
   try {
     for (const [key, store] of Object.entries(BACKUP_STORES)) {
+      // Backups made before stories were included still name their stories from their chats: keep the current ones.
+      if (key === 'stories' && !Array.isArray(data[key])) continue
       store.clear()
       const rows = Array.isArray(data[key]) ? (data[key] as Record<string, unknown>[]) : []
       for (const row of rows) store.insert(row)

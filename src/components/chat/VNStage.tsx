@@ -67,7 +67,8 @@ import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
 import { resolveExpressionSprite } from '@/lib/vn/expressions'
-import { currentOutfitFrom } from '@/lib/vn/outfits'
+import { appearanceForCharacter, availableAppearances } from '@/lib/vn/appearances'
+import { BASE_OUTFIT_ID } from '@/lib/vn/outfits'
 import { vnArtHint } from '@/lib/vn/artHint'
 import { getWorldTemplate } from '@/lib/world/worldTemplates'
 import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/world/calendar'
@@ -251,6 +252,8 @@ interface VNStageProps {
   onTogglePin: (id: string) => void
   /** Lets the cast double as the "reply as" picker; omitted under any non-manual turn policy. */
   onSelectSpeaker?: (id: string | null) => void
+  /** Persist or clear a per-character stage appearance override. */
+  onAppearanceChange?: (characterId: string, appearanceId: string | null) => void
   /** Story and tool actions shown in the Visual Novel side rail. */
   sideActions?: ChatToolbarAction[]
   contextMeter?: ReactNode
@@ -313,6 +316,7 @@ export function VNStage({
   onFork,
   onTogglePin,
   onSelectSpeaker,
+  onAppearanceChange,
   sideActions = [],
   contextMeter,
   onBack,
@@ -485,8 +489,8 @@ export function VNStage({
   const isHangoutEvent = chat.activeEvent?.kind === 'hangout'
   const expression = scene?.expression || 'neutral'
   // Sprite resolution degrades unlocked tag -> same-family expression -> avatar (see resolveExpressionSprite).
-  // Outfits are sticky across turns, read from the last message that set one.
-  const outfitId = currentOutfitFrom(messages)
+  // Appearance is sticky per character; narration may describe another cast member's form.
+  const appearanceFlags = new Set(chat.sceneFlags ?? [])
   // Same stable-per-message seed as the CG pick above, so a sprite variant doesn't flicker mid-turn.
   const spriteVariantSeed = lastCharMsg?.id ?? 'no-message'
   // The line being read determines the expression. Narration holds the last cast shot.
@@ -498,16 +502,19 @@ export function VNStage({
     const memberAffection = Math.max(0, Math.min(100, getRelationshipTrack(chat, member.id).affection ?? 0))
     const variantOptions = { variants: member.spriteVariants, seed: spriteVariantSeed }
     const memberExpression = member.id === stageSpeakerId ? expression : 'neutral'
+    const appearanceId = appearanceForCharacter(messages, {
+      id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+    }, character?.id ?? member.id, memberAffection, appearanceFlags, chat.scene?.appearanceOverrides?.[member.id])
     const spriteUrl = isActive
-      ? resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, memberExpression, memberAffection, outfitId, variantOptions)
-      : resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, 'neutral', memberAffection, undefined, variantOptions)
+      ? resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, memberExpression, memberAffection, appearanceId, variantOptions)
+      : resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, 'neutral', memberAffection, appearanceId, variantOptions)
     return {
       id: member.id,
       name: member.card.name,
       avatarUrl: member.avatarDataUrl,
       hue: nameplateHue(member.id || member.card.name),
       spriteUrl,
-      vrmUrl: member.vrm?.enabled ? member.vrm.url : undefined,
+      vrmUrl: member.vrm?.enabled && appearanceId === BASE_OUTFIT_ID ? member.vrm.url : undefined,
       expression: memberExpression,
       speaking: member.id === stageSpeakerId && isStreamingThis,
       isActive,
@@ -1231,6 +1238,29 @@ export function VNStage({
               </button>
             )}
           </div>
+          {sideExpanded && onAppearanceChange && cast.some((member) => (member.outfits ?? []).length > 0) && (
+            <div className="space-y-2 border-t border-white/10 px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Character appearance</p>
+              {cast.map((member) => {
+                const memberAffection = getRelationshipTrack(chat, member.id).affection ?? 0
+                const options = availableAppearances(member.outfits, member.sprites, memberAffection, appearanceFlags)
+                if (options.length < 2) return null
+                const automatic = appearanceForCharacter(messages, {
+                  id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+                }, character?.id ?? member.id, memberAffection, appearanceFlags)
+                return <label key={member.id} className="block text-xs text-white/80">
+                  <span className="mb-1 block truncate">{member.card.name}</span>
+                  <select value={chat.scene?.appearanceOverrides?.[member.id] ?? ''}
+                    onChange={(event) => onAppearanceChange(member.id, event.target.value || null)}
+                    aria-label={`${member.card.name} appearance`}
+                    className="w-full rounded-lg border border-white/15 bg-neutral-900 px-2 py-1.5 text-xs text-white">
+                    <option value="">Follow scene ({options.find((option) => option.id === automatic)?.label ?? 'Default'})</option>
+                    {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+              })}
+            </div>
+          )}
           {railSection('Playback', playbackActions)}
           {railSection('Tools', toolActions)}
           {sideExpanded && contextMeter && <div className="mt-3 border-t border-white/10 px-3 pt-3">{contextMeter}</div>}

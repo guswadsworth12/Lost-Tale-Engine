@@ -17,6 +17,7 @@ const source = {
   giftCoins: 40,
   summary: 'A long rolling summary',
   summaryUpToTimestamp: 99,
+  memoryScribedUpTo: 99,
   worldInfoState: { turn: 4 },
   rapport: { mood: 'warm' },
   scene: { turnPolicy: 'gm', location: 'Guildhall', presentCharacterIds: ['lead', 'ally', 'rival'], roundRobinIndex: 2 },
@@ -45,7 +46,7 @@ describe('planNextScene', () => {
     const { newChat } = planNextScene(source, [], undefined, { recap, consequences: ['The ally owes a favor.', 'The gate is sealed.'] }, 1000, ids())
     expect(newChat).toMatchObject({ affection: 12, relationshipStats: { trust: 3 }, giftCoins: 40, playerCharacterId: 'hero', participants: ['ally', 'rival'] })
     expect(newChat.carriedConsequences).toEqual(['The gate is sealed.', 'The ally owes a favor.'])
-    for (const gone of ['summary', 'summaryUpToTimestamp', 'worldInfoState', 'rapport', 'endedAt', 'recap']) expect(newChat).not.toHaveProperty(gone)
+    for (const gone of ['summary', 'summaryUpToTimestamp', 'worldInfoState', 'rapport', 'endedAt', 'recap', 'memoryScribedUpTo']) expect(newChat).not.toHaveProperty(gone)
     expect(newChat.createdAt).toBe(1000)
   })
 
