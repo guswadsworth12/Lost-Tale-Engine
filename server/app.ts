@@ -39,6 +39,7 @@ import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
 import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
 import { ownershipPatch } from './ownership.ts'
+import { packsRouter } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
@@ -68,6 +69,7 @@ app.use(express.json({ limit: '150mb' }))
 // Private worlds, characters, and world-info books, and the chats using them, are their owner's alone (ownership.ts).
 app.use(accessGuards)
 app.use(meRouter)
+app.use(packsRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', memoriesRouter)

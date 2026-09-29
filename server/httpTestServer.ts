@@ -10,6 +10,11 @@ import type { AddressInfo } from 'node:net'
  * test only; it imports the app, which opens a database.
  */
 
+/** Two different 1x1 images, and a few bytes standing in for a music track. */
+export const RED_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+export const BLUE_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+export const TRACK = `data:audio/mpeg;base64,${Buffer.from('not really an mp3, but bytes all the same').toString('base64')}`
+
 export interface Reply {
   status: number
   body: any

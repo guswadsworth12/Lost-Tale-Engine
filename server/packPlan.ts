@@ -52,14 +52,15 @@ export function isLocalMedia(value: string): boolean {
   return value.startsWith('/avatars/') || value.startsWith('data:')
 }
 
-type MediaMapper = (value: string, kind: MediaKind) => string | undefined
+/** `slot` names where the value sits: `avatar`, `music.storm`, `sprites.neutral`, `gallery.cg-1`, `vrm`. */
+type MediaMapper = (value: string, kind: MediaKind, slot: string) => string | undefined
 
-function mapStringMap(value: unknown, kind: MediaKind, fn: MediaMapper): Record<string, string> | undefined {
+function mapStringMap(value: unknown, kind: MediaKind, field: string, fn: MediaMapper): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const out: Record<string, string> = {}
   for (const [key, v] of Object.entries(value as Row)) {
     if (typeof v !== 'string' || !v) continue
-    const mapped = fn(v, kind)
+    const mapped = fn(v, kind, `${field}.${key}`)
     if (mapped) out[key] = mapped
   }
   return out
@@ -74,13 +75,13 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
   const out: Row = { ...row }
   const single = (field: string, media: MediaKind) => {
     if (typeof row[field] !== 'string' || !row[field]) return
-    const mapped = fn(row[field] as string, media)
+    const mapped = fn(row[field] as string, media, field === 'avatarDataUrl' ? 'avatar' : field)
     if (mapped) out[field] = mapped
     else delete out[field]
   }
   const map = (field: string, media: MediaKind) => {
     if (!(field in row)) return
-    const mapped = mapStringMap(row[field], media, fn)
+    const mapped = mapStringMap(row[field], media, field, fn)
     if (mapped && Object.keys(mapped).length) out[field] = mapped
     else delete out[field]
   }
@@ -95,7 +96,7 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
   if (row.spriteVariants && typeof row.spriteVariants === 'object') {
     const variants: Record<string, string[]> = {}
     for (const [key, list] of Object.entries(row.spriteVariants as Row)) {
-      const mapped = strings(list).map((v) => fn(v, 'sprites')).filter((v): v is string => !!v)
+      const mapped = strings(list).map((v, i) => fn(v, 'sprites', `spriteVariants.${key}.${i + 1}`)).filter((v): v is string => !!v)
       if (mapped.length) variants[key] = mapped
     }
     if (Object.keys(variants).length) out.spriteVariants = variants
@@ -103,7 +104,7 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
   }
   const vrm = row.vrm as Row | undefined
   if (vrm && typeof vrm.url === 'string') {
-    const url = fn(vrm.url, 'models')
+    const url = fn(vrm.url, 'models', 'vrm')
     if (url) out.vrm = { ...vrm, url }
     else delete out.vrm
   }
@@ -111,8 +112,8 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
     // An entry's unlock rules are content; only its art is media. Without art it stays a placeholder.
     out.gallery = (row.gallery as Row[]).filter((g) => !!g && typeof g === 'object').map((g) => {
       const { variants, ...entry } = g
-      const imageUrl = typeof g.imageUrl === 'string' && g.imageUrl ? fn(g.imageUrl, 'gallery') ?? '' : ''
-      const kept = strings(variants).map((v) => fn(v, 'gallery')).filter((v): v is string => !!v)
+      const imageUrl = typeof g.imageUrl === 'string' && g.imageUrl ? fn(g.imageUrl, 'gallery', `gallery.${str(g.id, 90)}`) ?? '' : ''
+      const kept = strings(variants).map((v, i) => fn(v, 'gallery', `gallery.${str(g.id, 90)}.${i + 1}`)).filter((v): v is string => !!v)
       return { ...entry, imageUrl, ...(kept.length ? { variants: kept } : {}) }
     })
   }
@@ -120,10 +121,10 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
 }
 
 /** Every media value in a world or character, with its kind. */
-export function mediaValues(kind: 'world' | 'character', row: Row): { value: string; kind: MediaKind }[] {
-  const found: { value: string; kind: MediaKind }[] = []
-  mapMedia(kind, row, (value, media) => {
-    found.push({ value, kind: media })
+export function mediaValues(kind: 'world' | 'character', row: Row): { value: string; kind: MediaKind; slot: string }[] {
+  const found: { value: string; kind: MediaKind; slot: string }[] = []
+  mapMedia(kind, row, (value, media, slot) => {
+    found.push({ value, kind: media, slot })
     return value
   })
   return found
@@ -142,11 +143,13 @@ export interface ExportInput {
 export interface ExportPlan {
   /** Media fields still hold this install's paths; `withPackMedia` swaps them for pack references. */
   content: WorldPackContent
-  /** Each local media path the content uses, once. */
-  media: { value: string; kind: MediaKind }[]
+  /** Each local media path the content uses, once, with where it was first found (`owner` names the world or character). */
+  media: { value: string; kind: MediaKind; slot: string; owner: string }[]
   included: PackSummaryLine[]
   excluded: string[]
   droppedReferences: string[]
+  /** This install's ids of the cast the pack holds, in pack order. */
+  characterIds: string[]
 }
 
 const MEDIA_LABEL: Record<MediaKind, string> = {
@@ -166,6 +169,26 @@ export const NEVER_EXPORTED = [
   'Accounts, sessions, API keys, and preferences',
   'The world clock and story set events',
 ]
+
+/** A selection from a request: known options only, anything missing at its default. */
+export function normalizeSelection(raw: unknown): PackSelection {
+  const v = raw && typeof raw === 'object' ? raw as Row : {}
+  const media = v.media && typeof v.media === 'object' ? v.media as Row : {}
+  const flag = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback)
+  const d = DEFAULT_PACK_SELECTION
+  return {
+    lore: flag(v.lore, d.lore),
+    worldContent: flag(v.worldContent, d.worldContent),
+    cast: flag(v.cast, d.cast),
+    media: Object.fromEntries((Object.keys(d.media) as MediaKind[]).map((k) => [k, flag(media[k], d.media[k])])) as PackSelection['media'],
+    gmNotes: flag(v.gmNotes, d.gmNotes),
+    canonFacts: flag(v.canonFacts, d.canonFacts),
+    npcSheets: flag(v.npcSheets, d.npcSheets),
+    privateMemory: flag(v.privateMemory, d.privateMemory),
+    playerCards: flag(v.playerCards, d.playerCards),
+    ...(Array.isArray(v.excludeCharacterIds) ? { excludeCharacterIds: strings(v.excludeCharacterIds).slice(0, 1000) } : {}),
+  }
+}
 
 /** Plans what a pack of `input.world` holds under `selection`. Pure: reads nothing, writes nothing. */
 export function planExport(input: ExportInput, selection: PackSelection = DEFAULT_PACK_SELECTION): ExportPlan {
@@ -261,7 +284,7 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
     for (const found of mediaValues(kind, row)) {
       if (!isLocalMedia(found.value) || seen.has(found.value)) continue
       seen.add(found.value)
-      media.push(found)
+      media.push({ ...found, owner: kind === 'world' ? str(worldOut.name) : nameOf(row) })
     }
   }
 
@@ -277,7 +300,7 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
     ...(selection.privateMemory ? [{ label: 'Private memory', count: characters.filter((c) => c.privateMemory).length }] : []),
     ...(Object.keys(MEDIA_LABEL) as MediaKind[]).filter((k) => selection.media[k]).map((k) => ({ label: MEDIA_LABEL[k], media: k, count: media.filter((m) => m.kind === k).length })),
   ]
-  return { content, media, included, excluded, droppedReferences: dropped }
+  return { content, media, included, excluded, droppedReferences: dropped, characterIds: cast.map((c) => str(c.id, 100)) }
 }
 
 /** The content with each local media path swapped for its pack reference (`fileFor` returns `<sha256>.<ext>`). */
