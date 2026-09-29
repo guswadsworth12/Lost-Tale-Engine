@@ -7,6 +7,7 @@ import type { CustomExpression } from '@/lib/vn/expressions'
 import type { Outfit } from '@/lib/vn/outfits'
 import type { CustomBackground } from '@/lib/vn/backgrounds'
 import type { ScheduleEntry, WeatherPreferences } from '@/lib/world/calendar'
+import { CHARACTER_PACK_FIELDS, CHARACTER_PACK_WORLD_FIELDS, pickFields } from '@/lib/packs/fields'
 
 const PACK_KIND = 'rp-character-pack'
 const PACK_VERSION = 1
@@ -106,39 +107,12 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
   const pack: CharacterPackV1 = {
     kind: PACK_KIND,
     version: PACK_VERSION,
+    // The shared list (`packs/fields.ts`) keeps this pack and the world pack from drifting apart.
     character: {
-      card: character.card,
-      playerOnly: character.playerOnly,
-      worldId: character.worldId,
-      sheet: character.sheet,
-      sheets: character.sheets,
+      ...pickFields(character, CHARACTER_PACK_FIELDS),
       avatarDataUrl,
       sprites,
-      spriteUnlocks: character.spriteUnlocks,
-      outfits: character.outfits,
-      customExpressions: character.customExpressions,
-      giftPreferences: character.giftPreferences,
-      giftLikes: character.giftLikes,
-      giftDislikes: character.giftDislikes,
-      loveLanguage: character.loveLanguage,
-      weatherPreferences: character.weatherPreferences,
-      schedule: character.schedule,
       gallery: gallery.length ? gallery : undefined,
-      relationshipStarters: character.relationshipStarters,
-      voice: character.voice,
-      sfxWords: character.sfxWords,
-      replyLength: character.replyLength,
-      occupation: character.occupation,
-      workplace: character.workplace,
-      homeLocation: character.homeLocation,
-      frequentedLocations: character.frequentedLocations,
-      likes: character.likes,
-      goals: character.goals,
-      boundaries: character.boundaries,
-      touchProfile: character.touchProfile,
-      kinkProfile: character.kinkProfile,
-      socialConnections: character.socialConnections,
-      dateModeOptOut: character.dateModeOptOut,
     },
   }
 
@@ -149,23 +123,10 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
       mapToDataUrls(world.music),
     ])
     pack.world = {
-      name: world.name,
-      description: world.description,
-      rules: world.rules,
-      template: world.template,
-      lorebook: world.lorebook,
+      ...pickFields(world, CHARACTER_PACK_WORLD_FIELDS),
       avatarDataUrl: worldAvatarDataUrl,
       backgrounds,
-      backgroundUnlocks: world.backgroundUnlocks,
-      customBackgrounds: world.customBackgrounds,
       music,
-      gifts: world.gifts,
-      items: world.items,
-      customSceneFlags: world.customSceneFlags,
-      scenarios: world.scenarios,
-      relationshipThresholds: world.relationshipThresholds,
-      campaign: world.campaign,
-      modules: world.modules,
     }
   }
 
@@ -226,62 +187,20 @@ export async function importCharacterPack(
       rejectedScenarios.push(`${name}: ${problems.join('; ')}`)
     }
     world = await worldsApi.create({
-      name: pack.world.name,
-      description: pack.world.description,
-      rules: pack.world.rules,
-      template: pack.world.template,
-      lorebook: pack.world.lorebook,
-      avatarDataUrl: pack.world.avatarDataUrl,
-      backgrounds: pack.world.backgrounds,
-      backgroundUnlocks: pack.world.backgroundUnlocks,
-      customBackgrounds: pack.world.customBackgrounds,
-      music: pack.world.music,
-      gifts: pack.world.gifts,
-      items: pack.world.items,
-      customSceneFlags: pack.world.customSceneFlags,
+      ...pickFields(pack.world, CHARACTER_PACK_WORLD_FIELDS),
       // Rejected wholesale rather than loaded broken — see `dating/scenarios.ts`'s validator. What
       // was rejected, and why, is returned above rather than swallowed here.
       scenarios,
-      relationshipThresholds: pack.world.relationshipThresholds,
-      campaign: pack.world.campaign,
-      modules: pack.world.modules,
     })
   }
+  const { worldId: _worldId, sheet: _sheet, sheets: _sheets, ...fields } = pickFields(pack.character, CHARACTER_PACK_FIELDS)
   const character = await charactersApi.create({
-    card: pack.character.card,
-    playerOnly: pack.character.playerOnly,
+    ...fields,
     sheet: pack.character.sheet ? { ...pack.character.sheet, worldId: world?.id ?? pack.character.sheet.worldId } : undefined,
     sheets: Object.fromEntries(Object.entries(pack.character.sheets ?? {}).map(([id, sheet]) => {
       const nextId = world && id === pack.character.worldId ? world.id : id
       return [nextId, { ...sheet, worldId: nextId }]
     })),
-    avatarDataUrl: pack.character.avatarDataUrl,
-    sprites: pack.character.sprites,
-    spriteUnlocks: pack.character.spriteUnlocks,
-    outfits: pack.character.outfits,
-    customExpressions: pack.character.customExpressions,
-    giftPreferences: pack.character.giftPreferences,
-    giftLikes: pack.character.giftLikes,
-    giftDislikes: pack.character.giftDislikes,
-    loveLanguage: pack.character.loveLanguage,
-    weatherPreferences: pack.character.weatherPreferences,
-    schedule: pack.character.schedule,
-    gallery: pack.character.gallery,
-    relationshipStarters: pack.character.relationshipStarters,
-    voice: pack.character.voice,
-    sfxWords: pack.character.sfxWords,
-    replyLength: pack.character.replyLength,
-    occupation: pack.character.occupation,
-    workplace: pack.character.workplace,
-    homeLocation: pack.character.homeLocation,
-    frequentedLocations: pack.character.frequentedLocations,
-    likes: pack.character.likes,
-    goals: pack.character.goals,
-    boundaries: pack.character.boundaries,
-    touchProfile: pack.character.touchProfile,
-    kinkProfile: pack.character.kinkProfile,
-    socialConnections: pack.character.socialConnections,
-    dateModeOptOut: pack.character.dateModeOptOut,
     worldId: world?.id,
   })
   return { character, world, rejectedScenarios }

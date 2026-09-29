@@ -1,5 +1,6 @@
 import type { RomanceEmphasis } from './worldTemplates'
-import { normalizeMoveEffects, normalizeTracks, type CampaignTrack, type MoveEffects } from './gameState'
+// The server loads this file with plain Node, which needs the extension on a runtime import.
+import { normalizeMoveEffects, normalizeTracks, type CampaignTrack, type MoveEffects } from './gameState.ts'
 
 export interface CampaignConfig {
   ruleset: string

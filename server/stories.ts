@@ -1,6 +1,7 @@
 import express from 'express'
 import { characterStore, chatFactStore, chatStore, messageStore, newId, objectiveStore, relationshipEventStore, storyStore, worldStore } from './db.ts'
 import { planNextScene, type NextSceneRequest } from './storyPlan.ts'
+import { canSeeChat, storyVisible } from './access.ts'
 import { carryGameState, gameStateFrom, type CampaignTrack, type GameState } from '../src/lib/world/gameState.ts'
 
 /**
@@ -15,8 +16,8 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 export const storiesRouter = express.Router()
 
-storiesRouter.get('/stories', (_req, res) => {
-  res.json(storyStore.list({ orderBy: 'updatedAt DESC' }))
+storiesRouter.get('/stories', (req, res) => {
+  res.json(storyStore.list({ orderBy: 'updatedAt DESC' }).filter((story) => storyVisible(req, story)))
 })
 
 storiesRouter.get('/stories/:id', (req, res) => {
@@ -29,7 +30,7 @@ storiesRouter.get('/stories/:id', (req, res) => {
 storiesRouter.get('/stories/:id/scenes', (req, res) => {
   const scenes = chatStore
     .list({ orderBy: 'createdAt' })
-    .filter((c) => c.storyId === req.params.id && !c.deletedAt)
+    .filter((c) => c.storyId === req.params.id && !c.deletedAt && canSeeChat(req, c))
     .sort((a, b) => ((a.sceneNumber as number) ?? 0) - ((b.sceneNumber as number) ?? 0))
   res.json(scenes)
 })

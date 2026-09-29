@@ -1,3 +1,4 @@
+import { VisibilityField } from '@/components/ui/VisibilityField'
 import { useState } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
@@ -75,6 +76,7 @@ export function WorldInfoView() {
             scope={active}
             onChange={(patch) => worldInfoBooksApi.update(active.id, patch)}
           />
+          <VisibilityField value={active.visibility ?? 'shared'} row={active} onChange={(visibility) => worldInfoBooksApi.update(active.id, { visibility })} />
         </Section>
 
         <Section title="Entries" surface="bare">

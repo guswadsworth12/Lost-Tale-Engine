@@ -284,6 +284,68 @@ export const worldsApi = {
   },
 }
 
+/** What a pack of a world would hold, sized, before anything is packed (`POST /api/packs/export-preview`). */
+export interface PackExportPreview {
+  included: import('@/lib/packs/contract').PackSummaryLine[]
+  excluded: string[]
+  droppedReferences: string[]
+  characters: { id: string; name: string; playerOnly: boolean; included: boolean }[]
+  media: { path: string; kind: import('@/lib/packs/fields').MediaKind; label: string; bytes: number }[]
+  mediaBytes: number
+  missingMedia: number
+}
+
+export interface PackExportRequest {
+  worldId: string
+  selection: import('@/lib/packs/contract').PackSelection
+  metadata: Omit<import('@/lib/packs/contract').PackMetadata, 'credits'> & { credits?: (import('@/lib/packs/contract').PackCredit & { path?: string })[] }
+}
+
+// Unpacking and checking a large pack can take minutes; the upload itself has no timeout at all.
+const PACK_TIMEOUT_MS = 10 * 60 * 1000
+
+/** World packs (`server/packs.ts`). Uploads stream each file from disk; nothing is read into the page first. */
+export const packsApi = {
+  exportPreview(body: PackExportRequest): Promise<PackExportPreview> {
+    return request<PackExportPreview>('POST', '/packs/export-preview', body, { timeoutMs: 60000 })
+  },
+  /** A short-lived download link for this user; opening it streams the zip to disk. */
+  startExport(body: PackExportRequest): Promise<{ url: string; expiresAt: number }> {
+    return request('POST', '/packs/export', body)
+  },
+  /** Uploads a pack's zip, or an unzipped pack folder's files, into a fresh import. Returns its id. */
+  async upload(files: { path: string; file: Blob }[], onProgress?: (done: number, total: number) => void): Promise<string> {
+    const { uploadId } = await request<{ uploadId: string }>('POST', '/packs/uploads')
+    for (const [i, entry] of files.entries()) {
+      const res = await fetch(`/api/packs/uploads/${uploadId}/file?path=${encodeURIComponent(entry.path)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: entry.file,
+      })
+      if (!res.ok) {
+        const error = await res.json().catch(() => undefined) as { error?: string } | undefined
+        await request('DELETE', `/packs/uploads/${uploadId}`).catch(() => {})
+        throw new Error(error?.error ?? `Uploading ${entry.path} failed (${res.status}).`)
+      }
+      onProgress?.(i + 1, files.length)
+    }
+    return uploadId
+  },
+  preview(uploadId: string): Promise<import('@/lib/packs/contract').PackPreview> {
+    return request('POST', '/packs/preview', { uploadId }, { timeoutMs: PACK_TIMEOUT_MS })
+  },
+  async apply(body: import('@/lib/packs/contract').PackApplyRequest): Promise<import('@/lib/packs/contract').PackApplyResult> {
+    const result = await request<import('@/lib/packs/contract').PackApplyResult>('POST', '/packs/apply', body, { timeoutMs: PACK_TIMEOUT_MS })
+    invalidate('worlds')
+    invalidate('characters')
+    invalidate('world-info-books')
+    return result
+  },
+  cancel(uploadId: string): Promise<void> {
+    return request('DELETE', `/packs/uploads/${uploadId}`)
+  },
+}
+
 export const messagesApi = {
   ...makeResource<StoredMessage>('messages', '/messages'),
   listByChat(chatId: string): Promise<StoredMessage[]> {

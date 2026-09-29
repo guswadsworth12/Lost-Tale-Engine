@@ -1,5 +1,6 @@
 import express from 'express'
 import { characterStore, chatStore, db, memoryStore, messageStore, newId, storyStore } from './db.ts'
+import { canSeeChat } from './access.ts'
 import {
   consolidateFor,
   forkMemories,
@@ -119,6 +120,8 @@ memoriesRouter.get('/characters/:id/memories', (req, res) => {
     .list({ orderBy: 'createdAt DESC' })
     .map(asMemory)
     .filter((m) => (m.knownBy ?? []).includes(characterId))
+    // Memories from someone else's private story stay theirs, even for a character everyone shares.
+    .filter((m) => !chatOf(m.chatId) || canSeeChat(req, chatOf(m.chatId)))
     .map((m) => {
       const chat = chatOf(m.chatId)
       // The scene's story as it is now: a lone chat joins a story when its first scene ends.

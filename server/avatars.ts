@@ -238,7 +238,7 @@ function resolveMediaMap(
 // A VRM is a glTF binary; 100MB covers every VRoid export seen in practice and stays under the
 // JSON body limit once base64-encoded.
 const MAX_MODEL_BYTES = 100 * 1024 * 1024
-const OWN_MODEL_URL_RE = /^\/avatars\/(characters\/[0-9a-f-]{36}\/model\.vrm|vrm-library\/[A-Za-z0-9 _.()-]+\.vrm)(\?t=\d+)?$/i
+const OWN_MODEL_URL_RE = /^\/avatars\/(characters\/[0-9a-f-]{36}\/model\.vrm|vrm-library\/[A-Za-z0-9 _.()-]+\.vrm|pack-media\/[0-9a-f]{64}\.vrm)(\?t=\d+)?$/i
 
 /** Where dropped-in .vrm files are picked up from and listed for any character to use. */
 export const vrmLibraryDir = path.join(avatarsDir, 'vrm-library')

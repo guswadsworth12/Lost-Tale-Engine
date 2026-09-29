@@ -226,6 +226,10 @@ export interface Character {
   dateModeOptOut?: boolean
   /** How often this character texts the player first, unprompted. Unset behaves as 'never'. */
   outreach?: { frequency: OutreachFrequency }
+  /** The account that owns it. Unset: made before accounts owned things, shared with everyone. */
+  ownerUserId?: string
+  /** `private`: only its owner sees or uses it. Unset reads as `shared`. */
+  visibility?: import('@/lib/packs/contract').Visibility
   createdAt: number
   updatedAt: number
 }

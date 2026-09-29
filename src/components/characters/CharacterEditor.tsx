@@ -1,3 +1,5 @@
+import { VisibilityField } from '@/components/ui/VisibilityField'
+import type { Visibility } from '@/lib/packs/contract'
 import { BODY_REGIONS } from '@/lib/dating/arousal'
 import { BUILT_IN_KINKS, type KinkProfile } from '@/lib/dating/kinks'
 import type { TouchProfile } from '@/lib/dating/touch'
@@ -259,6 +261,7 @@ export function CharacterEditor({
   const [sheets, setSheets] = useState<Record<string, CharacterSheet>>(() => savedSheets(character))
   const [gmEligible, setGmEligible] = useState(character?.gmEligible !== false)
   const [playerOnly, setPlayerOnly] = useState(character ? character.playerOnly === true : initialPlayerOnly)
+  const [visibility, setVisibility] = useState<Visibility>(character?.visibility ?? 'shared')
   const [playerDescription, setPlayerDescription] = useState(character?.playerDescription ?? '')
   const [occupation, setOccupation] = useState(character?.occupation ?? '')
   const [workplace, setWorkplace] = useState(character?.workplace ?? '')
@@ -335,6 +338,7 @@ export function CharacterEditor({
     setSheets(savedSheets(character))
     setGmEligible(character?.gmEligible !== false)
     setPlayerOnly(character ? character.playerOnly === true : initialPlayerOnly)
+    setVisibility(character?.visibility ?? 'shared')
     setPlayerDescription(character?.playerDescription ?? '')
     setOccupation(character?.occupation ?? '')
     setWorkplace(character?.workplace ?? '')
@@ -497,6 +501,7 @@ export function CharacterEditor({
       sheet: worldId ? sheets[worldId] ?? (character?.sheet && !character.sheet.worldId && !character.worldId ? character.sheet : null) : character?.sheet ?? null,
       gmEligible,
       playerOnly,
+      visibility,
       // Always sent, as a string: the server treats '' as "cleared, fall back to the description".
       playerDescription: playerDescription.trim(),
       occupation: occupation.trim() || null,
@@ -899,6 +904,7 @@ export function CharacterEditor({
                   </option>
                 ))}
               </SelectField>
+              <VisibilityField value={visibility} row={character ?? undefined} onChange={setVisibility} />
             </div>
           </div>
 

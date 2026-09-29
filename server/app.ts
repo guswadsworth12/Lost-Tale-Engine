@@ -37,6 +37,9 @@ import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
+import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
+import { ownershipPatch } from './ownership.ts'
+import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
@@ -63,7 +66,12 @@ app.use(relayRouter)
 
 // Raised generously (a bulk sprite upload easily clears 25MB); only signed-in users get this far.
 app.use(express.json({ limit: '150mb' }))
+// Pack imports build rows with the same builders as the create routes below.
+usePackRowBuilders({ world: worldRow, character: characterRow })
+// Private worlds, characters, and world-info books, and the chats using them, are their owner's alone (ownership.ts).
+app.use(accessGuards)
 app.use(meRouter)
+app.use(packsRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', memoriesRouter)
@@ -585,15 +593,15 @@ app.get('/api/vrm-library', (_req, res) => {
   res.json(listVrmLibrary())
 })
 
-app.get('/api/characters', (_req, res) => {
-  res.json(characterStore.list({ orderBy: 'updatedAt DESC' }))
+app.get('/api/characters', (req, res) => {
+  res.json(characterStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => canSeeCharacter(req, c)))
 })
 
 // Lightweight public cast list for the GM. Card prompts, private memories, and artwork never leave this route.
 app.get('/api/characters/roster', (req, res) => {
   const worldId = typeof req.query.worldId === 'string' ? req.query.worldId : ''
   if (!worldId) return res.status(400).json({ error: 'worldId is required' })
-  res.json(characterStore.list({ where: 'worldId = ?', params: [worldId] }).map((c) => ({
+  res.json(characterStore.list({ where: 'worldId = ?', params: [worldId] }).filter((c) => canSeeCharacter(req, c)).map((c) => ({
     id: c.id,
     name: (c.card as { name?: string } | undefined)?.name ?? '',
     occupation: c.occupation,
@@ -615,60 +623,89 @@ function normalizePlayerDescription(raw: unknown): string | undefined {
   return typeof raw === 'string' ? raw.slice(0, 20_000) || undefined : undefined
 }
 
-app.post('/api/characters', (req, res) => {
-  const now = Date.now()
-  const id = newId()
-  const avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
-  const sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
-  const spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, req.body.spriteVariants)
-  const gallery = normalizeGalleryEntries(id, req.body.gallery)
-  const created = characterStore.insert({
-    id,
-    card: req.body.card,
-    promptItems: normalizePromptItems(req.body.promptItems),
-    privateMemory: typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined,
-    modelOverride: typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined,
-    playerOnly: req.body.playerOnly === true || undefined,
-    playerDescription: normalizePlayerDescription(req.body.playerDescription),
-    sheet: normalizeCharacterSheet(req.body.sheet),
-    sheets: normalizeCharacterSheets(req.body.sheets),
-    vrm: normalizeVrm(id, req.body.vrm),
-    spriteSources: normalizeSpriteSources(req.body.spriteSources),
+/** Refuses a character or chat pointing at a world or character this user can't see. */
+function refuseHiddenReferences(req: express.Request, res: express.Response, refs: { worldIds?: unknown[]; characterIds?: unknown[] }): boolean {
+  const hidden = [...hiddenIds(req, refs.worldIds ?? [], (id) => worldStore.get(id)), ...hiddenIds(req, refs.characterIds ?? [], lookups.character)]
+  if (!hidden.length) return false
+  res.status(404).json({ error: 'Not found' })
+  return true
+}
+
+/** The ownership part of a create or update; answers 403 itself when a visibility change isn't this user's to make. */
+function ownershipFor(req: express.Request, res: express.Response, existing: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const { patch, refused } = ownershipPatch(req.body ?? {}, existing, userOf(req))
+  if (refused) {
+    res.status(403).json({ error: refused })
+    return undefined
+  }
+  return patch
+}
+
+/** A character's stored fields from a create body: every value normalized, every upload written. Shared by create and pack import. */
+export function characterRow(id: string, body: Record<string, any>): Record<string, unknown> {
+  const avatarDataUrl = resolveAvatar('characters', id, body.avatarDataUrl)
+  const sprites = resolveAvatarMap('characters', 'sprites', id, body.sprites)
+  const spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, body.spriteVariants)
+  const gallery = normalizeGalleryEntries(id, body.gallery)
+  return {
+    card: body.card,
+    promptItems: normalizePromptItems(body.promptItems),
+    privateMemory: typeof body.privateMemory === 'string' ? body.privateMemory.slice(0, 100_000) : undefined,
+    modelOverride: typeof body.modelOverride === 'string' ? body.modelOverride.trim().slice(0, 200) || undefined : undefined,
+    playerOnly: body.playerOnly === true || undefined,
+    playerDescription: normalizePlayerDescription(body.playerDescription),
+    sheet: normalizeCharacterSheet(body.sheet),
+    sheets: normalizeCharacterSheets(body.sheets),
+    vrm: normalizeVrm(id, body.vrm),
+    spriteSources: normalizeSpriteSources(body.spriteSources),
     avatarDataUrl,
     sprites,
     spriteVariants,
-    spriteUnlocks: req.body.spriteUnlocks ?? {},
-    outfits: normalizeOutfits(req.body.outfits),
-    customExpressions: normalizeCustomExpressions(req.body.customExpressions),
-    giftPreferences: req.body.giftPreferences ?? {},
-    giftLikes: normalizeStringArray(req.body.giftLikes),
-    giftDislikes: normalizeStringArray(req.body.giftDislikes),
-    loveLanguage: typeof req.body.loveLanguage === 'string' ? req.body.loveLanguage : undefined,
-    explicitVoiceNote: typeof req.body.explicitVoiceNote === 'string' ? req.body.explicitVoiceNote : undefined,
+    spriteUnlocks: body.spriteUnlocks ?? {},
+    outfits: normalizeOutfits(body.outfits),
+    customExpressions: normalizeCustomExpressions(body.customExpressions),
+    giftPreferences: body.giftPreferences ?? {},
+    giftLikes: normalizeStringArray(body.giftLikes),
+    giftDislikes: normalizeStringArray(body.giftDislikes),
+    loveLanguage: typeof body.loveLanguage === 'string' ? body.loveLanguage : undefined,
+    explicitVoiceNote: typeof body.explicitVoiceNote === 'string' ? body.explicitVoiceNote : undefined,
     gallery,
-    relationshipStarters: req.body.relationshipStarters ?? [],
-    voice: req.body.voice ?? undefined,
-    voiceFingerprint: normalizeVoiceFingerprint(req.body.voiceFingerprint),
-    sfxWords: normalizeStringArray(req.body.sfxWords),
-    instructTemplateId: typeof req.body.instructTemplateId === 'string' ? req.body.instructTemplateId : undefined,
-    replyLength: normalizeReplyLength(req.body.replyLength),
-    weatherPreferences: req.body.weatherPreferences ?? undefined,
-    schedule: Array.isArray(req.body.schedule) ? req.body.schedule : undefined,
-    worldId: req.body.worldId || undefined,
-    likes: normalizeStringArray(req.body.likes),
-    goals: normalizeStringArray(req.body.goals),
-    boundaries: normalizeStringArray(req.body.boundaries),
-    socialConnections: normalizeSocialConnections(req.body.socialConnections),
-    behavioralRules: normalizeBehavioralRules(req.body.behavioralRules),
-    touchProfile: normalizeTouchProfile(req.body.touchProfile),
-    kinkProfile: normalizeKinkProfile(req.body.kinkProfile),
-    occupation: typeof req.body.occupation === 'string' ? req.body.occupation : undefined,
-    workplace: typeof req.body.workplace === 'string' ? req.body.workplace : undefined,
-    homeLocation: typeof req.body.homeLocation === 'string' ? req.body.homeLocation : undefined,
-    birthday: normalizeDayOfYear(req.body.birthday),
-    frequentedLocations: normalizeStringArray(req.body.frequentedLocations),
-    dateModeOptOut: req.body.dateModeOptOut === true,
-    outreach: normalizeOutreach(req.body.outreach),
+    relationshipStarters: body.relationshipStarters ?? [],
+    voice: body.voice ?? undefined,
+    voiceFingerprint: normalizeVoiceFingerprint(body.voiceFingerprint),
+    sfxWords: normalizeStringArray(body.sfxWords),
+    instructTemplateId: typeof body.instructTemplateId === 'string' ? body.instructTemplateId : undefined,
+    replyLength: normalizeReplyLength(body.replyLength),
+    weatherPreferences: body.weatherPreferences ?? undefined,
+    schedule: Array.isArray(body.schedule) ? body.schedule : undefined,
+    worldId: body.worldId || undefined,
+    likes: normalizeStringArray(body.likes),
+    goals: normalizeStringArray(body.goals),
+    boundaries: normalizeStringArray(body.boundaries),
+    socialConnections: normalizeSocialConnections(body.socialConnections),
+    behavioralRules: normalizeBehavioralRules(body.behavioralRules),
+    touchProfile: normalizeTouchProfile(body.touchProfile),
+    kinkProfile: normalizeKinkProfile(body.kinkProfile),
+    occupation: typeof body.occupation === 'string' ? body.occupation : undefined,
+    workplace: typeof body.workplace === 'string' ? body.workplace : undefined,
+    homeLocation: typeof body.homeLocation === 'string' ? body.homeLocation : undefined,
+    birthday: normalizeDayOfYear(body.birthday),
+    frequentedLocations: normalizeStringArray(body.frequentedLocations),
+    dateModeOptOut: body.dateModeOptOut === true,
+    outreach: normalizeOutreach(body.outreach),
+  }
+}
+
+app.post('/api/characters', (req, res) => {
+  if (refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
+  const now = Date.now()
+  const id = newId()
+  const created = characterStore.insert({
+    id,
+    ...characterRow(id, req.body),
+    ...ownership,
     createdAt: now,
     updatedAt: now,
   })
@@ -677,8 +714,12 @@ app.post('/api/characters', (req, res) => {
 
 app.put('/api/characters/:id', (req, res) => {
   const id = req.params.id
-  if (!characterStore.get(id)) return notFound(res)
-  const patch: Record<string, unknown> = { updatedAt: Date.now() }
+  const existing = characterStore.get(id)
+  if (!existing) return notFound(res)
+  if ('worldId' in req.body && refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const patch: Record<string, unknown> = { updatedAt: Date.now(), ...ownership }
   if ('card' in req.body) patch.card = req.body.card
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
@@ -863,15 +904,15 @@ export function purgeExpiredTrash(): void {
   if (expired.length) console.log(`[rp-server] purged ${expired.length} chat(s) past the ${TRASH_RETENTION_MS / 86400000}-day trash retention window`)
 }
 
-app.get('/api/chats', (_req, res) => {
-  res.json(chatStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => !c.deletedAt))
+app.get('/api/chats', (req, res) => {
+  res.json(chatStore.list({ orderBy: 'updatedAt DESC' }).filter((c) => !c.deletedAt && canSeeChat(req, c)))
 })
 
 // Registered before `/api/chats/:id`, or Express would match "trash" as an :id.
-app.get('/api/chats/trash', (_req, res) => {
+app.get('/api/chats/trash', (req, res) => {
   const trashed = chatStore
     .list()
-    .filter((c) => typeof c.deletedAt === 'number')
+    .filter((c) => typeof c.deletedAt === 'number' && canSeeChat(req, c))
     .sort((a, b) => (b.deletedAt as number) - (a.deletedAt as number))
   res.json(trashed)
 })
@@ -887,6 +928,8 @@ app.get('/api/chats/:id/messages', (req, res) => {
 })
 
 app.post('/api/chats', (req, res) => {
+  const participants = Array.isArray(req.body.participants) ? req.body.participants : []
+  if (refuseHiddenReferences(req, res, { characterIds: [req.body.characterId, req.body.playerCharacterId, ...participants] })) return
   const now = Date.now()
   const created = chatStore.insert({
     id: newId(),
@@ -919,6 +962,7 @@ app.put('/api/chats/:id', (req, res) => {
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
   const { characterId: _c, id: _id, createdAt: _ca, skipTouch, ...patch } = req.body
+  if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
   const updated = chatStore.update(req.params.id, {
@@ -1129,6 +1173,7 @@ app.get('/api/messages/search', (req, res) => {
   const hits = messageStore
     .list({ orderBy: 'createdAt DESC' })
     .filter((m) => String(m.text ?? '').toLowerCase().includes(q))
+    .filter((m) => canSeeChat(req, typeof m.chatId === 'string' ? chatStore.get(m.chatId) : undefined))
     .slice(0, 50)
   res.json(hits)
 })
@@ -1191,14 +1236,19 @@ app.delete('/api/messages/:id', (req, res) => {
 
 // ---- World info books (global lorebooks) ----
 
-app.get('/api/world-info-books', (_req, res) => {
-  res.json(worldInfoBookStore.list({ orderBy: 'createdAt' }))
+app.get('/api/world-info-books', (req, res) => {
+  res.json(worldInfoBookStore.list({ orderBy: 'createdAt' }).filter((b) => canSee(req, b)))
 })
 
 app.post('/api/world-info-books', (req, res) => {
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
   const created = worldInfoBookStore.insert({
-    ...req.body,
-    id: req.body.id || newId(),
+    ...body,
+    ...ownership,
+    // A client-chosen id may not take over an existing book.
+    id: typeof req.body.id === 'string' && req.body.id && !worldInfoBookStore.get(req.body.id) ? req.body.id : newId(),
     boundChatIds: normalizeIdArray(req.body.boundChatIds),
     boundCharacterIds: normalizeIdArray(req.body.boundCharacterIds),
     boundWorldIds: normalizeIdArray(req.body.boundWorldIds),
@@ -1208,7 +1258,12 @@ app.post('/api/world-info-books', (req, res) => {
 })
 
 app.put('/api/world-info-books/:id', (req, res) => {
-  const patch: Record<string, unknown> = { ...req.body }
+  const existing = worldInfoBookStore.get(req.params.id)
+  if (!existing) return notFound(res)
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
+  const patch: Record<string, unknown> = { ...body, ...ownership }
   for (const key of ['boundChatIds', 'boundCharacterIds', 'boundWorldIds'] as const) {
     if (key in req.body) patch[key] = normalizeIdArray(req.body[key])
   }
@@ -1269,13 +1324,21 @@ app.get('/api/assistant-library/search', (req, res) => {
   const query = typeof req.query.q === 'string' ? req.query.q : ''
   if (!query.trim()) return res.json([])
   res.json(searchLocalLibrary(query, {
-    worlds: worldStore.list() as unknown as WorldCard[],
-    characters: characterStore.list() as unknown as Character[],
-    books: worldInfoBookStore.list() as unknown as WorldInfoBook[],
-    chats: chatStore.list() as unknown as Chat[],
-    messages: messageStore.list() as unknown as StoredMessage[],
-    objectives: objectiveStore.list() as unknown as Objective[],
-    facts: chatFactStore.list() as unknown as ChatFact[],
+    ...(() => {
+      // Only what this user can see: private things of others, and the chats using them, stay out.
+      const chats = chatStore.list().filter((c) => canSeeChat(req, c))
+      const chatIds = new Set(chats.map((c) => c.id))
+      const inChat = (row: Record<string, unknown>) => chatIds.has(row.chatId)
+      return {
+        worlds: worldStore.list().filter((w) => canSee(req, w)) as unknown as WorldCard[],
+        characters: characterStore.list().filter((c) => canSeeCharacter(req, c)) as unknown as Character[],
+        books: worldInfoBookStore.list().filter((b) => canSee(req, b)) as unknown as WorldInfoBook[],
+        chats: chats as unknown as Chat[],
+        messages: messageStore.list().filter(inChat) as unknown as StoredMessage[],
+        objectives: objectiveStore.list().filter(inChat) as unknown as Objective[],
+        facts: chatFactStore.list().filter(inChat) as unknown as ChatFact[],
+      }
+    })(),
   }))
 })
 
@@ -1359,8 +1422,8 @@ app.delete('/api/instruct-templates/:id', (req, res) => {
 
 // ---- Worlds ----
 
-app.get('/api/worlds', (_req, res) => {
-  res.json(worldStore.list({ orderBy: 'updatedAt DESC' }))
+app.get('/api/worlds', (req, res) => {
+  res.json(worldStore.list({ orderBy: 'updatedAt DESC' }).filter((w) => canSee(req, w)))
 })
 
 app.get('/api/worlds/:id', (req, res) => {
@@ -1369,41 +1432,55 @@ app.get('/api/worlds/:id', (req, res) => {
   res.json(row)
 })
 
-app.post('/api/worlds', (req, res) => {
-  const now = Date.now()
-  const id = newId()
-  const avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)
-  const backgrounds = resolveAvatarMap('worlds', 'backgrounds', id, req.body.backgrounds)
-  const backgroundsNight = resolveWorldBackgroundsNightMap(id, req.body.backgroundsNight)
-  const music = resolveWorldMusicMap(id, req.body.music)
-  const customSceneFlags = normalizeCustomSceneFlags(req.body.customSceneFlags)
+/** A world's stored fields from a create body: every value normalized, every upload written. Shared by create and pack import. */
+export function worldRow(id: string, body: Record<string, any>): Record<string, unknown> {
+  const avatarDataUrl = resolveAvatar('worlds', id, body.avatarDataUrl)
+  const backgrounds = resolveAvatarMap('worlds', 'backgrounds', id, body.backgrounds)
+  const backgroundsNight = resolveWorldBackgroundsNightMap(id, body.backgroundsNight)
+  const music = resolveWorldMusicMap(id, body.music)
+  const customSceneFlags = normalizeCustomSceneFlags(body.customSceneFlags)
   const allowedFlags = new Set([...DEFAULT_SCENE_FLAGS, ...customSceneFlags.map((f) => f.id)])
-  const created = worldStore.insert({
-    id,
-    name: req.body.name,
-    campaign: normalizeCampaign(req.body.campaign),
-    modules: normalizeWorldModules(req.body.modules),
-    promptItems: normalizePromptItems(req.body.promptItems),
-    canonFacts: normalizeCanonFacts(req.body.canonFacts),
-    description: req.body.description,
-    rules: req.body.rules,
-    gmNotes: typeof req.body.gmNotes === 'string' ? req.body.gmNotes.slice(0, 100_000) : undefined,
-    template: req.body.template ?? undefined,
-    scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined,
-    lorebook: req.body.lorebook,
+  return {
+    name: body.name,
+    campaign: normalizeCampaign(body.campaign),
+    modules: normalizeWorldModules(body.modules),
+    promptItems: normalizePromptItems(body.promptItems),
+    canonFacts: normalizeCanonFacts(body.canonFacts),
+    description: body.description,
+    rules: body.rules,
+    gmNotes: typeof body.gmNotes === 'string' ? body.gmNotes.slice(0, 100_000) : undefined,
+    template: body.template ?? undefined,
+    scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(body.scenerySet) ? body.scenerySet : undefined,
+    lorebook: body.lorebook,
     avatarDataUrl,
     backgrounds,
     backgroundsNight,
-    backgroundUnlocks: req.body.backgroundUnlocks ?? {},
+    backgroundUnlocks: body.backgroundUnlocks ?? {},
     music,
-    gifts: normalizeGiftItems(req.body.gifts),
-    items: normalizeItemDefs(req.body.items, allowedFlags),
+    gifts: normalizeGiftItems(body.gifts),
+    items: normalizeItemDefs(body.items, allowedFlags),
     customSceneFlags,
-    customBackgrounds: normalizeCustomBackgrounds(req.body.customBackgrounds),
-    relationshipThresholds: normalizeRelationshipThresholds(req.body.relationshipThresholds),
-    intimacyLevel: normalizeIntimacyLevel(req.body.intimacyLevel),
-    triggers: normalizeTriggers(req.body.triggers),
-    customIntimacyOptions: Array.isArray(req.body.customIntimacyOptions) ? req.body.customIntimacyOptions : undefined,
+    customBackgrounds: normalizeCustomBackgrounds(body.customBackgrounds),
+    relationshipThresholds: normalizeRelationshipThresholds(body.relationshipThresholds),
+    intimacyLevel: normalizeIntimacyLevel(body.intimacyLevel),
+    triggers: normalizeTriggers(body.triggers),
+    customIntimacyOptions: Array.isArray(body.customIntimacyOptions) ? body.customIntimacyOptions : undefined,
+    replaceIntimacyCatalog: body.replaceIntimacyCatalog === true || undefined,
+    // Scene shapes are checked against the scenario validator by the client that loads them.
+    scenarios: Array.isArray(body.scenarios) ? body.scenarios.filter((g: unknown) => !!g && typeof g === 'object' && !Array.isArray(g)).slice(0, 200) : undefined,
+    defaultBackgroundId: typeof body.defaultBackgroundId === 'string' && body.defaultBackgroundId ? body.defaultBackgroundId.slice(0, 100) : undefined,
+  }
+}
+
+app.post('/api/worlds', (req, res) => {
+  const ownership = ownershipFor(req, res, undefined)
+  if (!ownership) return
+  const now = Date.now()
+  const id = newId()
+  const created = worldStore.insert({
+    id,
+    ...worldRow(id, req.body),
+    ...ownership,
     createdAt: now,
     updatedAt: now,
   })
@@ -1414,7 +1491,10 @@ app.put('/api/worlds/:id', (req, res) => {
   const id = req.params.id
   const existing = worldStore.get(id)
   if (!existing) return notFound(res)
-  const patch: Record<string, unknown> = { ...req.body, updatedAt: Date.now() }
+  const ownership = ownershipFor(req, res, existing)
+  if (!ownership) return
+  const { ownerUserId: _o, visibility: _v, ...body } = req.body
+  const patch: Record<string, unknown> = { ...body, ...ownership, updatedAt: Date.now() }
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
