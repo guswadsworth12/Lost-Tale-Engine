@@ -92,9 +92,11 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
       }}
     >
       {/* Utilities float above the frame rather than taking a row inside it, so the box's fixed
-          height is all dialogue. Near-invisible at rest; full opacity on hover or keyboard focus. */}
+          height is all dialogue. Anchored by their bottom edge to the frame's top, so a bar that
+          wraps to two rows on a phone grows upward over the art, never down over the first lines.
+          Near-invisible at rest; full opacity on hover or keyboard focus. */}
       {utilities && !writing && (
-        <div className="pointer-events-none absolute -top-1 right-4 z-20 flex justify-end opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover/vnbox:opacity-100 sm:right-6">
+        <div className="pointer-events-none absolute bottom-full right-4 z-20 translate-y-2 flex justify-end opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover/vnbox:opacity-100 sm:right-6">
           <div className="vn-glass pointer-events-auto flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-0.5 rounded-full px-1.5 py-1">{utilities}</div>
         </div>
       )}
