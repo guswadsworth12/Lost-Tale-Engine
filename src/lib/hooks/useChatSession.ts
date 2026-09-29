@@ -38,6 +38,7 @@ import {
   type GmContext,
   type GmTurn,
 } from '@/lib/world/gm'
+import { gameStateFrom, normalizeGameState, stateLines, trackValue, type StateChange, type TrackEffect } from '@/lib/world/gameState'
 import { currentScenery, describeScenery, pinnedSceneryGuidance, sceneryIsNight } from '@/lib/vn/scenery'
 import { sceneSettingFrom, type SceneSettingEvent } from '@/lib/chat/sceneSetting'
 import { BUILTIN_SYSTEM_PROMPTS, buildPrompt, estimateTokens, type ChatMessage, type StyleGuidanceItem } from '@/lib/prompt/builder'
@@ -725,6 +726,12 @@ export function useChatSession(chatId: string | null) {
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
       const recentRolls = modules.campaignRules === 'mechanical' ? recentRollsFrom(branchMessages) : []
+      // Tracked state this speaker can see: the story's shared values and their own.
+      const tracks = modules.campaignRules ? world?.campaign?.tracks : undefined
+      const trackedLines = tracks?.length
+        ? stateLines(gameStateFrom(tracks, freshChat.gameState, branchMessages, { playerId: freshChat.playerCharacterId }).state, tracks,
+          { audience: { characterId: speaker.id }, playerId: freshChat.playerCharacterId, nameOf: (id) => (id === speaker.id ? speaker.card.name : undefined) })
+        : []
       // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`), not the chat's opening value.
       const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       const worldMomentLines = [
@@ -759,6 +766,7 @@ export function useChatSession(chatId: string | null) {
         pinnedSceneryGuidance(currentScenery(branchMessages, freshChat.scene), world),
         branchConsequences.length ? `Established in this story so far:\n${branchConsequences.map((c) => `- ${c}`).join('\n')}` : '',
         recentRolls.length ? `Recorded checks in this scene (binding):\n${recentRolls.map((roll) => `- ${roll}`).join('\n')}` : '',
+        trackedLines.length ? `Tracked state (kept by the game; do not change it in your reply):\n${trackedLines.map((line) => `- ${line}`).join('\n')}` : '',
       ].filter(Boolean)
       const worldDescription = worldDescriptionLines.length > 0 ? worldDescriptionLines.join('\n') : undefined
       const worldMoment = worldMomentLines.length > 0 ? worldMomentLines.join('\n') : undefined
@@ -2532,6 +2540,34 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   )
 
+  /**
+   * The player's own correction to tracked state. It happens at this point in the story, so it rides
+   * the latest message and follows rewinds and forks (`world/gameState.ts`); with no messages yet it
+   * sets the scene's starting values.
+   */
+  const editGameState = useCallback(
+    async (effects: TrackEffect[]) => {
+      if (!chatId || !effects.length) return
+      const edits: StateChange[] = effects.map((effect) => ({ ...effect, source: 'player' }))
+      const branch = await messagesApi.listByChat(chatId)
+      const last = branch[branch.length - 1]
+      if (last) {
+        await messagesApi.update(last.id, { stateEdits: [...(last.stateEdits ?? []), ...edits] })
+        return
+      }
+      const fresh = await chatsApi.get(chatId)
+      const tracks = world?.campaign?.tracks ?? []
+      const { state } = gameStateFrom(tracks, fresh?.gameState, [{ stateEdits: edits }], { playerId: fresh?.playerCharacterId })
+      // Values back at their default needn't be stored.
+      const kept = Object.fromEntries(Object.entries(state).filter(([key, value]) => {
+        const track = tracks.find((t) => t.id === key.split('@')[0])
+        return !track || JSON.stringify(value) !== JSON.stringify(trackValue(undefined, track))
+      }))
+      await chatsApi.update(chatId, { gameState: normalizeGameState(kept) ?? null } as Partial<Chat>)
+    },
+    [chatId, world],
+  )
+
   /** Location/atmosphere framing plus the group-chat turn policy. `null` clears it entirely; a partial patch merges onto whatever's already set. */
   const updateScene = useCallback(
     async (patch: Partial<Scene> | null) => {
@@ -3475,6 +3511,15 @@ export function useChatSession(chatId: string | null) {
         canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
         loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
         playerName,
+        playerId: freshChat?.playerCharacterId,
+        // The state as of this action, including what its roll already changed.
+        stateLines: world.campaign?.tracks?.length
+          ? stateLines(gameStateFrom(world.campaign.tracks, freshChat?.gameState, upTo, { playerId: freshChat?.playerCharacterId }).state, world.campaign.tracks, {
+              audience: 'gm',
+              playerId: freshChat?.playerCharacterId,
+              nameOf: (id) => (id === freshChat?.playerCharacterId ? playerName : fullRoster.find((c) => c.id === id)?.name),
+            })
+          : undefined,
         playerRank: playerCharacter ? sheetForWorld(playerCharacter, world.id)?.rank : undefined,
         transcript: upTo.slice(-13, -1).filter((m) => m.text.trim()).map((m) => ({
           speaker: m.role === 'user' ? playerName : m.name,
@@ -3668,13 +3713,18 @@ export function useChatSession(chatId: string | null) {
     }
   }, [beginGeneration, chatId, endGeneration, runGmBeat])
 
-  /** The player's answer to a GM proposal. A world-scope confirmation also becomes shared canon. */
+  /**
+   * The player's answer to a GM proposal. A world-scope confirmation also becomes shared canon.
+   * `changes` replaces a proposal's tracked-state changes when the player corrected them first.
+   */
   const decideGmProposal = useCallback(
-    async (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => {
+    async (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected', changes?: TrackEffect[]) => {
       const msg = await messagesApi.get(messageId)
       const proposal = msg?.gm?.proposals.find((p) => p.id === proposalId)
       if (!msg?.gm || !proposal || proposal.status !== 'pending') return
-      const proposals = msg.gm.proposals.map((p) => (p.id === proposalId ? { ...p, status: decision, decidedAt: Date.now() } : p))
+      const proposals = msg.gm.proposals.map((p) => (p.id === proposalId
+        ? { ...p, status: decision, decidedAt: Date.now(), ...(changes && decision === 'confirmed' ? { changes: changes.length ? changes : undefined } : {}) }
+        : p))
       await messagesApi.update(messageId, { gm: { ...msg.gm, proposals } })
       if (decision === 'confirmed' && proposal.scope === 'world' && world) {
         const fresh = await worldsApi.get(world.id)
@@ -4732,6 +4782,7 @@ export function useChatSession(chatId: string | null) {
     updateScene,
     updateGmNotes,
     updateSetEvents,
+    editGameState,
     updateParticipants,
     switchPlayer,
     story,

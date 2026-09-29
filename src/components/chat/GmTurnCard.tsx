@@ -1,18 +1,23 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { Check, Dices, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
-import { adjudicationLabel } from '@/lib/world/gm'
+import { adjudicationLabel, type GmProposal } from '@/lib/world/gm'
+import { effectsText, parseEffects, type CampaignTrack, type NamedCharacter, type TrackEffect } from '@/lib/world/gameState'
 
 /**
  * What a GM turn needs from the chat around it — supplied once by `ChatWindow` rather than threaded
  * through `MessageLog` → `MessageBubble` as props, since only GM turns ever read it.
  */
 export const GmActionsContext = createContext<{
-  decideProposal?: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected') => void
+  /** `changes`: the player's corrected version of a proposal's tracked-state changes. */
+  decideProposal?: (messageId: string, proposalId: string, decision: 'confirmed' | 'rejected', changes?: TrackEffect[]) => void
   nameOf?: (characterId: string) => string
   openChat?: (chatId: string) => void
   pendingCheckMessageId?: string
   rollForCheck?: (messageId: string, moveId: string, action: string) => void
+  /** The world's tracked state (`world/gameState.ts`) and who can hold it, to show and read changes by name. */
+  tracks?: CampaignTrack[]
+  people?: NamedCharacter[]
 }>({})
 
 const SOURCE_TONE = {
@@ -24,6 +29,7 @@ const SOURCE_TONE = {
 
 /** The recorded dice on a player turn, so the roll that the GM honored is visible where it was made. */
 export function CampaignRollBadge({ message }: { message: StoredMessage }) {
+  const { tracks, people } = useContext(GmActionsContext)
   const roll = message.campaignRoll
   if (!roll) return null
   const failed = roll.tier === 'miss'
@@ -38,12 +44,72 @@ export function CampaignRollBadge({ message }: { message: StoredMessage }) {
     <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] ${failed ? 'bg-danger/10 text-danger' : 'bg-accent/10 text-accent'}`}>
       <Dices size={12} strokeWidth={2} />
       {failed ? 'Failed check · ' : ''}{roll.moveName}: {result} ({roll.degree ?? roll.tier}){roll.modifierSource === 'sheet' ? ' · sheet' : ''}
+      {!!roll.stateChanges?.length && !!tracks?.length && <> · {effectsText(roll.stateChanges, tracks, people)}</>}
+    </div>
+  )
+}
+
+/** One proposal. A proposed state change can be corrected before it is confirmed. */
+function ProposalRow({ messageId, proposal }: { messageId: string; proposal: GmProposal }) {
+  const { decideProposal, tracks, people } = useContext(GmActionsContext)
+  const proposed = proposal.changes?.length ? effectsText(proposal.changes, tracks, people) : ''
+  const [change, setChange] = useState(proposed)
+  const [problem, setProblem] = useState('')
+  const pending = proposal.status === 'pending' && !!decideProposal
+  const confirm = () => {
+    if (!proposal.changes?.length || change === proposed) return decideProposal?.(messageId, proposal.id, 'confirmed')
+    const parsed = parseEffects(change, tracks, people)
+    if (parsed.errors.length) return setProblem(parsed.errors[0])
+    decideProposal?.(messageId, proposal.id, 'confirmed', parsed.effects)
+  }
+  return (
+    <div className="rounded-lg bg-bg px-2 py-1.5">
+      <div className="flex items-start gap-2">
+        <span className="flex-1">
+          <span className="mr-1 rounded bg-bg-sunken px-1 text-[10px] uppercase tracking-wide">{proposal.scope === 'world' ? 'World canon' : 'This branch'}</span>
+          <span className="text-text">{proposal.text}</span>
+        </span>
+        {pending ? (
+          <span className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={confirm}
+              className="flex items-center gap-0.5 rounded-md bg-accent/15 px-1.5 py-0.5 text-accent hover:bg-accent/25"
+              aria-label={`Confirm: ${proposal.text}`}
+            >
+              <Check size={11} strokeWidth={2.5} /> Confirm
+            </button>
+            <button
+              type="button"
+              onClick={() => decideProposal?.(messageId, proposal.id, 'rejected')}
+              className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 hover:bg-bg-sunken hover:text-text"
+              aria-label={`Reject: ${proposal.text}`}
+            >
+              <X size={11} strokeWidth={2.5} /> Reject
+            </button>
+          </span>
+        ) : (
+          <span className={`shrink-0 ${proposal.status === 'confirmed' ? 'text-accent' : ''}`}>{proposal.status}</span>
+        )}
+      </div>
+      {!!proposal.changes?.length && (pending ? (
+        <label className="mt-1 flex items-center gap-1.5">
+          <span className="shrink-0">State:</span>
+          <input
+            className="min-w-0 flex-1 rounded border border-border bg-bg-sunken px-1.5 py-0.5 text-[11px] text-text outline-none focus:border-accent"
+            value={change}
+            onChange={(e) => { setChange(e.target.value); setProblem('') }}
+            aria-label={`State change for: ${proposal.text}`}
+          />
+        </label>
+      ) : <p className="mt-1">State: {proposed}</p>)}
+      {problem && <p className="mt-1 text-danger">{problem}</p>}
     </div>
   )
 }
 
 export function GmTurnCard({ message }: { message: StoredMessage }) {
-  const { decideProposal, nameOf, openChat, pendingCheckMessageId, rollForCheck } = useContext(GmActionsContext)
+  const { nameOf, openChat, pendingCheckMessageId, rollForCheck, tracks, people } = useContext(GmActionsContext)
   const turn = message.gm
   if (!turn) return null
   const adj = turn.adjudication
@@ -69,41 +135,13 @@ export function GmTurnCard({ message }: { message: StoredMessage }) {
       )}
       {turn.fallback && <p className="text-warning">GM fallback: {turn.fallback}</p>}
       {turn.corrections?.map((c) => <p key={c}>Engine correction: {c}</p>)}
+      {!!turn.stateChanges?.length && !!tracks?.length && <p className="text-text">State: {effectsText(turn.stateChanges, tracks, people)}</p>}
       {!!turn.addCharacterIds?.length && <p>Entered scene: {turn.addCharacterIds.map((id) => nameOf?.(id) ?? id).join(', ')}</p>}
       {turn.fork?.chatId && <p>New story branch: <button type="button" className="text-accent underline" onClick={() => openChat?.(turn.fork!.chatId!)}>{turn.fork.title}</button> — {turn.fork.reason}</p>}
       {turn.proposals.length > 0 && (
         <div className="space-y-1">
           <p className="font-medium text-text">Proposed lasting changes</p>
-          {turn.proposals.map((p) => (
-            <div key={p.id} className="flex items-start gap-2 rounded-lg bg-bg px-2 py-1.5">
-              <span className="flex-1">
-                <span className="mr-1 rounded bg-bg-sunken px-1 text-[10px] uppercase tracking-wide">{p.scope === 'world' ? 'World canon' : 'This branch'}</span>
-                <span className="text-text">{p.text}</span>
-              </span>
-              {p.status === 'pending' && decideProposal ? (
-                <span className="flex shrink-0 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => decideProposal(message.id, p.id, 'confirmed')}
-                    className="flex items-center gap-0.5 rounded-md bg-accent/15 px-1.5 py-0.5 text-accent hover:bg-accent/25"
-                    aria-label={`Confirm: ${p.text}`}
-                  >
-                    <Check size={11} strokeWidth={2.5} /> Confirm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => decideProposal(message.id, p.id, 'rejected')}
-                    className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 hover:bg-bg-sunken hover:text-text"
-                    aria-label={`Reject: ${p.text}`}
-                  >
-                    <X size={11} strokeWidth={2.5} /> Reject
-                  </button>
-                </span>
-              ) : (
-                <span className={`shrink-0 ${p.status === 'confirmed' ? 'text-accent' : ''}`}>{p.status}</span>
-              )}
-            </div>
-          ))}
+          {turn.proposals.map((p) => <ProposalRow key={p.id} messageId={message.id} proposal={p} />)}
         </div>
       )}
     </div>

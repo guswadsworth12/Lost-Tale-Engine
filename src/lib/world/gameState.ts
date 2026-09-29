@@ -230,7 +230,7 @@ export function effectsForChoice(move: (PbtaMove & MoveEffects) | undefined, pic
 }
 
 /** Words that turn "is strained" into its opposite. A consequence saying so applies nothing. */
-const CLEARING = /\b(?:no longer|not|isn['’]t|aren['’]t|recover(?:s|ed)?|cured|free of|without)\b/i
+const CLEARING = /\b(?:no longer|not|isn['’]t|aren['’]t|nobody|no one|none|recover(?:s|ed)?|cured|free of|without)\b/i
 
 /**
  * Conditions a consequence names in plain words ("Bea is strained" applies Strained to Bea), for set
@@ -309,13 +309,10 @@ export function parseEffects(input: string, tracks: readonly CampaignTrack[] | u
     if (!part) continue
     let body = part
     let who: string | undefined
+    // "for Name" at the end names whose value it is. Unknown, it may be part of an item ("+ food for the road").
     const forAt = /\s+for\s+([^+\-=]+)$/i.exec(part)
-    if (forAt) {
-      const hit = findCharacter(forAt[1], characters)
-      if (!hit) {
-        errors.push(`"${part}": nobody here is called ${forAt[1].trim()}.`)
-        continue
-      }
+    const hit = forAt ? findCharacter(forAt[1], characters) : undefined
+    if (forAt && hit) {
       who = hit.id
       body = part.slice(0, forAt.index)
     }
@@ -325,6 +322,10 @@ export function parseEffects(input: string, tracks: readonly CampaignTrack[] | u
     })
     if (!track) {
       errors.push(`"${part}": no tracked state by that name.`)
+      continue
+    }
+    if (forAt && !hit && track.kind !== 'items') {
+      errors.push(`"${part}": nobody here is called ${forAt[1].trim()}.`)
       continue
     }
     if (who && !track.perCharacter) {

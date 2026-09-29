@@ -1,4 +1,5 @@
 import type { SetEvent } from '@/lib/world/gm'
+import type { TrackEffect } from '@/lib/world/gameState'
 
 /** A set event as its editor form holds it: the recognising words as one line of text. */
 export interface SetEventDraft {
@@ -7,6 +8,8 @@ export interface SetEventDraft {
   outcome: string
   consequence: string
   words: string
+  /** Tracked-state changes, already read from their short form (`EffectsField`). */
+  effects?: TrackEffect[]
 }
 
 export function draftOf(event: SetEvent): SetEventDraft {
@@ -16,6 +19,7 @@ export function draftOf(event: SetEvent): SetEventDraft {
     outcome: event.outcome,
     consequence: event.consequence ?? '',
     words: (event.match ?? []).join(', '),
+    ...(event.effects?.length ? { effects: event.effects } : {}),
   }
 }
 
@@ -50,6 +54,7 @@ export function eventsFromDrafts(drafts: readonly SetEventDraft[]): SetEvent[] {
       outcome,
       ...(consequence ? { consequence } : {}),
       ...(match.length ? { match } : {}),
+      ...(draft.effects?.length ? { effects: draft.effects } : {}),
     })
   }
   return events

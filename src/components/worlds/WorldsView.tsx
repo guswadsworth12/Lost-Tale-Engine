@@ -33,6 +33,8 @@ import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
 import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignRank, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
 import { MAX_RANKS, RANK_NAME_MAX, RANK_NOTE_MAX, moveItem, nextRankName, rankLadderProblem } from './rankLadder'
+import { ChoiceEffectsField, EffectsField, TracksEditor } from './TracksEditor'
+import { removeTrack, tracksProblem } from './tracks'
 import { PromptItemsEditor } from '@/components/characters/PromptItemsEditor'
 import type { PromptItem } from '@/lib/prompt/items'
 
@@ -283,6 +285,8 @@ export function loadCampaignPreset(current: CampaignConfig, preset: CampaignConf
     stats: preset.stats?.map((stat) => ({ ...stat })),
     // A rank ladder belongs to the world's setting, not the dice rules, so a preset without one keeps it.
     ranks: (preset.ranks ?? current.ranks)?.map((rank) => ({ ...rank })),
+    // Tracked state can outlive the dice rules too (set events and the GM still use it); a preset with its own replaces it.
+    tracks: (preset.tracks ?? current.tracks)?.map((track) => ({ ...track })),
     moves: preset.moves.map((move) => ({ ...move })),
   }
 }
@@ -666,6 +670,7 @@ function WorldEditor({
   const sheetNames = sheetStats.map((stat) => stat.name.trim().toLowerCase())
   const sheetStatsValid = sheetStats.length <= 30 && sheetNames.every(Boolean) && new Set(sheetNames).size === sheetNames.length
   const rankLadderValid = !rankLadderProblem(campaign.ranks ?? [])
+  const tracksValid = !tracksProblem(campaign.tracks ?? [])
 
   const addSheetStat = () => {
     if (sheetStats.length >= 30) return
@@ -717,7 +722,7 @@ function WorldEditor({
           ) : (
             <span />
           )}
-          <Button variant="primary" onClick={save} disabled={!name.trim() || !sheetStatsValid || !rankLadderValid || saving}>
+          <Button variant="primary" onClick={save} disabled={!name.trim() || !sheetStatsValid || !rankLadderValid || !tracksValid || saving}>
             {saving ? 'Saving…' : world ? 'Save changes' : 'Create world'}
           </Button>
         </>
@@ -880,6 +885,10 @@ function WorldEditor({
             {/* Always an array once edited, so clearing the last rung saves `[]` and the server drops the old ladder. */}
             <RankLadderEditor ranks={campaign.ranks ?? []} onChange={(ranks) => setCampaign({ ...campaign, ranks })} />
           </Section>
+          <Section title="Tracked state" description="What play keeps count of: resources to spend, conditions, clocks that fill toward trouble, and item lists. Moves and set events change them by rule, and the Game Master sees them." surface="bare">
+            {/* Always an array once edited, so removing the last one saves `[]` and the server drops the old list. */}
+            <TracksEditor tracks={campaign.tracks ?? []} onChange={(tracks) => setCampaign({ ...campaign, tracks })} onRemove={(id) => setCampaign(removeTrack(campaign, id))} />
+          </Section>
           <Section title="Moves" description="These are editable campaign checks. Write the trigger and guidance for each result. Degree-specific effects beyond these core checks need custom rules." surface="bare">
             <div className="space-y-4">
               {campaign.moves.map((move, index) => {
@@ -902,6 +911,18 @@ function WorldEditor({
                   <TextAreaField label={campaign.resolver === 'pbta' ? '10+ result' : 'Success result'} value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
                   <TextAreaField label={campaign.resolver === 'pbta' ? '7–9 result' : 'Tie or complication result'} value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
                   <TextAreaField label={campaign.resolver === 'pbta' ? '6 or less result' : 'Failure result'} value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
+                  {!!campaign.tracks?.length && <div className="space-y-2">
+                    <p className="text-xs text-text-muted">What each result changes, e.g. "Supplies -1, Hurt on, Trouble +1". Items: "Gear + rope".</p>
+                    {(['strong', 'mixed', 'miss'] as const).map((tier) => <EffectsField key={tier} tracks={campaign.tracks!}
+                      label={`Changes on ${campaign.resolver === 'pbta' ? { strong: '10+', mixed: '7–9', miss: '6 or less' }[tier] : { strong: 'success', mixed: 'a tie or complication', miss: 'failure' }[tier]}`}
+                      effects={move.effects?.[tier]}
+                      onChange={(effects) => {
+                        const { [tier]: _old, ...others } = move.effects ?? {}
+                        const next = effects ? { ...others, [tier]: effects } : others
+                        update({ effects: Object.keys(next).length ? next : undefined })
+                      }} />)}
+                    <ChoiceEffectsField label="When a result lets the player choose, what each option costs" entries={move.choiceEffects} tracks={campaign.tracks} onChange={(choiceEffects) => update({ choiceEffects })} />
+                  </div>}
                 </div>
               })}
               <Button variant="secondary" onClick={() => setCampaign({ ...campaign, stats: sheetStats, moves: [...campaign.moves, { id: newId(), name: 'New move', trigger: '', stat: sheetStats[0]?.name ?? '', statId: sheetStats[0]?.id, strong: '', mixed: '', miss: '' }] })}>Add move</Button>

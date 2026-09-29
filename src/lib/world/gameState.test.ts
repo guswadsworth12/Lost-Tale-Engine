@@ -140,6 +140,7 @@ describe('set events', () => {
     const strained: CampaignTrack = { id: 'strained', name: 'Strained', kind: 'condition', perCharacter: true }
     expect(inferConditionEffects('Cole is strained.', [strained], people)).toEqual([{ trackId: 'strained', set: true, who: 'cole' }])
     expect(inferConditionEffects('Cole is no longer strained.', [strained], people)).toEqual([])
+    expect(inferConditionEffects('Nobody is strained.', [strained], people)).toEqual([])
     expect(inferConditionEffects('Supplies run low.', tracks, people)).toEqual([])
   })
 
@@ -170,6 +171,13 @@ describe('effect text', () => {
     const parsed = parseEffects('Stamina -1, Hurt a lot, Supplies -1 for Bea, Hurt on for Zed', all, people)
     expect(parsed.effects).toEqual([])
     expect(parsed.errors).toHaveLength(4)
+    expect(parsed.errors[3]).toContain('nobody here is called Zed')
+  })
+
+  it('keeps "for" inside an item name when it names nobody', () => {
+    const pack: CampaignTrack = { id: 'pack', name: 'Pack', kind: 'items', perCharacter: true }
+    expect(parseEffects('Pack + food for the road, Pack + rope for Bea', [pack], people))
+      .toEqual({ effects: [{ trackId: 'pack', gain: 'food for the road' }, { trackId: 'pack', gain: 'rope', who: 'bea' }], errors: [] })
   })
 
   it('reads choice costs by option', () => {

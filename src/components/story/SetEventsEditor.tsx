@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { SetEvent } from '@/lib/world/gm'
 import { draftOf, eventsFromDrafts, type SetEventDraft } from './setEvents'
+import type { CampaignTrack, NamedCharacter } from '@/lib/world/gameState'
+import { EffectsField } from '@/components/worlds/TracksEditor'
 
 const inputClass = 'w-full rounded-lg border border-border bg-bg-sunken px-3 py-2 text-sm text-text outline-none focus:border-accent'
 const actionClass = 'rounded-lg border border-border px-3 py-1.5 text-xs text-text hover:bg-bg-sunken disabled:opacity-50'
@@ -10,11 +12,15 @@ const blank: SetEventDraft = { id: '', trigger: '', outcome: '', consequence: ''
  * The story's set events: canon beats that happen as written, with no roll, when the player
  * carries them out. Edited as drafts and saved together.
  */
-export function SetEventsEditor({ events, doneIds, onSave }: {
+export function SetEventsEditor({ events, doneIds, onSave, tracks = [], characters = [] }: {
   events: SetEvent[]
   /** Events already carried out in this branch or an earlier scene. */
   doneIds: readonly string[]
   onSave: (events: SetEvent[]) => Promise<void>
+  /** The world's tracked state, for what an event changes. None hides the field. */
+  tracks?: CampaignTrack[]
+  /** Who a per-character change can name ("Hurt on for Bea"). */
+  characters?: NamedCharacter[]
 }) {
   const [drafts, setDrafts] = useState<SetEventDraft[]>(() => events.map(draftOf))
   const [saving, setSaving] = useState(false)
@@ -38,6 +44,8 @@ export function SetEventsEditor({ events, doneIds, onSave }: {
         <label className="block space-y-1 text-xs text-text-muted">What happens<input className={inputClass} value={draft.trigger} placeholder="Rend binds the Unbound into Emily's form" onChange={(e) => change(index, { trigger: e.target.value })} /></label>
         <label className="block space-y-1 text-xs text-text-muted">Result, applied with no roll<textarea className={`${inputClass} min-h-16`} value={draft.outcome} onChange={(e) => change(index, { outcome: e.target.value })} /></label>
         <label className="block space-y-1 text-xs text-text-muted">Lasting consequence (optional)<input className={inputClass} value={draft.consequence} placeholder="Rend is strained." onChange={(e) => change(index, { consequence: e.target.value })} /></label>
+        {tracks.length > 0 && <EffectsField label="Tracked-state change (optional)" tracks={tracks} characters={characters} effects={draft.effects}
+          placeholder="Hurt on for Bea, Supplies -1" onChange={(effects) => change(index, { effects })} />}
         <label className="block space-y-1 text-xs text-text-muted">Recognise by words (commas: all needed; | : either)<input className={inputClass} value={draft.words} placeholder="bind, Emily | Unbound" onChange={(e) => change(index, { words: e.target.value })} /></label>
       </div>
     })}

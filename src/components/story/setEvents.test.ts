@@ -20,4 +20,10 @@ describe('set event drafts', () => {
     expect(eventsFromDrafts([{ id: '', trigger: 'Wren wakes the bell', outcome: 'It rings.', consequence: '', words: '' }]))
       .toEqual([{ id: 'wren-wakes-the-bell', trigger: 'Wren wakes the bell', outcome: 'It rings.' }])
   })
+
+  it('keeps an event\'s tracked-state changes', () => {
+    const saved = { id: 'fall', trigger: 'Wren jumps the gap', outcome: 'Wren lands badly.', effects: [{ trackId: 'hurt', set: true, who: 'wren' }] }
+    expect(eventsFromDrafts([draftOf(saved)])).toEqual([saved])
+    expect(eventsFromDrafts([{ ...draftOf(saved), effects: [] }])).toEqual([{ id: 'fall', trigger: 'Wren jumps the gap', outcome: 'Wren lands badly.' }])
+  })
 })
