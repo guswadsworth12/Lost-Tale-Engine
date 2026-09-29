@@ -195,7 +195,7 @@ import { replyMaxTokens, resolveReplyLength, usesActionMarkup } from '@/lib/char
 import { SCENE_MOOD_IDS } from '@/lib/vn/moods'
 import { DEFAULT_EXPRESSIONS, expressionCandidatesFor } from '@/lib/vn/expressions'
 import { getUnlockedBackgroundIds, getUnlockedExpressionIds } from '@/lib/vn/unlocks'
-import { currentOutfitFrom, intimateOutfitFor, outfitOwnedFlag, selectableOutfitIds, spriteKey } from '@/lib/vn/outfits'
+import { intimateOutfitFor, outfitOwnedFlag, selectableOutfitIds, spriteKey } from '@/lib/vn/outfits'
 import {
   AFTERGLOW_TURNS,
   aftercareDeltas,
@@ -234,10 +234,12 @@ import {
 } from '@/lib/prompt/mindGuidance'
 import {
   classifyAttachedImageScene,
+  detectCharacterForms,
   detectExpressionFromSprites,
   detectExpressionTextMismatch,
   shortlistExpressions,
 } from '@/lib/vn/sceneVision'
+import { appearanceForCharacter, isPhysicalForm } from '@/lib/vn/appearances'
 import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
@@ -936,6 +938,9 @@ export function useChatSession(chatId: string | null) {
       // — the VN stage, or the reactive portrait a live date puts beside the log. See the note on
       // `sceneOptions` below for why this gates what the model is asked for.
       const wantsFullSceneTag = isVisualNovel || isLiveScene(freshChat.activeEvent)
+      const appearanceHistory = wantsFullSceneTag && speaker.outfits?.length
+        ? await messagesApi.listByChat(freshChat.id)
+        : messages
 
       // Where and when, resolved once: the state block asserts these as fact and `continuityGuard.ts`
       // checks the reply against them afterwards, so both halves have to be reading the same values.
@@ -1190,16 +1195,24 @@ export function useChatSession(chatId: string | null) {
           // tag, so it starts neutral and picks up the real scene from the next reply — the same
           // state a brand-new chat's first message already leaves it in.
           //
-          // VN scene-tagging stays keyed on the primary — per-participant sprites are a separate, larger lift.
-          expressionIds: wantsFullSceneTag ? getUnlockedExpressionIds(character, affection) : [],
+          expressionIds: wantsFullSceneTag ? getUnlockedExpressionIds(speaker, speakerTrack.affection ?? 0) : [],
           backgroundIds: wantsFullSceneTag ? getUnlockedBackgroundIds(world, affection) : [],
           // Only ask for a mood tag when this world actually has music to drive with it.
           moodIds: world?.music && Object.keys(world.music).length > 0 ? SCENE_MOOD_IDS : undefined,
           // A character with no outfit art gets a single-entry list, treated as no choice.
           outfitIds: wantsFullSceneTag
-            ? selectableOutfitIds(character.outfits, character.sprites, affection, new Set(freshChat.sceneFlags ?? []))
+            ? selectableOutfitIds(speaker.outfits, speaker.sprites, speakerTrack.affection ?? 0, new Set(freshChat.sceneFlags ?? []))
             : [],
-          currentOutfitId: currentOutfitFrom(messages),
+          formIds: wantsFullSceneTag
+            ? (speaker.outfits ?? [])
+              .filter(isPhysicalForm)
+              .filter((outfit) => selectableOutfitIds(speaker.outfits, speaker.sprites, speakerTrack.affection ?? 0, new Set(freshChat.sceneFlags ?? [])).includes(outfit.id))
+              .map((outfit) => outfit.id)
+            : [],
+          currentOutfitId: appearanceForCharacter(appearanceHistory, {
+            id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
+          // A manual stage correction is what the story shows, so the model is told it too.
+          }, character.id, getRelationshipTrack(freshChat, speaker.id).affection ?? 0, new Set(freshChat.sceneFlags ?? []), freshChat.scene?.appearanceOverrides?.[speaker.id]),
         },
         affection,
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
@@ -2520,14 +2533,17 @@ export function useChatSession(chatId: string | null) {
   /** Vision backup for the model's `<<scene:>>` self-tag: corrects the expression from the character's actual sprites, and derives background/mood from any attached photo. No-op if nothing changed. */
   const refineSceneWithVision = useCallback(
     async (messageId: string, speaker: Character, replyText: string, userImages: string[]) => {
-      if (!replyText.trim()) return
+      if (!chat || !chatId || !character || !replyText.trim()) return
       const spriteMap = speaker.sprites ?? {}
-      const affection = chat?.affection ?? 0
+      const affection = getRelationshipTrack(chat, speaker.id).affection ?? 0
       const unlockedExpressions = getUnlockedExpressionIds(speaker, affection)
       const unlockedBackgrounds = getUnlockedBackgroundIds(world, affection)
       // Needed so re-sanitizing the existing tag can't strip an outfit the reply already established.
       const selectableOutfits = selectableOutfitIds(speaker.outfits, spriteMap, affection, new Set(chat?.sceneFlags ?? []))
-      const currentOutfit = currentOutfitFrom(messages)
+      const appearanceHistory = await messagesApi.listByChat(chatId)
+      const currentOutfit = appearanceForCharacter(appearanceHistory, {
+        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
+      }, character.id, affection, new Set(chat.sceneFlags ?? []), chat.scene?.appearanceOverrides?.[speaker.id])
 
       const spriteExpressionIds = Object.keys(spriteMap).filter((id) => unlockedExpressions.includes(id))
       const canDetectExpression = spriteExpressionIds.length >= 2
@@ -2602,14 +2618,14 @@ export function useChatSession(chatId: string | null) {
       swipeScenes[activeSwipe] = sanitized
       await messagesApi.update(messageId, { scene: sanitized, swipeScenes })
     },
-    [chat?.affection, client, world],
+    [chat, chatId, character, client, world],
   )
 
   /** Text-only fallback for `refineSceneWithVision` when no vision model is loaded — corrects a stale expression tag from the reply text alone. Expression only, writes back only on actual change. */
   const refineExpressionFromText = useCallback(
     async (messageId: string, speaker: Character, replyText: string) => {
-      if (!replyText.trim()) return
-      const affection = chat?.affection ?? 0
+      if (!chat || !replyText.trim()) return
+      const affection = getRelationshipTrack(chat, speaker.id).affection ?? 0
       const unlockedExpressions = getUnlockedExpressionIds(speaker, affection)
       const unlockedBackgrounds = getUnlockedBackgroundIds(world, affection)
       const selectableOutfits = selectableOutfitIds(speaker.outfits, speaker.sprites, affection, new Set(chat?.sceneFlags ?? []))
@@ -2641,8 +2657,44 @@ export function useChatSession(chatId: string | null) {
       swipeScenes[activeSwipe] = sanitized
       await messagesApi.update(messageId, { scene: sanitized, swipeScenes })
     },
-    [chat?.affection, chat?.sceneFlags, client, world],
+    [chat, client, world],
   )
+
+  /** Best-effort form read for the whole cast. The GM or another character can describe an arrival. */
+  const refineCharacterForms = useCallback(async (messageId: string, replyText: string) => {
+    if (!chatId || !chat || !character || !replyText.trim()) return
+    const branch = await messagesApi.listByChat(chatId)
+    const index = branch.findIndex((message) => message.id === messageId)
+    if (index < 0) return
+    const flags = new Set(chat?.sceneFlags ?? [])
+    const roster = [character, ...participantCharacters, ...arrivalsRef.current]
+      .filter((member, index, all) => all.findIndex((other) => other.id === member.id) === index)
+    const candidates = roster.map((member) => {
+      const affection = getRelationshipTrack(chat, member.id).affection ?? 0
+      const forms = (member.outfits ?? [])
+        .filter((outfit) => isPhysicalForm(outfit) && selectableOutfitIds(member.outfits, member.sprites, affection, flags).includes(outfit.id))
+        .map(({ id, label }) => ({ id, label }))
+      return {
+        id: member.id,
+        name: member.card.name,
+        current: appearanceForCharacter(branch.slice(0, index), {
+          id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+        }, character.id, affection, flags),
+        forms,
+      }
+    }).filter((candidate) => candidate.forms.length >= 2)
+    if (!candidates.length) return
+    const picked = await detectCharacterForms(client, { text: replyText, candidates }, assistShaping)
+    if (!Object.keys(picked).length) return
+    const fresh = await messagesApi.get(messageId)
+    if (!fresh) return
+    const activeSwipe = fresh.activeSwipe ?? 0
+    const current = fresh.swipeScenes?.[activeSwipe] ?? fresh.scene ?? {}
+    const scene = { ...current, appearances: { ...current.appearances, ...picked } }
+    const swipeScenes = fresh.swipeScenes ? [...fresh.swipeScenes] : []
+    swipeScenes[activeSwipe] = scene
+    await messagesApi.update(messageId, { scene, swipeScenes })
+  }, [assistShaping, character, chat, chatId, client, participantCharacters])
 
   const runGeneration = useCallback(
     async (
@@ -2794,12 +2846,13 @@ export function useChatSession(chatId: string | null) {
           }
 
           const combinedRaw = (accumulated + newText).trimEnd()
-          const unlockedExpressions = getUnlockedExpressionIds(character, chat.affection ?? 0)
+          const speakerAffection = getRelationshipTrack(chat, speaker.id).affection ?? 0
+          const unlockedExpressions = getUnlockedExpressionIds(speaker, speakerAffection)
           const unlockedBackgrounds = getUnlockedBackgroundIds(world, chat.affection ?? 0)
           const selectableOutfits = selectableOutfitIds(
-            character.outfits,
-            character.sprites,
-            chat.affection ?? 0,
+            speaker.outfits,
+            speaker.sprites,
+            speakerAffection,
             new Set(chat.sceneFlags ?? []),
           )
           const { text: extractedText, scene: parsedScene } = extractSceneTag(combinedRaw)
@@ -3087,11 +3140,11 @@ export function useChatSession(chatId: string | null) {
         if (autoSummarize) {
           runAssist('summary', 'Updating memory', () => updateMemorySummary())
         }
-        if (visionSceneDetection) {
-          runAssist('vision', 'Reading the scene', () => refineSceneWithVision(targetMessageId, speaker, combined, images))
-        } else {
-          runAssist('vision', 'Reading the scene', () => refineExpressionFromText(targetMessageId, speaker, combined))
-        }
+        runAssist('vision', 'Reading the scene', async () => {
+          if (visionSceneDetection) await refineSceneWithVision(targetMessageId, speaker, combined, images)
+          else await refineExpressionFromText(targetMessageId, speaker, combined)
+          await refineCharacterForms(targetMessageId, combined)
+        })
       } catch (e) {
         toastError(errorMessage(e))
         // `wroteAnything` covers an auto-continue round failing after an earlier round already
@@ -3129,6 +3182,7 @@ export function useChatSession(chatId: string | null) {
       detectAndMarkTasks,
       messages,
       refineExpressionFromText,
+      refineCharacterForms,
       refineSceneWithVision,
       resolveSpeaker,
       runAssist,
@@ -3165,6 +3219,7 @@ export function useChatSession(chatId: string | null) {
       const isPlayer = (c: { id: string; name: string }) => c.id === freshChat?.playerCharacterId || isPlayerCharacter(c.name, playerName)
       const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayer(c))
       const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayer(c))
+      const loadedRoster = available.filter((c) => loadedIds.includes(c.id))
       const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
       const scenery = currentScenery(upTo, freshChat?.scene)
       const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
@@ -3192,6 +3247,7 @@ export function useChatSession(chatId: string | null) {
         timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
         roster: cast,
         availableRoster: available,
+        loadedRoster,
         cardedNames: fullRoster.filter((c) => !isPlayerCharacter(c.name, playerName)).map((c) => c.name),
         canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
         loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
@@ -3273,6 +3329,7 @@ export function useChatSession(chatId: string | null) {
         const arrivals = await Promise.all(turn.addCharacterIds.map((id) => charactersApi.get(id).catch(() => undefined)))
         arrivalsRef.current = [...arrivalsRef.current, ...arrivals.filter((c): c is Character => !!c)]
       }
+      runAssist('vision', 'Reading the scene', () => refineCharacterForms(gmMsg.id, gmMsg.text))
       if (turn.fork) {
         try {
           const forked = await chatsApi.fork(chatId, gmMsg.id)
@@ -3317,7 +3374,7 @@ export function useChatSession(chatId: string | null) {
         if (abortRef.current?.signal.aborted) break
       }
     },
-    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration, callableLore],
+    [character, chatId, decideGmTurn, participantCharacters, persona, runGeneration, callableLore, refineCharacterForms, runAssist],
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */

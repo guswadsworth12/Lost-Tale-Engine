@@ -11,6 +11,49 @@ import type { ChatBackend } from '@/lib/api/chatBackend'
 import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithTimeout'
 import { parseLenientJson } from '@/lib/jsonRepair'
 import type { SceneTag } from '@/lib/vn/sceneTag'
+import { mentionsCharacter } from '@/lib/vn/appearances'
+
+/** Read a completed beat for physical form changes across the cast, including characters who did not speak. */
+export async function detectCharacterForms(
+  client: ChatBackend,
+  params: {
+    text: string
+    candidates: { id: string; name: string; current: string; forms: { id: string; label: string }[] }[]
+  },
+  assist?: AssistShaping,
+): Promise<Record<string, string>> {
+  const mentioned = params.candidates.filter((candidate) =>
+    candidate.forms.length >= 2 && mentionsCharacter(params.text, candidate.name),
+  )
+  if (!mentioned.length || !params.text.trim()) return {}
+  const roster = mentioned.map((c) => `${c.name} [${c.id}]: currently ${c.current}; forms ${c.forms.map((f) => `${f.id} (${f.label})`).join(', ')}`).join('\n')
+  const prompt = [
+    'Identify physical forms explicitly shown or strongly implied in this scene beat. A different speaker may narrate the character. Clothing, nicknames, metaphors and personality descriptions are not form changes. Actions requiring human hands, hair and face can show human form even without the word "human". Return only characters whose visible form is clear; otherwise omit them.',
+    `Characters:\n${roster}`,
+    `Scene beat:\n"""\n${params.text.slice(0, 2200)}\n"""`,
+    'Return only a JSON object mapping character IDs to form IDs, for example {"character-id":"human"}. Use {} when the beat does not establish a form.',
+    'JSON:',
+  ].join('\n\n')
+  try {
+    const raw = await generateWithTimeout(client, {
+      ...GREETING_SCENE_PARAMS,
+      max_length: 128,
+      max_context_length: await client.getEffectiveMaxContext(),
+      prompt,
+    }, 'Detect character forms', undefined, assist)
+    const parsed = tryParseJson(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const answer = parsed as Record<string, unknown>
+    const result: Record<string, string> = {}
+    for (const candidate of mentioned) {
+      const picked = answer[candidate.id]
+      if (typeof picked === 'string' && candidate.forms.some((form) => form.id === picked)) result[candidate.id] = picked
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
 
 /** `parseLenientJson` throws when a response has no JSON at all — a vision model answering in bare prose is expected here, not exceptional. */
 function tryParseJson(text: string): unknown {

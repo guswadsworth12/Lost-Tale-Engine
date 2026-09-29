@@ -113,7 +113,7 @@ export interface GmTurn {
   pacing: GmPacing
   /** Character agents to act this beat, in order. Never includes a player-controlled character. */
   speakerIds: string[]
-  /** Existing world characters brought into the scene for the next beat. */
+  /** Existing world characters brought into the scene and able to answer this beat. */
   addCharacterIds?: string[]
   /** A new branch the GM decided this beat warrants. `chatId` is filled after the fork is saved. */
   fork?: { title: string; reason: string; chatId?: string }
@@ -162,6 +162,8 @@ export interface GmContext {
   roster: GmRosterEntry[]
   /** World characters available to enter, excluding the player's character and current cast. */
   availableRoster?: GmRosterEntry[]
+  /** Loaded for this scene, but not yet physically present. */
+  loadedRoster?: GmRosterEntry[]
   /** All non-player characters with cards, including ones the GM cannot add to this scene. */
   cardedNames?: string[]
   /** False when a nearby beat already forked this conversation. */
@@ -193,6 +195,7 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
 
 export function buildGmPrompt(ctx: GmContext): { system: string; user: string } {
   const { campaign } = ctx
+  const maxArrivals = Math.min(2, ctx.maxSpeakers)
   const modeLines = campaign.mode === 'mechanical'
     ? [
         `Resolution mode: MECHANICAL (${campaign.resolver.toUpperCase()} resolver).`,
@@ -222,7 +225,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     scaleGuidance(campaign),
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
     'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
-    'You may add at most one available character to the scene when an entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. The added character responds this beat: list them in speakers too. Never add the player character.',
+    `You may add up to ${maxArrivals} available characters to the scene when their entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. Characters loaded for this scene are expected arrivals, but are not physically present until they enter. If two arrive together, add both in the same beat. Each added character responds this beat: list them in speakers too. Never add the player character.`,
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
@@ -232,7 +235,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
     'Reply with one JSON object and nothing else:',
-    '{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present character names], "addCharacters": [at most one available character name], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}',
+    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string}]}`,
   ].join('\n')
 
   const describe = (r: GmRosterEntry) => `- ${r.name}${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).length ? ` (${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).join('; ')})` : ''}`
@@ -261,7 +264,8 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
-    `Characters available to enter (add at most one, only if the scene calls for it):\n${availableLine}`,
+    ctx.loadedRoster?.length ? `Loaded for this scene but still awaited: ${ctx.loadedRoster.map((r) => r.name).join(', ')}. They can enter together when the scene reaches them.` : '',
+    `Characters available to enter (add at most ${maxArrivals}, only if the scene calls for it):\n${availableLine}`,
     ctx.cardedNames?.length ? `All carded characters (never portray them in GM prose): ${ctx.cardedNames.join(', ')}` : '',
     `Fork allowed this beat: ${ctx.canFork === false ? 'no — a nearby beat already forked' : 'yes, if a distinct continuing branch is truly needed'}`,
     ctx.loreIndex?.length ? `Callable public lorebook entries:\n${ctx.loreIndex.map((l) => `- ${l.title}`).join('\n')}` : '',
@@ -372,7 +376,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     if (isPlayerCharacter(name, ctx.playerName)) continue
     const hit = matchRosterName(name, ctx.availableRoster ?? [])
     if (hit && !addCharacterIds.includes(hit.id)) addCharacterIds.push(hit.id)
-    if (addCharacterIds.length === 1) break
+    if (addCharacterIds.length === Math.min(2, ctx.maxSpeakers)) break
   }
 
   // An arrival answers in the beat that brings them in; waiting a beat left calls unanswered.
@@ -402,6 +406,10 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       speakerIds.push(called.id)
       corrections.push(`Brought in ${called.name}: the player addressed them and nobody else was here to answer.`)
     }
+  }
+  // Reserve response slots for arrivals even if the GM listed too many present speakers first.
+  for (let i = speakerIds.length - 1; speakerIds.length > ctx.maxSpeakers && i >= 0; i--) {
+    if (!addCharacterIds.includes(speakerIds[i])) speakerIds.splice(i, 1)
   }
   if (speakerIds.length > ctx.maxSpeakers) speakerIds.length = ctx.maxSpeakers
   const requestedFork = obj.fork && typeof obj.fork === 'object' && !Array.isArray(obj.fork)

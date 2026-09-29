@@ -1203,7 +1203,7 @@ export function CharacterEditor({
               and always exists; it's what a partially-drawn outfit falls back to at render time. */}
           <div className="mb-4 rounded-xl bg-bg-sunken/60 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[11px] font-medium text-text-muted">Outfit</span>
+              <span className="mr-1 text-[11px] font-medium text-text-muted">Appearance</span>
               {[{ id: BASE_OUTFIT_ID, label: 'Base' }, ...outfits].map((o) => {
                 const cov = outfitCoverage(sprites, o.id, allExpressions.map((e) => e.id))
                 const active = activeOutfit === o.id
@@ -1227,8 +1227,8 @@ export function CharacterEditor({
                 value={newOutfitLabel}
                 onChange={(e) => setNewOutfitLabel(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addOutfit()}
-                placeholder="New outfit (e.g. Swimsuit)"
-                aria-label="New outfit name"
+                placeholder="New outfit or form"
+                aria-label="New appearance name"
                 className="ml-1 w-44 rounded-full bg-bg px-2.5 py-1 text-[11px] text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40"
               />
               <Button onClick={addOutfit} disabled={!newOutfitLabel.trim()} variant="ghost" className="!px-2 !py-1 !text-[11px]">
@@ -1254,6 +1254,15 @@ export function CharacterEditor({
                         onChange={(e) => updateOutfit(outfit.id, { label: e.target.value })}
                         className="w-32 rounded-md bg-bg px-2 py-1 text-[11px] text-text outline-none"
                       />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                      Type
+                      <select value={outfit.kind ?? (/^(human|dragon|wolf|fox|cat|beast|animal|true-form|humanoid)$/i.test(outfit.id) ? 'form' : 'outfit')}
+                        onChange={(e) => updateOutfit(outfit.id, { kind: e.target.value as Outfit['kind'] })}
+                        className="rounded-md bg-bg px-2 py-1 text-[11px] text-text outline-none">
+                        <option value="outfit">Outfit</option>
+                        <option value="form">Physical form</option>
+                      </select>
                     </label>
                     <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
                       Unlocks at warmth

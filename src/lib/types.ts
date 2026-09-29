@@ -197,6 +197,8 @@ export interface Scene {
   turnPolicy: ScenePolicy
   /** Characters physically in the scene for GM turns. Unset keeps older chats' loaded roster behavior. */
   presentCharacterIds?: string[]
+  /** Player-selected stage appearances; a missing key follows the story automatically. */
+  appearanceOverrides?: Record<string, string>
   /** Round-robin bookkeeping: index into `[primaryId, ...participantIds]`. Read defensively (clamped/modulo) since the roster can shrink. */
   roundRobinIndex?: number
   /** Per-chat override of the shared `WorldCard` clock's time-of-day, so a chat that has narrated

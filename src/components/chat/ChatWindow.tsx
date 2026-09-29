@@ -96,7 +96,7 @@ import { Button } from '@/components/ui/Button'
 import { TextAreaField } from '@/components/ui/Field'
 import { nextRoundRobinSpeaker, rosterFrom } from '@/lib/chat/scene'
 import { resolveExpressionSprite } from '@/lib/vn/expressions'
-import { currentOutfitFrom } from '@/lib/vn/outfits'
+import { appearanceForCharacter } from '@/lib/vn/appearances'
 import { isVnReady } from '@/lib/vn/artHint'
 import { countCharReplies } from '@/lib/dating/aftercare'
 import { getGiftCatalog } from '@/lib/dating/gifts'
@@ -403,8 +403,9 @@ export function ChatWindow({
     character?.avatarDataUrl,
     reactivePortraitExpression,
     chat.affection ?? 0,
-    // Same sticky-outfit read as VNStage, so both surfaces always agree on what the character is wearing.
-    currentOutfitFrom(messages),
+    character ? appearanceForCharacter(messages, {
+      id: character.id, name: character.card.name, outfits: character.outfits, sprites: character.sprites,
+    }, character.id, chat.affection ?? 0, new Set(chat.sceneFlags ?? []), chat.scene?.appearanceOverrides?.[character.id]) : undefined,
     { variants: character?.spriteVariants, seed: lastChar?.id ?? 'no-message' },
   )
   // Only meaningful for a world-bound character with an authored schedule; most stay unbadged.
@@ -1183,6 +1184,12 @@ export function ChatWindow({
           onFork: forkChat,
           onTogglePin: togglePinMessage,
           onSelectSpeaker: turnPolicy === 'manual' ? (id) => setReplyAsCharacterId(id) : undefined,
+          onAppearanceChange: (id, appearanceId) => {
+            const appearanceOverrides = { ...chat.scene?.appearanceOverrides }
+            if (appearanceId) appearanceOverrides[id] = appearanceId
+            else delete appearanceOverrides[id]
+            void updateScene({ appearanceOverrides }).catch((error) => toastError(errorMessage(error)))
+          },
           sideActions: [
             ...(onOpenStudio ? [{ key: 'studio', icon: Users, label: 'Studio', onClick: onOpenStudio }] : []),
             { key: 'goals', icon: Target, label: activeObjective?.title ? `Goals: ${activeObjective.title}` : 'Goals', onClick: () => openStoryTab('goals') },
