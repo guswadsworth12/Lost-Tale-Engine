@@ -39,7 +39,7 @@ import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
 import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
 import { ownershipPatch } from './ownership.ts'
-import { packsRouter } from './packs.ts'
+import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
@@ -66,6 +66,8 @@ app.use(relayRouter)
 
 // Raised generously (a bulk sprite upload easily clears 25MB); only signed-in users get this far.
 app.use(express.json({ limit: '150mb' }))
+// Pack imports build rows with the same builders as the create routes below.
+usePackRowBuilders({ world: worldRow, character: characterRow })
 // Private worlds, characters, and world-info books, and the chats using them, are their owner's alone (ownership.ts).
 app.use(accessGuards)
 app.use(meRouter)
@@ -639,63 +641,70 @@ function ownershipFor(req: express.Request, res: express.Response, existing: Rec
   return patch
 }
 
+/** A character's stored fields from a create body: every value normalized, every upload written. Shared by create and pack import. */
+export function characterRow(id: string, body: Record<string, any>): Record<string, unknown> {
+  const avatarDataUrl = resolveAvatar('characters', id, body.avatarDataUrl)
+  const sprites = resolveAvatarMap('characters', 'sprites', id, body.sprites)
+  const spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, body.spriteVariants)
+  const gallery = normalizeGalleryEntries(id, body.gallery)
+  return {
+    card: body.card,
+    promptItems: normalizePromptItems(body.promptItems),
+    privateMemory: typeof body.privateMemory === 'string' ? body.privateMemory.slice(0, 100_000) : undefined,
+    modelOverride: typeof body.modelOverride === 'string' ? body.modelOverride.trim().slice(0, 200) || undefined : undefined,
+    playerOnly: body.playerOnly === true || undefined,
+    playerDescription: normalizePlayerDescription(body.playerDescription),
+    sheet: normalizeCharacterSheet(body.sheet),
+    sheets: normalizeCharacterSheets(body.sheets),
+    vrm: normalizeVrm(id, body.vrm),
+    spriteSources: normalizeSpriteSources(body.spriteSources),
+    avatarDataUrl,
+    sprites,
+    spriteVariants,
+    spriteUnlocks: body.spriteUnlocks ?? {},
+    outfits: normalizeOutfits(body.outfits),
+    customExpressions: normalizeCustomExpressions(body.customExpressions),
+    giftPreferences: body.giftPreferences ?? {},
+    giftLikes: normalizeStringArray(body.giftLikes),
+    giftDislikes: normalizeStringArray(body.giftDislikes),
+    loveLanguage: typeof body.loveLanguage === 'string' ? body.loveLanguage : undefined,
+    explicitVoiceNote: typeof body.explicitVoiceNote === 'string' ? body.explicitVoiceNote : undefined,
+    gallery,
+    relationshipStarters: body.relationshipStarters ?? [],
+    voice: body.voice ?? undefined,
+    voiceFingerprint: normalizeVoiceFingerprint(body.voiceFingerprint),
+    sfxWords: normalizeStringArray(body.sfxWords),
+    instructTemplateId: typeof body.instructTemplateId === 'string' ? body.instructTemplateId : undefined,
+    replyLength: normalizeReplyLength(body.replyLength),
+    weatherPreferences: body.weatherPreferences ?? undefined,
+    schedule: Array.isArray(body.schedule) ? body.schedule : undefined,
+    worldId: body.worldId || undefined,
+    likes: normalizeStringArray(body.likes),
+    goals: normalizeStringArray(body.goals),
+    boundaries: normalizeStringArray(body.boundaries),
+    socialConnections: normalizeSocialConnections(body.socialConnections),
+    behavioralRules: normalizeBehavioralRules(body.behavioralRules),
+    touchProfile: normalizeTouchProfile(body.touchProfile),
+    kinkProfile: normalizeKinkProfile(body.kinkProfile),
+    occupation: typeof body.occupation === 'string' ? body.occupation : undefined,
+    workplace: typeof body.workplace === 'string' ? body.workplace : undefined,
+    homeLocation: typeof body.homeLocation === 'string' ? body.homeLocation : undefined,
+    birthday: normalizeDayOfYear(body.birthday),
+    frequentedLocations: normalizeStringArray(body.frequentedLocations),
+    dateModeOptOut: body.dateModeOptOut === true,
+    outreach: normalizeOutreach(body.outreach),
+  }
+}
+
 app.post('/api/characters', (req, res) => {
   if (refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
   const ownership = ownershipFor(req, res, undefined)
   if (!ownership) return
   const now = Date.now()
   const id = newId()
-  const avatarDataUrl = resolveAvatar('characters', id, req.body.avatarDataUrl)
-  const sprites = resolveAvatarMap('characters', 'sprites', id, req.body.sprites)
-  const spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, req.body.spriteVariants)
-  const gallery = normalizeGalleryEntries(id, req.body.gallery)
   const created = characterStore.insert({
     id,
-    card: req.body.card,
-    promptItems: normalizePromptItems(req.body.promptItems),
-    privateMemory: typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined,
-    modelOverride: typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined,
-    playerOnly: req.body.playerOnly === true || undefined,
-    playerDescription: normalizePlayerDescription(req.body.playerDescription),
-    sheet: normalizeCharacterSheet(req.body.sheet),
-    sheets: normalizeCharacterSheets(req.body.sheets),
-    vrm: normalizeVrm(id, req.body.vrm),
-    spriteSources: normalizeSpriteSources(req.body.spriteSources),
-    avatarDataUrl,
-    sprites,
-    spriteVariants,
-    spriteUnlocks: req.body.spriteUnlocks ?? {},
-    outfits: normalizeOutfits(req.body.outfits),
-    customExpressions: normalizeCustomExpressions(req.body.customExpressions),
-    giftPreferences: req.body.giftPreferences ?? {},
-    giftLikes: normalizeStringArray(req.body.giftLikes),
-    giftDislikes: normalizeStringArray(req.body.giftDislikes),
-    loveLanguage: typeof req.body.loveLanguage === 'string' ? req.body.loveLanguage : undefined,
-    explicitVoiceNote: typeof req.body.explicitVoiceNote === 'string' ? req.body.explicitVoiceNote : undefined,
-    gallery,
-    relationshipStarters: req.body.relationshipStarters ?? [],
-    voice: req.body.voice ?? undefined,
-    voiceFingerprint: normalizeVoiceFingerprint(req.body.voiceFingerprint),
-    sfxWords: normalizeStringArray(req.body.sfxWords),
-    instructTemplateId: typeof req.body.instructTemplateId === 'string' ? req.body.instructTemplateId : undefined,
-    replyLength: normalizeReplyLength(req.body.replyLength),
-    weatherPreferences: req.body.weatherPreferences ?? undefined,
-    schedule: Array.isArray(req.body.schedule) ? req.body.schedule : undefined,
-    worldId: req.body.worldId || undefined,
-    likes: normalizeStringArray(req.body.likes),
-    goals: normalizeStringArray(req.body.goals),
-    boundaries: normalizeStringArray(req.body.boundaries),
-    socialConnections: normalizeSocialConnections(req.body.socialConnections),
-    behavioralRules: normalizeBehavioralRules(req.body.behavioralRules),
-    touchProfile: normalizeTouchProfile(req.body.touchProfile),
-    kinkProfile: normalizeKinkProfile(req.body.kinkProfile),
-    occupation: typeof req.body.occupation === 'string' ? req.body.occupation : undefined,
-    workplace: typeof req.body.workplace === 'string' ? req.body.workplace : undefined,
-    homeLocation: typeof req.body.homeLocation === 'string' ? req.body.homeLocation : undefined,
-    birthday: normalizeDayOfYear(req.body.birthday),
-    frequentedLocations: normalizeStringArray(req.body.frequentedLocations),
-    dateModeOptOut: req.body.dateModeOptOut === true,
-    outreach: normalizeOutreach(req.body.outreach),
+    ...characterRow(id, req.body),
     ...ownership,
     createdAt: now,
     updatedAt: now,
@@ -1423,43 +1432,54 @@ app.get('/api/worlds/:id', (req, res) => {
   res.json(row)
 })
 
+/** A world's stored fields from a create body: every value normalized, every upload written. Shared by create and pack import. */
+export function worldRow(id: string, body: Record<string, any>): Record<string, unknown> {
+  const avatarDataUrl = resolveAvatar('worlds', id, body.avatarDataUrl)
+  const backgrounds = resolveAvatarMap('worlds', 'backgrounds', id, body.backgrounds)
+  const backgroundsNight = resolveWorldBackgroundsNightMap(id, body.backgroundsNight)
+  const music = resolveWorldMusicMap(id, body.music)
+  const customSceneFlags = normalizeCustomSceneFlags(body.customSceneFlags)
+  const allowedFlags = new Set([...DEFAULT_SCENE_FLAGS, ...customSceneFlags.map((f) => f.id)])
+  return {
+    name: body.name,
+    campaign: normalizeCampaign(body.campaign),
+    modules: normalizeWorldModules(body.modules),
+    promptItems: normalizePromptItems(body.promptItems),
+    canonFacts: normalizeCanonFacts(body.canonFacts),
+    description: body.description,
+    rules: body.rules,
+    gmNotes: typeof body.gmNotes === 'string' ? body.gmNotes.slice(0, 100_000) : undefined,
+    template: body.template ?? undefined,
+    scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(body.scenerySet) ? body.scenerySet : undefined,
+    lorebook: body.lorebook,
+    avatarDataUrl,
+    backgrounds,
+    backgroundsNight,
+    backgroundUnlocks: body.backgroundUnlocks ?? {},
+    music,
+    gifts: normalizeGiftItems(body.gifts),
+    items: normalizeItemDefs(body.items, allowedFlags),
+    customSceneFlags,
+    customBackgrounds: normalizeCustomBackgrounds(body.customBackgrounds),
+    relationshipThresholds: normalizeRelationshipThresholds(body.relationshipThresholds),
+    intimacyLevel: normalizeIntimacyLevel(body.intimacyLevel),
+    triggers: normalizeTriggers(body.triggers),
+    customIntimacyOptions: Array.isArray(body.customIntimacyOptions) ? body.customIntimacyOptions : undefined,
+    replaceIntimacyCatalog: body.replaceIntimacyCatalog === true || undefined,
+    // Scene shapes are checked against the scenario validator by the client that loads them.
+    scenarios: Array.isArray(body.scenarios) ? body.scenarios.filter((g: unknown) => !!g && typeof g === 'object' && !Array.isArray(g)).slice(0, 200) : undefined,
+    defaultBackgroundId: typeof body.defaultBackgroundId === 'string' && body.defaultBackgroundId ? body.defaultBackgroundId.slice(0, 100) : undefined,
+  }
+}
+
 app.post('/api/worlds', (req, res) => {
   const ownership = ownershipFor(req, res, undefined)
   if (!ownership) return
   const now = Date.now()
   const id = newId()
-  const avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)
-  const backgrounds = resolveAvatarMap('worlds', 'backgrounds', id, req.body.backgrounds)
-  const backgroundsNight = resolveWorldBackgroundsNightMap(id, req.body.backgroundsNight)
-  const music = resolveWorldMusicMap(id, req.body.music)
-  const customSceneFlags = normalizeCustomSceneFlags(req.body.customSceneFlags)
-  const allowedFlags = new Set([...DEFAULT_SCENE_FLAGS, ...customSceneFlags.map((f) => f.id)])
   const created = worldStore.insert({
     id,
-    name: req.body.name,
-    campaign: normalizeCampaign(req.body.campaign),
-    modules: normalizeWorldModules(req.body.modules),
-    promptItems: normalizePromptItems(req.body.promptItems),
-    canonFacts: normalizeCanonFacts(req.body.canonFacts),
-    description: req.body.description,
-    rules: req.body.rules,
-    gmNotes: typeof req.body.gmNotes === 'string' ? req.body.gmNotes.slice(0, 100_000) : undefined,
-    template: req.body.template ?? undefined,
-    scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined,
-    lorebook: req.body.lorebook,
-    avatarDataUrl,
-    backgrounds,
-    backgroundsNight,
-    backgroundUnlocks: req.body.backgroundUnlocks ?? {},
-    music,
-    gifts: normalizeGiftItems(req.body.gifts),
-    items: normalizeItemDefs(req.body.items, allowedFlags),
-    customSceneFlags,
-    customBackgrounds: normalizeCustomBackgrounds(req.body.customBackgrounds),
-    relationshipThresholds: normalizeRelationshipThresholds(req.body.relationshipThresholds),
-    intimacyLevel: normalizeIntimacyLevel(req.body.intimacyLevel),
-    triggers: normalizeTriggers(req.body.triggers),
-    customIntimacyOptions: Array.isArray(req.body.customIntimacyOptions) ? req.body.customIntimacyOptions : undefined,
+    ...worldRow(id, req.body),
     ...ownership,
     createdAt: now,
     updatedAt: now,
