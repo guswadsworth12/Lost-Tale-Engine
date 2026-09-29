@@ -59,6 +59,8 @@ export function SamplingControls() {
   const setReasoningTokenReserve = useSettingsStore((s) => s.setReasoningTokenReserve)
   const autoSummarize = useSettingsStore((s) => s.autoSummarize)
   const setAutoSummarize = useSettingsStore((s) => s.setAutoSummarize)
+  const characterMemory = useSettingsStore((s) => s.characterMemory)
+  const setCharacterMemory = useSettingsStore((s) => s.setCharacterMemory)
   const keepRecentMessages = useSettingsStore((s) => s.keepRecentMessages)
   const setKeepRecentMessages = useSettingsStore((s) => s.setKeepRecentMessages)
   const summaryDetail = useSettingsStore((s) => s.summaryDetail)
@@ -205,6 +207,12 @@ export function SamplingControls() {
           onChange={setAutoSummarize}
           label="Auto-summarize older history"
           description="One model call, but only once enough new history has built up (not every reply), plus immediately if a turn is about to overflow the context limit"
+        />
+        <Toggle
+          checked={characterMemory}
+          onChange={setCharacterMemory}
+          label="Character memory"
+          description="One model call after each reply or Game Master beat notes what each character saw, heard, or was told. Each character then remembers only their own, within the story it happened in."
         />
         <Slider
           label="Keep verbatim"

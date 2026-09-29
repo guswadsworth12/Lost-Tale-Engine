@@ -54,6 +54,7 @@ import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
 import type { PromptItem } from '@/lib/prompt/items'
 import { parseTavernAi2Card } from '@/lib/characters/tavernAi2Import'
 import { PromptItemsEditor } from './PromptItemsEditor'
+import { MemoriesPanel } from './MemoriesPanel'
 import { OpenMayhemVoiceField } from '@/components/settings/OpenMayhemVoiceField'
 import { maximumImmersionChecklist, maximumImmersionSamplerParams, maximumImmersionSystemPrompt } from '@/lib/prompt/immersionPreset'
 import {
@@ -764,10 +765,14 @@ export function CharacterEditor({
     ...customExpressions.map((e) => ({ id: e.id, label: e.label, emoji: '', custom: true })),
   ]
 
-  const tabs = TABS.map((t) => {
-    if (t.id === 'presentation') return { ...t, badge: Object.keys(sprites).length }
-    if (t.id === 'knowledge') return { ...t, badge: form.character_book?.entries.length ?? 0 }
-    return t
+  const tabs = TABS.flatMap((t) => {
+    if (t.id === 'presentation') return [{ ...t, badge: Object.keys(sprites).length }]
+    if (t.id === 'knowledge') {
+      const knowledge = { ...t, badge: form.character_book?.entries.length ?? 0 }
+      // Memories belong to a saved character (they are keyed by its id), so a new card has no tab.
+      return character ? [knowledge, { id: 'memories', label: 'Memories' }] : [knowledge]
+    }
+    return [t]
   })
 
   return (
@@ -1002,6 +1007,8 @@ export function CharacterEditor({
             </>}
         </Section>
       )}
+
+      {tab === 'memories' && character && <MemoriesPanel character={character} />}
 
       {tab === 'knowledge' && (
         <Section title="Private memory" description="Only this character sees these notes when speaking. Keep secrets and promises here rather than in shared world canon." surface="bare">

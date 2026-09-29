@@ -5,7 +5,10 @@ import type { Persona } from '@/lib/types'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
 import { sfxConfigFor } from '@/lib/text/sfx'
-import { MessageBubble } from './MessageBubble'
+import { useApiQuery } from '@/lib/hooks/useApiQuery'
+import { memoriesApi } from '@/lib/api/client'
+import { MessageBubble, type MemoryNote } from './MessageBubble'
+import { memoriesByMessage, rememberLine, rememberers } from './memoryMarker'
 
 interface MessageLogProps {
   messages: StoredMessage[]
@@ -76,6 +79,25 @@ export function MessageLog({
     [messages, persona, character, participantCharacters, sfxEnabled, globalSfxWords],
   )
 
+  // "Ash and Bea will remember this" under the messages that produced memories: one fetch per scene
+  // (refreshed on every 'memories' write), not one per bubble. Keyed on a names string rather than
+  // the cast arrays so a re-render with an equal cast keeps each bubble's `memoryNote` identical.
+  const chatId = messages[0]?.chatId
+  const chatMemories = useApiQuery('memories', () => (chatId ? memoriesApi.forChat(chatId) : Promise.resolve([])), [chatId])
+  const castNames = [character, ...participantCharacters]
+    .filter((c): c is Character => !!c)
+    .map((c) => [c.id, c.card.name] as const)
+  if (persona?.characterId) castNames.push([persona.characterId, persona.name] as const)
+  const castKey = JSON.stringify(castNames)
+  const memoryNotes = useMemo(() => {
+    const names = new Map<string, string>(JSON.parse(castKey) as [string, string][])
+    const notes = new Map<string, MemoryNote>()
+    for (const [messageId, list] of memoriesByMessage(chatMemories ?? [])) {
+      notes.set(messageId, { line: rememberLine(rememberers(list, (id) => names.get(id))), texts: list.map((m) => m.text) })
+    }
+    return notes
+  }, [chatMemories, castKey])
+
   return (
     <div className="mx-auto max-w-chat backdrop-blur-chat">
       {messages.map((m) => (
@@ -91,6 +113,7 @@ export function MessageLog({
           // trivially the same value across renders for every non-streaming bubble.
           streamingText={generatingMessageId === m.id ? streamingText : ''}
           isHighlighted={highlightedMessageId === m.id}
+          memoryNote={memoryNotes.get(m.id)}
           onEdit={onEdit}
           onDelete={onDelete}
           onRewind={onRewind}

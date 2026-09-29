@@ -1,6 +1,7 @@
 import type { Character } from '@/lib/characters/cardSpec'
 import type {
   Chat,
+  CharacterMemory,
   SceneRecap,
   Story,
   ChatFact,
@@ -235,7 +236,7 @@ export const storiesApi = {
   scenes(id: string): Promise<Chat[]> {
     return request('GET', `/stories/${id}/scenes`)
   },
-  async update(id: string, patch: Partial<Pick<Story, 'title' | 'storylines'>>): Promise<Story> {
+  async update(id: string, patch: Partial<Pick<Story, 'title' | 'storylines'>> & { continuesFrom?: Story['continuesFrom'] | null }): Promise<Story> {
     const result = await request<Story>('PUT', `/stories/${id}`, patch)
     invalidate('stories')
     return result
@@ -311,6 +312,7 @@ export const backupApi = {
       'objectives',
       'relationship-events',
       'chat-facts',
+      'memories',
     ]) {
       invalidate(resource)
     }
@@ -341,5 +343,66 @@ export const chatFactsApi = {
   ...makeResource<ChatFact>('chat-facts', '/chat-facts'),
   listByChat(chatId: string): Promise<ChatFact[]> {
     return request<ChatFact[]>('GET', `/chats/${chatId}/chat-facts`)
+  },
+}
+
+/** A character's memory as `memoriesApi.forCharacter` returns it: labelled with where it happened. */
+export type CharacterMemoryListing = CharacterMemory & { sceneLabel?: string; storyTitle?: string }
+/** What `create` takes: the server assigns `id`, fills `storyId`/`worldId` from the chat, and computes `knownBy`. */
+export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active'> & { createdAt?: number }
+export type CharacterMemoryPatch = Partial<
+  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor'>
+>
+
+/** Per-character memory (`server/memories.ts`). Every write invalidates 'memories'. */
+export const memoriesApi = {
+  /** Memories visible from a scene (it and every scene before it), oldest first; inactive and consolidated included. */
+  forChat(chatId: string, characterId?: string): Promise<CharacterMemory[]> {
+    const query = characterId ? `?characterId=${encodeURIComponent(characterId)}` : ''
+    return request<CharacterMemory[]>('GET', `/chats/${chatId}/memories${query}`)
+  },
+  /** Everything a character knows, across every chat, newest first. */
+  forCharacter(characterId: string): Promise<CharacterMemoryListing[]> {
+    return request<CharacterMemoryListing[]>('GET', `/characters/${characterId}/memories`)
+  },
+  async create(memory: NewCharacterMemory): Promise<CharacterMemory> {
+    const result = await request<CharacterMemory>('POST', '/memories', memory)
+    invalidate('memories')
+    return result
+  },
+  async createMany(memories: NewCharacterMemory[]): Promise<CharacterMemory[]> {
+    if (!memories.length) return []
+    const result = await request<CharacterMemory[]>('POST', '/memories/batch', { memories })
+    invalidate('memories')
+    return result
+  },
+  async update(id: string, patch: CharacterMemoryPatch): Promise<CharacterMemory> {
+    const result = await request<CharacterMemory>('PUT', `/memories/${id}`, patch)
+    invalidate('memories')
+    return result
+  },
+  /** Records that `to` were told it (by `by`, in `messageId`). Ids that already know it are skipped. */
+  async share(id: string, body: { to: string[]; by?: string; messageId?: string; chatId?: string }): Promise<CharacterMemory> {
+    const result = await request<CharacterMemory>('POST', `/memories/${id}/share`, body)
+    invalidate('memories')
+    return result
+  },
+  /** Marks `ids` as folded into `characterId`'s journal. Memories that character does not know are skipped; returns the rows changed. */
+  async consolidate(characterId: string, ids: string[]): Promise<CharacterMemory[]> {
+    if (!ids.length) return []
+    const result = await request<CharacterMemory[]>('POST', '/memories/consolidate', { characterId, ids })
+    invalidate('memories')
+    return result
+  },
+  async remove(id: string): Promise<void> {
+    await request<void>('DELETE', `/memories/${id}`)
+    invalidate('memories')
+  },
+  /** The scribe has read the chat's messages up to `upTo` (a message createdAt). */
+  /** `from`: the watermark as read before the scribe ran, so an edit that moved it back meanwhile is not overwritten. */
+  async setWatermark(chatId: string, upTo: number, from?: number | null): Promise<Chat> {
+    const result = await request<Chat>('POST', `/chats/${chatId}/memory-watermark`, { upTo, from })
+    invalidate('chats')
+    return result
   },
 }

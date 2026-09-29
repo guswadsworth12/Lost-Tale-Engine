@@ -79,7 +79,7 @@ export function planNextScene(
   const {
     id: _id, createdAt: _ca, updatedAt: _ua, deletedAt: _da, worldInfoState: _wis, rapport: _rap,
     summary: _sum, summaryUpToTimestamp: _sut, endedAt: _end, recap: _rec, parentChatId: _pc,
-    forkedFromMessageId: _ff, sceneTitle: _st, lastOutreachCheckedAt: _lo, ...rest
+    forkedFromMessageId: _ff, sceneTitle: _st, lastOutreachCheckedAt: _lo, memoryScribedUpTo: _msu, ...rest
   } = source
   const lead = str(source.characterId)
   const player = str(source.playerCharacterId)

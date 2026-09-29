@@ -43,6 +43,20 @@ storiesRouter.put('/stories/:id', (req, res) => {
       .filter((s: Row) => typeof s?.id === 'string' && typeof s?.name === 'string')
       .map((s: Row) => ({ id: s.id, name: String(s.name).slice(0, 80) }))
   }
+  // A sequel: `{ storyId, sceneId }` of the scene in another story this one follows on from; null clears it.
+  if (req.body.continuesFrom === null) patch.continuesFrom = undefined
+  else if (req.body.continuesFrom !== undefined) {
+    const cf = req.body.continuesFrom as Row
+    const storyId = str(cf?.storyId)
+    const sceneId = str(cf?.sceneId)
+    if (!storyId || !sceneId) return res.status(400).json({ error: 'continuesFrom needs a storyId and a sceneId.' })
+    if (storyId === req.params.id) return res.status(400).json({ error: 'A story cannot continue from itself.' })
+    if (!storyStore.get(storyId)) return res.status(404).json({ error: `Story ${storyId} not found` })
+    const scene = chatStore.get(sceneId)
+    if (!scene) return res.status(404).json({ error: `Scene ${sceneId} not found` })
+    if (scene.storyId !== storyId) return res.status(400).json({ error: 'That scene is not part of that story.' })
+    patch.continuesFrom = { storyId, sceneId }
+  }
   res.json(storyStore.update(req.params.id, patch))
 })
 
