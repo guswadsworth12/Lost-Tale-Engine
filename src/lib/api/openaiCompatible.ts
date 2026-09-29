@@ -3,6 +3,7 @@ import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
 import { isOpenMayhem, loadOpenMayhemModels, OPENMAYHEM_PROXY, openMayhemRequestBody } from './openMayhem'
+import { relayFetch, type RelayInit } from './relay'
 
 /**
  * OpenRouter increasingly routes its free tier through reasoning models, and reasoning is pure
@@ -32,9 +33,14 @@ function isOpenRouter(baseUrl: string): boolean {
 // both through this same shape.
 export class OpenAICompatibleClient implements ChatBackend {
   get prefersJsonObject(): boolean { return isOpenMayhem(this.baseUrl) }
+  /**
+   * `keySaved`: whether the user has saved this provider's key (the chat key, or OpenMayhem's own
+   * key for OpenMayhem). The browser never holds the key: requests go through the server's relay,
+   * which attaches it. Only named when saved: a local server usually needs none.
+   */
   constructor(
     public baseUrl: string,
-    private apiKey: string,
+    private keySaved: boolean,
     private model: string,
   ) {}
 
@@ -64,10 +70,12 @@ export class OpenAICompatibleClient implements ChatBackend {
   }
 
   private headers(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
-    }
+    return { 'Content-Type': 'application/json' }
+  }
+
+  /** The relay attaches the saved chat key as a bearer token. OpenMayhem's proxy attaches its own key, so it is never named there. */
+  private credential(auth: RelayInit['auth'] = 'bearer'): Pick<RelayInit, 'secret' | 'auth'> {
+    return this.keySaved && !isOpenMayhem(this.baseUrl) ? { secret: 'chatBackendApiKey', auth } : {}
   }
 
   private url(): string {
@@ -158,7 +166,7 @@ export class OpenAICompatibleClient implements ChatBackend {
       const body = isOpenMayhem(this.baseUrl) ? await openMayhemRequestBody(rawBody) : rawBody
       let res: Response
       try {
-        res = await fetch(this.url(), { method: 'POST', headers: this.headers(), body: JSON.stringify(body), signal })
+        res = await relayFetch(this.url(), { method: 'POST', headers: this.headers(), body: JSON.stringify(body), signal, ...this.credential() })
       } catch (e) {
         if (signal?.aborted) throw e
         throw new KoboldApiError(unreachableMessage)
@@ -290,7 +298,7 @@ export class OpenAICompatibleClient implements ChatBackend {
   /** Settings → Connection's reachability+auth check, without a real (billed) chat completion. Uses `GET /models` (validates the key on most providers) except for OpenRouter and Nano-GPT, whose `/models` is public and returns 200 for any key — `/key` (OpenRouter) and the balance endpoint (Nano-GPT) are used there instead, and double as a usage/balance readout for the success detail. */
   async checkConnection(): Promise<ConnectionCheckResult> {
     if (isOpenMayhem(this.baseUrl)) {
-      if (!this.apiKey.trim()) return { ok: false, detail: 'Enter your OpenMayhem API key.' }
+      if (!this.keySaved) return { ok: false, detail: 'Enter your OpenMayhem API key.' }
       try {
         const models = await loadOpenMayhemModels()
         const model = models.find((m) => m.id === this.model)
@@ -308,7 +316,7 @@ export class OpenAICompatibleClient implements ChatBackend {
     const url = isOpenRouter ? `${trimmed}/key` : `${trimmed}/models`
     let res: Response
     try {
-      res = await fetch(url, { headers: this.headers() })
+      res = await relayFetch(url, { headers: this.headers(), ...this.credential() })
     } catch {
       return { ok: false, detail: `Could not reach ${this.baseUrl}.` }
     }
@@ -339,7 +347,7 @@ export class OpenAICompatibleClient implements ChatBackend {
 
   /**
    * Nano-GPT's key check: `POST {host}/api/check-balance` (deliberately not under `/v1`), with the
-   * key as `x-api-key`, returning `{ usd_balance, nano_balance, nanoDepositAddress }`. A bad key
+   * key as `x-api-key` (attached by the relay), returning `{ usd_balance, nano_balance, nanoDepositAddress }`. A bad key
    * comes back non-2xx (live: 401 for a malformed key, with its own error body), so any non-ok
    * response here is treated as a rejected key. The USD balance becomes the success detail,
    * mirroring OpenRouter's usage readout.
@@ -348,7 +356,7 @@ export class OpenAICompatibleClient implements ChatBackend {
     const balanceUrl = `${trimmed.replace(/\/v1$/, '')}/check-balance`
     let res: Response
     try {
-      res = await fetch(balanceUrl, { method: 'POST', headers: { ...this.headers(), 'x-api-key': this.apiKey } })
+      res = await relayFetch(balanceUrl, { method: 'POST', headers: this.headers(), ...this.credential('header:x-api-key') })
     } catch {
       return { ok: false, detail: `Could not reach ${this.baseUrl}.` }
     }

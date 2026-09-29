@@ -145,6 +145,14 @@ function MemoryCard({ memory, character, characters, nameOf, journal = false }: 
           <span className={`${badgeClass} bg-bg-sunken text-text-muted`}>{MEMORY_KIND_LABELS[memory.kind] ?? memory.kind}</span>
         )}
         {journal && memory.sceneLabel && <span className="text-[11px] text-text-muted">{memory.sceneLabel}</span>}
+        {!journal && memory.certainty === 'claim' && <span className={`${badgeClass} bg-bg-sunken text-text-muted`} title="Someone said so; not seen firsthand">Heard</span>}
+        {!journal && memory.certainty === 'belief' && <span className={`${badgeClass} bg-bg-sunken text-text-muted`} title="What they think, not something they saw">Belief</span>}
+        {!journal && memory.verdict && (
+          <span className={`${badgeClass} ${memory.verdict === 'true' ? 'bg-success/12 text-success' : 'bg-danger/12 text-danger'}`}
+            title="Your ruling. The Game Master knows it; the characters do not.">
+            {memory.canonFactId ? 'World canon' : `Ruled ${memory.verdict}`}
+          </span>
+        )}
         {memory.unresolved && <span className={`${badgeClass} bg-warning/12 text-warning`}>open thread</span>}
         {memory.pinned && (
           <span className="inline-flex text-accent" title="Pinned: always remembered">

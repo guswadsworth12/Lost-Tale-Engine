@@ -74,7 +74,28 @@ export interface SelectMemoriesOptions {
 }
 
 /** The memories `characterId` knows that fit the budget, pinned first, then by score. */
-export function selectMemories(memories: CharacterMemory[], opts: SelectMemoriesOptions): CharacterMemory[] {
+/** Why a memory made it into a speaker's prompt, for the prompt inspector. */
+export interface MemoryReasons {
+  pinned: boolean
+  openThread: boolean
+  /** Ids of people present that it concerns. */
+  aboutPresent: string[]
+  /** Words it shares with the recent conversation. */
+  matchedWords: string[]
+  /** Among this speaker's newest memories. */
+  recent: boolean
+  /** Importance 0.7 or higher. */
+  important: boolean
+  score: number
+}
+
+export interface ExplainedMemory {
+  memory: CharacterMemory
+  reasons: MemoryReasons
+}
+
+/** `selectMemories`, with the reasons each pick was made. Same picks, same order. */
+export function selectMemoriesExplained(memories: CharacterMemory[], opts: SelectMemoriesOptions): ExplainedMemory[] {
   const { characterId, presentIds } = opts
   const budget = opts.budgetTokens ?? MEMORY_TOKEN_BUDGET
   const known = memoriesKnownBy(memories, characterId).filter((m) => typeof m.text === 'string' && m.text.trim())
@@ -85,15 +106,26 @@ export function selectMemories(memories: CharacterMemory[], opts: SelectMemories
   const byAge = [...known].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const lastRank = Math.max(1, byAge.length - 1)
   const recency = new Map(byAge.map((m, i) => [m.id, byAge.length === 1 ? 1 : i / lastRank]))
-  const score = (m: CharacterMemory) =>
-    0.45 * (m.importance ?? 0.5)
-    + 0.25 * (recency.get(m.id) ?? 0)
-    + (m.unresolved ? 0.3 : 0)
-    + (m.about?.some((id) => present.has(id)) ? 0.2 : 0)
-    + 0.3 * keywordOverlap(m.text, recent)
-  const scores = new Map(known.map((m) => [m.id, score(m)]))
+  const reasonsFor = (m: CharacterMemory): MemoryReasons => {
+    const aboutPresent = (m.about ?? []).filter((id) => present.has(id))
+    const overlap = keywordOverlap(m.text, recent)
+    return {
+      pinned: !!m.pinned,
+      openThread: !!m.unresolved,
+      aboutPresent,
+      matchedWords: [...keywords(m.text)].filter((w) => recent.has(w)),
+      recent: (recency.get(m.id) ?? 0) >= 0.8,
+      important: (m.importance ?? 0.5) >= 0.7,
+      score: 0.45 * (m.importance ?? 0.5)
+        + 0.25 * (recency.get(m.id) ?? 0)
+        + (m.unresolved ? 0.3 : 0)
+        + (aboutPresent.length ? 0.2 : 0)
+        + 0.3 * overlap,
+    }
+  }
+  const reasons = new Map(known.map((m) => [m.id, reasonsFor(m)]))
   const ranked = (list: CharacterMemory[]) =>
-    [...list].sort((a, b) => (scores.get(b.id)! - scores.get(a.id)!) || tieBreak(a, b))
+    [...list].sort((a, b) => (reasons.get(b.id)!.score - reasons.get(a.id)!.score) || tieBreak(a, b))
 
   const cost = (m: CharacterMemory) => estimateTokens(`- ${formatMemoryLine(m, characterId)}\n`)
   const pinned = ranked(known.filter((m) => m.pinned)).slice(0, MAX_PINNED)
@@ -105,18 +137,36 @@ export function selectMemories(memories: CharacterMemory[], opts: SelectMemories
     picked.push(m)
     used += c
   }
-  return picked
+  return picked.map((memory) => ({ memory, reasons: reasons.get(memory.id)! }))
+}
+
+export function selectMemories(memories: CharacterMemory[], opts: SelectMemoriesOptions): CharacterMemory[] {
+  return selectMemoriesExplained(memories, opts).map((picked) => picked.memory)
+}
+
+const lowerFirst = (text: string) => `${text.charAt(0).toLowerCase()}${text.slice(1)}`
+
+/** How `characterId` came to know it, as they would put it: a claim or rumor they heard, a belief,
+ *  or something a witness told them. '' for what they saw themselves. The player's ruling and any
+ *  promotion to canon are deliberately not shown: a character who heard a false rumor believes it. */
+function sourceCue(memory: CharacterMemory, characterId: string): string {
+  if (memory.certainty === 'claim') return 'Heard, not confirmed'
+  if (memory.certainty === 'belief') return 'Believes'
+  const told = (memory.toldVia ?? []).some((t) => t.to.includes(characterId))
+  return told && !(memory.witnesses ?? []).includes(characterId) ? 'Heard secondhand' : ''
 }
 
 /** One memory as `characterId` recalls it: open threads flagged (like `worldinfo/facts.ts`), secrets
- *  marked, and a short cue for how it felt to them. */
+ *  marked, how they know it (heard, believed, told), and a short cue for how it felt to them. */
 export function formatMemoryLine(memory: CharacterMemory, characterId: string): string {
   const feeling = memory.feelings?.[characterId] ?? 0
-  let prefix = ''
-  if (memory.unresolved) prefix = feeling <= -0.15 ? 'Still unsettled, not resolved: ' : 'Still an open thread: '
-  if (memory.kind === 'secret') prefix = prefix ? `Kept secret, and ${prefix.charAt(0).toLowerCase()}${prefix.slice(1)}` : 'Kept secret: '
+  let status = ''
+  if (memory.unresolved) status = feeling <= -0.15 ? 'Still unsettled, not resolved' : 'Still an open thread'
+  if (memory.kind === 'secret') status = status ? `Kept secret, and ${lowerFirst(status)}` : 'Kept secret'
+  const source = sourceCue(memory, characterId)
+  const label = status && source ? `${status}; ${lowerFirst(source)}` : status || source
   const cue = feeling <= -0.5 ? ' (it still stings)' : feeling >= 0.5 ? ' (a warm memory)' : ''
-  return `${prefix}${memory.text.trim()}${cue}`
+  return `${label ? `${label}: ` : ''}${memory.text.trim()}${cue}`
 }
 
 /** The prompt block for one character's memories, or '' when there is nothing to recall. */

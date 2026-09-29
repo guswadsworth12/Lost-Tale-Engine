@@ -7,6 +7,7 @@ import type {
 } from './types'
 import { KoboldApiError } from './types'
 import type { ChatBackend } from './chatBackend'
+import { relayFetch } from './relay'
 
 // Background judge/choice calls (relationshipAssist.ts, choices.ts, objectiveAssist.ts,
 // aiAssist.ts) never pass their own AbortSignal — without this, a hung KoboldCpp connection
@@ -21,7 +22,7 @@ async function req<T>(baseUrl: string, path: string, init?: RequestInit): Promis
   const timeout = controller ? setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS) : undefined
   let res: Response
   try {
-    res = await fetch(joinUrl(baseUrl, path), { ...init, signal: init?.signal ?? controller?.signal })
+    res = await relayFetch(joinUrl(baseUrl, path), { ...init, signal: init?.signal ?? controller?.signal })
   } catch (e) {
     // An intentional abort (Stop button) isn't "server unreachable" — don't mislabel it.
     if (init?.signal?.aborted) throw e
@@ -145,7 +146,7 @@ export class KoboldClient implements ChatBackend {
   ): Promise<string> {
     let res: Response
     try {
-      res = await fetch(joinUrl(this.baseUrl, '/api/extra/generate/stream'), {
+      res = await relayFetch(joinUrl(this.baseUrl, '/api/extra/generate/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -206,7 +207,7 @@ export class KoboldClient implements ChatBackend {
 
   /** Best-effort server-side abort of the in-flight generation for a genkey. */
   async abort(genkey: string): Promise<void> {
-    await fetch(joinUrl(this.baseUrl, '/api/extra/abort'), {
+    await relayFetch(joinUrl(this.baseUrl, '/api/extra/abort'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ genkey }),

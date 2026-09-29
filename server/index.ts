@@ -30,8 +30,8 @@ purgeExpiredTrash()
 
 const port = Number(process.env.API_PORT) || 3001
 
-// Loopback-only by default — this API has no auth and full read/write/delete access to every
-// character/chat/world, so it must never be casually reachable from other devices. A container
+// Loopback-only by default. The API sits behind a sign-in (auth.ts), but first-time setup is
+// allowed only from this machine and the data is still best kept off the open network. A container
 // can't publish a port it can't reach, so Docker sets API_HOST=0.0.0.0 and leans on Docker's own
 // port mapping (and whatever firewall / reverse-proxy auth you put in front) to control access.
 const host = process.env.API_HOST || '127.0.0.1'

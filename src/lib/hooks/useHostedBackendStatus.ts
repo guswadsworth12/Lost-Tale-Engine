@@ -8,7 +8,7 @@ import type { ConnectionStatus } from './useConnectionStatus'
  * branch inside that one, because the right *cadence* is different, not just the right client.
  * KoboldCpp is local and free, so polling it every 15s (that hook's own behavior) costs nothing;
  * OpenRouter/NovelAI/etc. are metered external services, so this only checks once per distinct
- * config (backend/baseUrl/apiKey/model) instead of on a timer, plus an explicit `recheck()` for a
+ * config (backend/baseUrl/key saved/model) instead of on a timer, plus an explicit `recheck()` for a
  * "Test connection" button — Settings → Connection and the header status dot both read this same
  * hook so they can never disagree.
  *
@@ -20,7 +20,8 @@ export function useHostedBackendStatus(
   enabled: boolean,
   backend: 'openai-compatible' | 'novelai',
   baseUrl: string,
-  apiKey: string,
+  /** Whether this provider's key is saved (the browser never holds it). */
+  keySaved: boolean,
   model: string,
 ): { status: ConnectionStatus; detail: string | null; recheck: () => void } {
   const [status, setStatus] = useState<ConnectionStatus>('checking')
@@ -32,7 +33,7 @@ export function useHostedBackendStatus(
     // A missing key isn't a hard failure — a local OpenAI-compatible server (LM Studio, llama.cpp,
     // Ollama, TabbyAPI) usually needs none. NovelAI genuinely can't work without one; everything
     // else gets the real check and shows the provider's own 401 if a key was actually required.
-    if (!apiKey.trim() && backend === 'novelai') {
+    if (!keySaved && backend === 'novelai') {
       setStatus('offline')
       setDetail('NovelAI needs an API key.')
       return
@@ -40,7 +41,7 @@ export function useHostedBackendStatus(
     let cancelled = false
     setStatus('checking')
     setDetail(null)
-    const client = backend === 'novelai' ? new NovelAIClient(apiKey, model) : new OpenAICompatibleClient(baseUrl, apiKey, model)
+    const client = backend === 'novelai' ? new NovelAIClient(keySaved, model) : new OpenAICompatibleClient(baseUrl, keySaved, model)
     client.checkConnection().then((result) => {
       if (cancelled) return
       setStatus(result.ok ? 'online' : 'offline')
@@ -50,7 +51,7 @@ export function useHostedBackendStatus(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, backend, baseUrl, apiKey, model, nonce])
+  }, [enabled, backend, baseUrl, keySaved, model, nonce])
 
   return { status, detail, recheck: () => setNonce((n) => n + 1) }
 }

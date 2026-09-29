@@ -59,6 +59,7 @@ import { MessageLog } from './MessageLog'
 import { SakuraPetals } from './SakuraPetals'
 import { LiveRapport } from './LiveRapport'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
@@ -676,11 +677,12 @@ export function VNStage({
   // recurring-cost surface this pass intentionally doesn't take on.
   const koboldBaseUrl = useSettingsStore((s) => s.baseUrl)
   const ttsProvider = useSettingsStore((s) => s.ttsProvider)
-  const ttsApiKey = useSettingsStore((s) => s.ttsApiKey)
+  const { saved: secrets } = useSecretStatus()
+  const ttsKeySaved = secrets.ttsApiKey
   const ttsBaseUrl = useSettingsStore((s) => s.ttsBaseUrl)
   const ttsRegion = useSettingsStore((s) => s.ttsRegion)
   const ttsModel = useSettingsStore((s) => s.ttsModel)
-  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
+  const openMayhemKeySaved = secrets.openMayhemApiKey
   const ttsVoice = useSettingsStore((s) => s.ttsVoice)
   const [speakState, setSpeakState] = useState<'idle' | 'loading' | 'playing'>('idle')
   const speakAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -720,7 +722,7 @@ export function VNStage({
       }
       const narratorConfig = {
         provider: ttsProvider,
-        apiKey: ttsProvider === 'openmayhem' ? openMayhemApiKey : ttsApiKey,
+        keySaved: ttsProvider === 'openmayhem' ? openMayhemKeySaved : ttsKeySaved,
         model: ttsModel,
         baseUrl: ttsBaseUrl,
         region: ttsRegion,
@@ -802,7 +804,7 @@ export function VNStage({
   }
   // Swiping to a different line, or leaving the message entirely, cuts off whatever was playing —
   // it no longer matches what's on screen.
-  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemApiKey, ttsApiKey, ttsBaseUrl, ttsRegion, activeCgSource?.voice?.provider, activeCgSource?.voice?.voiceId])
+  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemKeySaved, ttsKeySaved, ttsBaseUrl, ttsRegion, activeCgSource?.voice?.provider, activeCgSource?.voice?.voiceId])
   const [autoVoice, setAutoVoice] = useState(false)
 
   // Every message id this component instance has watched stream in live — its text already

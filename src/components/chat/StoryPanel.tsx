@@ -10,6 +10,9 @@ import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import { StoryScenes } from '@/components/story/StoryScenes'
 import { campaignStats, sheetForWorld } from '@/lib/world/campaign'
+import { setEventsDoneFrom } from '@/lib/world/gm'
+import { SetEventsEditor } from '@/components/story/SetEventsEditor'
+import { ClaimReview } from '@/components/story/ClaimReview'
 
 export type StoryTab = 'scene' | 'scenes' | 'goals' | 'people' | 'sheet' | 'canon' | 'notes' | 'rules'
 const TABS: { id: StoryTab; label: string }[] = [
@@ -155,6 +158,7 @@ export function StoryPanel({
         <button className={actionClass} onClick={onOpenWorldFact} disabled={!world}>Record a fact</button>
         <h3 className="font-medium">Pending GM proposals {proposals.length > 0 && <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">{proposals.length}</span>}</h3>
         {proposals.length ? proposals.map(({ message, proposal }) => <div key={`${message.id}-${proposal.id}`} className="rounded-xl border border-border p-3"><p className="text-xs">{proposal.text}</p><p className="my-2 text-xs text-text-muted">{proposal.scope === 'world' ? 'World canon' : 'This branch'}</p><div className="flex gap-2"><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'confirmed'))}>Confirm</button><button className={actionClass} disabled={busy} onClick={() => run(() => session.decideGmProposal(message.id, proposal.id, 'rejected'))}>Reject</button></div></div>) : <p className="text-xs text-text-muted">No pending proposals.</p>}
+        <ClaimReview chatId={chat.id} worldId={world?.id} nameOf={(id) => allCharacters.find((member) => member.id === id)?.card.name} />
       </>}
       {tab === 'notes' && <>
         <label className="block space-y-1 text-xs text-text-muted">Author's note<textarea className={`${inputClass} min-h-28`} value={note} onChange={(event) => setNote(event.target.value)} /></label>
@@ -170,6 +174,9 @@ export function StoryPanel({
         {allCharacters.filter((member) => member.id !== character?.id && !member.playerOnly && member.id !== chat.playerCharacterId).map((member) => <label key={member.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={(chat.participants ?? []).includes(member.id)} onChange={() => run(() => session.updateParticipants((chat.participants ?? []).includes(member.id) ? (chat.participants ?? []).filter((id) => id !== member.id) : [...(chat.participants ?? []), member.id]))} />{member.card.name}</label>)}
         <label className="block space-y-1 text-xs text-text-muted">GM notes<textarea className={`${inputClass} min-h-24`} value={gmNotes} onChange={(event) => setGmNotes(event.target.value)} /></label>
         <button className={actionClass} disabled={busy} onClick={() => run(() => session.updateGmNotes(gmNotes))}>Save GM notes</button>
+        {modules.campaignRules && <SetEventsEditor events={chat.setEvents ?? []}
+          doneIds={[...(chat.setEventsDone ?? []), ...setEventsDoneFrom(messages)]}
+          onSave={(events) => run(() => session.updateSetEvents(events))} />}
         {onSwitchPlayer && <>
           <h3 className="font-medium">Play As</h3>
           <PlayAsSelect value={playAs} onChange={setPlayAs} characters={allCharacters} excludeIds={character ? [character.id] : []} allowNone={!chat.playerCharacterId} />

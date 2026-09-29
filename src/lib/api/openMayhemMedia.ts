@@ -1,5 +1,6 @@
 import { hasAvailableOpenMayhemProvider, loadOpenMayhemModels, loadOpenMayhemImageModels, openMayhemAttribute, OPENMAYHEM_PROXY, type Attribute, type OpenMayhemModel } from './openMayhem'
 import { kreaImageBody } from './openMayhemKrea'
+import { relayFetch } from './relay'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
 
 type Endpoint = 'IMAGES' | 'AUDIO_SPEECH'
@@ -24,19 +25,22 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
   })
 }
 
-/** Submit once, poll without resubmitting, then retrieve the owned artifact through our relay. */
-export async function generateOpenMayhemMedia(endpoint: Endpoint | 'WORKFLOWS', apiKey: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<Blob> {
-  if (!apiKey.trim()) throw new Error('Enter your OpenMayhem media API key in Settings first.')
+/**
+ * Submit once, poll without resubmitting, then retrieve the owned artifact through our relay.
+ * `keySaved`: whether the user saved an OpenMayhem key. The server's proxy attaches it; the
+ * browser never holds or sends it.
+ */
+export async function generateOpenMayhemMedia(endpoint: Endpoint | 'WORKFLOWS', keySaved: boolean, body: Record<string, unknown>, signal?: AbortSignal): Promise<Blob> {
+  if (!keySaved) throw new Error('Enter your OpenMayhem media API key in Settings first.')
   signal?.throwIfAborted()
-  const headers = { Authorization: `Bearer ${apiKey.trim()}` }
   const lifetime = AbortSignal.any([AbortSignal.timeout(300000), ...(signal ? [signal] : [])])
   let jobId: string | undefined
   let terminal = false
   try {
     // Keep submission alive long enough to recover its ID even if the user presses Stop.
     // Once it arrives, the aborted lifetime triggers DELETE below instead of leaving an orphan job.
-    let job: Job = await (await checkResponse(await fetch(`${OPENMAYHEM_PROXY}/${endpoint === 'WORKFLOWS' ? 'workflows' : endpoint === 'IMAGES' ? 'images/generations' : 'audio/speech'}`, {
-      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
+    let job: Job = await (await checkResponse(await relayFetch(`${OPENMAYHEM_PROXY}/${endpoint === 'WORKFLOWS' ? 'workflows' : endpoint === 'IMAGES' ? 'images/generations' : 'audio/speech'}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
     }))).json() as Job
     jobId = resourceId(job.id)
     for (;;) {
@@ -48,12 +52,12 @@ export async function generateOpenMayhemMedia(endpoint: Endpoint | 'WORKFLOWS', 
       }
       if (!['submitted', 'queued', 'pending', 'running', 'reconciling'].includes(job.status)) throw new Error('OpenMayhem returned an unknown job status.')
       await waitForPoll(lifetime)
-      job = await (await checkResponse(await fetch(`${OPENMAYHEM_PROXY}/jobs/${jobId}`, { headers, signal: AbortSignal.any([lifetime, AbortSignal.timeout(30000)]) }))).json() as Job
+      job = await (await checkResponse(await relayFetch(`${OPENMAYHEM_PROXY}/jobs/${jobId}`, { signal: AbortSignal.any([lifetime, AbortSignal.timeout(30000)]) }))).json() as Job
     }
     const kind = endpoint === 'AUDIO_SPEECH' ? 'audio/' : 'image/'
     const artifact = job.artifacts?.find((a) => (a.contentType || a.content_type)?.startsWith(kind))
     if (!artifact) throw new Error('OpenMayhem completed without a usable media artifact.')
-    const res = await checkResponse(await fetch(`${OPENMAYHEM_PROXY}/artifacts/${resourceId(artifact.id)}`, { headers, signal: lifetime }))
+    const res = await checkResponse(await relayFetch(`${OPENMAYHEM_PROXY}/artifacts/${resourceId(artifact.id)}`, { signal: lifetime }))
     const blob = await res.blob()
     if (!blob.size || !blob.type.startsWith(kind)) throw new Error('OpenMayhem returned invalid media data.')
     return blob
@@ -63,7 +67,7 @@ export async function generateOpenMayhemMedia(endpoint: Endpoint | 'WORKFLOWS', 
     }
     if (jobId && !terminal) {
       try {
-        await checkResponse(await fetch(`${OPENMAYHEM_PROXY}/jobs/${jobId}`, { method: 'DELETE', headers, signal: AbortSignal.timeout(10000) }))
+        await checkResponse(await relayFetch(`${OPENMAYHEM_PROXY}/jobs/${jobId}`, { method: 'DELETE', signal: AbortSignal.timeout(10000) }))
       } catch {
         throw new Error(`Could not confirm cancellation of OpenMayhem job ${jobId}. Check your OpenMayhem dashboard before retrying; work may still be billed.`)
       }
@@ -99,7 +103,7 @@ export function openMayhemVoices(model?: OpenMayhemModel): string[] | undefined 
   return model ? openMayhemAttribute(model, 'AUDIO_SPEECH', 'voice')?.enumValues?.filter((v): v is string => typeof v === 'string') : undefined
 }
 
-export async function speakOpenMayhem(apiKey: string, modelId: string, input: string, voice: string, signal?: AbortSignal): Promise<Blob> {
+export async function speakOpenMayhem(keySaved: boolean, modelId: string, input: string, voice: string, signal?: AbortSignal): Promise<Blob> {
   const model = await availableMediaModel('AUDIO_SPEECH', modelId)
   const body: Record<string, unknown> = { model: model.id, input }
   const inputAttr = openMayhemAttribute(model, 'AUDIO_SPEECH', 'input')
@@ -115,7 +119,7 @@ export async function speakOpenMayhem(apiKey: string, modelId: string, input: st
     body.response_format = playable
   }
   requiredFields(model, 'AUDIO_SPEECH', body)
-  return generateOpenMayhemMedia('AUDIO_SPEECH', apiKey, body, signal)
+  return generateOpenMayhemMedia('AUDIO_SPEECH', keySaved, body, signal)
 }
 
 /** Slots supply their aspect ratio. Hosted generation uses the model's own sampling defaults. */
@@ -159,13 +163,14 @@ export function openMayhemImageBody(model: OpenMayhemModel, params: ImageGenerat
 }
 
 export class OpenMayhemImageClient implements ImageBackend {
-  constructor(private apiKey: string, private model: string) {}
+  /** `keySaved`: whether the user saved an OpenMayhem key (the server's proxy attaches it). */
+  constructor(private keySaved: boolean, private model: string) {}
   async listModels(): Promise<string[]> { return (await loadOpenMayhemImageModels(true)).filter(hasAvailableOpenMayhemProvider).map((m) => m.id) }
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
     const model = await availableMediaModel('IMAGES', params.model || this.model)
     const workflow = model.endpoints.includes('WORKFLOWS') ? kreaImageBody(model, params) : undefined
     const body = workflow?.body ?? openMayhemImageBody(model, params)
-    const blob = await generateOpenMayhemMedia(workflow ? 'WORKFLOWS' : 'IMAGES', this.apiKey, body, signal)
+    const blob = await generateOpenMayhemMedia(workflow ? 'WORKFLOWS' : 'IMAGES', this.keySaved, body, signal)
     const bytes = new Uint8Array(await blob.arrayBuffer())
     let binary = ''
     for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192))

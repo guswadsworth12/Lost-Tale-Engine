@@ -11,6 +11,8 @@ export interface NextSceneRequest {
   recap: { text: string; presentIds: string[]; openThreads?: string[]; location?: string }
   /** Confirmed consequences from the ending scene's GM turns, to keep in force afterwards. */
   consequences?: string[]
+  /** Set events carried out in the ending scene or before it, so they do not happen twice. */
+  setEventsDone?: string[]
   next?: {
     title?: string
     location?: string | null
@@ -96,6 +98,7 @@ export function planNextScene(
       }
     : undefined
   const carried = [...new Set([...strings(source.carriedConsequences), ...strings(body.consequences)])]
+  const eventsDone = [...new Set([...strings(source.setEventsDone), ...strings(body.setEventsDone)])]
   const newChat: Row = {
     ...rest,
     id: id(),
@@ -108,6 +111,7 @@ export function planNextScene(
     participants: participants.length ? participants : undefined,
     scene: nextScene,
     carriedConsequences: carried.length ? carried : undefined,
+    setEventsDone: eventsDone.length ? eventsDone : undefined,
     createdAt: now,
     updatedAt: now,
   }

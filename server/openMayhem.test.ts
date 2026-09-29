@@ -7,10 +7,12 @@ import { originGuard } from './originCheck'
 
 let server: http.Server
 let fetchMock: ReturnType<typeof vi.fn>
+let savedKey: string | undefined
 beforeEach(async () => {
+  savedKey = undefined
   const app = express()
   app.use(originGuard, express.json())
-  app.use('/api/openmayhem', openMayhemRouter())
+  app.use('/api/openmayhem', openMayhemRouter({ savedKey: () => savedKey }))
   server = app.listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.once('listening', resolve))
   fetchMock = vi.fn()
@@ -116,5 +118,19 @@ describe('OpenMayhem local forwarding', () => {
     expect((await call('/artifacts/a_1', 'GET', { Authorization: 'Bearer media-key' })).status).toBe(502)
     expect((await call('/jobs/not%20an%20id', 'DELETE', { Authorization: 'Bearer media-key' })).status).toBe(400)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it('uses the signed-in user\'s saved key only when the request brings none', async () => {
+    savedKey = 'vault-key'
+    fetchMock.mockImplementation(async () => new Response('{}', { headers: { 'Content-Type': 'application/json' } }))
+    const saved = await call('/chat/completions', 'POST', {}, { model: 'm' })
+    expect(saved.status).toBe(200)
+    expect(saved.body).not.toContain('vault-key')
+    expect(fetchMock.mock.lastCall?.[1].headers.Authorization).toBe('Bearer vault-key')
+    await call('/chat/completions', 'POST', { Authorization: 'Bearer own-key' }, { model: 'm' })
+    expect(fetchMock.mock.lastCall?.[1].headers.Authorization).toBe('Bearer own-key')
+    await call('/models', 'GET')
+    expect(fetchMock.mock.lastCall?.[1].headers).toEqual({ Accept: 'application/json' })
+    savedKey = undefined
+    expect((await call('/chat/completions', 'POST', {}, { model: 'm' })).status).toBe(401)
   })
 })

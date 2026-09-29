@@ -25,6 +25,9 @@ import {
   GM_SPEAKER_ID,
   branchConsequencesFrom,
   earlierRollFrom,
+  pendingChoiceFrom,
+  setEventsDoneFrom,
+  type SetEvent,
   buildGmPrompt,
   formatGmMessage,
   gmDirectionFor,
@@ -244,11 +247,13 @@ import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
 import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
-import { latestJournal, memoryBlock, selectMemories } from '@/lib/memory/rank'
+import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
+import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
 import { buildScribePrompt, parseScribeResponse } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage, toastError, toastInfo, toastSuccess } from '@/lib/store/useToastStore'
 import { playSendBlip } from '@/lib/audio/sfx'
 import type { Character, Lorebook } from '@/lib/characters/cardSpec'
@@ -437,7 +442,7 @@ export function useChatSession(chatId: string | null) {
   const chatBackend = useSettingsStore((s) => s.chatBackend)
   const baseUrl = useSettingsStore((s) => s.baseUrl)
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
-  const chatBackendApiKey = useSettingsStore((s) => s.chatBackendApiKey)
+  const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
   const chatCompletionSampler = useSettingsStore((s) => s.chatCompletionSampler)
   const instructTemplateId = useSettingsStore((s) => s.instructTemplateId)
@@ -606,15 +611,20 @@ export function useChatSession(chatId: string | null) {
   // Cards of characters the GM brought in during the current beat. The reactive
   // `participantCharacters` only catches up on the next render, too late for the arrival's own reply.
   const arrivalsRef = useRef<Character[]>([])
+  // Cards of characters reached from afar this beat. They can speak, but they are not in the scene.
+  const remoteRef = useRef<Character[]>([])
   useEffect(() => {
     arrivalsRef.current = []
+    remoteRef.current = []
   }, [chatId])
   const resolveSpeaker = useCallback(
     (speakerId: string | null | undefined) => {
       const known = character ? [character, ...participantCharacters] : participantCharacters
       const sceneCharacters = [...known, ...arrivalsRef.current.filter((a) => !known.some((c) => c.id === a.id))]
-      const active = (speakerId && sceneCharacters.find((c) => c.id === speakerId)) || character
-      const roster = active ? sceneCharacters.filter((c) => c.id !== active.id) : []
+      const away = speakerId ? remoteRef.current.find((c) => c.id === speakerId) : undefined
+      const active = away || (speakerId && sceneCharacters.find((c) => c.id === speakerId)) || character
+      // Someone answering from afar is with nobody here.
+      const roster = active && !away ? sceneCharacters.filter((c) => c.id !== active.id) : []
       return { active, roster }
     },
     [character, participantCharacters],
@@ -701,17 +711,16 @@ export function useChatSession(chatId: string | null) {
       const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id).catch(() => []) : []
       const missedIds = new Set(memoryOn ? branchMessages.filter((m) => !witnessedMessage(m, speaker.id)).map((m) => m.id) : [])
       const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
+      const memoryPicks = memoryOn
+        ? selectMemoriesExplained(sceneMemories, {
+            characterId: speaker.id,
+            presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
+            recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
+          })
+        : []
+      const memoryJournal = memoryOn ? latestJournal(sceneMemories, speaker.id) : undefined
       const memoryText = memoryOn
-        ? memoryBlock(
-            speaker.card.name,
-            selectMemories(sceneMemories, {
-              characterId: speaker.id,
-              presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
-              recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
-            }),
-            latestJournal(sceneMemories, speaker.id),
-            speaker.id,
-          )
+        ? memoryBlock(speaker.card.name, memoryPicks.map((e) => e.memory), memoryJournal, speaker.id)
         : ''
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
@@ -1022,10 +1031,10 @@ export function useChatSession(chatId: string | null) {
       // Messages already folded into chat.summary are represented there, not sent verbatim.
       const cutoff = freshChat.summaryUpToTimestamp ?? 0
       const createdAtById = new Map(messages.map((m) => [m.id, m.createdAt]))
-      const recentHistory = (cutoff
+      const unsummarizedHistory = cutoff
         ? historyForPrompt.filter((m) => (createdAtById.get(m.id) ?? Infinity) > cutoff)
         : historyForPrompt
-      ).filter((m) => !missedIds.has(m.id))
+      const recentHistory = unsummarizedHistory.filter((m) => !missedIds.has(m.id))
 
       // Impersonating {{user}}'s line withholds every steer built for {{char}}'s reply; world/persona/history context and plain style rules still apply.
       const impersonating = !!opts?.impersonateAsUser
@@ -1180,7 +1189,7 @@ export function useChatSession(chatId: string | null) {
         maxTokens: Math.floor(contextBudget * 0.15),
         speakerName: speaker.card.name,
       })
-      return buildPrompt({
+      const built: PromptInspection = await buildPrompt({
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
@@ -1247,6 +1256,23 @@ export function useChatSession(chatId: string | null) {
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
+      // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
+      if (opts?.includeSectionBreakdown && memoryOn) {
+        const names = new Map([speaker, ...roster, ...(character ? [character] : []), ...participantCharacters].map((c) => [c.id, c.card.name]))
+        const knownCount = memoriesKnownBy(sceneMemories, speaker.id).filter((m) => typeof m.text === 'string' && m.text.trim()).length
+        const journalText = memoryJournal?.text?.trim()
+        built.memoryPicks = memoryPicks.map(({ memory, reasons }) => ({
+          id: memory.id,
+          text: memory.text,
+          kind: memory.kind,
+          reasons,
+          aboutNames: reasons.aboutPresent.flatMap((id) => names.get(id) ?? []),
+        }))
+        if (journalText) built.memoryJournal = journalText
+        built.memorySkipped = Math.max(0, knownCount - memoryPicks.length)
+        built.memoryWitnessFilter = { hiddenMessages: unsummarizedHistory.length - recentHistory.length }
+      }
+      return built
     },
     [
       activeFacts,
@@ -1261,6 +1287,7 @@ export function useChatSession(chatId: string | null) {
       globalPostHistory,
       globalSystemPrompt,
       messages,
+      participantCharacters,
       persona,
       promptSections,
       regexScripts,
@@ -1407,6 +1434,7 @@ export function useChatSession(chatId: string | null) {
             about: a.aboutIds,
             feelings: a.feelings,
             unresolved: a.unresolved,
+            certainty: a.certainty,
             sourceMessageId: a.messageId,
             origin: 'scribe' as const,
           })))
@@ -2495,6 +2523,15 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   )
 
+  /** The story's canon beats (`SetEvent`): happen as written, with no roll. An empty list clears them. */
+  const updateSetEvents = useCallback(
+    async (events: SetEvent[]) => {
+      if (!chatId) return
+      await chatsApi.update(chatId, { setEvents: events.length ? events : null } as Partial<Chat>)
+    },
+    [chatId],
+  )
+
   /** Location/atmosphere framing plus the group-chat turn policy. `null` clears it entirely; a partial patch merges onto whatever's already set. */
   const updateScene = useCallback(
     async (patch: Partial<Scene> | null) => {
@@ -2646,6 +2683,7 @@ export function useChatSession(chatId: string | null) {
           location: sceneSettingFrom(branch, fresh.scene, (id) => backgroundLabel(id, world)).location,
         },
         consequences: branchConsequencesFrom(branch),
+        setEventsDone: [...new Set([...(fresh.setEventsDone ?? []), ...setEventsDoneFrom(branch)])],
         next: {
           title: input.next.title?.trim() || undefined,
           ...(location !== undefined ? { location: location || null } : {}),
@@ -2890,7 +2928,7 @@ export function useChatSession(chatId: string | null) {
       const { active: speaker } = resolveSpeaker(opts?.speakerId)
       if (!speaker) return
       const replyClient = speaker.modelOverride && chatBackend !== 'koboldcpp'
-        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendApiKey, chatBackendModel: speaker.modelOverride })
+        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel: speaker.modelOverride, secrets })
         : client
       activeGenerationClientRef.current = replyClient
       // Relationship tracking/rapport stay scoped to the primary; choice suggestions apply to anyone.
@@ -3345,7 +3383,7 @@ export function useChatSession(chatId: string | null) {
       baseUrl,
       chatBackend,
       chatBackendBaseUrl,
-      chatBackendApiKey,
+      secrets,
       chatBackendModel,
       autoSummarize,
       autoSuggestChoices,
@@ -3448,6 +3486,11 @@ export function useChatSession(chatId: string | null) {
         recordedMove: playerMsg.campaignRoll,
         // Only when this turn has no dice of its own: a fresh roll always governs its own beat.
         earlierRoll: playerMsg.campaignRoll ? undefined : earlierRollFrom(upTo.slice(0, -1)),
+        pendingChoice: playerMsg.campaignRoll ? undefined : pendingChoiceFrom(upTo.slice(0, -1)),
+        setEvents: (() => {
+          const done = new Set([...(freshChat?.setEventsDone ?? []), ...setEventsDoneFrom(upTo)])
+          return (freshChat?.setEvents ?? []).filter((event) => !done.has(event.id))
+        })(),
         maxSpeakers: 3,
       }
       const { system, user } = buildGmPrompt(ctx)
@@ -3500,6 +3543,11 @@ export function useChatSession(chatId: string | null) {
         text: formatGmMessage(turn),
         gm: turn,
         createdAt: startAt,
+        // A result waiting on the player's pick offers its options as one-tap replies.
+        ...(turn.adjudication?.awaitingChoice?.length ? {
+          choiceCards: turn.adjudication.awaitingChoice.map((option) => ({ id: newId(), kind: 'action' as const, label: option, text: `I choose ${option}.` })),
+          choices: turn.adjudication.awaitingChoice.map((option) => `I choose ${option}.`),
+        } : {}),
       }
       await messagesApi.create(gmMsg)
       if (turn.addCharacterIds?.length) {
@@ -3520,6 +3568,17 @@ export function useChatSession(chatId: string | null) {
           await messagesApi.update(beatMsg.id, { presentIds }).catch(() => {})
         }
       }
+      const remoteCards = turn.remoteIds?.length
+        ? (await Promise.all(turn.remoteIds.map((id) => charactersApi.get(id).catch(() => undefined)))).filter((c): c is Character => !!c)
+        : []
+      remoteRef.current = remoteCards
+      if (remoteCards.length) {
+        // Whoever was reached heard the player's message, and only that. Read the saved presence
+        // (the server stamps it on create), so the people here stay witnesses too.
+        const saved = await messagesApi.get(playerMsg.id).catch(() => undefined)
+        const presentIds = [...new Set([...(saved?.presentIds ?? playerMsg.presentIds ?? []), ...remoteCards.map((c) => c.id)])]
+        await messagesApi.update(playerMsg.id, { presentIds }).catch(() => {})
+      }
       runAssist('vision', 'Reading the scene', () => refineCharacterForms(gmMsg.id, gmMsg.text))
       if (turn.fork) {
         try {
@@ -3532,9 +3591,12 @@ export function useChatSession(chatId: string | null) {
       }
       const playerName = persona?.name || 'You'
       // Each agent is told who speaks before and after it this beat, so it can answer the others.
-      const castNow = [...participantCharacters, ...arrivalsRef.current]
+      const castNow = [...participantCharacters, ...arrivalsRef.current, ...remoteCards]
       const nameOfAgent = (id: string) => (id === character.id ? character : castNow.find((c) => c.id === id))?.card.name
-      const beatOrder = turn.speakerIds.map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
+      const isRemote = (id: string) => !!turn.remoteIds?.includes(id)
+      // A remote reply is private between the player and whoever was reached; the others speak among themselves.
+      const beatOrder = turn.speakerIds.filter((id) => !isRemote(id)).map(nameOfAgent).filter((n): n is string => !!n && !isPlayerCharacter(n, playerName))
+      const remoteNames = remoteCards.map((c) => c.card.name)
       let at = startAt + 1
       for (const speakerId of turn.speakerIds) {
         const agent = speakerId === character.id ? character : castNow.find((c) => c.id === speakerId)
@@ -3549,6 +3611,8 @@ export function useChatSession(chatId: string | null) {
           createdAt: at++,
           swipes: [],
           activeSwipe: 0,
+          // Only the player and the one reached share a remote reply.
+          ...(isRemote(agent.id) ? { presentIds: [agent.id, ...(chat?.playerCharacterId ? [chat.playerCharacterId] : [])] } : {}),
         }
         await messagesApi.create(replyMsg)
         // Each agent hears the GM and whoever already answered this beat — the public transcript only.
@@ -3559,15 +3623,21 @@ export function useChatSession(chatId: string | null) {
           speakerId: agent.id,
           inGmBeat: true,
           extraStyleGuidance: [
-            gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
+            isRemote(agent.id)
+              ? gmDirectionFor(turn, agent.card.name, playerName, [agent.card.name], false, true)
+              : gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
+            !isRemote(agent.id) && remoteNames.length
+              ? `${remoteNames.join(' and ')} answered ${playerName} from afar; only ${playerName} heard it. ${agent.card.name} knows only what ${playerName} says aloud about it.`
+              : '',
             ...(turn.loreCallIds ?? []).map((id) => callableLore.find((l) => l.id === id)?.content.slice(0, 2400)).filter((s): s is string => !!s),
-          ].join('\n\n'),
+          ].filter(Boolean).join('\n\n'),
         })
         if (abortRef.current?.signal.aborted) break
       }
+      remoteRef.current = []
       if (characterMemoryOn) runAssist('memory', 'Remembering', () => scribeMemories())
     },
-    [character, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
+    [character, chat?.playerCharacterId, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */
@@ -4661,6 +4731,7 @@ export function useChatSession(chatId: string | null) {
     updateAuthorNote,
     updateScene,
     updateGmNotes,
+    updateSetEvents,
     updateParticipants,
     switchPlayer,
     story,

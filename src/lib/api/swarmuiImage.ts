@@ -1,6 +1,7 @@
 import { KoboldApiError } from './types'
 import { uint8ArrayToBase64 } from './binaryUtils'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
+import { relayFetch } from './relay'
 
 /**
  * SwarmUI (mcmonkeyprojects) wraps ComfyUI internally but exposes its own simpler, session-based
@@ -25,7 +26,7 @@ export class SwarmUIClient implements ImageBackend {
   private async fetchNewSession(): Promise<string> {
     let res: Response
     try {
-      res = await fetch(`${this.base()}/API/GetNewSession`, {
+      res = await relayFetch(`${this.base()}/API/GetNewSession`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
@@ -61,7 +62,7 @@ export class SwarmUIClient implements ImageBackend {
     }
 
     const post = (b: typeof body) =>
-      fetch(`${this.base()}/API/GenerateText2Image`, {
+      relayFetch(`${this.base()}/API/GenerateText2Image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal,
@@ -95,7 +96,7 @@ export class SwarmUIClient implements ImageBackend {
     if (imagePath.startsWith('data:')) {
       return { base64: imagePath.split(',')[1] ?? '' }
     }
-    const imgRes = await fetch(`${this.base()}/${imagePath.replace(/^\/+/, '')}`, { signal })
+    const imgRes = await relayFetch(`${this.base()}/${imagePath.replace(/^\/+/, '')}`, { signal })
     if (!imgRes.ok) throw new KoboldApiError(`SwarmUI produced an image but it couldn't be fetched (${imgRes.status}).`)
     return { base64: uint8ArrayToBase64(new Uint8Array(await imgRes.arrayBuffer())) }
   }

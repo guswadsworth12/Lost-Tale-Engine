@@ -340,6 +340,7 @@ export function ChatWindow({
         character,
         persona,
         messages,
+        cast: participantCharacters,
         regexScripts,
         sfx: !sfxBursts
           ? { disabled: true }

@@ -43,23 +43,30 @@ export async function buildChatTranscriptHtml(opts: {
   /** The player's public view: `playerViewOf` of the story's `playerCharacterId` card (`useChatSession().persona`). Omitted, the player is "You". */
   persona?: Persona
   messages: StoredMessage[]
+  /** The rest of the cast, so each reply is labelled and pictured as whoever actually said it. */
+  cast?: Character[]
   regexScripts?: RegexScript[]
   /** SFX-burst policy — the global toggle plus the primary character's `sfxWords` (the export flattens speaker identity, so participant-specific vocab isn't threaded here). */
   sfx?: SfxConfig
 }): Promise<string> {
-  const { chat, character, persona, messages, regexScripts, sfx } = opts
+  const { chat, character, persona, messages, cast = [], regexScripts, sfx } = opts
   const characterName = character?.card.name ?? 'Character'
   const personaName = persona?.name ?? 'You'
   const [characterAvatar, personaAvatar] = await Promise.all([
     urlToDataUrl(character?.avatarDataUrl),
     urlToDataUrl(persona?.avatarDataUrl),
   ])
+  // A reply is the lead's unless it names another speaker (a cast member or the Game Master).
+  const castAvatars = new Map(await Promise.all(
+    cast.filter((c) => c.id !== character?.id).map(async (c) => [c.id, await urlToDataUrl(c.avatarDataUrl)] as const),
+  ))
 
   const rows = messages
     .map((m) => {
       const isUser = m.role === 'user'
-      const name = isUser ? personaName : characterName
-      const avatar = avatarHtml(isUser ? personaAvatar : characterAvatar, name)
+      const otherSpeaker = !isUser && !!m.speakerId && m.speakerId !== character?.id
+      const name = isUser ? personaName : otherSpeaker ? (m.name || characterName) : characterName
+      const avatar = avatarHtml(isUser ? personaAvatar : otherSpeaker ? castAvatars.get(m.speakerId!) : characterAvatar, name)
       const images = (m.images ?? [])
         .map((src) => `<img class="attachment" src="${escapeHtml(src)}" alt="attachment">`)
         .join('')

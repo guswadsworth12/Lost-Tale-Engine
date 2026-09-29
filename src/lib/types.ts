@@ -230,6 +230,9 @@ export interface ChatFact {
 /** What kind of thing a character remembers. `journal` is a character's own condensed account of older memories (`memory/journal.ts`), one per character per ended scene; the newest visible one is used. */
 export type MemoryKind = 'event' | 'learned' | 'promise' | 'secret' | 'impression' | 'journal'
 
+/** How a character knows a memory (`CharacterMemory.certainty`): saw it, was told it, or thinks it. */
+export type MemoryCertainty = 'firsthand' | 'claim' | 'belief'
+
 /**
  * Something a character remembers (`memory/`). Scoped by scene: a memory made in scene X is
  * visible in X and every later scene that follows on from X (the `previousSceneId` chain, and a
@@ -263,6 +266,19 @@ export interface CharacterMemory {
   unresolved?: boolean
   /** Core memory: always included, never folded into a journal. */
   pinned?: boolean
+  /**
+   * How the knowers came by it. `firsthand`: the witnesses saw or heard it happen themselves.
+   * `claim`: someone said so (a report, a rumor, an accusation, possibly a lie). `belief`: an
+   * inference, suspicion, or impression. Unset reads as `firsthand` (memories from before this
+   * existed). Only firsthand memories are facts of the story; claims and beliefs are what the
+   * characters think, never world canon until the player makes them so.
+   */
+  certainty?: MemoryCertainty
+  /** The player's ruling on a claim or belief. The GM is told it; the characters never are (a
+   *  character who heard a rumor the player ruled false still believes it). Unset: not ruled yet. */
+  verdict?: 'true' | 'false'
+  /** The world canon fact (`WorldCard.canonFacts[].id`) this was promoted to, when the player made it canon. */
+  canonFactId?: string
   /** False once retired (contradicted or superseded). Kept for the audit trail. */
   active: boolean
   retiredReason?: string
@@ -527,6 +543,10 @@ export interface Chat {
   recap?: SceneRecap
   /** Confirmed branch consequences from earlier scenes (their GM turns stay with those scenes). */
   carriedConsequences?: string[]
+  /** Canon beats of this story (`world/gm.ts` `SetEvent`): when one happens, it happens as written, with no roll. Carried into later scenes. */
+  setEvents?: import('@/lib/world/gm').SetEvent[]
+  /** Set events already carried out in earlier scenes of this story. */
+  setEventsDone?: string[]
   /** Messages with `createdAt <=` this have been read by the memory scribe (`memory/scribe.ts`). Rolled back when a scribed message is edited, so it is read again. */
   memoryScribedUpTo?: number
   /** Set when this chat was created by forking another one — the source chat's id. */

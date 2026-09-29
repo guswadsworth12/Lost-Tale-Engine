@@ -18,6 +18,7 @@ import type {
 import type { AssistantThread } from '@/lib/assistant/thread'
 import type { LocalSource } from '@/lib/assistant/localSources'
 import { toastError, toastSuccess, useToastStore } from '@/lib/store/useToastStore'
+import { useAuthStore } from '@/lib/accounts/useAuthStore'
 
 // The local API server runs on the same machine, but a wedged Node process (or a very large
 // backup/restore payload) shouldn't be able to hang a call forever with no way out.
@@ -85,6 +86,8 @@ async function request<T>(
     clearTimeout(timeout)
   }
   reportReachable()
+  // The session is gone (expired, signed out elsewhere, or never existed): show the sign-in screen.
+  if (res.status === 401 && !path.startsWith('/auth/')) useAuthStore.getState().signedOut()
   if (res.status === 404 && opts?.notFoundIsUndefined) return undefined as T
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -214,6 +217,8 @@ export interface NextSceneBody {
   recap: Pick<SceneRecap, 'text' | 'presentIds' | 'openThreads' | 'location'>
   /** Confirmed consequences from this scene's GM turns, kept in force afterwards. */
   consequences?: string[]
+  /** Set events carried out so far, so later scenes do not repeat them. */
+  setEventsDone?: string[]
   next?: {
     title?: string
     location?: string | null
@@ -351,8 +356,11 @@ export type CharacterMemoryListing = CharacterMemory & { sceneLabel?: string; st
 /** What `create` takes: the server assigns `id`, fills `storyId`/`worldId` from the chat, and computes `knownBy`. */
 export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active'> & { createdAt?: number }
 export type CharacterMemoryPatch = Partial<
-  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor'>
->
+  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
+> & {
+  /** `null` clears the player's ruling. */
+  verdict?: CharacterMemory['verdict'] | null
+}
 
 /** Per-character memory (`server/memories.ts`). Every write invalidates 'memories'. */
 export const memoriesApi = {

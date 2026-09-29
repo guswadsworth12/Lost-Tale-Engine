@@ -49,6 +49,14 @@ export function knowledgeGaps(
     .map(([id, list]) => `${nameOf(id)} does not know: ${list.slice(0, 3).map((m) => bare(m.text)).join('; ')}.`)
 }
 
+/** How reliable a memory is, for the GM only: a claim or belief with the player's ruling on it.
+ *  '' for firsthand memories (unset `certainty` included). */
+export function knowledgeTag(m: Pick<CharacterMemory, 'certainty' | 'verdict'>): string {
+  if (m.certainty !== 'claim' && m.certainty !== 'belief') return ''
+  const ruling = m.verdict === 'true' ? 'true' : m.verdict === 'false' ? 'FALSE' : 'unverified'
+  return `${m.certainty}, ${ruling}`
+}
+
 /** The GM's view of memory: the top memories across everyone, each with who knows it. */
 export function gmMemoryDigest(memories: CharacterMemory[], nameOf: NameOf, opts?: { max?: number }): string[] {
   const max = opts?.max ?? 12
@@ -65,7 +73,7 @@ export function gmMemoryDigest(memories: CharacterMemory[], nameOf: NameOf, opts
     .slice(0, max)
     .map((m) => {
       const names = [...new Set(m.knownBy)].map(nameOf).filter((n): n is string => !!n)
-      const tags = [m.kind === 'secret' ? 'secret' : '', m.unresolved ? 'unresolved' : ''].filter(Boolean)
+      const tags = [knowledgeTag(m), m.kind === 'secret' ? 'secret' : '', m.unresolved ? 'unresolved' : ''].filter(Boolean)
       const known = names.length ? `known by: ${names.join(', ')}` : 'known by: no one named'
       return `- ${m.text.trim()} (${[...tags, known].join('; ')})`
     })

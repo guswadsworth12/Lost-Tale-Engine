@@ -24,6 +24,7 @@ import { useOutreachTick } from '@/lib/hooks/useOutreachTick'
 import { useAutoContextLength } from '@/lib/hooks/useAutoContextLength'
 import { useLegacyPlayerDefault } from '@/lib/hooks/useLegacyPlayerDefault'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { AuthGate } from '@/components/auth/AuthGate'
 
 /** The chat tab: the full-screen Welcome screen on a fresh install, otherwise the panel + window. */
 function ChatSurface({
@@ -56,7 +57,16 @@ function ChatSurface({
 }
 
 export default function App() {
+  // Theme applies to the sign-in screens too; everything else waits for a signed-in user.
   useApplyTheme()
+  return (
+    <AuthGate>
+      <SignedInApp />
+    </AuthGate>
+  )
+}
+
+function SignedInApp() {
   useOutreachTick()
   useAutoContextLength()
   useLegacyPlayerDefault()

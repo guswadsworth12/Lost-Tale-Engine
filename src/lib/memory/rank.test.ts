@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatMemoryLine, keywordOverlap, keywords, latestJournal, memoriesKnownBy, memoryBlock, selectMemories } from './rank'
+import { formatMemoryLine, keywordOverlap, keywords, latestJournal, memoriesKnownBy, memoryBlock, selectMemories, selectMemoriesExplained } from './rank'
 import type { CharacterMemory } from '@/lib/types'
 
 let n = 0
@@ -33,6 +33,13 @@ describe('memoriesKnownBy / latestJournal', () => {
       mem({ text: 'Journal.', kind: 'journal' }),
     ]
     expect(memoriesKnownBy(list, 'ash')).toEqual([keep])
+  })
+
+  it('keeps a rumor with those who heard it: the rest of the cast never sees it', () => {
+    const rumor = mem({ text: 'Cole said that the mayor fled.', certainty: 'claim', witnesses: ['bea', 'cole'], knownBy: ['bea', 'cole'] })
+    expect(memoriesKnownBy([rumor], 'bea')).toEqual([rumor])
+    expect(memoriesKnownBy([rumor], 'ash')).toEqual([])
+    expect(selectMemories([rumor], { characterId: 'ash', presentIds: ['ash', 'bea', 'cole'], recentText: 'the mayor fled' })).toEqual([])
   })
 
   it('treats consolidation as per character', () => {
@@ -130,6 +137,36 @@ describe('formatMemoryLine', () => {
   it('leaves a resolved promise plain', () => {
     expect(formatMemoryLine(mem({ text: 'Cole promised to return.', kind: 'promise' }), 'ash')).toBe('Cole promised to return.')
   })
+
+  it('marks a claim as heard and a belief as believed, for every knower', () => {
+    const claim = mem({ text: 'Cole said that the mayor fled the city.', certainty: 'claim', knownBy: ['ash', 'bea'], witnesses: ['ash', 'bea'] })
+    expect(formatMemoryLine(claim, 'ash')).toBe('Heard, not confirmed: Cole said that the mayor fled the city.')
+    expect(formatMemoryLine(claim, 'bea')).toBe('Heard, not confirmed: Cole said that the mayor fled the city.')
+    expect(formatMemoryLine(mem({ text: 'Bea is hiding something.', certainty: 'belief' }), 'ash')).toBe('Believes: Bea is hiding something.')
+    expect(formatMemoryLine(mem({ text: 'Ash lit the lamp.', certainty: 'firsthand' }), 'ash')).toBe('Ash lit the lamp.')
+  })
+
+  it('marks what a character was only told as secondhand, but not for those who saw it', () => {
+    const m = mem({ text: 'Ash broke the ward.', witnesses: ['ash'], toldVia: [{ to: ['bea'], by: 'ash', at: 1 }], knownBy: ['ash', 'bea'] })
+    expect(formatMemoryLine(m, 'ash')).toBe('Ash broke the ward.')
+    expect(formatMemoryLine(m, 'bea')).toBe('Heard secondhand: Ash broke the ward.')
+    const rumor = { ...m, certainty: 'claim' as const }
+    expect(formatMemoryLine(rumor, 'bea')).toBe('Heard, not confirmed: Ash broke the ward.')
+  })
+
+  it('never tells a character the player ruled a rumor false or made it canon', () => {
+    const ruledFalse = mem({ text: 'Cole said that the well is poisoned.', certainty: 'claim', verdict: 'false' })
+    const canon = mem({ text: 'Bea said that the old king lives.', certainty: 'claim', verdict: 'true', canonFactId: 'fact-1' })
+    expect(formatMemoryLine(ruledFalse, 'ash')).toBe('Heard, not confirmed: Cole said that the well is poisoned.')
+    expect(formatMemoryLine(canon, 'ash')).toBe('Heard, not confirmed: Bea said that the old king lives.')
+  })
+
+  it('combines how it is known with secret and open-thread marks', () => {
+    expect(formatMemoryLine(mem({ text: 'Bea said that Cole hid the key.', kind: 'secret', certainty: 'claim' }), 'ash'))
+      .toBe('Kept secret; heard, not confirmed: Bea said that Cole hid the key.')
+    expect(formatMemoryLine(mem({ text: 'Cole owes Bea a favour.', unresolved: true, certainty: 'belief', feelings: { ash: -0.6 } }), 'ash'))
+      .toBe('Still unsettled, not resolved; believes: Cole owes Bea a favour. (it still stings)')
+  })
 })
 
 describe('memoryBlock', () => {
@@ -145,5 +182,19 @@ describe('memoryBlock', () => {
       + 'I came north looking for my brother.\n'
       + '- Bea lied about the map.',
     )
+  })
+})
+
+describe('selectMemoriesExplained', () => {
+  it('picks exactly what selectMemories picks, with the reasons', () => {
+    const list = [
+      { id: 'p', chatId: 'c', text: 'Ash swore to guard the east gate.', kind: 'promise' as const, witnesses: ['ash'], knownBy: ['ash'], about: ['bea'], importance: 0.8, pinned: true, unresolved: true, active: true, origin: 'scribe' as const, createdAt: 1 },
+      { id: 'q', chatId: 'c', text: 'The ward on the gate cracked at dusk.', kind: 'event' as const, witnesses: ['ash'], knownBy: ['ash'], importance: 0.4, active: true, origin: 'scribe' as const, createdAt: 2 },
+    ]
+    const opts = { characterId: 'ash', presentIds: ['bea'], recentText: 'Who cracked the ward?' }
+    const explained = selectMemoriesExplained(list, opts)
+    expect(explained.map((e) => e.memory.id)).toEqual(selectMemories(list, opts).map((m) => m.id))
+    expect(explained[0].reasons).toMatchObject({ pinned: true, openThread: true, aboutPresent: ['bea'], important: true })
+    expect(explained.find((e) => e.memory.id === 'q')!.reasons.matchedWords).toEqual(expect.arrayContaining(['ward', 'crack']))
   })
 })

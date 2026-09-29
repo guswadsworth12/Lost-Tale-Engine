@@ -2,6 +2,7 @@ import type { GenerateRequest } from './types'
 import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
+import { relayFetch, type RelayInit } from './relay'
 
 const TEXT_NOVELAI = 'https://text.novelai.net'
 const API_NOVELAI = 'https://api.novelai.net'
@@ -19,13 +20,18 @@ function baseUrlForModel(model: string): string {
 // streaming event format is an unconfirmed guess; `generateStream` falls back to `generate()`
 // if a stream ever produces zero tokens.
 export class NovelAIClient implements ChatBackend {
+  /** `keySaved`: whether the user saved a NovelAI key (the chat key). The server's relay attaches it as a bearer token; the browser never holds it. */
   constructor(
-    private apiKey: string,
+    private keySaved: boolean,
     private model: string,
   ) {}
 
   private headers(): Record<string, string> {
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` }
+    return { 'Content-Type': 'application/json' }
+  }
+
+  private credential(): Pick<RelayInit, 'secret' | 'auth'> {
+    return this.keySaved ? { secret: 'chatBackendApiKey', auth: 'bearer' } : {}
   }
 
   /** Converts plain-string stop sequences to the token-id arrays NovelAI wants, via the server's bundled tokenizer. Best-effort: any failure just means no stop sequences rather than a failed generation. */
@@ -34,7 +40,7 @@ export class NovelAIClient implements ChatBackend {
     try {
       const results = await Promise.all(
         stopSequences.map(async (text) => {
-          const res = await fetch('/api/novelai/tokenize', {
+          const res = await relayFetch('/api/novelai/tokenize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, model: this.model }),
@@ -91,9 +97,10 @@ export class NovelAIClient implements ChatBackend {
   async generate(params: GenerateRequest, signal?: AbortSignal): Promise<string> {
     let res: Response
     try {
-      res = await fetch(`${baseUrlForModel(this.model)}/ai/generate`, {
+      res = await relayFetch(`${baseUrlForModel(this.model)}/ai/generate`, {
         method: 'POST',
         headers: this.headers(),
+        ...this.credential(),
         body: JSON.stringify(await this.body(params)),
         signal,
       })
@@ -112,9 +119,10 @@ export class NovelAIClient implements ChatBackend {
   async generateStream(params: GenerateRequest, onToken: (token: string, full: string) => void, signal?: AbortSignal): Promise<string> {
     let res: Response
     try {
-      res = await fetch(`${baseUrlForModel(this.model)}/ai/generate-stream`, {
+      res = await relayFetch(`${baseUrlForModel(this.model)}/ai/generate-stream`, {
         method: 'POST',
         headers: this.headers(),
+        ...this.credential(),
         body: JSON.stringify(await this.body(params)),
         signal,
       })
@@ -179,7 +187,7 @@ export class NovelAIClient implements ChatBackend {
   /** Real token count via the same local tokenizer `stop_sequences` uses, when the model has one bundled — the generic character-estimate otherwise (Erato, or the local server unreachable). */
   async tokenCount(text: string): Promise<{ count: number }> {
     try {
-      const res = await fetch('/api/novelai/tokenize', {
+      const res = await relayFetch('/api/novelai/tokenize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, model: this.model }),
@@ -204,10 +212,10 @@ export class NovelAIClient implements ChatBackend {
 
   /** Settings → Connection's reachability+auth check, via `GET /user/subscription` (costs no generation quota). */
   async checkConnection(): Promise<ConnectionCheckResult> {
-    if (!this.apiKey.trim()) return { ok: false, detail: 'No API key set.' }
+    if (!this.keySaved) return { ok: false, detail: 'No API key set.' }
     let res: Response
     try {
-      res = await fetch(`${API_NOVELAI}/user/subscription`, { headers: this.headers() })
+      res = await relayFetch(`${API_NOVELAI}/user/subscription`, { headers: this.headers(), ...this.credential() })
     } catch {
       return { ok: false, detail: 'Could not reach NovelAI.' }
     }
