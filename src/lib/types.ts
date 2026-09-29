@@ -602,6 +602,10 @@ export interface WorldInfoBook {
   boundChatIds: string[]
   boundCharacterIds?: string[]
   boundWorldIds?: string[]
+  /** The account that owns it. Unset: shared with everyone. */
+  ownerUserId?: string
+  /** `private`: only its owner sees or uses it. Unset reads as `shared`. */
+  visibility?: import('@/lib/packs/contract').Visibility
   createdAt: number
 }
 
@@ -702,6 +706,10 @@ export interface WorldCard {
   currentPhaseIndex?: number
   /** Picked at creation (`src/lib/world/worldTemplates.ts`), editable after — narrows which editor tabs show. Unset behaves like 'dating_sim' (full feature set). */
   template?: WorldTemplateId
+  /** The account that owns it. Unset: made before accounts owned things, shared with everyone. */
+  ownerUserId?: string
+  /** `private`: only its owner sees or uses it. Unset reads as `shared`. */
+  visibility?: import('@/lib/packs/contract').Visibility
   createdAt: number
   updatedAt: number
 }
