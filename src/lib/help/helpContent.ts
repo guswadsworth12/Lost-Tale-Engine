@@ -288,7 +288,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     group: 'Play',
     icon: 'book',
     summary: 'Why a story is a chain of scenes, the context meter, ending a scene, and reading it all back.',
-    keywords: ['scene', 'scenes', 'recap', 'recaps', 'context', 'context window', 'context meter', 'tokens', 'split', 'storyline', 'storylines', 'parallel', 'timeline', 'long story', 'local model', 'end scene', 'chapter', 'history', 'old chats', 'memory', 'memories', 'character memory', 'journal', 'sequel', 'continues from', 'forget'],
+    keywords: ['scene', 'scenes', 'recap', 'recaps', 'context', 'context window', 'context meter', 'tokens', 'split', 'storyline', 'storylines', 'parallel', 'timeline', 'long story', 'local model', 'end scene', 'chapter', 'history', 'old chats', 'memory', 'memories', 'character memory', 'journal', 'sequel', 'continues from', 'forget', 'rumor', 'rumors', 'claim', 'belief'],
     related: ['stories', 'story-panel', 'campaign'],
     sections: [
       {
@@ -372,6 +372,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               "Memories stay within the story they happened in. To carry them into a new story, set **Continues from** in the Story panel's **Scenes** tab.",
               "When a scene ends, older memories are condensed into each character's journal.",
               'Cast → a character → **Memories** lists everything they know. **Pin** keeps a memory forever; **Forget** removes it.',
+              "What a character only heard (a rumor, a report, an accusation) is kept as a claim, and a hunch as a belief, apart from what they saw firsthand. Neither becomes canon on its own. Rule on them in the Story panel's **Canon** tab: **True**, **False**, **Correct…**, or **Make world canon…**. Your ruling guides the Game Master; the characters keep believing what they heard.",
             ],
           },
         ],

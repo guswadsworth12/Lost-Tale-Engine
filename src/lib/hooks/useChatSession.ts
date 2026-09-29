@@ -247,7 +247,8 @@ import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
 import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
-import { latestJournal, memoryBlock, selectMemories } from '@/lib/memory/rank'
+import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
+import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
 import { buildScribePrompt, parseScribeResponse } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
@@ -710,17 +711,16 @@ export function useChatSession(chatId: string | null) {
       const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id).catch(() => []) : []
       const missedIds = new Set(memoryOn ? branchMessages.filter((m) => !witnessedMessage(m, speaker.id)).map((m) => m.id) : [])
       const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
+      const memoryPicks = memoryOn
+        ? selectMemoriesExplained(sceneMemories, {
+            characterId: speaker.id,
+            presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
+            recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
+          })
+        : []
+      const memoryJournal = memoryOn ? latestJournal(sceneMemories, speaker.id) : undefined
       const memoryText = memoryOn
-        ? memoryBlock(
-            speaker.card.name,
-            selectMemories(sceneMemories, {
-              characterId: speaker.id,
-              presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
-              recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
-            }),
-            latestJournal(sceneMemories, speaker.id),
-            speaker.id,
-          )
+        ? memoryBlock(speaker.card.name, memoryPicks.map((e) => e.memory), memoryJournal, speaker.id)
         : ''
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
@@ -1031,10 +1031,10 @@ export function useChatSession(chatId: string | null) {
       // Messages already folded into chat.summary are represented there, not sent verbatim.
       const cutoff = freshChat.summaryUpToTimestamp ?? 0
       const createdAtById = new Map(messages.map((m) => [m.id, m.createdAt]))
-      const recentHistory = (cutoff
+      const unsummarizedHistory = cutoff
         ? historyForPrompt.filter((m) => (createdAtById.get(m.id) ?? Infinity) > cutoff)
         : historyForPrompt
-      ).filter((m) => !missedIds.has(m.id))
+      const recentHistory = unsummarizedHistory.filter((m) => !missedIds.has(m.id))
 
       // Impersonating {{user}}'s line withholds every steer built for {{char}}'s reply; world/persona/history context and plain style rules still apply.
       const impersonating = !!opts?.impersonateAsUser
@@ -1189,7 +1189,7 @@ export function useChatSession(chatId: string | null) {
         maxTokens: Math.floor(contextBudget * 0.15),
         speakerName: speaker.card.name,
       })
-      return buildPrompt({
+      const built: PromptInspection = await buildPrompt({
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
@@ -1256,6 +1256,23 @@ export function useChatSession(chatId: string | null) {
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
+      // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
+      if (opts?.includeSectionBreakdown && memoryOn) {
+        const names = new Map([speaker, ...roster, ...(character ? [character] : []), ...participantCharacters].map((c) => [c.id, c.card.name]))
+        const knownCount = memoriesKnownBy(sceneMemories, speaker.id).filter((m) => typeof m.text === 'string' && m.text.trim()).length
+        const journalText = memoryJournal?.text?.trim()
+        built.memoryPicks = memoryPicks.map(({ memory, reasons }) => ({
+          id: memory.id,
+          text: memory.text,
+          kind: memory.kind,
+          reasons,
+          aboutNames: reasons.aboutPresent.flatMap((id) => names.get(id) ?? []),
+        }))
+        if (journalText) built.memoryJournal = journalText
+        built.memorySkipped = Math.max(0, knownCount - memoryPicks.length)
+        built.memoryWitnessFilter = { hiddenMessages: unsummarizedHistory.length - recentHistory.length }
+      }
+      return built
     },
     [
       activeFacts,
@@ -1270,6 +1287,7 @@ export function useChatSession(chatId: string | null) {
       globalPostHistory,
       globalSystemPrompt,
       messages,
+      participantCharacters,
       persona,
       promptSections,
       regexScripts,
@@ -1416,6 +1434,7 @@ export function useChatSession(chatId: string | null) {
             about: a.aboutIds,
             feelings: a.feelings,
             unresolved: a.unresolved,
+            certainty: a.certainty,
             sourceMessageId: a.messageId,
             origin: 'scribe' as const,
           })))

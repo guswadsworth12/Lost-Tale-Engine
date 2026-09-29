@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
-import type { PromptBuildResult } from '@/lib/prompt/builder'
+import type { PromptInspection } from '@/lib/prompt/inspection'
 import { describeEntry } from '@/lib/worldinfo/activation'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { whyLabels } from './memoryWhy'
 
 export function PromptInspector({
   loadPrompt,
@@ -12,7 +13,7 @@ export function PromptInspector({
   onClose,
   lastReply,
 }: {
-  loadPrompt: () => Promise<PromptBuildResult | null>
+  loadPrompt: () => Promise<PromptInspection | null>
   summary?: string
   onUpdateSummary: () => Promise<string | null>
   onClose: () => void
@@ -21,7 +22,7 @@ export function PromptInspector({
    *  this field existed. Undefined entirely when the chat has no character message yet. */
   lastReply?: { processed: string; raw?: string }
 }) {
-  const [result, setResult] = useState<PromptBuildResult | null | 'error'>(null)
+  const [result, setResult] = useState<PromptInspection | null | 'error'>(null)
   const [summarizing, setSummarizing] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [showRawReply, setShowRawReply] = useState(false)
@@ -159,6 +160,8 @@ export function PromptInspector({
               </p>
             )}
 
+            {result.memoryPicks && <MemoriesSection result={result} />}
+
             <h3 className="mb-1 text-xs font-semibold text-text-muted">Exact text sent to the model</h3>
             <pre className="whitespace-pre-wrap rounded-xl bg-bg-sunken p-4 text-xs text-text">{result.prompt}</pre>
 
@@ -204,5 +207,56 @@ export function PromptInspector({
           </div>
         )}
     </Modal>
+  )
+}
+
+/** What this speaker recalls in the prompt and why, plus what the budget and the witness rule held back. */
+function MemoriesSection({ result }: { result: PromptInspection }) {
+  const picks = result.memoryPicks ?? []
+  const skipped = result.memorySkipped ?? 0
+  const hidden = result.memoryWitnessFilter?.hiddenMessages ?? 0
+  return (
+    <div className="mb-5">
+      <h3 className="mb-1 text-xs font-semibold text-text-muted">Memories ({picks.length})</h3>
+      {picks.length === 0 && !result.memoryJournal ? (
+        <p className="mb-2 text-xs text-text-muted">No memories for this speaker yet.</p>
+      ) : (
+        <ul className="mb-2 space-y-1 text-xs">
+          {picks.map((pick) => {
+            const labels = whyLabels(pick.reasons, pick.aboutNames)
+            return (
+              <li key={pick.id} className="rounded-lg bg-bg-sunken px-2.5 py-1.5">
+                <span className="text-text">{pick.text}</span>
+                {labels.length > 0 && (
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {labels.map((label) => (
+                      <span key={label} className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">
+                        {label}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {skipped > 0 && (
+        <p className="mb-2 text-xs text-text-muted">
+          {skipped} more {skipped === 1 ? "memory didn't" : "memories didn't"} fit
+        </p>
+      )}
+      {result.memoryJournal && (
+        <details className="mb-2 rounded-lg bg-bg-sunken px-2.5 py-1.5 text-xs">
+          <summary className="cursor-pointer text-text-muted">Journal</summary>
+          <p className="mt-1 whitespace-pre-wrap text-text">{result.memoryJournal}</p>
+        </details>
+      )}
+      {hidden > 0 && (
+        <p className="mb-2 text-xs text-text-muted">
+          {hidden} earlier {hidden === 1 ? 'message' : 'messages'} hidden: this speaker wasn't there
+        </p>
+      )}
+    </div>
   )
 }

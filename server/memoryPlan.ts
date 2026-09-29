@@ -5,13 +5,15 @@
  * A memory lives in the scene (chat) it happened in. It is visible from that scene and every scene
  * that follows on from it: the `previousSceneId` chain, then a sequel story's `continuesFrom`.
  */
-import type { CharacterMemory, MemoryKind } from '../src/lib/types.ts'
+import type { CharacterMemory, MemoryCertainty, MemoryKind } from '../src/lib/types.ts'
 
 type Row = Record<string, unknown>
 type ToldVia = NonNullable<CharacterMemory['toldVia']>[number]
 
 export const MEMORY_KINDS: readonly MemoryKind[] = ['event', 'learned', 'promise', 'secret', 'impression', 'journal']
 export const MEMORY_ORIGINS: readonly CharacterMemory['origin'][] = ['scribe', 'manual', 'journal']
+export const MEMORY_CERTAINTIES: readonly MemoryCertainty[] = ['firsthand', 'claim', 'belief']
+export const MEMORY_VERDICTS: readonly NonNullable<CharacterMemory['verdict']>[] = ['true', 'false']
 export const MEMORY_TEXT_MAX = 600
 const RETIRED_REASON_MAX = 300
 /** Longest scene chain followed, as a backstop beyond the cycle guard. */
@@ -118,6 +120,36 @@ function normalizeText(v: unknown): string | { error: string } {
 }
 
 const isKind = (v: unknown): v is MemoryKind => MEMORY_KINDS.includes(v as MemoryKind)
+const isCertainty = (v: unknown): v is MemoryCertainty => MEMORY_CERTAINTIES.includes(v as MemoryCertainty)
+const isVerdict = (v: unknown): v is NonNullable<CharacterMemory['verdict']> => MEMORY_VERDICTS.includes(v as 'true')
+
+type Knowledge = Partial<Pick<CharacterMemory, 'certainty' | 'verdict' | 'canonFactId'>>
+
+/** `certainty`, `verdict` and `canonFactId` from a create or update body. `null` (or an empty
+ *  `canonFactId`) leaves the field unset on a create and clears it on an update (an unset
+ *  `certainty` reads as firsthand). Missing fields are left alone. */
+function normalizeKnowledge(raw: Row, patch: boolean): Knowledge | { error: string } {
+  const out: Knowledge = {}
+  const given = (key: string) => key in raw && raw[key] !== undefined
+  const clear = (key: keyof Knowledge) => { if (patch) out[key] = undefined }
+  if (given('certainty')) {
+    if (raw.certainty === null) clear('certainty')
+    else if (!isCertainty(raw.certainty)) return { error: `Unknown memory certainty "${String(raw.certainty)}".` }
+    else out.certainty = raw.certainty
+  }
+  if (given('verdict')) {
+    if (raw.verdict === null) clear('verdict')
+    else if (!isVerdict(raw.verdict)) return { error: 'verdict must be "true", "false", or null.' }
+    else out.verdict = raw.verdict
+  }
+  if (given('canonFactId')) {
+    if (raw.canonFactId !== null && typeof raw.canonFactId !== 'string') return { error: 'canonFactId must be a string or null.' }
+    const id = str(raw.canonFactId).trim()
+    if (id) out.canonFactId = id
+    else clear('canonFactId')
+  }
+  return out
+}
 
 export type NewMemory = Omit<CharacterMemory, 'id'>
 
@@ -137,6 +169,8 @@ export function normalizeMemoryInput(raw: unknown, now: number): NewMemory | { e
   if (raw.origin !== undefined && !MEMORY_ORIGINS.includes(raw.origin as CharacterMemory['origin'])) {
     return { error: `Unknown memory origin "${String(raw.origin)}".` }
   }
+  const knowledge = normalizeKnowledge(raw, false)
+  if ('error' in knowledge) return knowledge
   const toldVia = normalizeToldVia(raw.toldVia, now)
   const knownBy = computeKnownBy(witnesses, toldVia)
   const about = uniqueIds(raw.about)
@@ -160,13 +194,15 @@ export function normalizeMemoryInput(raw: unknown, now: number): NewMemory | { e
   if (raw.unresolved === true) memory.unresolved = true
   if (raw.pinned === true) memory.pinned = true
   if (str(raw.sourceMessageId)) memory.sourceMessageId = str(raw.sourceMessageId)
+  Object.assign(memory, knowledge)
   return memory
 }
 
 export type MemoryPatch = Partial<
   Pick<
     CharacterMemory,
-    'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor' | 'updatedAt'
+    | 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor'
+    | 'certainty' | 'verdict' | 'canonFactId' | 'updatedAt'
   >
 >
 
@@ -174,7 +210,7 @@ export type MemoryPatch = Partial<
  * Validates a PUT body. Who knows a memory (`witnesses`, `knownBy`, `toldVia`) and where it lives
  * (`chatId`) are not editable here: they change only through share / message retraction.
  * `feelings` keys and `consolidatedFor` ids are limited to `existing.knownBy`. A `null` (or empty) `retiredReason`, `about`,
- * `feelings` or `consolidatedFor` clears it.
+ * `feelings` or `consolidatedFor` clears it, as does a `null` `verdict` or `canonFactId`.
  */
 export function normalizeMemoryPatch(raw: unknown, existing: Pick<CharacterMemory, 'knownBy'>, now: number): MemoryPatch | { error: string } {
   if (!isObj(raw)) return { error: 'A memory update must be an object.' }
@@ -209,6 +245,9 @@ export function normalizeMemoryPatch(raw: unknown, existing: Pick<CharacterMemor
     const reason = str(raw.retiredReason).trim().slice(0, RETIRED_REASON_MAX)
     patch.retiredReason = reason || undefined
   }
+  const knowledge = normalizeKnowledge(raw, true)
+  if ('error' in knowledge) return knowledge
+  Object.assign(patch, knowledge)
   return patch
 }
 

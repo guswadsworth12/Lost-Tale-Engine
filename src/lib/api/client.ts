@@ -356,8 +356,11 @@ export type CharacterMemoryListing = CharacterMemory & { sceneLabel?: string; st
 /** What `create` takes: the server assigns `id`, fills `storyId`/`worldId` from the chat, and computes `knownBy`. */
 export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active'> & { createdAt?: number }
 export type CharacterMemoryPatch = Partial<
-  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor'>
->
+  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
+> & {
+  /** `null` clears the player's ruling. */
+  verdict?: CharacterMemory['verdict'] | null
+}
 
 /** Per-character memory (`server/memories.ts`). Every write invalidates 'memories'. */
 export const memoriesApi = {

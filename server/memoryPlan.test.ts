@@ -189,6 +189,27 @@ describe('normalizeMemoryInput', () => {
     const m = normalizeMemoryInput({ ...base, importance: -2, createdAt: 77 }, NOW)
     expect(m).toMatchObject({ importance: 0, createdAt: 77 })
   })
+
+  it('keeps how it is known, the ruling, and the canon link', () => {
+    const m = normalizeMemoryInput({ ...base, certainty: 'claim', verdict: 'false', canonFactId: ' fact-1 ' }, NOW)
+    expect(m).toMatchObject({ certainty: 'claim', verdict: 'false', canonFactId: 'fact-1' })
+  })
+
+  it('leaves certainty unset (read as firsthand) when missing or null', () => {
+    for (const extra of [{}, { certainty: null, verdict: null, canonFactId: null }]) {
+      const m = normalizeMemoryInput({ ...base, ...extra }, NOW)
+      expect(m).not.toHaveProperty('error')
+      expect(m).not.toHaveProperty('certainty')
+      expect(m).not.toHaveProperty('verdict')
+      expect(m).not.toHaveProperty('canonFactId')
+    }
+  })
+
+  it('rejects an unknown certainty or verdict', () => {
+    expect(normalizeMemoryInput({ ...base, certainty: 'rumor' }, NOW)).toHaveProperty('error')
+    expect(normalizeMemoryInput({ ...base, verdict: true }, NOW)).toHaveProperty('error')
+    expect(normalizeMemoryInput({ ...base, canonFactId: 7 }, NOW)).toHaveProperty('error')
+  })
 })
 
 describe('normalizeMemoryPatch', () => {
@@ -243,6 +264,20 @@ describe('normalizeMemoryPatch', () => {
     expect(normalizeMemoryPatch({ importance: 'high' }, existing, NOW)).toHaveProperty('error')
     expect(normalizeMemoryPatch({ pinned: 'true' }, existing, NOW)).toHaveProperty('error')
     expect(normalizeMemoryPatch('text', existing, NOW)).toHaveProperty('error')
+    expect(normalizeMemoryPatch({ certainty: 'hearsay' }, existing, NOW)).toHaveProperty('error')
+    expect(normalizeMemoryPatch({ verdict: 'maybe' }, existing, NOW)).toHaveProperty('error')
+    expect(normalizeMemoryPatch({ canonFactId: {} }, existing, NOW)).toHaveProperty('error')
+  })
+
+  it('records a ruling and a promotion to canon', () => {
+    expect(normalizeMemoryPatch({ certainty: 'belief', verdict: 'true', canonFactId: 'fact-1' }, existing, NOW))
+      .toEqual({ certainty: 'belief', verdict: 'true', canonFactId: 'fact-1', updatedAt: NOW })
+  })
+
+  it('clears a ruling with null, and leaves it alone when not mentioned', () => {
+    expect(normalizeMemoryPatch({ verdict: null, canonFactId: null }, existing, NOW))
+      .toEqual({ verdict: undefined, canonFactId: undefined, updatedAt: NOW })
+    expect(normalizeMemoryPatch({ text: 'Bea said the bridge is out.' }, existing, NOW)).not.toHaveProperty('verdict')
   })
 })
 
@@ -330,6 +365,21 @@ describe('forkMemories', () => {
       ids(),
     )
     expect(rows).toEqual([mem({ id: 'new-1', chatId: 'fork', sourceMessageId: 'f1', createdAt: 900 })])
+  })
+
+  it('carries a rumor learned before the fork point with its ruling, and not one heard later on the other branch', () => {
+    const rows = forkMemories(
+      [
+        mem({ id: 'early', sourceMessageId: 'm1', certainty: 'claim', verdict: 'false', text: 'Cole said the bridge is out.' }),
+        mem({ id: 'later', sourceMessageId: 'm3', certainty: 'claim', text: 'Bea said the mayor fled.' }),
+      ],
+      idMap,
+      200,
+      'fork',
+      ids(),
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ chatId: 'fork', certainty: 'claim', verdict: 'false', text: 'Cole said the bridge is out.' })
   })
 
   it('keeps sourceless memories by the cutoff (all when there is none)', () => {

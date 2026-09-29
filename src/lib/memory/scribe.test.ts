@@ -42,6 +42,13 @@ describe('buildScribePrompt', () => {
     expect(prompt).toContain('at most 4')
   })
 
+  it('asks how each memory is known, and to record a rumor as what someone said', () => {
+    const prompt = buildScribePrompt(input())
+    expect(prompt).toContain('"certainty" is one of: firsthand, claim, belief.')
+    expect(prompt).toContain('write it as "X said that ..."')
+    expect(prompt).toContain('"certainty":"firsthand"')
+  })
+
   it('honours maxNew and omits the memory section when there is none', () => {
     const prompt = buildScribePrompt(input({ existing: [], maxNew: 2 }))
     expect(prompt).toContain('at most 2')
@@ -64,6 +71,7 @@ describe('parseScribeResponse', () => {
         messageId: 'msg-1',
         text: 'Ash gave Bea the key.',
         kind: 'promise',
+        certainty: 'firsthand',
         importance: 0.7,
         aboutIds: ['ash', 'bea'],
         witnessIds: ['ash', 'bea', 'cole'],
@@ -77,6 +85,20 @@ describe('parseScribeResponse', () => {
     const result = parseScribeResponse(raw, input())
     expect(result.add).toHaveLength(1)
     expect(result.add[0]).toMatchObject({ messageId: 'msg-2', kind: 'event', importance: 0.5 })
+  })
+
+  it('reads how each memory is known, defaulting to firsthand (an impression to belief)', () => {
+    const raw = json({
+      add: [
+        { from: 3, text: 'Cole said that the mayor fled the city.', kind: 'learned', certainty: 'Claim' },
+        { from: 1, text: 'Ash handed over the key.', kind: 'event' },
+        { from: 2, text: 'Ash suspects Bea is hiding something.', kind: 'impression' },
+        { from: 2, text: 'Bea seems frightened of Cole.', kind: 'impression', certainty: 'firsthand' },
+        { from: 1, text: 'Bea took the key without a word.', certainty: 'hearsay' },
+      ],
+    })
+    const result = parseScribeResponse(raw, input({ maxNew: 5 }))
+    expect(result.add.map((a) => a.certainty)).toEqual(['claim', 'firsthand', 'belief', 'firsthand', 'firsthand'])
   })
 
   it('returns an empty result for garbage without throwing', () => {

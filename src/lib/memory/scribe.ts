@@ -5,7 +5,7 @@
  */
 
 import { parseLenientJson } from '@/lib/jsonRepair'
-import type { MemoryKind } from '@/lib/types'
+import type { MemoryCertainty, MemoryKind } from '@/lib/types'
 
 export interface ScribeInput {
   worldName?: string
@@ -28,6 +28,8 @@ export interface ScribeAdd {
   messageId: string
   text: string
   kind: ScribeKind
+  /** Saw it (`firsthand`), was told it (`claim`), or thinks it (`belief`). */
+  certainty: MemoryCertainty
   importance: number
   aboutIds: string[]
   witnessIds: string[]
@@ -55,6 +57,7 @@ export const MAX_MEMORY_TEXT = 300
 const MAX_REASON = 200
 const DUPLICATE_JACCARD = 0.8
 const SCRIBE_KINDS: readonly ScribeKind[] = ['event', 'learned', 'promise', 'secret', 'impression']
+const CERTAINTIES: readonly MemoryCertainty[] = ['firsthand', 'claim', 'belief']
 
 // ---------------------------------------------------------------------------------------------
 // Prompt
@@ -70,8 +73,9 @@ const EXAMPLE = [
   'Example. Messages:',
   '[1] Ash (witnessed by: Ash, Bea, Cole): Ash hands Bea the key. "Keep it until I come back."',
   '[2] Bea (witnessed by: Ash, Bea, Cole): Bea leans close and whispers so only Ash hears. "My real name is Wren."',
+  '[3] Cole (witnessed by: Ash, Bea, Cole): "Word at the inn is the mayor fled the city last night."',
   'Reply:',
-  '{"add":[{"from":1,"text":"Ash gave Bea the key and asked her to keep it until he returns.","kind":"promise","importance":0.6,"about":["Ash","Bea"],"unresolved":true},{"from":2,"text":"Bea told Ash her real name is Wren.","kind":"secret","importance":0.8,"about":["Bea"],"witnesses":["Ash","Bea"],"feelings":{"Ash":0.4}}],"told":[],"retire":[],"resolve":[]}',
+  '{"add":[{"from":1,"text":"Ash gave Bea the key and asked her to keep it until he returns.","kind":"promise","certainty":"firsthand","importance":0.6,"about":["Ash","Bea"],"unresolved":true},{"from":2,"text":"Bea told Ash her real name is Wren.","kind":"secret","certainty":"claim","importance":0.8,"about":["Bea"],"witnesses":["Ash","Bea"],"feelings":{"Ash":0.4}},{"from":3,"text":"Cole said that, according to talk at the inn, the mayor fled the city last night.","kind":"learned","certainty":"claim","importance":0.5,"about":["Cole"]}],"told":[],"retire":[],"resolve":[]}',
 ].join('\n')
 
 export function buildScribePrompt(input: ScribeInput): string {
@@ -104,6 +108,7 @@ export function buildScribePrompt(input: ScribeInput): string {
       `- "add": new memories, at most ${maxNew}. Each is one plain sentence in third person that uses character names, never "I" or "you". "from" is the message number it comes from.`,
       input.existing.length ? '- Do not repeat something already remembered above.' : '',
       '- "kind" is one of: event, learned, promise, secret, impression. "importance" is 0 to 1 (0.3 minor, 0.6 matters, 0.9 life changing). "about" lists who it concerns.',
+      '- "certainty" is one of: firsthand, claim, belief. firsthand: the witnesses saw or heard it happen themselves. claim: someone only SAID it (a report, rumor, accusation, story, or boast that may be wrong or a lie); write it as "X said that ..." and never as plain fact. belief: an inference, suspicion, or impression nobody has confirmed.',
       '- "witnesses": only when fewer people perceived it than that message lists (a whisper, a private thought, a note read alone). Never add anyone not listed for that message. Leave it out otherwise.',
       '- "feelings": only when it clearly landed differently on different witnesses. A number per witness name from -1 (hurt, hostile) to 1 (warm, glad).',
       '- "unresolved": true only for something still owed beyond this scene: a promise to a person, a debt, an unanswered question that matters. An order, a plan, or an intention is not an open thread.',
@@ -115,7 +120,7 @@ export function buildScribePrompt(input: ScribeInput): string {
       .filter(Boolean)
       .join('\n'),
     EXAMPLE,
-    'Reply with only a JSON object: {"add":[{"from":1,"text":"...","kind":"event","importance":0.5,"about":["Name"],"witnesses":["Name"],"feelings":{"Name":0.5},"unresolved":false}],"told":[{"memory":1,"to":["Name"],"by":"Name","from":1}],"retire":[{"memory":1,"reason":"..."}],"resolve":[1]}',
+    'Reply with only a JSON object: {"add":[{"from":1,"text":"...","kind":"event","certainty":"firsthand","importance":0.5,"about":["Name"],"witnesses":["Name"],"feelings":{"Name":0.5},"unresolved":false}],"told":[{"memory":1,"to":["Name"],"by":"Name","from":1}],"retire":[{"memory":1,"reason":"..."}],"resolve":[1]}',
     'If nothing is worth remembering, reply {"add":[],"told":[],"retire":[],"resolve":[]}',
   ]
   return sections.filter(Boolean).join('\n\n')
@@ -224,6 +229,13 @@ function parseKind(value: unknown): ScribeKind {
   return (SCRIBE_KINDS as readonly string[]).includes(kind) ? (kind as ScribeKind) : 'event'
 }
 
+/** Unknown or missing: firsthand, except an impression, which is a belief unless it says otherwise. */
+function parseCertainty(value: unknown, kind: ScribeKind): MemoryCertainty {
+  const certainty = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if ((CERTAINTIES as readonly string[]).includes(certainty)) return certainty as MemoryCertainty
+  return kind === 'impression' ? 'belief' : 'firsthand'
+}
+
 function parseBool(value: unknown): boolean {
   return value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true')
 }
@@ -281,11 +293,13 @@ function interpret(obj: Record<string, unknown>, input: ScribeInput): ScribeResu
       }
     }
     const importance = toNumber(item.importance)
+    const kind = parseKind(item.kind)
     candidates.push({
       order,
       messageId: message.id,
       text,
-      kind: parseKind(item.kind),
+      kind,
+      certainty: parseCertainty(item.certainty, kind),
       importance: importance === undefined ? 0.5 : clamp(importance, 0, 1),
       aboutIds: resolveIds(item.about, resolve),
       witnessIds,

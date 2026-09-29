@@ -144,15 +144,29 @@ export function selectMemories(memories: CharacterMemory[], opts: SelectMemories
   return selectMemoriesExplained(memories, opts).map((picked) => picked.memory)
 }
 
+const lowerFirst = (text: string) => `${text.charAt(0).toLowerCase()}${text.slice(1)}`
+
+/** How `characterId` came to know it, as they would put it: a claim or rumor they heard, a belief,
+ *  or something a witness told them. '' for what they saw themselves. The player's ruling and any
+ *  promotion to canon are deliberately not shown: a character who heard a false rumor believes it. */
+function sourceCue(memory: CharacterMemory, characterId: string): string {
+  if (memory.certainty === 'claim') return 'Heard, not confirmed'
+  if (memory.certainty === 'belief') return 'Believes'
+  const told = (memory.toldVia ?? []).some((t) => t.to.includes(characterId))
+  return told && !(memory.witnesses ?? []).includes(characterId) ? 'Heard secondhand' : ''
+}
+
 /** One memory as `characterId` recalls it: open threads flagged (like `worldinfo/facts.ts`), secrets
- *  marked, and a short cue for how it felt to them. */
+ *  marked, how they know it (heard, believed, told), and a short cue for how it felt to them. */
 export function formatMemoryLine(memory: CharacterMemory, characterId: string): string {
   const feeling = memory.feelings?.[characterId] ?? 0
-  let prefix = ''
-  if (memory.unresolved) prefix = feeling <= -0.15 ? 'Still unsettled, not resolved: ' : 'Still an open thread: '
-  if (memory.kind === 'secret') prefix = prefix ? `Kept secret, and ${prefix.charAt(0).toLowerCase()}${prefix.slice(1)}` : 'Kept secret: '
+  let status = ''
+  if (memory.unresolved) status = feeling <= -0.15 ? 'Still unsettled, not resolved' : 'Still an open thread'
+  if (memory.kind === 'secret') status = status ? `Kept secret, and ${lowerFirst(status)}` : 'Kept secret'
+  const source = sourceCue(memory, characterId)
+  const label = status && source ? `${status}; ${lowerFirst(source)}` : status || source
   const cue = feeling <= -0.5 ? ' (it still stings)' : feeling >= 0.5 ? ' (a warm memory)' : ''
-  return `${prefix}${memory.text.trim()}${cue}`
+  return `${label ? `${label}: ` : ''}${memory.text.trim()}${cue}`
 }
 
 /** The prompt block for one character's memories, or '' when there is nothing to recall. */

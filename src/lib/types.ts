@@ -230,6 +230,9 @@ export interface ChatFact {
 /** What kind of thing a character remembers. `journal` is a character's own condensed account of older memories (`memory/journal.ts`), one per character per ended scene; the newest visible one is used. */
 export type MemoryKind = 'event' | 'learned' | 'promise' | 'secret' | 'impression' | 'journal'
 
+/** How a character knows a memory (`CharacterMemory.certainty`): saw it, was told it, or thinks it. */
+export type MemoryCertainty = 'firsthand' | 'claim' | 'belief'
+
 /**
  * Something a character remembers (`memory/`). Scoped by scene: a memory made in scene X is
  * visible in X and every later scene that follows on from X (the `previousSceneId` chain, and a
@@ -263,6 +266,19 @@ export interface CharacterMemory {
   unresolved?: boolean
   /** Core memory: always included, never folded into a journal. */
   pinned?: boolean
+  /**
+   * How the knowers came by it. `firsthand`: the witnesses saw or heard it happen themselves.
+   * `claim`: someone said so (a report, a rumor, an accusation, possibly a lie). `belief`: an
+   * inference, suspicion, or impression. Unset reads as `firsthand` (memories from before this
+   * existed). Only firsthand memories are facts of the story; claims and beliefs are what the
+   * characters think, never world canon until the player makes them so.
+   */
+  certainty?: MemoryCertainty
+  /** The player's ruling on a claim or belief. The GM is told it; the characters never are (a
+   *  character who heard a rumor the player ruled false still believes it). Unset: not ruled yet. */
+  verdict?: 'true' | 'false'
+  /** The world canon fact (`WorldCard.canonFacts[].id`) this was promoted to, when the player made it canon. */
+  canonFactId?: string
   /** False once retired (contradicted or superseded). Kept for the audit trail. */
   active: boolean
   retiredReason?: string

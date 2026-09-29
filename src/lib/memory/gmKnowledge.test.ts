@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gmMemoryDigest, knowledgeGaps } from './gmKnowledge'
+import { gmMemoryDigest, knowledgeGaps, knowledgeTag } from './gmKnowledge'
 import type { CharacterMemory } from '@/lib/types'
 
 let n = 0
@@ -75,6 +75,29 @@ describe('gmMemoryDigest', () => {
     const list = [mem({ text: 'Folded for Ash.', knownBy: ['ash'], consolidatedFor: ['ash'] })]
     expect(gmMemoryDigest(list, nameOf)).toEqual(['- Folded for Ash. (known by: Ash)'])
     expect(knowledgeGaps(list, ['ash', 'bea'], nameOf)).toEqual(['Bea does not know: Folded for Ash.'])
+  })
+
+  it('tags claims and beliefs with the player\'s ruling, so the GM knows what is actually true', () => {
+    const list = [
+      mem({ text: 'Cole said that the mayor fled.', certainty: 'claim', importance: 0.9, knownBy: ['ash', 'cole'] }),
+      mem({ text: 'Bea said that the well is poisoned.', certainty: 'claim', verdict: 'false', importance: 0.8, knownBy: ['bea'] }),
+      mem({ text: 'Dara said that the bridge is out.', certainty: 'claim', verdict: 'true', importance: 0.7, knownBy: ['dara'] }),
+      mem({ text: 'Ash suspects Bea.', certainty: 'belief', kind: 'secret', importance: 0.6, knownBy: ['ash'] }),
+      mem({ text: 'Ash lit the lamp.', certainty: 'firsthand', importance: 0.5, knownBy: ['ash'] }),
+    ]
+    expect([...gmMemoryDigest(list, nameOf)].sort()).toEqual([
+      '- Cole said that the mayor fled. (claim, unverified; known by: Ash, Cole)',
+      '- Bea said that the well is poisoned. (claim, FALSE; known by: Bea)',
+      '- Dara said that the bridge is out. (claim, true; known by: Dara)',
+      '- Ash suspects Bea. (belief, unverified; secret; known by: Ash)',
+      '- Ash lit the lamp. (known by: Ash)',
+    ].sort())
+  })
+
+  it('knowledgeTag is empty for firsthand and older memories', () => {
+    expect(knowledgeTag({})).toBe('')
+    expect(knowledgeTag({ certainty: 'firsthand', verdict: 'false' })).toBe('')
+    expect(knowledgeTag({ certainty: 'belief', verdict: 'true' })).toBe('belief, true')
   })
 
   it('respects max', () => {

@@ -282,6 +282,15 @@ describe('Game Master decision validation', () => {
     expect(parseGmTurn('{"fork":{"title":"Another","reason":"Split"}}', ctx({ canFork: false }), ids).fork).toBeUndefined()
   })
 
+  it('tells the GM rumors are not facts, and passes the tagged memory digest through', () => {
+    const digest = ['- Cole said that the mayor fled. (claim, FALSE; known by: Hana)']
+    const prompt = buildGmPrompt(ctx({ memoryDigest: digest }))
+    expect(prompt.system).toContain('Rumors and beliefs are not facts.')
+    expect(prompt.system).toContain('Characters who heard a FALSE claim still believe it')
+    expect(prompt.system).toContain('Never put an unconfirmed claim or a belief in a "world" proposal.')
+    expect(prompt.user).toContain(digest[0])
+  })
+
   it('calls only listed lore and keeps storyteller notes in the GM prompt', () => {
     const context = ctx({
       gmNotes: 'Mira has a secret the others do not know.',
