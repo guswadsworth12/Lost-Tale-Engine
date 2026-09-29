@@ -1,6 +1,6 @@
 import express from 'express'
 import { characterStore, chatFactStore, chatStore, messageStore, newId, objectiveStore, relationshipEventStore, storyStore, worldStore } from './db.ts'
-import { planNextScene, type NextSceneRequest } from './storyPlan.ts'
+import { StoryPlanError, planChapterEdit, planNextScene, type ChapterEdit, type NextSceneRequest } from './storyPlan.ts'
 import { canSeeChat, storyVisible } from './access.ts'
 import { carryGameState, gameStateFrom, type CampaignTrack, type GameState } from '../src/lib/world/gameState.ts'
 
@@ -79,7 +79,13 @@ storiesRouter.post('/chats/:id/next-scene', (req, res) => {
   const tracks = (world?.campaign as { tracks?: CampaignTrack[] } | undefined)?.tracks
   const messages = messageStore.list({ where: 'chatId = ?', params: [source.id], orderBy: 'createdAt' })
   const { state } = gameStateFrom(tracks, source.gameState as GameState | undefined, messages, { playerId: str(source.playerCharacterId) || undefined })
-  const plan = planNextScene(source, storyScenes, existingStory, body, now, newId, carryGameState(state, tracks))
+  let plan
+  try {
+    plan = planNextScene(source, storyScenes, existingStory, body, now, newId, carryGameState(state, tracks))
+  } catch (error) {
+    if (error instanceof StoryPlanError) return res.status(error.status).json({ error: error.message })
+    throw error
+  }
 
   if (plan.storyIsNew) storyStore.insert(plan.story)
   else storyStore.update(str(plan.story.id), plan.story)
@@ -101,4 +107,33 @@ storiesRouter.post('/chats/:id/next-scene', (req, res) => {
     chatFactStore.insert({ ...fRest, id: newId(), chatId: newChatId })
   }
   res.status(201).json(created)
+})
+
+/**
+ * Names a scene's chapter, sets its goal, or corrects an ended chapter's recap (`chapterId` picks
+ * another chapter of the same story). A scene not yet in a story becomes scene 1 of one. Returns the story.
+ */
+storiesRouter.put('/chats/:id/chapter', (req, res) => {
+  const source = chatStore.get(req.params.id)
+  if (!source || source.deletedAt) return res.status(404).json({ error: 'Not found' })
+  const body = (req.body ?? {}) as Row
+  const edit: ChapterEdit = {
+    ...(typeof body.chapterId === 'string' ? { chapterId: body.chapterId } : {}),
+    ...(typeof body.title === 'string' ? { title: body.title } : {}),
+    ...(typeof body.goal === 'string' ? { goal: body.goal } : {}),
+    ...(body.recap && typeof body.recap === 'object' ? { recap: body.recap as ChapterEdit['recap'] } : {}),
+  }
+  const existingStory = str(source.storyId) ? storyStore.get(str(source.storyId)) : undefined
+  const storyScenes = existingStory ? chatStore.list().filter((c) => c.storyId === existingStory.id) : []
+  let plan
+  try {
+    plan = planChapterEdit(source, storyScenes, existingStory, edit, Date.now(), newId)
+  } catch (error) {
+    if (error instanceof StoryPlanError) return res.status(error.status).json({ error: error.message })
+    throw error
+  }
+  if (plan.storyIsNew) storyStore.insert(plan.story)
+  else storyStore.update(str(plan.story.id), plan.story)
+  if (Object.keys(plan.sourcePatch).length) chatStore.update(str(source.id), plan.sourcePatch)
+  res.json(plan.story)
 })
