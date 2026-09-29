@@ -222,7 +222,7 @@ export function EndSceneDialog({
   return (
     <Modal
       onClose={closeUnlessBusy}
-      title={`End ${sceneLabel}`}
+      title={endingChapter ? `End ${sceneLabel} and ${chapter!.label}` : `End ${sceneLabel}`}
       description="The next scene starts fresh with a short history. It keeps this recap, the story's relationships, objectives and facts. Characters only hear recaps of scenes they were in."
       size="xl"
       scrollable
