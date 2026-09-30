@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Chat } from '@/lib/types'
-import { recapsVisibleTo, sceneChain, storyRecapBlock } from './recaps'
+import { recapsVisibleTo, sceneChain, sceneLabel, storyRecapBlock } from './recaps'
 
 const scene = (id: string, n: number, prev: string | undefined, text: string, presentIds: string[], extra: Partial<Chat> = {}) =>
   ({ id, sceneNumber: n, previousSceneId: prev, recap: { text, presentIds, writtenAt: n }, ...extra }) as Chat
@@ -66,5 +66,46 @@ describe('storyRecapBlock', () => {
   it('is empty when the viewer knows nothing', () => {
     expect(storyRecapBlock(chain, { characterId: 'stranger' }, { maxTokens: 500 })).toBe('')
     expect(storyRecapBlock([], 'narrator', { maxTokens: 500 })).toBe('')
+  })
+})
+
+describe('storyRecapBlock with chapters', () => {
+  const r = (text: string, presentIds: string[] = ['bea'], openThreads?: string[]) => ({ text, presentIds, writtenAt: 1, ...(openThreads ? { openThreads } : {}) })
+  const chapters = [
+    { id: 'chapter-1', number: 1, title: 'The Fog', startedAt: 1, endedAt: 3, recap: { text: 'They crossed the coast and lost the ferry.', openThreads: ['Where is the ferry?'], sceneIds: ['s1', 's2'], writtenAt: 3 } },
+    { id: 'c2', number: 2, title: 'Low Tide', startedAt: 3 },
+  ]
+  const s1 = { id: 's1', sceneNumber: 1, recap: r('They met at the dock.') }
+  const s2 = { id: 's2', sceneNumber: 2, previousSceneId: 's1', recap: r('The ferry never came.', ['cole']) }
+  const s3 = { id: 's3', sceneNumber: 3, chapterId: 'c2', chapterSceneNumber: 1, previousSceneId: 's2', recap: r('They searched the flats.', ['bea'], ['The bell rang once.']) }
+
+  it('gives the narrator an ended chapter as its recap, and the current chapter scene by scene', () => {
+    const block = storyRecapBlock([s1, s2, s3], 'narrator', { maxTokens: 1000, chapters })
+    expect(block).toBe([
+      'Earlier scenes in this story:',
+      'Chapter 1 · The Fog (the whole chapter): They crossed the coast and lost the ferry.',
+      'Chapter 2, Scene 1: They searched the flats.',
+      'Still unresolved: The bell rang once.',
+    ].join('\n'))
+  })
+
+  it('keeps scene recaps for a branch the chapter recap did not cover', () => {
+    const other = { id: 's2b', sceneNumber: 2, previousSceneId: 's1', recap: r('They took the cliff road instead.') }
+    const block = storyRecapBlock([s1, other], 'narrator', { maxTokens: 1000, chapters })
+    expect(block).toContain('Chapter 1 · The Fog (the whole chapter)')
+    expect(block).toContain('Chapter 1, Scene 2: They took the cliff road instead.')
+  })
+
+  it('tells a character only the scenes they were in, labelled by chapter, never the chapter recap', () => {
+    const block = storyRecapBlock([s1, s2, s3], { characterId: 'bea' }, { maxTokens: 1000, chapters, speakerName: 'Bea' })
+    expect(block).toContain('Chapter 1, Scene 1: They met at the dock.')
+    expect(block).toContain('Chapter 2, Scene 1: They searched the flats.')
+    expect(block).not.toContain('ferry')
+  })
+
+  it('reads the same as before for a story without chapters', () => {
+    expect(storyRecapBlock([s1], 'narrator', { maxTokens: 1000 })).toBe(storyRecapBlock([s1], 'narrator', { maxTokens: 1000, chapters: [{ id: 'chapter-1', number: 1, startedAt: 1 }] }))
+    expect(sceneLabel({ sceneNumber: 5, chapterSceneNumber: 2, sceneTitle: 'The flats' })).toBe('Scene 2 · The flats')
+    expect(sceneLabel({ sceneNumber: 5 })).toBe('Scene 5')
   })
 })

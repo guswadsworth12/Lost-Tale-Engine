@@ -35,7 +35,7 @@ In a group scene, each speaking character receives its own card prompts, private
 
 ## Related play features
 
-Stories contain numbered scenes. Ending a scene records a recap and opens the next; a separate playable Chapter layer is not yet stored. Scene scenery can be chosen from a world's places or uploaded art, with day and night variants. A pinned location stays until **Follow the story** returns control to story tags. Its choice follows branch history.
+Stories contain chapters, and chapters contain numbered scenes. Ending a scene records a recap and opens the next. Ending a chapter, from the same dialog, records a reviewable chapter recap and its open threads and opens the next chapter with an optional name and goal. The Game Master hears an ended chapter as its recap and steers toward the current chapter's goal; characters still hear only the scenes they were in. Stories made before chapters read as one first chapter. Scene scenery can be chosen from a world's places or uploaded art, with day and night variants. A pinned location stays until **Follow the story** returns control to story tags. Its choice follows branch history.
 
 Visual Novel play uses character sprites, expressions, outfits, and optional VRM models. Stage controls are in a collapsible side rail. The adjustable desktop stage area supports moving characters; mobile emphasizes the current speaker. World clock and dating controls appear only when their modules are enabled.
 
@@ -48,6 +48,6 @@ The separate **Writer's Room** can search saved worlds, cast, lore, stories, goa
 - Player confirmation is required for new shared world canon. Branch consequences remain on their branch.
 - The GM uses the global model; separate GM provider credentials are not available.
 - Structured character beliefs separate from campaign facts remain future work. Hearing a rumor should not automatically make it world truth.
-- Playable Chapters and conversational updates to existing worlds and lore remain future work.
+- Conversational updates to existing worlds and lore remain future work.
 
 Personal worlds, characters, stories, and art live in the git-ignored `data/` folder or under `LOST_TALES_DATA_DIR`. Back up that folder separately from the source repository.

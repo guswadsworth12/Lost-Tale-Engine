@@ -821,3 +821,12 @@ describe('tracked state', () => {
     expect(turn.stateChanges).toBeUndefined()
   })
 })
+
+describe('chapters in the GM prompt', () => {
+  it('names the chapter and its goal, and asks the GM to steer toward it without forcing it', () => {
+    const { user } = buildGmPrompt(ctx({ chapterBriefing: 'Current chapter: Chapter 2 · Low Tide. Its goal: Find the bell.' }))
+    expect(user).toContain('Current chapter: Chapter 2 · Low Tide. Its goal: Find the bell.')
+    expect(user).toContain("Steer the scene toward the chapter's goal")
+    expect(buildGmPrompt(ctx()).user).not.toContain('chapter')
+  })
+})

@@ -1,6 +1,7 @@
 import type { Chat, StoredMessage, Story } from '@/lib/types'
 import { MAIN_STORYLINE_ID } from '@/lib/types'
 import { sceneChain, sceneLabel } from './recaps'
+import { chapterIdOf, chapterLabel, chapterSceneLabel, chaptersOf, sceneNumberInChapter } from './chapters'
 
 /**
  * The Stories library's view of chats: one entry per story rather than per scene. A chat without
@@ -15,6 +16,8 @@ export interface StoryGroup {
   /** The scene the library opens: the most recently played scene that hasn't ended. */
   current: Chat
   sceneCount: number
+  /** Where the current scene is: "Chapter 2 · Scene 1", or "Scene 3" for a story that never named or ended a chapter. */
+  position: string
   storylineCount: number
   updatedAt: number
 }
@@ -55,6 +58,7 @@ export function groupStories(chats: Chat[], stories: Story[]): StoryGroup[] {
       scenes,
       current,
       sceneCount: scenes.length,
+      position: story?.chapters?.length ? chapterSceneLabel(chaptersOf(story, scenes), current) : `Scene ${sceneNumberInChapter(current)}`,
       storylineCount: new Set(scenes.map(storylineOf)).size,
       updatedAt,
     })
@@ -130,13 +134,18 @@ export function messageDisplayText(m: Pick<StoredMessage, 'text' | 'swipes' | 'a
   return (m.swipes?.length ? m.swipes[m.activeSwipe ?? 0] ?? m.text : m.text)?.trim() ?? ''
 }
 
-/** A plain-text copy of a read-through, scene by scene. */
-export function transcriptAsText(title: string, parts: { scene: Chat; messages: Pick<StoredMessage, 'name' | 'text' | 'swipes' | 'activeSwipe' | 'failed'>[] }[]): string {
+/** A plain-text copy of a read-through, scene by scene, with a heading where each chapter starts when `story` has chapters. */
+export function transcriptAsText(title: string, parts: { scene: Chat; messages: Pick<StoredMessage, 'name' | 'text' | 'swipes' | 'activeSwipe' | 'failed'>[] }[], story?: Pick<Story, 'chapters'>): string {
+  const chapters = story?.chapters?.length ? chaptersOf(story, parts.map((p) => p.scene)) : []
+  let lastChapter = ''
   const blocks = parts.map(({ scene, messages }) => {
+    const chapter = chapters.find((c) => c.id === chapterIdOf(scene))
+    const chapterHeading = chapter && chapter.id !== lastChapter ? `# ${chapterLabel(chapter)}${chapter.goal?.trim() ? `\n\nGoal: ${chapter.goal.trim()}` : ''}\n\n` : ''
+    if (chapter) lastChapter = chapter.id
     const where = sceneLocation(scene)
     const heading = where ? `${sceneLabel(scene)} · ${where}` : sceneLabel(scene)
     const lines = messages.map((m) => ({ name: m.name, text: messageDisplayText(m) })).filter((m) => m.text).map((m) => `${m.name}: ${m.text}`)
-    return [`## ${heading}`, scene.recap?.text?.trim() ? `Recap: ${scene.recap.text.trim()}` : '', ...lines].filter(Boolean).join('\n\n')
+    return chapterHeading + [`## ${heading}`, scene.recap?.text?.trim() ? `Recap: ${scene.recap.text.trim()}` : '', ...lines].filter(Boolean).join('\n\n')
   })
   return [`# ${title}`, ...blocks].join('\n\n')
 }

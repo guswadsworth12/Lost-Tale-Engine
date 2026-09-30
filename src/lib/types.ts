@@ -537,6 +537,10 @@ export interface Chat {
   sceneTitle?: string
   /** Which storyline this scene belongs to (`Story.storylines`). Unset reads as the main one. */
   storylineId?: string
+  /** The chapter this scene is part of (`Story.chapters`). Unset reads as the first chapter (`story/chapters.ts`). */
+  chapterId?: string
+  /** 1-based position within its chapter, shown as "Scene N". Unset: `sceneNumber`, which is the same thing in a first chapter. */
+  chapterSceneNumber?: number
   /** The scene this one continues from. The chain of these is a scene's whole past: recaps come
    *  from it, and a scene split into a parallel storyline only knows what happened before the split. */
   previousSceneId?: string
@@ -630,6 +634,29 @@ export interface Storyline {
   name: string
 }
 
+/** What a chapter leaves behind for the ones after it. Written once, when the chapter ends, and reviewable after. */
+export interface ChapterRecap {
+  text: string
+  /** Unresolved threads the next chapter inherits. */
+  openThreads?: string[]
+  /** The scenes this recap covers. A branch that played other scenes in the chapter keeps its own scene recaps. */
+  sceneIds: string[]
+  writtenAt: number
+}
+
+/** An arc of a story: numbered scenes with a name, a goal, and a recap when it ends. See `story/chapters.ts`. */
+export interface Chapter {
+  id: string
+  /** 1-based, in the order chapters began. */
+  number: number
+  title?: string
+  /** What the chapter is working toward, shown to the player and the Game Master. */
+  goal?: string
+  startedAt: number
+  endedAt?: number
+  recap?: ChapterRecap
+}
+
 /** A story made of scenes (chats sharing `storyId`). Created when a story's first scene ends. */
 export interface Story {
   id: string
@@ -637,6 +664,8 @@ export interface Story {
   worldId?: string
   /** Beyond the implicit main line (`MAIN_STORYLINE_ID`). */
   storylines?: Storyline[]
+  /** Oldest first. Unset: one implicit first chapter holding every scene (`story/chapters.ts`). */
+  chapters?: Chapter[]
   /** A sequel: this story's first scene follows on from `sceneId` of another story, so its characters keep what they remembered by the end of it. Unset: a story remembers only its own scenes. */
   continuesFrom?: { storyId: string; sceneId: string }
   createdAt: number

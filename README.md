@@ -12,7 +12,7 @@ Lost Tales Engine is a local-first roleplay and story engine. Create a setting a
 
 ### Play stories as scenes
 
-**Stories** is the library for your ongoing roleplays. Start with a world, a player character, and cast members. A story contains numbered scenes; ending a scene saves its recap and opens the next. During play you can inspect the assembled prompt, set goals, use suggested replies, and fork or rewind the conversation. The Game Master directs group turns without speaking for the player character.
+**Stories** is the library for your ongoing roleplays. Start with a world, a player character, and cast members. A story is organized into chapters of numbered scenes; ending a scene saves its recap and opens the next, and ending a chapter records its recap and open threads and opens the next chapter with its own name and goal. During play you can inspect the assembled prompt, set goals, use suggested replies, and fork or rewind the conversation. The Game Master directs group turns without speaking for the player character.
 
 Choose **Classic** for a transcript or **Visual Novel** for a staged scene. On desktop, you can adjust the stage area and move sprites within it. On mobile, the current speaker is emphasized. Visual Novel controls collapse into a side rail so you can leave the stage and reach the rest of the app.
 
@@ -72,7 +72,7 @@ Worlds, characters, stories, and media live in the git-ignored `data/` folder or
 
 Text connections support KoboldCpp, OpenAI-compatible endpoints (including OpenMayhem), and NovelAI. Optional image generation supports AUTOMATIC1111, ComfyUI, SwarmUI, NovelAI, and OpenMayhem. Voice settings include KoboldCpp, OpenAI-compatible speech, LuxTTS, ElevenLabs, Azure Speech, Alibaba, and OpenMayhem. These features depend on the providers you configure; their availability and costs vary.
 
-- Playable stories have scenes, but no separate persistent **Chapter** layer. Writer's Room can write prose chapters; those are a different feature.
+- Writer's Room can write prose chapters; those are separate from a story's playable chapters.
 - Mechanical presets resolve core checks. They do not implement complete D&D, Starfinder, Fate, or GURPS rules, combat, or resource tracking.
 - Guided rulings are GM judgments. Only mechanical mode produces a recorded, enforced roll.
 - Writer's Room can create a new RP and prepare reviewed character updates. Conversational editing of existing worlds and lore is still outside that flow.
