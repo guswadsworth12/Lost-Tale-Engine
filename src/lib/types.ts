@@ -556,6 +556,9 @@ export interface Chat {
   /** Tracked state (`world/gameState.ts`) when this scene opened: carried from the scene before it.
    *  What happens in the scene rides on its messages and is replayed over this. */
   gameState?: import('@/lib/world/gameState').GameState
+  /** Visual Novel direction for this scene: the saved layout it uses and its own pinned cues
+   *  (`vn/stageDirection.ts`). Unset: automatic. */
+  stage?: import('@/lib/vn/stageDirection').SceneStage
   /** Messages with `createdAt <=` this have been read by the memory scribe (`memory/scribe.ts`). Rolled back when a scribed message is edited, so it is read again. */
   memoryScribedUpTo?: number
   /** Set when this chat was created by forking another one — the source chat's id. */
@@ -709,6 +712,8 @@ export interface WorldCard {
   scenerySet?: import('@/lib/vn/backgrounds').ScenerySetId
   /** World-authored scene locations beyond the 12 built-ins — see `CustomBackground`. */
   customBackgrounds?: CustomBackground[]
+  /** Saved Visual Novel arrangements any scene here can use (`vn/stageDirection.ts`). */
+  stageLayouts?: import('@/lib/vn/stageDirection').StageLayout[]
   /** Background-music URLs keyed by scene mood id (`src/lib/vn/moods.ts`), plus a `default` key. VN mode only. */
   music?: Record<string, string>
   /** Overrides the default gift catalog for characters here. Empty/unset falls back to the built-in catalog. */

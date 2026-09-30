@@ -14,7 +14,7 @@ Lost Tales Engine is a local-first roleplay and story engine. Create a setting a
 
 **Stories** is the library for your ongoing roleplays. Start with a world, a player character, and cast members. A story is organized into chapters of numbered scenes; ending a scene saves its recap and opens the next, and ending a chapter records its recap and open threads and opens the next chapter with its own name and goal. During play you can inspect the assembled prompt, set goals, use suggested replies, and fork or rewind the conversation. The Game Master directs group turns without speaking for the player character.
 
-Choose **Classic** for a transcript or **Visual Novel** for a staged scene. On desktop, you can adjust the stage area and move sprites within it. On mobile, the current speaker is emphasized. Visual Novel controls collapse into a side rail so you can leave the stage and reach the rest of the app.
+Choose **Classic** for a transcript or **Visual Novel** for a staged scene. On desktop, you can arrange the cast, set each character's size and how they enter and leave, and save the arrangement as a layout any scene in the world can reuse; the scene keeps it through a reload. When the speaker changes, only the speaker moves. On mobile, the current speaker (or the last one, during narration) stands above the dialogue box. Visual Novel controls collapse into a side rail so you can leave the stage and reach the rest of the app.
 
 ### Shape a world and its rules
 

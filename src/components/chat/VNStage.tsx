@@ -17,9 +17,11 @@ import {
   MapPin,
   Play,
   RotateCcw,
+  Save,
   SlidersHorizontal,
   Star,
   Sunrise,
+  Trash2,
   Volume1,
   Volume2,
   X,
@@ -75,8 +77,24 @@ import { getWorldTemplate } from '@/lib/world/worldTemplates'
 import { getEnergyRemaining, getMaxEnergyForDay, isNightPhase } from '@/lib/world/calendar'
 import { sceneryIsNight, type SceneryChoice } from '@/lib/vn/scenery'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
-import { stageLayout, type StageDepth } from '@/lib/vn/stageLayout'
-import { clampStagePoint, DEFAULT_STAGE_AREA, moveStagePoint, stagePointStyle, type StageAreaSettings, type StagePoint } from '@/lib/vn/stageArea'
+import { moveStagePoint, stagePointStyle, type StageAreaSettings, type StagePoint } from '@/lib/vn/stageArea'
+import {
+  STAGE_TRANSITIONS,
+  applyLayout,
+  captureLayout,
+  figureLayer,
+  figureWidthCaps,
+  phoneFocusId,
+  pinCue,
+  resolveStage,
+  sceneStageFromLegacy,
+  type ResolvedFigure,
+  type SceneStage,
+  type StageCue,
+  type StageLayout,
+  type StageTransition,
+} from '@/lib/vn/stageDirection'
+import { confirmDialog } from '@/lib/store/useConfirmStore'
 import type { ChatToolbarAction } from './ChatToolbar'
 
 /**
@@ -101,14 +119,23 @@ const OUTDOOR_BACKGROUNDS = new Set([
   'school-rooftop', 'school-gate', 'school-courtyard', 'shrine', 'festival', 'fireworks-viewing', 'onsen',
 ])
 
+type StageDepth = 'foreground' | 'midground' | 'background'
+
+/** Where scenes were arranged before direction was saved with the chat: this browser only, by chat id. */
 const STAGE_AREAS_KEY = 'rp-vn-stage-areas'
 
-function readStageAreas(): Record<string, StageAreaSettings> {
-  if (typeof window === 'undefined') return {}
+/** A scene's arrangement from browser storage, removed from there as it's taken. */
+function takeLegacyStageArea(chatId: string): Partial<StageAreaSettings> | undefined {
+  if (typeof window === 'undefined') return undefined
   try {
     const value = JSON.parse(window.localStorage.getItem(STAGE_AREAS_KEY) ?? '{}')
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-  } catch { return {} }
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !value[chatId]) return undefined
+    const area = value[chatId]
+    delete value[chatId]
+    if (Object.keys(value).length) window.localStorage.setItem(STAGE_AREAS_KEY, JSON.stringify(value))
+    else window.localStorage.removeItem(STAGE_AREAS_KEY)
+    return area
+  } catch { return undefined }
 }
 
 /** Stable muted identity hue per speaker, used for group-scene nameplates/accents. Solo chats keep the usual relationship-pink instead. */
@@ -137,6 +164,7 @@ function VNCharacterSprite({
   vrmUrl,
   expression,
   speaking,
+  transition = 'rise',
 }: {
   /** Optional 3D model; the sprite below stays the fallback while it loads or if it fails. */
   vrmUrl?: string
@@ -154,6 +182,8 @@ function VNCharacterSprite({
   onClick?: () => void
   /** Sprite staging: a brief slide+fade the moment this member joins or leaves the roster. Unset once settled. */
   phase?: 'entering' | 'exiting'
+  /** How they enter or leave (`phase`); `rise` unless the scene's direction says otherwise. */
+  transition?: StageTransition
 }) {
   const { displaySrc, visible, fadeMs } = useSpriteCrossfade(spriteUrl)
   const [vrmFailed, setVrmFailed] = useState<string | null>(null)
@@ -211,7 +241,8 @@ function VNCharacterSprite({
           : depth === 'midground'
             ? 'opacity-[0.94] [filter:brightness(0.82)_saturate(0.9)]'
             : 'opacity-[0.86] [filter:brightness(0.7)_saturate(0.82)]'
-      } ${phase === 'entering' ? 'vn-sprite-enter-anim' : phase === 'exiting' ? 'vn-sprite-exit-anim pointer-events-none' : ''}`}
+      } ${phase === 'entering' ? 'vn-sprite-enter-anim' : phase === 'exiting' ? 'vn-sprite-exit-anim pointer-events-none' : ''} ${
+        phase && transition !== 'rise' ? `vn-sprite-${transition}` : ''}`}
     >
       {isActive && (
         <div className="pointer-events-none absolute inset-x-[2%] bottom-0 -z-10 h-20 rounded-[50%] bg-white/20 blur-2xl" />
@@ -296,6 +327,10 @@ interface VNStageProps {
   scenery?: SceneryChoice
   /** Opens the in-chat scenery picker from the stage's location chip. */
   onOpenScenery?: () => void
+  /** Saves this scene's stage direction (`Chat.stage`). `null` returns it to automatic. */
+  onStageChange?: (stage: SceneStage | null) => void
+  /** Changes the world's saved stage layouts, applied to its freshest copy. */
+  onStageLayoutsChange?: (change: (layouts: StageLayout[]) => StageLayout[]) => Promise<void>
 }
 
 export function VNStage({
@@ -333,6 +368,8 @@ export function VNStage({
   onAutoAdvanceFire,
   scenery,
   onOpenScenery,
+  onStageChange,
+  onStageLayoutsChange,
 }: VNStageProps) {
   const [showLog, setShowLog] = useState(false)
   // Universal VN convention: hides everything but the background/sprites/CG, restored by clicking
@@ -342,22 +379,32 @@ export function VNStage({
   const logRef = useRef<HTMLDivElement>(null)
   const stageRootRef = useRef<HTMLDivElement>(null)
   const sideRailRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; point: StagePoint; width: number; height: number } | null>(null)
+  const dragRef = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; point: StagePoint; width: number; height: number; moved: boolean } | null>(null)
   const [sideExpanded, setSideExpanded] = useState(false)
   const [arrangingStage, setArrangingStage] = useState(false)
-  const [stageAreas, setStageAreas] = useState<Record<string, StageAreaSettings>>(readStageAreas)
-  const storedArea = stageAreas[chat.id]
-  const stageArea = {
-    width: Number.isFinite(storedArea?.width) ? Math.min(100, Math.max(60, storedArea.width)) : DEFAULT_STAGE_AREA.width,
-    depth: Number.isFinite(storedArea?.depth) ? Math.min(60, Math.max(30, storedArea.depth)) : DEFAULT_STAGE_AREA.depth,
-    positions: storedArea?.positions && typeof storedArea.positions === 'object' ? storedArea.positions : {},
+  // Scene direction (`vn/stageDirection.ts`) is saved with the chat, saved layouts with the world.
+  // An edit shows at once and is saved when it settles: a drag ends, a slider is let go.
+  const [draftStage, setDraftStage] = useState<{ chatId: string; stage: SceneStage | undefined } | null>(null)
+  const sceneStage = draftStage?.chatId === chat.id ? draftStage.stage : chat.stage ?? undefined
+  const savedStageKey = JSON.stringify(chat.stage ?? null)
+  useEffect(() => { setDraftStage(null) }, [chat.id, savedStageKey])
+  const editStage = (stage: SceneStage | undefined) => setDraftStage({ chatId: chat.id, stage })
+  const saveStage = (stage: SceneStage | undefined = sceneStage) => {
+    editStage(stage)
+    onStageChange?.(stage ?? null)
   }
+  const [layoutName, setLayoutName] = useState<string | null>(null)
 
+  useEffect(() => { setArrangingStage(false); setSideExpanded(false); setLayoutName(null) }, [chat.id])
+
+  // A scene arranged before direction was saved with it: move that arrangement onto the scene.
   useEffect(() => {
-    try { window.localStorage.setItem(STAGE_AREAS_KEY, JSON.stringify(stageAreas)) } catch { /* Layout remains usable without storage. */ }
-  }, [stageAreas])
-
-  useEffect(() => { setArrangingStage(false); setSideExpanded(false) }, [chat.id])
+    if (!onStageChange) return
+    const legacy = takeLegacyStageArea(chat.id)
+    const stage = legacy && !chat.stage ? sceneStageFromLegacy(legacy) : undefined
+    if (stage) onStageChange(stage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.id])
 
   useEffect(() => {
     if (!sideExpanded && !arrangingStage) return
@@ -447,8 +494,9 @@ export function VNStage({
       ?? (!message.speakerId ? cast.find((member) => member.id === character?.id)?.id : undefined)
   }
   const stageSpeakerId = showUserAsCurrent ? undefined : castSpeakerId(lastCharMsg)
-  // Narration keeps the preceding cast shot on desktop; on phones only the actual line speaker appears.
-  const visualFocusId = stageSpeakerId ?? [...messages].reverse().map(castSpeakerId).find(Boolean) ?? cast[0]?.id
+  // Narration and the player's own lines keep the last speaker in focus.
+  const lastSpeakerId = [...messages].reverse().map(castSpeakerId).find(Boolean)
+  const visualFocusId = stageSpeakerId ?? lastSpeakerId ?? cast[0]?.id
   const activeTrack = activeSpeakerId ? getRelationshipTrack(chat, activeSpeakerId) : {}
   const affection = Math.max(0, Math.min(100, activeTrack.affection ?? 0))
   const warmth = computeWarmth(affection, getRelationshipStats(activeTrack))
@@ -553,46 +601,60 @@ export function VNStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castMembers.map((m) => m.id).join(',')])
 
-  const phoneSpeakerId = stageSpeakerId ?? (messages.length === 0 ? visualFocusId : null)
-  const castPlacements = stageLayout(castMembers.map((member) => member.id), visualFocusId, phoneSpeakerId)
-  const departedPlacements = stageLayout(departedMembers.map((member) => member.id), undefined, null)
+  const castIds = castMembers.map((member) => member.id)
+  // Arranging shows everyone where they stand on their own, without the speaker's step forward.
+  const stage = resolveStage(castIds, arrangingStage ? undefined : visualFocusId, sceneStage, world?.stageLayouts)
+  // A phone frames one character, always: the speaker, else whoever spoke last.
+  const phoneId = phoneFocusId(castIds, stageSpeakerId, lastSpeakerId)
+  // Where each character last stood, so someone leaving exits from their own spot.
+  const lastFiguresRef = useRef(new Map<string, ResolvedFigure>())
+  for (const figure of stage.figures) lastFiguresRef.current.set(figure.id, figure)
   const stagedFigures = [
-    ...departedMembers.map((member, index) => ({ member, placement: departedPlacements[index], phase: 'exiting' as const })),
-    ...castMembers.map((member, index) => ({ member, placement: castPlacements[index], phase: enteringIds.has(member.id) ? 'entering' as const : undefined })),
+    ...departedMembers.map((member) => ({
+      member,
+      figure: lastFiguresRef.current.get(member.id) ?? resolveStage([member.id], undefined, undefined, undefined).figures[0],
+      phase: 'exiting' as const,
+    })),
+    ...castMembers.map((member, index) => ({ member, figure: stage.figures[index], phase: enteringIds.has(member.id) ? 'entering' as const : undefined })),
   ]
-  const updateStageArea = (changes: Partial<StageAreaSettings>) => {
-    setStageAreas((previous) => ({
-      ...previous,
-      [chat.id]: { ...DEFAULT_STAGE_AREA, ...previous[chat.id], ...changes },
-    }))
-  }
-  const setStagePoint = (id: string, point: StagePoint) => {
-    setStageAreas((previous) => {
-      const area = { ...DEFAULT_STAGE_AREA, ...previous[chat.id] }
-      return { ...previous, [chat.id]: { ...area, positions: { ...area.positions, [id]: clampStagePoint(point) } } }
-    })
-  }
-  const pointFor = (id: string, placement: (typeof castPlacements)[number]): StagePoint => {
-    const saved = stageArea.positions[id]
-    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.depth)) return clampStagePoint(saved)
-    return clampStagePoint({ x: placement.x / 100, depth: 1 - Math.max(0, placement.bottom) / stageArea.depth })
-  }
+  const widthCaps = figureWidthCaps(stage.figures)
+  const layouts = world?.stageLayouts ?? []
+  const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null)
+  const selectedFigure = stage.figures.find((figure) => figure.id === selectedFigureId) ?? stage.figures[0]
+  const cueOf = (figure: ResolvedFigure): StageCue => ({ ...figure.home, scale: figure.scale, enter: figure.enter, exit: figure.exit })
+  const pinned = (figure: ResolvedFigure, change: Partial<StageCue>) => pinCue(sceneStage, figure.id, { ...cueOf(figure), ...change })
   const beginArrangeStage = () => {
-    const initial = Object.fromEntries(castMembers.map((member, index) => [member.id, pointFor(member.id, castPlacements[index])]))
-    updateStageArea({ positions: initial })
+    setSelectedFigureId(castIds[0] ?? null)
     setShowLog(false)
     setHideUI(false)
     setSideExpanded(false)
     setArrangingStage(true)
   }
-  const resetStageArea = () => {
-    setStageAreas((previous) => {
-      const next = { ...previous }
-      delete next[chat.id]
-      return next
-    })
+  const automaticStage = () => {
+    saveStage(undefined)
     setArrangingStage(false)
     setSideExpanded(false)
+  }
+  const saveLayoutAs = (name: string) => {
+    const layout = captureLayout(stage, name, crypto.randomUUID(), Date.now())
+    // A failed save is reported where it's made; the scene stays as it is.
+    onStageLayoutsChange?.((list) => [...list, layout]).then(() => saveStage(applyLayout(sceneStage, layout.id)), () => {})
+  }
+  const updateLayout = (current: StageLayout) => {
+    const layout = captureLayout(stage, current.name, current.id, Date.now())
+    onStageLayoutsChange?.((list) => list.map((l) => (l.id === layout.id ? layout : l))).then(() => saveStage(applyLayout(sceneStage, layout.id)), () => {})
+  }
+  const deleteLayout = async (layout: StageLayout) => {
+    const ok = await confirmDialog({
+      title: `Delete "${layout.name}"?`,
+      body: 'Scenes using it go back to automatic direction. Characters placed by hand in them stay put.',
+      confirmLabel: 'Delete layout',
+      tone: 'danger',
+    })
+    if (!ok || !onStageLayoutsChange) return
+    try { await onStageLayoutsChange((list) => list.filter((l) => l.id !== layout.id)) } catch { return }
+    const { layoutId: _l, ...rest } = sceneStage ?? {}
+    saveStage(Object.keys(rest).length ? rest : undefined)
   }
   const activeMember = castMembers.find((m) => m.isActive) ?? castMembers[0]
   // Nameplate follows whoever's line is actually showing — the player's own persona while
@@ -859,6 +921,33 @@ export function VNStage({
   // Start each speaker at the beginning. The reader controls scrolling through a long line;
   // following every typed character used to push the first sentences out of view too quickly.
   const dialogueBoxRef = useRef<HTMLDivElement>(null)
+  // What stands in front of the stage, measured, so the cast is framed clear of it rather than
+  // behind it: the HUD card (and on a phone the rail button) above, and below the dialogue box with
+  // everything stacked on it, or the arranging bar.
+  const stageFrameRef = useRef<HTMLDivElement>(null)
+  const hudCardRef = useRef<HTMLDivElement>(null)
+  const dialogueStackRef = useRef<HTMLDivElement>(null)
+  const dialogueWrapRef = useRef<HTMLDivElement>(null)
+  const arrangeBarRef = useRef<HTMLDivElement>(null)
+  const [stageClear, setStageClear] = useState<{ top: number; bottom: number } | null>(null)
+  useEffect(() => {
+    const frame = stageFrameRef.current
+    if (!frame || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const area = frame.getBoundingClientRect()
+      const phone = !window.matchMedia('(min-width: 768px)').matches
+      const above = [hudCardRef.current, phone && !sideExpanded ? sideRailRef.current : null].flatMap((el) => (el ? [el.getBoundingClientRect().bottom] : []))
+      const below = [dialogueStackRef.current, dialogueWrapRef.current, arrangeBarRef.current].flatMap((el) => (el ? [el.getBoundingClientRect().top] : []))
+      setStageClear({
+        top: above.length ? Math.max(0, Math.round(Math.max(...above) - area.top + 8)) : 0,
+        bottom: below.length ? Math.max(0, Math.round(area.bottom - Math.min(...below))) : 0,
+      })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    for (const el of [frame, hudCardRef.current, dialogueStackRef.current, dialogueWrapRef.current, arrangeBarRef.current, sideRailRef.current]) if (el) observer.observe(el)
+    return () => observer.disconnect()
+  }, [showLog, hideUI, arrangingStage, sideExpanded, chat.id])
   useEffect(() => {
     dialogueBoxRef.current?.scrollTo({ top: 0 })
   }, [lastCharMsg?.id, activeSwipe])
@@ -1110,7 +1199,7 @@ export function VNStage({
       {!hideUI && (
       <>
       <div className="absolute inset-x-3 top-3 z-20 sm:inset-x-4 sm:top-4">
-        <div className="vn-glass min-w-0 max-w-[calc(100%-4rem)] overflow-hidden rounded-2xl text-white sm:max-w-[58%]">
+        <div ref={hudCardRef} className="vn-glass min-w-0 max-w-[calc(100%-4rem)] overflow-hidden rounded-2xl text-white sm:max-w-[58%]">
           {(personaName || chat.mode || parentChatLink) && (
             <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-2 text-[11px] text-white/70">
               {personaName && <span className="truncate">as {personaName}</span>}
@@ -1214,24 +1303,82 @@ export function VNStage({
             {sideExpanded ? (
               <div className="space-y-3 px-3 pb-2">
                 <p className="pt-3 text-[10px] font-semibold uppercase tracking-widest text-white/50">Stage layout</p>
+                <label className="block text-xs text-white/80">
+                  <span className="mb-1 block">Direction</span>
+                  <select value={stage.layout?.id ?? ''} aria-label="Stage direction"
+                    onChange={(event) => (event.target.value ? saveStage(applyLayout(sceneStage, event.target.value)) : automaticStage())}
+                    className="w-full rounded-lg border border-white/15 bg-neutral-900 px-2 py-1.5 text-xs text-white">
+                    <option value="">Automatic</option>
+                    {layouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name}</option>)}
+                  </select>
+                </label>
+                {stage.direction === 'pinned' && <p className="text-[11px] leading-snug text-white/60">Some characters are placed by hand in this scene.</p>}
                 <button type="button" onClick={arrangingStage ? () => { setArrangingStage(false); setSideExpanded(false) } : beginArrangeStage}
                   disabled={!!triggeredCgEntry || castMembers.length === 0}
                   className="flex w-full items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-left text-sm hover:bg-white/20 disabled:opacity-40">
                   <Move size={15} />{arrangingStage ? 'Finish arranging' : 'Arrange cast'}
                 </button>
                 <label className="block text-xs text-white/80">
-                  <span className="mb-1 flex justify-between"><span>Stage width</span><span>{stageArea.width}%</span></span>
-                  <input type="range" min="60" max="100" step="5" value={stageArea.width}
-                    onChange={(event) => updateStageArea({ width: Number(event.target.value) })} className="w-full accent-[rgb(var(--c-accent))]" />
+                  <span className="mb-1 block">Speaker</span>
+                  <select value={stage.focus} aria-label="Speaker focus"
+                    onChange={(event) => saveStage({ ...sceneStage, focus: event.target.value === 'light' ? 'light' : 'step' })}
+                    className="w-full rounded-lg border border-white/15 bg-neutral-900 px-2 py-1.5 text-xs text-white">
+                    <option value="step">Steps forward</option>
+                    <option value="light">Lit only</option>
+                  </select>
                 </label>
                 <label className="block text-xs text-white/80">
-                  <span className="mb-1 flex justify-between"><span>Stage depth</span><span>{stageArea.depth}%</span></span>
-                  <input type="range" min="30" max="60" step="5" value={stageArea.depth}
-                    onChange={(event) => updateStageArea({ depth: Number(event.target.value) })} className="w-full accent-[rgb(var(--c-accent))]" />
+                  <span className="mb-1 flex justify-between"><span>Stage width</span><span>{stage.width}%</span></span>
+                  <input type="range" min="60" max="100" step="5" value={stage.width}
+                    onChange={(event) => editStage({ ...sceneStage, width: Number(event.target.value) })}
+                    onPointerUp={() => saveStage()} onKeyUp={() => saveStage()}
+                    className="w-full accent-[rgb(var(--c-accent))]" />
                 </label>
-                <button type="button" onClick={resetStageArea} className="flex items-center gap-2 text-xs text-white/70 hover:text-white">
-                  <RotateCcw size={13} />Reset automatic layout
-                </button>
+                <label className="block text-xs text-white/80">
+                  <span className="mb-1 flex justify-between"><span>Stage depth</span><span>{stage.depth}%</span></span>
+                  <input type="range" min="30" max="60" step="5" value={stage.depth}
+                    onChange={(event) => editStage({ ...sceneStage, depth: Number(event.target.value) })}
+                    onPointerUp={() => saveStage()} onKeyUp={() => saveStage()}
+                    className="w-full accent-[rgb(var(--c-accent))]" />
+                </label>
+                {onStageLayoutsChange && (layoutName === null ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-white/70">
+                    <button type="button" onClick={() => setLayoutName('')} className="flex items-center gap-1.5 hover:text-white">
+                      <Save size={13} />Save as layout
+                    </button>
+                    {stage.layout && stage.direction === 'pinned' && (
+                      <button type="button" onClick={() => updateLayout(stage.layout!)} className="hover:text-white">Update layout</button>
+                    )}
+                    {stage.layout && (
+                      <button type="button" onClick={() => void deleteLayout(stage.layout!)} className="flex items-center gap-1.5 hover:text-white">
+                        <Trash2 size={13} />Delete layout
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <form className="flex gap-2" onSubmit={(event) => {
+                    event.preventDefault()
+                    if (!layoutName.trim()) return
+                    saveLayoutAs(layoutName)
+                    setLayoutName(null)
+                  }}>
+                    <input autoFocus value={layoutName} maxLength={60} placeholder="Layout name" aria-label="Layout name"
+                      onChange={(event) => setLayoutName(event.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-white/15 bg-neutral-900 px-2 py-1.5 text-xs text-white" />
+                    <button type="submit" disabled={!layoutName.trim()} className="rounded-lg bg-white/15 px-2 text-xs hover:bg-white/25 disabled:opacity-40">Save</button>
+                    <button type="button" onClick={() => setLayoutName(null)} className="px-1 text-xs text-white/70 hover:text-white">Cancel</button>
+                  </form>
+                ))}
+                {stage.layout && stage.direction === 'pinned' && (
+                  <button type="button" onClick={() => saveStage(applyLayout(sceneStage, stage.layout!.id))} className="flex items-center gap-2 text-xs text-white/70 hover:text-white">
+                    <RotateCcw size={13} />Back to "{stage.layout.name}"
+                  </button>
+                )}
+                {stage.direction !== 'automatic' && (
+                  <button type="button" onClick={automaticStage} className="flex items-center gap-2 text-xs text-white/70 hover:text-white">
+                    <RotateCcw size={13} />Back to automatic
+                  </button>
+                )}
               </div>
             ) : (
               <button type="button" onClick={() => setSideExpanded(true)} title="Stage layout" aria-label="Stage layout"
@@ -1300,51 +1447,39 @@ export function VNStage({
           {/* The background stays visible behind a staggered cast: speaker in front, companions
               farther into the scene. Phones frame only the person whose line is being read. */}
           <div
-            // On a phone the sprite is width-bound long before it is height-bound, so standing it on
-            // the stage floor left almost all of it behind the dialogue box. There it stands on the
-            // box's top edge instead; from `sm` up it goes back to the floor (and a little below it).
-            className={`absolute inset-x-0 bottom-0 top-0 z-0 flex items-end justify-center px-4 pb-[24vh] sm:-bottom-[4%] sm:px-6 sm:pb-0 ${
-              // Extra top padding for group scenes so the outer figure clears the HUD card.
-              isGroupScene ? 'pt-10 sm:pt-16 md:pt-20' : 'pt-2 sm:pt-4 md:pt-6'
-            }`}
+            // The cast is framed below the HUD card and, from `md` up, clear of the rail. On a phone
+            // the one figure stands on top of the dialogue box and whatever is stacked on it (the
+            // sprite is width-bound long before it is height-bound, so on the floor it would sit
+            // almost entirely behind the box). From `md` up the floor runs to the bottom edge (and a
+            // little below it), behind the box, except while arranging, when the bar sits there.
+            ref={stageFrameRef}
+            style={{ '--vn-clear-top': `${stageClear?.top ?? 40}px`, '--vn-clear-bottom': stageClear ? `${stageClear.bottom}px` : '24vh' } as CSSProperties}
+            className={`absolute inset-x-0 bottom-0 top-0 z-0 flex items-end justify-center px-4 pb-[var(--vn-clear-bottom)] pt-[var(--vn-clear-top)] sm:px-6 md:px-16 ${
+              arrangingStage ? '' : 'md:-bottom-[4%] md:pb-0'}`}
           >
-            {!triggeredCgEntry && artHint && character && (
-              <div className="absolute inset-x-0 top-[26%] z-20 flex justify-center px-6">
-                <div className="relative max-w-sm rounded-2xl border border-dashed border-white/25 bg-black/45 px-5 py-4 text-center text-[12px] leading-relaxed text-white/80 backdrop-blur-sm">
-                  <button
-                    type="button"
-                    onClick={() => dismissVnArtHint(character.id)}
-                    aria-label="Dismiss VN setup hint"
-                    className="absolute right-1.5 top-1.5 text-white/45 transition-colors hover:text-white/90"
-                  >
-                    <X size={13} strokeWidth={2} />
-                  </button>
-                  <p className="pr-3">{artHint}</p>
-                </div>
-              </div>
-            )}
             {/* Skipped while a CG is showing full-bleed; sprites over unrelated CG art look wrong. */}
             {!triggeredCgEntry && (
             <div ref={stageRootRef} className="relative mx-auto h-full w-full md:w-[var(--stage-area-width)] md:max-w-[1400px]"
-              style={{ '--stage-area-width': `${stageArea.width}%` } as CSSProperties}>
+              style={{ '--stage-area-width': `${stage.width}%` } as CSSProperties}>
               {arrangingStage && (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"
                   className="pointer-events-none absolute inset-0 z-20 h-full w-full">
-                  <polygon points={`22,${100 - stageArea.depth} 78,${100 - stageArea.depth} 100,100 0,100`}
+                  <polygon points={`22,${100 - stage.depth} 78,${100 - stage.depth} 100,100 0,100`}
                     fill="rgb(58 205 183 / 0.08)" stroke="rgb(94 234 212 / 0.9)" strokeWidth="2" strokeDasharray="8 5" vectorEffect="non-scaling-stroke" />
                 </svg>
               )}
-              {stagedFigures.filter(({ phase }) => !arrangingStage || phase !== 'exiting').map(({ member, placement, phase }) => {
-                const saved = stageArea.positions[member.id]
-                const hasSavedPoint = !!saved && Number.isFinite(saved.x) && Number.isFinite(saved.depth)
-                const point = pointFor(member.id, placement)
-                const custom = arrangingStage || hasSavedPoint
-                const box = custom ? stagePointStyle(point, stageArea.depth) : {
-                  x: placement.x, width: placement.width, height: placement.height,
-                  bottom: placement.bottom * stageArea.depth / DEFAULT_STAGE_AREA.depth,
-                }
-                const figureDepth: StageDepth = member.isActive ? 'foreground' : custom && point.depth >= 0.7 ? 'midground' : placement.depth
+              {stagedFigures.filter(({ phase }) => !arrangingStage || phase !== 'exiting').map(({ member, figure, phase }) => {
+                const box = stagePointStyle(figure.point, stage.depth)
+                // A larger size cue never lifts a head past the top of the stage (under the HUD).
+                const size = Math.min(figure.scale, (100 - box.bottom) / box.height)
+                // Never wider than the gap to the nearest neighbour, so side by side nobody covers anybody.
+                const width = Math.min(box.width * size, widthCaps[member.id] ?? 100)
+                const figureDepth: StageDepth = member.isActive ? 'foreground' : figure.point.depth >= 0.5 ? 'midground' : 'background'
                 const draggable = arrangingStage && phase !== 'exiting'
+                const endDrag = () => {
+                  if (dragRef.current?.moved) saveStage()
+                  dragRef.current = null
+                }
                 return (
                 <div
                   key={member.id}
@@ -1355,36 +1490,40 @@ export function VNStage({
                     if (event.button !== 0 || !stageRootRef.current) return
                     event.preventDefault()
                     event.stopPropagation()
+                    setSelectedFigureId(member.id)
                     const rect = stageRootRef.current.getBoundingClientRect()
-                    dragRef.current = { id: member.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, point, width: rect.width, height: rect.height }
+                    dragRef.current = { id: member.id, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, point: figure.home, width: rect.width, height: rect.height, moved: false }
                     event.currentTarget.setPointerCapture(event.pointerId)
                   } : undefined}
                   onPointerMove={draggable ? (event) => {
                     const drag = dragRef.current
                     if (!drag || drag.id !== member.id || drag.pointerId !== event.pointerId) return
-                    setStagePoint(member.id, moveStagePoint(drag.point, (event.clientX - drag.clientX) / drag.width, (event.clientY - drag.clientY) / drag.height, stageArea.depth))
+                    drag.moved = true
+                    editStage(pinned(figure, moveStagePoint(drag.point, (event.clientX - drag.clientX) / drag.width, (event.clientY - drag.clientY) / drag.height, stage.depth)))
                   } : undefined}
-                  onPointerUp={draggable ? () => { dragRef.current = null } : undefined}
-                  onPointerCancel={draggable ? () => { dragRef.current = null } : undefined}
+                  onPointerUp={draggable ? endDrag : undefined}
+                  onPointerCancel={draggable ? endDrag : undefined}
+                  onFocus={draggable ? () => setSelectedFigureId(member.id) : undefined}
                   onKeyDown={draggable ? (event) => {
                     const delta = event.key === 'ArrowLeft' ? [-0.02, 0] : event.key === 'ArrowRight' ? [0.02, 0]
                       : event.key === 'ArrowUp' ? [0, -0.02] : event.key === 'ArrowDown' ? [0, 0.02] : null
                     if (!delta) return
                     event.preventDefault()
-                    setStagePoint(member.id, moveStagePoint(point, delta[0], delta[1], stageArea.depth))
+                    editStage(pinned(figure, moveStagePoint(figure.home, delta[0], delta[1], stage.depth)))
                   } : undefined}
+                  onKeyUp={draggable ? (event) => { if (event.key.startsWith('Arrow')) saveStage() } : undefined}
                   className={`absolute left-1/2 bottom-0 h-[98%] -translate-x-1/2 outline-none md:left-[var(--stage-x)] md:bottom-[var(--stage-bottom)] md:h-[var(--stage-height)] md:w-[var(--stage-width)] ${draggable
-                    ? 'cursor-grab touch-none rounded-xl ring-2 ring-transparent hover:ring-teal-300/70 focus-visible:ring-teal-300 active:cursor-grabbing'
-                    : 'transition-[left,width,height,bottom] duration-500 ease-out motion-reduce:transition-none'} ${placement.visibleOnPhone
+                    ? `cursor-grab touch-none rounded-xl ring-2 hover:ring-teal-300/70 focus-visible:ring-teal-300 active:cursor-grabbing ${member.id === selectedFigure?.id ? 'ring-teal-300/50' : 'ring-transparent'}`
+                    : 'transition-[left,width,height,bottom] duration-500 ease-out motion-reduce:transition-none'} ${phase !== 'exiting' && member.id === phoneId
                     ? 'w-[88%]'
                     : 'hidden md:block'}`}
                   style={{
                     '--stage-x': `${box.x}%`,
-                    '--stage-width': `${box.width}%`,
-                    '--stage-height': `${box.height}%`,
+                    '--stage-width': `${width}%`,
+                    '--stage-height': `${box.height * size}%`,
                     '--stage-bottom': `${box.bottom}%`,
-                    maxWidth: figureDepth === 'foreground' ? 620 : figureDepth === 'midground' ? 420 : 360,
-                    zIndex: custom ? Math.round(1 + point.depth * 10) : placement.depth === 'foreground' ? 3 : placement.depth === 'midground' ? 2 : 1,
+                    maxWidth: Math.round((figureDepth === 'foreground' ? 620 : figureDepth === 'midground' ? 420 : 360) * size),
+                    zIndex: figureLayer(figure),
                   } as CSSProperties}
                 >
                   <VNCharacterSprite
@@ -1398,6 +1537,7 @@ export function VNStage({
                     vrmUrl={phase === 'exiting' ? undefined : member.vrmUrl}
                     expression={member.expression}
                     speaking={member.speaking}
+                    transition={phase === 'exiting' ? figure.exit : figure.enter}
                   />
                 </div>
                 )
@@ -1407,11 +1547,34 @@ export function VNStage({
           </div>
 
           {arrangingStage && (
-            <div className="relative z-30 mx-4 mb-4 mt-auto flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/40 bg-black/80 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md md:mx-auto md:max-w-2xl">
+            <div ref={arrangeBarRef} className="relative z-30 mx-4 mb-4 mt-auto flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/40 bg-black/80 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md md:mx-auto md:max-w-2xl">
               <Move size={17} className="shrink-0 text-teal-200" />
               <span className="min-w-0 flex-1">Drag a character within the outlined floor. Arrow keys move a focused character.</span>
-              <button type="button" onClick={resetStageArea} className="rounded-lg px-2 py-1.5 text-white/75 hover:bg-white/10 hover:text-white">Reset</button>
+              <button type="button" onClick={automaticStage} className="rounded-lg px-2 py-1.5 text-white/75 hover:bg-white/10 hover:text-white">Automatic</button>
               <button type="button" onClick={() => setArrangingStage(false)} className="rounded-lg bg-teal-300 px-3 py-1.5 font-semibold text-black hover:bg-teal-200">Done</button>
+              {selectedFigure && (
+                <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 pt-2">
+                  <span className="font-semibold">{castMembers.find((member) => member.id === selectedFigure.id)?.name}</span>
+                  <label className="flex items-center gap-2">Size
+                    <input type="range" min="60" max="140" step="5" value={Math.round(selectedFigure.scale * 100)}
+                      onChange={(event) => editStage(pinned(selectedFigure, { scale: Number(event.target.value) / 100 }))}
+                      onPointerUp={() => saveStage()} onKeyUp={() => saveStage()}
+                      className="w-24 accent-teal-300" />
+                  </label>
+                  <label className="flex items-center gap-2">Enters
+                    <select value={selectedFigure.enter} onChange={(event) => saveStage(pinned(selectedFigure, { enter: event.target.value as StageTransition }))}
+                      className="rounded-lg border border-white/15 bg-neutral-900 px-2 py-1 text-xs text-white">
+                      {STAGE_TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2">Leaves
+                    <select value={selectedFigure.exit} onChange={(event) => saveStage(pinned(selectedFigure, { exit: event.target.value as StageTransition }))}
+                      className="rounded-lg border border-white/15 bg-neutral-900 px-2 py-1 text-xs text-white">
+                      {STAGE_TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
             </div>
           )}
 
@@ -1421,8 +1584,21 @@ export function VNStage({
           {/* Everything that isn't dialogue floats above the box instead of stacking inside it.
               That separation is what lets the box hold one fixed height while choices, quick
               replies and the assist strip come and go underneath the scene's own composition. */}
-          <div className="vn-stack relative z-10 mt-auto pb-2">
+          <div ref={dialogueStackRef} className="vn-stack relative z-10 mt-auto pb-2">
             <div className="flex flex-col gap-2">
+              {!triggeredCgEntry && artHint && character && (
+                <div className="relative w-fit max-w-full rounded-2xl border border-dashed border-white/25 bg-black/45 py-2 pl-3.5 pr-8 text-[12px] leading-relaxed text-white/80 backdrop-blur-sm">
+                  <p>{artHint}</p>
+                  <button
+                    type="button"
+                    onClick={() => dismissVnArtHint(character.id)}
+                    aria-label="Dismiss VN setup hint"
+                    className="absolute right-2 top-2 text-white/45 transition-colors hover:text-white/90"
+                  >
+                    <X size={13} strokeWidth={2} />
+                  </button>
+                </div>
+              )}
               {locationCaption && (
                 // Only ever shown over a placeholder gradient — real art says where it is by itself.
                 <span className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">{locationCaption}</span>
@@ -1443,7 +1619,7 @@ export function VNStage({
             </div>
           </div>
 
-          <div className="relative z-10">
+          <div ref={dialogueWrapRef} className="relative z-10">
             <VNDialogueBox
               ref={dialogueBoxRef}
               narration={!showUserAsCurrent && (lastCharMsg?.speakerId === GM_SPEAKER_ID || !!lastCharMsg?.gm)}

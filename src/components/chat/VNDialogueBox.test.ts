@@ -23,6 +23,16 @@ describe('VNDialogueBox', () => {
     expect(html).not.toContain('/gm.png')
   })
 
+  it('keeps line controls inside the frame, where they cannot cover anything above the box', () => {
+    for (const narration of [false, true]) {
+      const html = renderToStaticMarkup(createElement(VNDialogueBox, { ...base, narration, utilities: createElement('button', null, 'Next') }))
+      const frame = html.indexOf('vn-box ')
+      expect(frame).toBeGreaterThan(-1)
+      expect(html.indexOf('>Next<')).toBeGreaterThan(frame)
+      expect(html).not.toContain('bottom-full')
+    }
+  })
+
   it('keeps ordinary speaker identity', () => {
     const html = renderToStaticMarkup(createElement(VNDialogueBox, base))
     expect(html).toContain('Game Master')

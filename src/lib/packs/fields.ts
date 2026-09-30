@@ -106,6 +106,8 @@ export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   customSceneFlags: 'worldContent',
   customIntimacyOptions: 'worldContent',
   replaceIntimacyCatalog: 'worldContent',
+  // Cues are keyed by character id, rewired to pack keys.
+  stageLayouts: 'worldContent',
   avatarDataUrl: 'media:portraits',
   backgrounds: 'media:backgrounds',
   backgroundsNight: 'media:backgrounds',

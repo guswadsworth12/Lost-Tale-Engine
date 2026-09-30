@@ -261,3 +261,21 @@ describe('field lists', () => {
     expect(seen).toEqual(['portraits:avatar.png', 'sprites:neutral.png', 'sprites:dock.png', 'sprites:neutral-alt0.png', 'models:model.vrm', 'gallery:cg-1.png', 'gallery:cg-1-alt0.png'])
   })
 })
+
+describe('stage layouts in a pack', () => {
+  it('rewire each cue to the character it places, and leave out anyone outside the pack', () => {
+    const layout = { id: 'l1', name: 'Pier', width: 80, depth: 45, focus: 'light', updatedAt: 1, cues: { 'bea-uuid': { x: 0.3, depth: 0.4 }, 'cole-uuid': { x: 0.7, depth: 0.4, scale: 1.2 }, 'wren-uuid': { x: 0.5, depth: 0.2 } } }
+    const plan = planExport({ ...input, world: { ...world, stageLayouts: [layout] } })
+    expect(plan.content.world.stageLayouts).toEqual([{ ...layout, cues: { 'character-1': { x: 0.3, depth: 0.4 }, 'character-2': { x: 0.7, depth: 0.4, scale: 1.2 } } }])
+    expect(plan.droppedReferences).toContain('Stage layout "Pier" places characters outside the pack; they stay behind.')
+    let n = 0
+    const result = planImport(parseContent(withPackMedia(plan.content, fileNames())), { worlds: [], characters: [] }, { ownerUserId: 'u', now: 1, newId: () => `new-${++n}`, mediaPath: () => undefined })
+    const [b, c] = result.characters
+    expect(result.world.row!.stageLayouts).toEqual([{ ...layout, cues: { [b.id]: { x: 0.3, depth: 0.4 }, [c.id]: { x: 0.7, depth: 0.4, scale: 1.2 } } }])
+  })
+
+  it('stay behind with the rest of the world content when it is left out', () => {
+    const plan = planExport({ ...input, world: { ...world, stageLayouts: [{ id: 'l1', name: 'Pier', cues: {} }] } }, { ...DEFAULT_PACK_SELECTION, worldContent: false })
+    expect(plan.content.world).not.toHaveProperty('stageLayouts')
+  })
+})

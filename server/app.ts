@@ -37,6 +37,7 @@ import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
+import { normalizeSceneStage, normalizeStageLayouts } from '../src/lib/vn/stageDirection.ts'
 import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
 import { ownershipPatch } from './ownership.ts'
 import { packsRouter, usePackRowBuilders } from './packs.ts'
@@ -965,6 +966,8 @@ app.put('/api/chats/:id', (req, res) => {
   if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
+  // Scene direction: known shapes only. `null`, or nothing left, is automatic.
+  if ('stage' in patch) patch.stage = normalizeSceneStage(patch.stage) ?? null
   const updated = chatStore.update(req.params.id, {
     ...patch,
     ...(skipTouch ? {} : { updatedAt: Date.now() }),
@@ -1461,6 +1464,7 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     items: normalizeItemDefs(body.items, allowedFlags),
     customSceneFlags,
     customBackgrounds: normalizeCustomBackgrounds(body.customBackgrounds),
+    stageLayouts: normalizeStageLayouts(body.stageLayouts),
     relationshipThresholds: normalizeRelationshipThresholds(body.relationshipThresholds),
     intimacyLevel: normalizeIntimacyLevel(body.intimacyLevel),
     triggers: normalizeTriggers(body.triggers),
@@ -1510,6 +1514,7 @@ app.put('/api/worlds/:id', (req, res) => {
   if ('intimacyLevel' in req.body) patch.intimacyLevel = normalizeClearableIntimacyLevel(req.body.intimacyLevel)
   if ('triggers' in req.body) patch.triggers = normalizeTriggers(req.body.triggers)
   if ('customBackgrounds' in req.body) patch.customBackgrounds = normalizeCustomBackgrounds(req.body.customBackgrounds)
+  if ('stageLayouts' in req.body) patch.stageLayouts = normalizeStageLayouts(req.body.stageLayouts) ?? []
   if ('items' in req.body) {
     // Validate against whichever custom flags are in effect after this same request, so an item
     // referencing a flag saved in the same request isn't wrongly rejected.

@@ -1201,6 +1201,19 @@ export function ChatWindow({
             else delete appearanceOverrides[id]
             void updateScene({ appearanceOverrides }).catch((error) => toastError(errorMessage(error)))
           },
+          onStageChange: (stage) => {
+            chatsApi.update(chat.id, { stage: stage ?? null }).catch((error) => toastError(errorMessage(error)))
+          },
+          onStageLayoutsChange: world ? async (change) => {
+            try {
+              // From the freshest copy, so another scene's save in the meantime isn't lost.
+              const fresh = await worldsApi.get(world.id)
+              await worldsApi.update(world.id, { stageLayouts: change(fresh?.stageLayouts ?? []) })
+            } catch (error) {
+              toastError(errorMessage(error))
+              throw error
+            }
+          } : undefined,
           sideActions: [
             ...(onOpenStudio ? [{ key: 'studio', icon: Users, label: 'Studio', onClick: onOpenStudio }] : []),
             { key: 'goals', icon: Target, label: activeObjective?.title ? `Goals: ${activeObjective.title}` : 'Goals', onClick: () => openStoryTab('goals') },

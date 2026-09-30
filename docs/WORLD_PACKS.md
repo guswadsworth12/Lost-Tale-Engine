@@ -10,7 +10,7 @@ import it from the Worlds list (**Import pack…**).
 | :--- | :--- | :--- |
 | World settings: description, rules, template, modules, campaign rules, tracked state, rank ladder | GM notes (may hold spoilers) | Stories, scenes, chats, messages |
 | The world's lorebook, and world-info books bound to the world or its cast | Canon facts confirmed in play | Character memories, journals, recaps |
-| Prompt items, scenarios, triggers, gifts and items, scene flags, custom intimacy options | Stat sheets of the cast | Objectives, relationship events, chat facts |
+| Prompt items, scenarios, triggers, gifts and items, scene flags, custom intimacy options, Visual Novel stage layouts | Stat sheets of the cast | Objectives, relationship events, chat facts |
 | Non-player cast cards, as templates | Private memory of the cast | Accounts, sessions, API keys, preferences |
 | Portraits, sprites and outfits, backgrounds (day and night), music, gallery art | Player cards; VRM models | The world clock, story set events |
 
@@ -38,7 +38,7 @@ Salt Coast.ltpack/
 
 Records carry pack-local keys (`world`, `character-1`, `lorebook-1`) instead of ids, and media fields
 hold `ltpack-media:<file>` instead of a server path. On import every record gets a new id and every
-reference is rewired: a character's world, its sheet, and a book's world and cast bindings. A
+reference is rewired: a character's world, its sheet, a book's world and cast bindings, and the cast a stage layout places. A
 reference to something outside the pack is dropped, and the preview says so. A pack from a newer
 format is refused with a message to update; older formats will be migrated.
 

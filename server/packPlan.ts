@@ -213,7 +213,7 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
   const canon = Array.isArray(world.canonFacts) ? world.canonFacts.length : 0
   if (!selection.canonFacts && canon) excluded.push(`Canon facts from play (${canon})`)
   if (!selection.lore) excluded.push('Lore')
-  if (!selection.worldContent) excluded.push('Prompt items, scenarios, triggers, gifts, items, and scene flags')
+  if (!selection.worldContent) excluded.push('Prompt items, scenarios, triggers, gifts, items, scene flags, and stage layouts')
   for (const kind of Object.keys(MEDIA_LABEL) as MediaKind[]) if (!selection.media[kind]) excluded.push(MEDIA_LABEL[kind])
 
   // The world's cast. A card made to be played by a person, and anyone left out by name, stays behind.
@@ -259,6 +259,16 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
     return out
   })
 
+  // Saved stage layouts place characters by id: the ones in the pack by key, the rest stay behind.
+  if (Array.isArray(worldOut.stageLayouts)) {
+    worldOut.stageLayouts = (worldOut.stageLayouts as Row[]).map((layout) => {
+      const cues = (layout.cues && typeof layout.cues === 'object' ? layout.cues : {}) as Row
+      const ids = Object.keys(cues)
+      if (ids.some((id) => !keyOf.has(id))) dropped.push(`Stage layout "${str(layout.name) || 'Untitled'}" places characters outside the pack; they stay behind.`)
+      return { ...layout, cues: Object.fromEntries(ids.filter((id) => keyOf.has(id)).map((id) => [keyOf.get(id)!, cues[id]])) }
+    })
+  }
+
   const lorebooks: Row[] = []
   if (selection.lore) {
     for (const book of input.lorebooks) {
@@ -292,7 +302,7 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
   const included: PackSummaryLine[] = [
     { label: 'World settings and rules' },
     ...(selection.lore ? [{ label: 'Lore entries', count: loreEntries }, { label: 'World-info books', count: lorebooks.length }] : []),
-    ...(selection.worldContent ? [{ label: 'Prompt items, scenarios, triggers, gifts, items, and scene flags' }] : []),
+    ...(selection.worldContent ? [{ label: 'Prompt items, scenarios, triggers, gifts, items, scene flags, and stage layouts' }] : []),
     ...(selection.cast ? [{ label: 'Cast', count: characters.length }] : []),
     ...(selection.gmNotes && str(world.gmNotes) ? [{ label: 'GM notes' }] : []),
     ...(selection.canonFacts && canon ? [{ label: 'Canon facts from play', count: canon }] : []),
@@ -548,6 +558,15 @@ export function planImport(content: WorldPackContent, existing: { worlds: Row[];
     idOf.set(key, s.id)
     return s
   })
+
+  if (world.row && Array.isArray(world.row.stageLayouts)) {
+    world.row = { ...world.row, stageLayouts: (world.row.stageLayouts as Row[]).map((layout) => {
+      const cues = (layout && typeof layout.cues === 'object' && layout.cues ? layout.cues : {}) as Row
+      const keys = Object.keys(cues).filter((k) => k !== PACK_WORLD_KEY)
+      if (keys.some((k) => !idOf.has(k))) dropped.push(`Stage layout "${str(layout?.name) || 'Untitled'}" placed characters outside the pack; they were left out.`)
+      return { ...layout, cues: Object.fromEntries(keys.filter((k) => idOf.has(k)).map((k) => [idOf.get(k)!, cues[k]])) }
+    }) }
+  }
 
   const lorebooks = content.lorebooks.map((b) => {
     const out: Row = {}
