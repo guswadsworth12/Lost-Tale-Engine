@@ -1,13 +1,17 @@
 import type { RomanceEmphasis } from './worldTemplates'
 // The server loads this file with plain Node, which needs the extension on a runtime import.
 import { normalizeMoveEffects, normalizeTracks, type CampaignTrack, type MoveEffects } from './gameState.ts'
+import { rollCustom, validateCustomResolver, type CustomResolver, type FaceRoller } from './customRules.ts'
 
 export interface CampaignConfig {
   ruleset: string
   edition?: string
   mode: 'guided' | 'mechanical'
-  /** An adapter handles resolution rolls, not an entire published rulebook. */
-  resolver: 'pbta' | 'd20' | 'd20-degree' | 'fate' | 'roll-under'
+  /** An adapter handles resolution rolls, not an entire published rulebook. `custom` rolls the
+   *  world's own declared dice and outcomes (`custom`, see `customRules.ts`). */
+  resolver: 'pbta' | 'd20' | 'd20-degree' | 'fate' | 'roll-under' | 'custom'
+  /** The world's own game system, when `resolver` is `custom`. */
+  custom?: CustomResolver
   relationships: boolean
   dating: boolean
   /** World-authored fields for each character's sheet. Older campaigns derive these from moves. */
@@ -76,6 +80,8 @@ export interface PbtaRoll {
   degree?: string
   rollMode?: 'normal' | 'advantage' | 'disadvantage'
   natural?: number
+  /** A plain account of the dice, for a custom ruleset (`customRules.ts` `rollCustom`). */
+  detail?: string
   createdAt: number
 }
 
@@ -120,7 +126,7 @@ export const STARTER_PBTA_CAMPAIGN: CampaignConfig = {
 }
 
 export function isCampaignResolver(value: unknown): value is CampaignConfig['resolver'] {
-  return value === 'pbta' || value === 'd20' || value === 'd20-degree' || value === 'fate' || value === 'roll-under'
+  return value === 'pbta' || value === 'd20' || value === 'd20-degree' || value === 'fate' || value === 'roll-under' || value === 'custom'
 }
 
 const checkMove = (id: string, name: string, statId: string, resolver: CampaignConfig['resolver']): PbtaMove => ({
@@ -282,11 +288,18 @@ export function parseCampaignFile(raw: string): CampaignConfig {
   const v = c as Record<string, unknown>
   if (!Array.isArray(v.moves)) throw new Error('A campaign file needs a "moves" list.')
   const relationships = v.relationships === true
+  let custom: CustomResolver | undefined
+  if (v.resolver === 'custom') {
+    const checked = validateCustomResolver(v.custom)
+    if (!checked.resolver) throw new Error(`The custom ruleset needs fixing: ${checked.errors.join(' ')}`)
+    custom = checked.resolver
+  }
   return {
     ruleset: text(v.ruleset, 200) || 'Custom',
     edition: text(v.edition, 100) || undefined,
     mode: v.mode === 'mechanical' ? 'mechanical' : 'guided',
     resolver: isCampaignResolver(v.resolver) ? v.resolver : 'pbta',
+    ...(custom ? { custom } : {}),
     relationships,
     dating: relationships && v.dating === true,
     ...(Array.isArray(v.stats) ? { stats: normalizeCampaignStats(v.stats) ?? [] } : {}),
@@ -362,6 +375,25 @@ export function resolveCampaignRoll(config: CampaignConfig, move: PbtaMove, modi
     tier = degree.endsWith('success') ? 'strong' : 'miss'
   }
   return { moveId: move.id, moveName: move.name, stat: move.stat, modifier, dice, total, tier, outcome: move[tier], resolver: config.resolver, target, degree, ...(natural ? { natural, rollMode } : {}) }
+}
+
+/**
+ * A move rolled under the world's own ruleset. The dice come from `face` (the server's secure
+ * roller, or a test's fixed faces); the band's tier is what the rest of the engine runs on.
+ */
+export function resolveCustomCampaignRoll(config: CampaignConfig, move: PbtaMove, modifier: number, suppliedTarget: number | undefined, face: FaceRoller): Omit<PbtaRoll, 'id' | 'createdAt'> {
+  if (config.resolver !== 'custom' || !config.custom) throw new Error('This campaign has no custom ruleset.')
+  if (!Number.isInteger(modifier) || modifier < -100 || modifier > 100) throw new Error('Sheet value is out of range.')
+  const target = move.target ?? suppliedTarget
+  if (config.custom.compare === 'margin' && (!Number.isInteger(target) || (target as number) < -30 || (target as number) > 100)) throw new Error('A valid check difficulty is required.')
+  const roll = rollCustom(config.custom, modifier, config.custom.compare === 'margin' ? target : undefined, face)
+  const tier = roll.band.tier
+  return {
+    moveId: move.id, moveName: move.name, stat: move.stat, modifier, dice: roll.dice, total: roll.result, tier,
+    outcome: [roll.band.meaning, move[tier]].filter(Boolean).join(' '),
+    resolver: 'custom', degree: roll.band.label, detail: roll.detail,
+    ...(config.custom.compare === 'margin' ? { target } : {}),
+  }
 }
 
 export function rollPbtaMove(move: PbtaMove, modifier: number): PbtaRoll {
