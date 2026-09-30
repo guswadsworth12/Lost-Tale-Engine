@@ -141,6 +141,23 @@ export function figureLayer(figure: Pick<ResolvedFigure, 'point' | 'focused'>): 
   return 1 + Math.round(figure.point.depth * 10) + (figure.focused ? 20 : 0)
 }
 
+/** The narrowest a figure gets to keep clear of its neighbours, in percent of the stage's width. */
+export const MIN_FIGURE_WIDTH = 14
+
+/**
+ * How wide each figure may stand, in percent of the stage's width, so that no two overlap: a
+ * figure is never wider than the distance to its nearest neighbour. Only characters placed almost
+ * on top of each other, by hand, can still meet (at `MIN_FIGURE_WIDTH`).
+ */
+export function figureWidthCaps(figures: readonly Pick<ResolvedFigure, 'id' | 'point'>[]): Record<string, number> {
+  const caps: Record<string, number> = {}
+  for (const figure of figures) {
+    const gaps = figures.filter((other) => other.id !== figure.id).map((other) => Math.abs(other.point.x - figure.point.x) * 100)
+    caps[figure.id] = gaps.length ? Math.max(MIN_FIGURE_WIDTH, Math.min(...gaps)) : 100
+  }
+  return caps
+}
+
 // ---- Editing a scene's direction ---------------------------------------------------------------
 
 /** Pins one character in this scene, keeping everything else as it is. */

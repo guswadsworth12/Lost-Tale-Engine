@@ -5,6 +5,8 @@ import {
   applyLayout,
   captureLayout,
   figureLayer,
+  figureWidthCaps,
+  MIN_FIGURE_WIDTH,
   normalizeSceneStage,
   normalizeStageLayouts,
   phoneFocusId,
@@ -85,6 +87,23 @@ describe('saved layouts and pinned cues', () => {
     expect(saved).toMatchObject({ id: 'l2', name: 'Three at the bar', width: 70, updatedAt: 5 })
     expect(Object.keys(saved.cues)).toEqual(cast)
     expect(applyLayout({ ...pinned, width: 70, focus: 'light' }, 'l2')).toEqual({ layoutId: 'l2' })
+  })
+})
+
+describe('figure widths', () => {
+  it('keep side-by-side characters from covering each other', () => {
+    const stage = resolveStage(cast, 'bea', undefined, [])
+    const caps = figureWidthCaps(stage.figures)
+    const [a, b, c] = stage.figures
+    // Two neighbours' half-widths never add up to more than the distance between them.
+    expect((caps.ash + caps.bea) / 2).toBeLessThanOrEqual(Math.abs(b.point.x - a.point.x) * 100 + 1e-9)
+    expect((caps.bea + caps.cole) / 2).toBeLessThanOrEqual(Math.abs(c.point.x - b.point.x) * 100 + 1e-9)
+    expect(figureWidthCaps([a])).toEqual({ ash: 100 })
+  })
+
+  it('never shrink a character placed on top of another to nothing', () => {
+    const caps = figureWidthCaps([{ id: 'ash', point: { x: 0.5, depth: 0.2 } }, { id: 'bea', point: { x: 0.5, depth: 0.8 } }])
+    expect(caps).toEqual({ ash: MIN_FIGURE_WIDTH, bea: MIN_FIGURE_WIDTH })
   })
 })
 

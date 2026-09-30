@@ -91,16 +91,6 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
         if (e.key === 'Escape' && writing) onStopWriting?.()
       }}
     >
-      {/* Utilities float above the frame rather than taking a row inside it, so the box's fixed
-          height is all dialogue. Anchored by their bottom edge to the frame's top, so a bar that
-          wraps to two rows on a phone grows upward over the art, never down over the first lines.
-          Near-invisible at rest; full opacity on hover or keyboard focus. */}
-      {utilities && !writing && (
-        <div className="pointer-events-none absolute bottom-full right-4 z-20 translate-y-2 flex justify-end opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover/vnbox:opacity-100 sm:right-6">
-          <div className="vn-glass pointer-events-auto flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-0.5 rounded-full px-1.5 py-1">{utilities}</div>
-        </div>
-      )}
-
       {/* Whose box it is reads off the nameplate — avatar and name in read state, the persona in
           accent with a pen glyph in write state. Write state adds a soft accent ring around the
           whole frame, the ordinary "this field is live" signal, instead of a coloured bar down one
@@ -112,7 +102,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
         }`}
       >
 
-        {(writing || !narration) && <div className="flex items-center gap-2.5 px-4 pb-1 pt-3 sm:px-6">
+        {(writing || !narration || utilities) && <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 pb-1 pt-3 sm:px-6">
           {writing ? (
             <>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-accent">
@@ -125,7 +115,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
             </>
           ) : (
             <>
-              {speakerAvatarUrl ? (
+              {narration ? null : speakerAvatarUrl ? (
                 <img src={speakerAvatarUrl} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20" />
               ) : (
                 <span
@@ -135,9 +125,19 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
                   {initials}
                 </span>
               )}
-              <span className="min-w-0 truncate font-display text-[15px] font-semibold leading-none" style={{ color: plate.name }}>
-                {speakerName}
-              </span>
+              {!narration && (
+                <span className="min-w-0 truncate font-display text-[15px] font-semibold leading-none" style={{ color: plate.name }}>
+                  {speakerName}
+                </span>
+              )}
+              {/* Line navigation and per-line controls share the nameplate's row, inside the frame:
+                  floating above it, they covered whatever sat there (quick replies, the art). Dim at
+                  rest; full opacity on hover or keyboard focus. */}
+              {utilities && (
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-0.5 opacity-60 transition-opacity duration-200 focus-within:opacity-100 group-hover/vnbox:opacity-100">
+                  {utilities}
+                </div>
+              )}
             </>
           )}
         </div>}
@@ -145,7 +145,7 @@ export const VNDialogueBox = forwardRef<HTMLDivElement, VNDialogueBoxProps>(func
         {/* The fixed frame. Write state takes the footer strip's height too (its own control row
             sits there instead), so the outer box is the same size either way — see `.vn-box` in
             globals.css. Nothing below this ever shifts. */}
-        <div className={`px-4 sm:px-6 ${writing ? 'vn-box-body-write' : 'vn-box-body'} ${narration && !writing ? 'pt-3' : ''}`}>
+        <div className={`px-4 sm:px-6 ${writing ? 'vn-box-body-write' : 'vn-box-body'} ${narration && !writing && !utilities ? 'pt-3' : ''}`}>
           {writing ? (
             <div ref={writeAreaRef} className="h-full pb-2 pt-1">
               {composer}

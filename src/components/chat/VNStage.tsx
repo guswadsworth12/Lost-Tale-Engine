@@ -83,6 +83,7 @@ import {
   applyLayout,
   captureLayout,
   figureLayer,
+  figureWidthCaps,
   phoneFocusId,
   pinCue,
   resolveStage,
@@ -616,6 +617,7 @@ export function VNStage({
     })),
     ...castMembers.map((member, index) => ({ member, figure: stage.figures[index], phase: enteringIds.has(member.id) ? 'entering' as const : undefined })),
   ]
+  const widthCaps = figureWidthCaps(stage.figures)
   const layouts = world?.stageLayouts ?? []
   const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null)
   const selectedFigure = stage.figures.find((figure) => figure.id === selectedFigureId) ?? stage.figures[0]
@@ -919,21 +921,33 @@ export function VNStage({
   // Start each speaker at the beginning. The reader controls scrolling through a long line;
   // following every typed character used to push the first sentences out of view too quickly.
   const dialogueBoxRef = useRef<HTMLDivElement>(null)
-  // How far the dialogue box reaches up the screen, for a phone to stand the speaker above it.
-  const phoneFrameRef = useRef<HTMLDivElement>(null)
+  // What stands in front of the stage, measured, so the cast is framed clear of it rather than
+  // behind it: the HUD card (and on a phone the rail button) above, and below the dialogue box with
+  // everything stacked on it, or the arranging bar.
+  const stageFrameRef = useRef<HTMLDivElement>(null)
+  const hudCardRef = useRef<HTMLDivElement>(null)
+  const dialogueStackRef = useRef<HTMLDivElement>(null)
   const dialogueWrapRef = useRef<HTMLDivElement>(null)
-  const [phoneClear, setPhoneClear] = useState<number | null>(null)
+  const arrangeBarRef = useRef<HTMLDivElement>(null)
+  const [stageClear, setStageClear] = useState<{ top: number; bottom: number } | null>(null)
   useEffect(() => {
-    const frame = phoneFrameRef.current
-    const box = dialogueWrapRef.current
-    if (!frame || !box || typeof ResizeObserver === 'undefined') return
-    const measure = () => setPhoneClear(Math.max(0, Math.round(frame.getBoundingClientRect().bottom - box.getBoundingClientRect().top)))
+    const frame = stageFrameRef.current
+    if (!frame || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const area = frame.getBoundingClientRect()
+      const phone = !window.matchMedia('(min-width: 768px)').matches
+      const above = [hudCardRef.current, phone && !sideExpanded ? sideRailRef.current : null].flatMap((el) => (el ? [el.getBoundingClientRect().bottom] : []))
+      const below = [dialogueStackRef.current, dialogueWrapRef.current, arrangeBarRef.current].flatMap((el) => (el ? [el.getBoundingClientRect().top] : []))
+      setStageClear({
+        top: above.length ? Math.max(0, Math.round(Math.max(...above) - area.top + 8)) : 0,
+        bottom: below.length ? Math.max(0, Math.round(area.bottom - Math.min(...below))) : 0,
+      })
+    }
     measure()
     const observer = new ResizeObserver(measure)
-    observer.observe(frame)
-    observer.observe(box)
+    for (const el of [frame, hudCardRef.current, dialogueStackRef.current, dialogueWrapRef.current, arrangeBarRef.current, sideRailRef.current]) if (el) observer.observe(el)
     return () => observer.disconnect()
-  }, [showLog, hideUI, arrangingStage, chat.id])
+  }, [showLog, hideUI, arrangingStage, sideExpanded, chat.id])
   useEffect(() => {
     dialogueBoxRef.current?.scrollTo({ top: 0 })
   }, [lastCharMsg?.id, activeSwipe])
@@ -1185,7 +1199,7 @@ export function VNStage({
       {!hideUI && (
       <>
       <div className="absolute inset-x-3 top-3 z-20 sm:inset-x-4 sm:top-4">
-        <div className="vn-glass min-w-0 max-w-[calc(100%-4rem)] overflow-hidden rounded-2xl text-white sm:max-w-[58%]">
+        <div ref={hudCardRef} className="vn-glass min-w-0 max-w-[calc(100%-4rem)] overflow-hidden rounded-2xl text-white sm:max-w-[58%]">
           {(personaName || chat.mode || parentChatLink) && (
             <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-2 text-[11px] text-white/70">
               {personaName && <span className="truncate">as {personaName}</span>}
@@ -1433,32 +1447,16 @@ export function VNStage({
           {/* The background stays visible behind a staggered cast: speaker in front, companions
               farther into the scene. Phones frame only the person whose line is being read. */}
           <div
-            // On a phone the sprite is width-bound long before it is height-bound, so standing it on
-            // the stage floor left almost all of it behind the dialogue box. There it stands on the
-            // box's top edge instead (measured, so a taller box never covers a face); from `sm` up it
-            // goes back to the floor (and a little below it).
-            ref={phoneFrameRef}
-            style={phoneClear ? { '--vn-phone-clear': `${phoneClear}px` } as CSSProperties : undefined}
-            className={`absolute inset-x-0 bottom-0 top-0 z-0 flex items-end justify-center px-4 pb-[var(--vn-phone-clear,24vh)] sm:-bottom-[4%] sm:px-6 sm:pb-0 ${
-              // Extra top padding for group scenes so the outer figure clears the HUD card.
-              isGroupScene ? 'pt-10 sm:pt-16 md:pt-20' : 'pt-2 sm:pt-4 md:pt-6'
-            }`}
+            // The cast is framed below the HUD card and, from `md` up, clear of the rail. On a phone
+            // the one figure stands on top of the dialogue box and whatever is stacked on it (the
+            // sprite is width-bound long before it is height-bound, so on the floor it would sit
+            // almost entirely behind the box). From `md` up the floor runs to the bottom edge (and a
+            // little below it), behind the box, except while arranging, when the bar sits there.
+            ref={stageFrameRef}
+            style={{ '--vn-clear-top': `${stageClear?.top ?? 40}px`, '--vn-clear-bottom': stageClear ? `${stageClear.bottom}px` : '24vh' } as CSSProperties}
+            className={`absolute inset-x-0 bottom-0 top-0 z-0 flex items-end justify-center px-4 pb-[var(--vn-clear-bottom)] pt-[var(--vn-clear-top)] sm:px-6 md:px-16 ${
+              arrangingStage ? '' : 'md:-bottom-[4%] md:pb-0'}`}
           >
-            {!triggeredCgEntry && artHint && character && (
-              <div className="absolute inset-x-0 top-[26%] z-20 flex justify-center px-6">
-                <div className="relative max-w-sm rounded-2xl border border-dashed border-white/25 bg-black/45 px-5 py-4 text-center text-[12px] leading-relaxed text-white/80 backdrop-blur-sm">
-                  <button
-                    type="button"
-                    onClick={() => dismissVnArtHint(character.id)}
-                    aria-label="Dismiss VN setup hint"
-                    className="absolute right-1.5 top-1.5 text-white/45 transition-colors hover:text-white/90"
-                  >
-                    <X size={13} strokeWidth={2} />
-                  </button>
-                  <p className="pr-3">{artHint}</p>
-                </div>
-              </div>
-            )}
             {/* Skipped while a CG is showing full-bleed; sprites over unrelated CG art look wrong. */}
             {!triggeredCgEntry && (
             <div ref={stageRootRef} className="relative mx-auto h-full w-full md:w-[var(--stage-area-width)] md:max-w-[1400px]"
@@ -1472,6 +1470,10 @@ export function VNStage({
               )}
               {stagedFigures.filter(({ phase }) => !arrangingStage || phase !== 'exiting').map(({ member, figure, phase }) => {
                 const box = stagePointStyle(figure.point, stage.depth)
+                // A larger size cue never lifts a head past the top of the stage (under the HUD).
+                const size = Math.min(figure.scale, (100 - box.bottom) / box.height)
+                // Never wider than the gap to the nearest neighbour, so side by side nobody covers anybody.
+                const width = Math.min(box.width * size, widthCaps[member.id] ?? 100)
                 const figureDepth: StageDepth = member.isActive ? 'foreground' : figure.point.depth >= 0.5 ? 'midground' : 'background'
                 const draggable = arrangingStage && phase !== 'exiting'
                 const endDrag = () => {
@@ -1517,10 +1519,10 @@ export function VNStage({
                     : 'hidden md:block'}`}
                   style={{
                     '--stage-x': `${box.x}%`,
-                    '--stage-width': `${box.width * figure.scale}%`,
-                    '--stage-height': `${box.height * figure.scale}%`,
+                    '--stage-width': `${width}%`,
+                    '--stage-height': `${box.height * size}%`,
                     '--stage-bottom': `${box.bottom}%`,
-                    maxWidth: Math.round((figureDepth === 'foreground' ? 620 : figureDepth === 'midground' ? 420 : 360) * figure.scale),
+                    maxWidth: Math.round((figureDepth === 'foreground' ? 620 : figureDepth === 'midground' ? 420 : 360) * size),
                     zIndex: figureLayer(figure),
                   } as CSSProperties}
                 >
@@ -1545,7 +1547,7 @@ export function VNStage({
           </div>
 
           {arrangingStage && (
-            <div className="relative z-30 mx-4 mb-4 mt-auto flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/40 bg-black/80 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md md:mx-auto md:max-w-2xl">
+            <div ref={arrangeBarRef} className="relative z-30 mx-4 mb-4 mt-auto flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/40 bg-black/80 px-4 py-3 text-xs text-white shadow-xl backdrop-blur-md md:mx-auto md:max-w-2xl">
               <Move size={17} className="shrink-0 text-teal-200" />
               <span className="min-w-0 flex-1">Drag a character within the outlined floor. Arrow keys move a focused character.</span>
               <button type="button" onClick={automaticStage} className="rounded-lg px-2 py-1.5 text-white/75 hover:bg-white/10 hover:text-white">Automatic</button>
@@ -1582,8 +1584,21 @@ export function VNStage({
           {/* Everything that isn't dialogue floats above the box instead of stacking inside it.
               That separation is what lets the box hold one fixed height while choices, quick
               replies and the assist strip come and go underneath the scene's own composition. */}
-          <div className="vn-stack relative z-10 mt-auto pb-2">
+          <div ref={dialogueStackRef} className="vn-stack relative z-10 mt-auto pb-2">
             <div className="flex flex-col gap-2">
+              {!triggeredCgEntry && artHint && character && (
+                <div className="relative w-fit max-w-full rounded-2xl border border-dashed border-white/25 bg-black/45 py-2 pl-3.5 pr-8 text-[12px] leading-relaxed text-white/80 backdrop-blur-sm">
+                  <p>{artHint}</p>
+                  <button
+                    type="button"
+                    onClick={() => dismissVnArtHint(character.id)}
+                    aria-label="Dismiss VN setup hint"
+                    className="absolute right-2 top-2 text-white/45 transition-colors hover:text-white/90"
+                  >
+                    <X size={13} strokeWidth={2} />
+                  </button>
+                </div>
+              )}
               {locationCaption && (
                 // Only ever shown over a placeholder gradient — real art says where it is by itself.
                 <span className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">{locationCaption}</span>

@@ -355,6 +355,13 @@ select:focus-visible,
     padding-inline: 1.25rem;
   }
 }
+/* From `md` up the Visual Novel rail stands at the right edge; the dialogue area keeps clear of it
+   (on both sides, so it stays centered). */
+@media (min-width: 768px) {
+  .vn-stack {
+    padding-inline: 4rem;
+  }
+}
 
 /*
   The dialogue box's read <-> write swap. Same frame, same height; only the nameplate identity, a
