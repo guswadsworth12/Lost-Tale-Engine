@@ -10,6 +10,8 @@ import type { WorldCard } from '@/lib/types'
 import { ViewShell } from '@/components/ui/ViewShell'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { StoryMoments } from './StoryMoments'
 import { ALL_PLAYER_CHARACTERS, cgProgress, lockedCgLabel, playerCharacterOptions, viewableCgs, type CharacterCgProgress } from './cgProgress'
 
 const readable = (id: string) => id.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -19,6 +21,8 @@ interface GalleryViewProps {
   onOpenCharacter?: (characterId: string, tab?: string) => void
   /** Opens a world's editor, optionally on a tab (e.g. 'presentation', where its music is edited). Links are hidden when unset. */
   onOpenWorld?: (worldId: string, tab?: string) => void
+  /** Opens a story moment's scene at the message it pictures. */
+  onOpenMoment?: (chatId: string, messageId?: string) => void
 }
 
 /**
@@ -26,7 +30,8 @@ interface GalleryViewProps {
  * progress, and each world's soundtrack to listen to outside a scene. Portraits, sprites, and
  * backgrounds deliberately aren't repeated here; they live (and are edited) in Cast and Worlds.
  */
-export function GalleryView({ onOpenCharacter, onOpenWorld }: GalleryViewProps = {}) {
+export function GalleryView({ onOpenCharacter, onOpenWorld, onOpenMoment }: GalleryViewProps = {}) {
+  const [tab, setTab] = useState<'moments' | 'cgs'>('moments')
   const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   const chats = useApiQuery('chats', () => chatsApi.list(), []) ?? []
@@ -47,10 +52,15 @@ export function GalleryView({ onOpenCharacter, onOpenWorld }: GalleryViewProps =
     <ViewShell
       title="Media"
       width="wide"
-      description="Story CGs you've unlocked, and how to earn the rest, plus each world's soundtrack to listen to outside a scene."
+      description="Pictures of what happened in your stories, story CGs you've unlocked and how to earn the rest, plus each world's soundtrack to listen to outside a scene."
     >
       <div className="space-y-10">
-        <section aria-labelledby="media-cgs">
+        <div className="flex gap-2" role="tablist" aria-label="Gallery">
+          <Button role="tab" aria-selected={tab === 'moments'} variant={tab === 'moments' ? 'primary' : 'secondary'} onClick={() => setTab('moments')}>Story moments</Button>
+          <Button role="tab" aria-selected={tab === 'cgs'} variant={tab === 'cgs' ? 'primary' : 'secondary'} onClick={() => setTab('cgs')}>Character CGs</Button>
+        </div>
+        {tab === 'moments' && <StoryMoments onOpenMoment={onOpenMoment} />}
+        {tab === 'cgs' && <section aria-labelledby="media-cgs">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
               <h3 id="media-cgs" className="font-display text-lg text-text">Story CGs</h3>
@@ -98,7 +108,7 @@ export function GalleryView({ onOpenCharacter, onOpenWorld }: GalleryViewProps =
               character's world has dating on), then unlock them by playing their stories.
             </EmptyState>
           )}
-        </section>
+        </section>}
 
         <Soundtrack worlds={worlds} onEdit={onOpenWorld && ((worldId) => onOpenWorld(worldId, 'presentation'))} />
 

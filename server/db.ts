@@ -159,6 +159,16 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
+  -- Pictures of things that happened in a story (\`server/moments.ts\`), each from one scene.
+  CREATE TABLE IF NOT EXISTS story_moments (
+    id TEXT PRIMARY KEY,
+    storyId TEXT NOT NULL,
+    chatId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_story_moments_storyId ON story_moments(storyId, createdAt);
+
   -- Accounts (\`server/auth.ts\`). Security state, never part of a backup or a restore.
   -- usernameKey / emailKey are the lowercased username and (optional) email, so both are unique
   -- regardless of case; the display spellings ride in the JSON blob.
@@ -325,6 +335,7 @@ export const objectiveStore = createStore('objectives', [
 export const relationshipEventStore = createStore('relationship_events', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
+export const storyMomentStore = createStore('story_moments', [{ name: 'storyId' }, { name: 'chatId' }, { name: 'createdAt' }])
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
 // Accounts: security state, deliberately left out of BACKUP_STORES in app.ts.
 export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 'emailKey' }, { name: 'createdAt' }])

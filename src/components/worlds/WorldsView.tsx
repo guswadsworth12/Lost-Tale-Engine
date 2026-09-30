@@ -394,6 +394,7 @@ function WorldEditor({
   const [name, setName] = useState(base.name)
   const [selectedCampaignPreset, setSelectedCampaignPreset] = useState('')
   const [description, setDescription] = useState(base.description)
+  const [artStyle, setArtStyle] = useState(base.artStyle ?? '')
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
   const [visibility, setVisibility] = useState<Visibility>(base.visibility ?? 'shared')
@@ -461,6 +462,7 @@ function WorldEditor({
     const payload = {
       name,
       description,
+      artStyle,
       rules,
       gmNotes,
       campaign,
@@ -793,6 +795,13 @@ function WorldEditor({
             rows={5}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+          />
+          <TextField
+            label="Art style"
+            hint="How generated pictures of this world look, e.g. watercolor, muted colors. Added to image prompts."
+            value={artStyle}
+            maxLength={300}
+            onChange={(e) => setArtStyle(e.target.value)}
           />
           <TextAreaField
             label="Rules"

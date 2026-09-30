@@ -7,6 +7,7 @@ import {
   characterStore,
   chatFactStore,
   storyStore,
+  storyMomentStore,
   chatStore,
   db,
   assistantThreadStore,
@@ -32,6 +33,7 @@ import { authGate, authRouter, requireOwner } from './auth.ts'
 import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
 import { storiesRouter } from './stories.ts'
+import { momentsRouter } from './moments.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
@@ -78,6 +80,7 @@ app.use(meRouter)
 app.use(packsRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
+app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
 app.use('/avatars', express.static(avatarsDir))
 
@@ -1470,6 +1473,7 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     canonFacts: normalizeCanonFacts(body.canonFacts),
     description: body.description,
     rules: body.rules,
+    artStyle: typeof body.artStyle === 'string' ? body.artStyle.trim().slice(0, 300) || undefined : undefined,
     gmNotes: typeof body.gmNotes === 'string' ? body.gmNotes.slice(0, 100_000) : undefined,
     template: body.template ?? undefined,
     scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(body.scenerySet) ? body.scenerySet : undefined,
@@ -1523,6 +1527,7 @@ app.put('/api/worlds/:id', (req, res) => {
   if (rulesError) return res.status(400).json({ error: rulesError })
   const { ownerUserId: _o, visibility: _v, ...body } = req.body
   const patch: Record<string, unknown> = { ...body, ...ownership, updatedAt: Date.now() }
+  if ('artStyle' in req.body) patch.artStyle = typeof req.body.artStyle === 'string' ? req.body.artStyle.trim().slice(0, 300) || undefined : undefined
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
@@ -1653,6 +1658,7 @@ const BACKUP_STORES = {
   chatFacts: chatFactStore,
   memories: memoryStore,
   stories: storyStore,
+  storyMoments: storyMomentStore,
 } as const
 
 function listAvatarFiles(): { relPath: string; base64: string }[] {

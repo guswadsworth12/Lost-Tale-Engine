@@ -149,6 +149,8 @@ interface SettingsState {
   reducedAudio: boolean
   /** Style standalone comic sound words ("BOOM!", "knock knock") as manga-style bursts in messages. */
   sfxBursts: boolean
+  /** "Picture this" improves its drafted image prompt with the story model as it opens. */
+  autoImprovePicturePrompt: boolean
   /** Extra sound-effect words applied to every character, comma/newline separated. */
   sfxWords: string
   setSfxWords: (v: string) => void
@@ -194,7 +196,8 @@ interface SettingsState {
       | 'showGenerationHud'
       | 'tagsAsFolders'
       | 'clickToEdit'
-      | 'visionSceneDetection',
+      | 'visionSceneDetection'
+      | 'autoImprovePicturePrompt',
   ) => void
 
   // generation
@@ -413,6 +416,7 @@ export const useSettingsStore = create<SettingsState>()(
       reducedMotion: false,
       reducedAudio: false,
       sfxBursts: true,
+      autoImprovePicturePrompt: false,
       sfxWords: '',
       setSfxWords: (v) => set({ sfxWords: v }),
       bgmVolume: 0,

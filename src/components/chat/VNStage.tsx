@@ -94,6 +94,7 @@ import {
   type StageLayout,
   type StageTransition,
 } from '@/lib/vn/stageDirection'
+import type { StoryMoment } from '@/lib/story/moments'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
 import type { ChatToolbarAction } from './ChatToolbar'
 
@@ -331,6 +332,13 @@ interface VNStageProps {
   onStageChange?: (stage: SceneStage | null) => void
   /** Changes the world's saved stage layouts, applied to its freshest copy. */
   onStageLayoutsChange?: (change: (layouts: StageLayout[]) => StageLayout[]) => Promise<void>
+  /** "Picture this" for a line in the backlog. */
+  onPicture?: (messageId: string) => void
+  /** Story moments by the message they picture, shown in the backlog. */
+  momentsByMessage?: Map<string, StoryMoment[]>
+  /** A story moment shown full-bleed on the stage until dismissed. */
+  stageMoment?: StoryMoment | null
+  onShowMoment?: (moment: StoryMoment | null) => void
 }
 
 export function VNStage({
@@ -370,6 +378,10 @@ export function VNStage({
   onOpenScenery,
   onStageChange,
   onStageLayoutsChange,
+  onPicture,
+  momentsByMessage,
+  stageMoment,
+  onShowMoment,
 }: VNStageProps) {
   const [showLog, setShowLog] = useState(false)
   // Universal VN convention: hides everything but the background/sprites/CG, restored by clicking
@@ -1184,6 +1196,14 @@ export function VNStage({
           className="vn-cg-reveal absolute inset-0 h-full w-full object-cover"
         />
       )}
+      {stageMoment && (
+        // A story moment, over everything until dismissed: the picture is the scene for now.
+        <button type="button" onClick={(event) => { event.stopPropagation(); onShowMoment?.(null) }} aria-label="Close the picture"
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black">
+          <img key={stageMoment.id} src={stageMoment.imageUrl} alt={stageMoment.caption || 'Story moment'} className="vn-cg-reveal max-h-full w-full flex-1 object-contain" />
+          {stageMoment.caption && <span className="absolute inset-x-0 bottom-6 mx-auto w-fit max-w-[90%] rounded-full bg-black/60 px-4 py-1.5 text-sm text-white">{stageMoment.caption}</span>}
+        </button>
+      )}
       {/* Lighter than it used to be: the dialogue box now carries its own glass backdrop, so the
           page-wide scrim only has to keep the top HUD legible and give the box's blur something to
           sit on. Any more and the art stops being the subject. */}
@@ -1439,6 +1459,9 @@ export function VNStage({
             onSwipe={onSwipe}
             onFork={onFork}
             onTogglePin={onTogglePin}
+            onPicture={onPicture}
+            momentsByMessage={momentsByMessage}
+            onShowMoment={onShowMoment ? (moment) => { setShowLog(false); onShowMoment(moment) } : undefined}
           />
           </div>
         </div>

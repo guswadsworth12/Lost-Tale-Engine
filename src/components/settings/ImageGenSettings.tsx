@@ -33,6 +33,8 @@ export function ImageGenSettings() {
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
   const imageBackendQuality = useSettingsStore((s) => s.imageBackendQuality)
   const [geminiModels, setGeminiModels] = useState<string[] | null>(null)
+  const autoImprovePicturePrompt = useSettingsStore((s) => s.autoImprovePicturePrompt)
+  const toggleFlag = useSettingsStore((s) => s.toggleFlag)
   const setImageBackendConfig = changeImageBackendConfig
 
   const { models, loading, reload } = useOpenMayhemModels('IMAGES', imageBackend === 'openmayhem')
@@ -197,6 +199,14 @@ export function ImageGenSettings() {
             ? 'Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches the key and forwards requests to NovelAI.'
             : 'Requests pass through your Lost Tales Engine server to the server URL above; it attaches the saved password, if any.'}
         </p>
+      </Section>
+      <Section title="Picture this" description="Pictures of what happened in a story, made from a scene and kept in the Gallery." surface="bare">
+        <label className="flex items-start gap-2 text-sm text-text">
+          <input type="checkbox" className="mt-1" checked={autoImprovePicturePrompt} onChange={() => toggleFlag('autoImprovePicturePrompt')} />
+          <span>Improve each drafted prompt with the story model as it opens
+            <span className="block text-xs text-text-muted">One chat call per picture. Off: the prompt is drafted from the scene for free, and "Improve" is a button.</span>
+          </span>
+        </label>
       </Section>
     </SettingsPage>
   )

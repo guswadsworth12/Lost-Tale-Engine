@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { StoryMoment } from '@/lib/story/moments'
 import type { StoredMessage } from '@/lib/types'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Persona } from '@/lib/types'
@@ -30,6 +31,11 @@ interface MessageLogProps {
   onSwipe: (id: string, dir: 'left' | 'right') => void
   onFork: (id: string) => void
   onTogglePin: (id: string) => void
+  /** "Picture this" for a message. */
+  onPicture?: (id: string) => void
+  /** Story moments by the message they picture. */
+  momentsByMessage?: Map<string, StoryMoment[]>
+  onShowMoment?: (moment: StoryMoment) => void
 }
 
 /** The classic scrolling transcript — shared by the default chat view and the VN mode backlog drawer. */
@@ -49,6 +55,9 @@ export function MessageLog({
   onSwipe,
   onFork,
   onTogglePin,
+  onPicture,
+  momentsByMessage,
+  onShowMoment,
 }: MessageLogProps) {
   const sfxEnabled = useSettingsStore((s) => s.sfxBursts)
   const sfxWords = useSettingsStore((s) => s.sfxWords)
@@ -122,6 +131,9 @@ export function MessageLog({
           onSwipe={onSwipe}
           onFork={onFork}
           onTogglePin={onTogglePin}
+          onPicture={onPicture}
+          moments={momentsByMessage?.get(m.id)}
+          onShowMoment={onShowMoment}
         />
       ))}
       {messages.length === 0 && (

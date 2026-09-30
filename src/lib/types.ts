@@ -694,6 +694,8 @@ export interface WorldCard {
   description: string
   /** Hard constraints (magic system, tech level, taboos) the model should never contradict. */
   rules?: string
+  /** How generated pictures of this world look ("watercolor, muted colors"), added to image prompts. */
+  artStyle?: string
   lorebook: Lorebook
   avatarDataUrl?: string
   /** Scene art keyed by background id (`src/lib/vn/backgrounds.ts`) — falls back to a placeholder gradient when missing. */

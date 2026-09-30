@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Menu,
@@ -12,6 +12,7 @@ import {
   Dices,
   GitFork,
   Heart,
+  ImagePlus,
   MessageCircle,
   NotebookPen,
   MapPin,
@@ -28,7 +29,12 @@ import {
 import { useChatSession } from '@/lib/hooks/useChatSession'
 import { BrandWordmark } from '@/components/ui/BrandMark'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatsApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, chatsApi, momentsApi, worldsApi } from '@/lib/api/client'
+import { generateWithTimeout } from '@/lib/api/generateWithTimeout'
+import { takeMessageJump } from '@/lib/scrollToMessage'
+import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { buildImprovePromptRequest, type MomentKind, type StoryMoment } from '@/lib/story/moments'
+import { PictureThisDialog } from '@/components/story/PictureThisDialog'
 import { IconButton } from '@/components/ui/IconButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { scrollToMessage } from '@/lib/scrollToMessage'
@@ -202,6 +208,20 @@ export function ChatWindow({
   } = session
 
   const globalVisualNovelMode = useSettingsStore((s) => s.visualNovelMode)
+  // Story moments (`story/moments.ts`): pictures made from this scene, shown by the line they picture.
+  const allMoments = useApiQuery('moments', () => momentsApi.list(), []) ?? []
+  const momentsByMessage = useMemo(() => {
+    const map = new Map<string, StoryMoment[]>()
+    for (const m of allMoments) if (m.chatId === chat?.id && m.messageId) map.set(m.messageId, [...(map.get(m.messageId) ?? []), m])
+    return map
+  }, [allMoments, chat?.id])
+  const [picturing, setPicturing] = useState<{ messageId?: string } | null>(null)
+  const [stageMoment, setStageMoment] = useState<StoryMoment | null>(null)
+  const autoImprovePicture = useSettingsStore((s) => s.autoImprovePicturePrompt)
+  const storyModel = useChatBackendClient()
+  const improvePicturePrompt = async (prompt: string, kind: MomentKind) => (await generateWithTimeout(storyModel, {
+    prompt: buildImprovePromptRequest(prompt, kind), max_length: 400, max_context_length: await storyModel.getEffectiveMaxContext(4096), temperature: 0.7, top_p: 0.95, rep_pen: 1.05,
+  }, 'Improve picture prompt')).trim()
   const vnInputMode = useSettingsStore((s) => s.vnInputMode)
   const autoTrackRelationship = useSettingsStore((s) => s.autoTrackRelationship)
   const quickReplies = useSettingsStore((s) => s.quickReplies)
@@ -327,6 +347,14 @@ export function ChatWindow({
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current)
     highlightTimeoutRef.current = setTimeout(() => setHighlightedId(null), 2200)
   }
+
+  // A jump from the Gallery's story moments, once the message it pictures has loaded.
+  useEffect(() => {
+    if (!chat?.id) return
+    const target = takeMessageJump(chat.id, (id) => messages.some((m) => m.id === id))
+    if (target) jumpToMessage(target)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?.id, messages.length])
 
   const jumpToChat = (otherChatId: string) => {
     setShowSearch(false)
@@ -603,6 +631,7 @@ export function ChatWindow({
       onClick: () => setShowPinned(true),
     },
     { key: 'search', icon: Search, label: 'Search messages', onClick: () => setShowSearch(true) },
+    { key: 'picture', icon: ImagePlus, label: 'Picture this', onClick: () => setPicturing({}) },
     { key: 'bag', icon: Backpack, label: 'Bag: give a gift you own', onClick: () => setShowBag(true) },
     { key: 'inspector', icon: ScrollText, label: 'Inspect prompt & memory', onClick: () => setShowInspector(true) },
     {
@@ -1108,6 +1137,19 @@ export function ChatWindow({
           }}>{savingWorldFact ? 'Saving…' : 'Record fact'}</Button>
         </Modal>
       )}
+      {picturing && (
+        <PictureThisDialog
+          chat={chat}
+          world={world}
+          cast={[character, ...participantCharacters].filter((c): c is NonNullable<typeof c> => !!c)}
+          message={picturing.messageId ? messages.find((m) => m.id === picturing.messageId) : [...messages].reverse().find((m) => !m.failed && m.text.trim())}
+          location={sceneSetting.location}
+          timeOfDay={chat.scene?.timePhase ?? (world ? PHASES[world.currentPhaseIndex ?? 0] : undefined)}
+          improve={improvePicturePrompt}
+          autoImprove={autoImprovePicture}
+          onClose={() => setPicturing(null)}
+        />
+      )}
       {showSearch && (
         <SearchPanel
           chatId={chat.id}
@@ -1204,6 +1246,10 @@ export function ChatWindow({
           onStageChange: (stage) => {
             chatsApi.update(chat.id, { stage: stage ?? null }).catch((error) => toastError(errorMessage(error)))
           },
+          onPicture: (id) => setPicturing({ messageId: id }),
+          momentsByMessage,
+          stageMoment,
+          onShowMoment: setStageMoment,
           onStageLayoutsChange: world ? async (change) => {
             try {
               // From the freshest copy, so another scene's save in the meantime isn't lost.
@@ -1220,7 +1266,7 @@ export function ChatWindow({
             { key: 'story', icon: BookOpen, label: 'Story panel', onClick: () => openStoryTab('scene') },
             { key: 'transcript', icon: Drama, label: 'Switch to transcript view', onClick: toggleVnForChat },
             { key: 'search', icon: Search, label: 'Search story', onClick: () => setShowSearch(true) },
-            ...toolbarActions.filter((action) => ['tuning', 'inspector', 'director', 'export'].includes(action.key)),
+            ...toolbarActions.filter((action) => ['picture', 'tuning', 'inspector', 'director', 'export'].includes(action.key)),
           ],
           contextMeter,
           onBack,
@@ -1267,6 +1313,8 @@ export function ChatWindow({
                 onSwipe: swipe,
                 onFork: forkChat,
                 onTogglePin: togglePinMessage,
+                onPicture: (id) => setPicturing({ messageId: id }),
+                momentsByMessage,
           },
           portrait: liveDateActive && character ? <ReactivePortrait spriteUrl={reactivePortraitUrl} alt={character.card.name} /> : undefined,
           choices: choiceListNode('default') || quickReplyNode('default'),
