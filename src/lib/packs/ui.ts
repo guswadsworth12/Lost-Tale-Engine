@@ -32,7 +32,7 @@ export interface ExportRow {
 
 export const EXPORT_ROWS: ExportRow[] = [
   { key: 'lore', label: 'Lore', hint: "The world's lorebook and world-info books bound to it or its cast." },
-  { key: 'worldContent', label: 'Prompts, scenarios, triggers, gifts, and items' },
+  { key: 'worldContent', label: 'Prompts, scenarios, triggers, gifts, items, and stage layouts' },
   { key: 'cast', label: 'Cast', hint: 'Non-player characters, as templates.' },
   { key: 'media:portraits', label: 'Portraits' },
   { key: 'media:sprites', label: 'Sprites and outfits' },

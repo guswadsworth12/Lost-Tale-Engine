@@ -22,7 +22,7 @@ export const PACK_EXTENSION = '.ltpack'
 export interface PackSelection {
   /** The world's lorebook and the world-info books bound to the world or its cast. */
   lore: boolean
-  /** Prompt items, scenarios, triggers, gifts and items, scene flags, custom intimacy options. */
+  /** Prompt items, scenarios, triggers, gifts and items, scene flags, custom intimacy options, stage layouts. */
   worldContent: boolean
   /** Non-player cast cards, as templates. */
   cast: boolean
