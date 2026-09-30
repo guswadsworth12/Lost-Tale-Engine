@@ -11,6 +11,8 @@ export interface DiffPart {
 
 /** Past this many token pairs, the middle is shown as one removal and one addition. */
 const MAX_CELLS = 2_000_000
+/** Below this share of the changed stretch kept, it reads as a rewrite: one removal, one addition. */
+const REWRITE_BELOW = 0.35
 
 function diffTokens(a: string[], b: string[]): DiffPart[] {
   let start = 0
@@ -28,10 +30,8 @@ function diffTokens(a: string[], b: string[]): DiffPart[] {
     else parts.push({ type, text })
   }
   push('same', a.slice(0, start).join(''))
-  if (midA.length * midB.length > MAX_CELLS) {
-    push('removed', midA.join(''))
-    push('added', midB.join(''))
-  } else {
+  const middle: DiffPart[] = []
+  if (midA.length * midB.length <= MAX_CELLS) {
     // Longest common subsequence, then walk it.
     const n = midA.length
     const m = midB.length
@@ -42,13 +42,20 @@ function diffTokens(a: string[], b: string[]): DiffPart[] {
     let i = 0
     let j = 0
     while (i < n && j < m) {
-      if (midA[i] === midB[j]) { push('same', midA[i]); i++; j++ }
-      else if (lcs[i + 1][j] >= lcs[i][j + 1]) { push('removed', midA[i]); i++ }
-      else { push('added', midB[j]); j++ }
+      if (midA[i] === midB[j]) { middle.push({ type: 'same', text: midA[i] }); i++; j++ }
+      else if (lcs[i + 1][j] >= lcs[i][j + 1]) { middle.push({ type: 'removed', text: midA[i] }); i++ }
+      else { middle.push({ type: 'added', text: midB[j] }); j++ }
     }
-    while (i < n) push('removed', midA[i++])
-    while (j < m) push('added', midB[j++])
+    while (i < n) middle.push({ type: 'removed', text: midA[i++] })
+    while (j < m) middle.push({ type: 'added', text: midB[j++] })
   }
+  // A few shared words scattered through a rewrite make a diff harder to read than none.
+  const kept = middle.filter((p) => p.type === 'same').reduce((sum, p) => sum + p.text.length, 0)
+  const longest = Math.max(midA.join('').length, midB.join('').length)
+  if (!middle.length || (longest && kept / longest < REWRITE_BELOW)) {
+    push('removed', midA.join(''))
+    push('added', midB.join(''))
+  } else for (const part of middle) push(part.type, part.text)
   push('same', a.slice(endA).join(''))
   return parts
 }

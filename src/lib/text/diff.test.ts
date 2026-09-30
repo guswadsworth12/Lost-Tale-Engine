@@ -27,6 +27,14 @@ describe('text diff', () => {
     expect(diffLines(before, after).filter((p) => p.type !== 'same').map((p) => p.text)).toEqual(['Line two\n', 'Line 2\n', 'Line four'])
   })
 
+  it('shows a rewrite as one removal and one addition', () => {
+    const parts = diffWords('Skip small talk, greetings, and narration flavour.', 'Record only promises, debts, and secrets learned.')
+    expect(parts).toEqual([
+      { type: 'removed', text: 'Skip small talk, greetings, and narration flavour.' },
+      { type: 'added', text: 'Record only promises, debts, and secrets learned.' },
+    ])
+  })
+
   it('says when nothing changed', () => {
     expect(hasChanges(diffWords('same text', 'same text'))).toBe(false)
     expect(hasChanges(diffWords('', 'new'))).toBe(true)

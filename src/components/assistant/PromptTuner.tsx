@@ -43,6 +43,7 @@ function PromptPreview({ before, after, sampleNote, onClose }: { before: string;
   const parts = useMemo(() => diffLines(before, after), [before, after])
   return (
     <Modal onClose={onClose} title="Prompt inspector: sample turn" size="2xl" scrollable>
+      <div className="flex-1 overflow-y-auto">
       <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-text-muted">
         <span><strong className="text-text">{estimateTokens(before)}</strong> tok before</span>
         <span><strong className="text-text">{estimateTokens(after)}</strong> tok after</span>
@@ -55,6 +56,7 @@ function PromptPreview({ before, after, sampleNote, onClose }: { before: string;
       {view === 'changes'
         ? hasChanges(parts) ? <DiffView parts={parts} className="rounded-xl bg-bg-sunken p-4 font-mono" /> : <p className="text-sm text-text-muted">No change to what the model receives.</p>
         : <pre className="whitespace-pre-wrap break-words rounded-xl bg-bg-sunken p-4 font-mono text-xs text-text">{after}</pre>}
+      </div>
     </Modal>
   )
 }

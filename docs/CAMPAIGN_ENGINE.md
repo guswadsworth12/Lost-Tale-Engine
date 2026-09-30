@@ -8,6 +8,16 @@ Create or edit a world in **Worlds**. Its **Overview** selects modules for campa
 
 Available presets are starter PbtA-style 2d6 moves, D&D 5e SRD 5.2.1 core checks, Starfinder 2e core checks, Fate Core skill checks, and generic 3d6 roll-under checks. They provide editable fields and core check resolution. They do not bundle complete published rulebooks, combat, classes, spells, or resource systems. You can name any custom ruleset and use it in guided mode.
 
+### Your own game system
+
+A system the presets don't cover can be declared instead: ask Writer's Room to "make a ruleset", or describe its dice ("roll d6 pools, take the highest; 6 is a full success, 4–5 partial, 1–3 bad"). The declared format covers:
+
+- dice: a fixed count or a pool from the sheet value, keep highest or lowest, exploding dice, a wild die, and counting successes against a target number;
+- outcomes: ranges of the result, or of its margin over a difficulty the GM sets before the roll, optionally with a "two or more dice on their highest face" critical;
+- the stats and moves that go with it.
+
+Each outcome counts as strong, mixed, or miss, so a recorded roll binds the GM, move effects change tracked state, and choice and question holds apply exactly as with the built-in resolvers. A ruleset that leaves any result without an outcome, or can't be rolled, can't be saved; the draft names what to fix. Before applying it, the draft's test bench rolls a sample action and shows the outcome and the exact line the GM receives, and can run it past the GM model. Applying it to a world keeps what it replaced, so it can be undone.
+
 In **Cast → Sheet**, assign stats and a rank to a character for a world. A character can keep multiple world-specific sheets; changing the active world does not overwrite the others. A move reads its linked sheet field. If a character has no sheet, the player can enter the modifier for that check. If the character has sheets but none for this story's world, the player must add the matching sheet before rolling.
 
 ## Resolution and the GM
@@ -30,6 +40,14 @@ Changes are stored on the messages that caused them, so rewinding or forking res
 ## Prompts and characters
 
 Worlds and characters store ordered, enabled prompt items. The TavernAI 2 card importer retains the prompt tree's order. Unsupported activation or replacement rules and executable macros are imported disabled for review. Imported text is story data, not instructions to the engine. The Prompt Inspector shows the assembled request.
+
+**Writer's Room → Tune prompts** shows every prompt that drives a world's play:
+
+- the engine's GM style, memory scribe, scene and chapter recaps, and character journals;
+- the world's GM notes;
+- the world's and its cast's prompt items.
+
+For the engine's prompts, only their guidance can be changed. The data they are given, the reply format the engine reads, and the guardrails stay in place, and the editor shows the guardrails locked: player agency, characters with cards played only by their own agents, binding recorded rolls, and knowledge boundaries. An edit can be typed or proposed by the assistant with its reasoning, reviewed as a diff, and previewed on a sample turn from the world's latest scene before it is applied. Every applied change is kept in a history and reverts in one click. Tuning is per world, and travels in world packs as its own option.
 
 In a group scene, each speaking character receives its own card prompts, private lore, and private memory. Other participants contribute their names and public transcript only. A character can override the configured hosted model on the same provider. The GM uses the configured global model.
 
