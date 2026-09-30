@@ -1087,10 +1087,9 @@ function WorldEditor({
                 </label>
                 <div className="absolute bottom-8 right-1.5 hidden group-hover:block">
                   <GenerateImageButton
+                    purpose="background"
                     label={`Generate ${bg.label} with AI`}
                     initialPrompt={description ? `${bg.label}, ${description}`.slice(0, 300) : `${bg.label}, ${name || 'a scene'}`}
-                    width={1216}
-                    height={832}
                     onGenerated={(dataUrl) => setBackgrounds((b) => ({ ...b, [bg.id]: dataUrl }))}
                   />
                 </div>

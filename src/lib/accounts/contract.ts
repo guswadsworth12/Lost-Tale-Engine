@@ -6,7 +6,7 @@
  */
 
 /** Settings that are credentials. Stored encrypted per user, write-only from the browser's side. */
-export const SECRET_SETTING_KEYS = ['chatBackendApiKey', 'openMayhemApiKey', 'ttsApiKey', 'imageBackendPassword'] as const
+export const SECRET_SETTING_KEYS = ['chatBackendApiKey', 'openMayhemApiKey', 'ttsApiKey', 'imageBackendPassword', 'openaiApiKey', 'geminiApiKey'] as const
 export type SecretName = (typeof SECRET_SETTING_KEYS)[number]
 
 export function isSecretName(name: string): name is SecretName {
@@ -22,6 +22,8 @@ export const FIXED_RELAY_ORIGINS = [
   'https://image.novelai.net',
   'https://api.novelai.net',
   'https://api.elevenlabs.io',
+  'https://api.openai.com',
+  'https://generativelanguage.googleapis.com',
 ] as const
 /** Host suffixes the relay may reach (Azure speech is per region: eastus.tts.speech.microsoft.com). */
 export const FIXED_RELAY_HOST_SUFFIXES = ['.tts.speech.microsoft.com'] as const

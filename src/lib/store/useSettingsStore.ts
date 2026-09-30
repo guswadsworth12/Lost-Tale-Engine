@@ -339,12 +339,15 @@ interface SettingsState {
   imageBackendUsername: string
   imageBackendPassword: string
   imageBackendModel: string
+  /** OpenAI images only: the quality option (blank: the model's default). */
+  imageBackendQuality: string
   setImageBackendConfig: (patch: Partial<{
     imageBackend: ImageBackendId
     imageBackendBaseUrl: string
     imageBackendUsername: string
     imageBackendPassword: string
     imageBackendModel: string
+    imageBackendQuality: string
   }>) => void
 }
 
@@ -562,10 +565,11 @@ export const useSettingsStore = create<SettingsState>()(
       imageBackendUsername: '',
       imageBackendPassword: '',
       imageBackendModel: '',
+      imageBackendQuality: '',
       setImageBackendConfig: (patch) => set((s) => {
         const changesProvider = patch.imageBackend !== undefined && patch.imageBackend !== s.imageBackend
           || patch.imageBackendBaseUrl !== undefined && patch.imageBackendBaseUrl !== s.imageBackendBaseUrl
-        return changesProvider ? { imageBackendUsername: '', imageBackendPassword: '', imageBackendModel: '', ...patch } : patch
+        return changesProvider ? { imageBackendUsername: '', imageBackendPassword: '', imageBackendModel: '', imageBackendQuality: '', ...patch } : patch
       }),
     }),
     {

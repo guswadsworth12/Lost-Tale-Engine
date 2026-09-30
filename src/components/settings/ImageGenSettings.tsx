@@ -8,6 +8,9 @@ import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { IMAGE_BACKEND_LABELS, type ImageBackendId } from '@/lib/api/imageBackend'
 import { NOVELAI_IMAGE_MODELS } from '@/lib/api/novelaiImage'
+import { OPENAI_IMAGE_DEFAULT_MODEL, OPENAI_IMAGE_MODELS } from '@/lib/api/openaiImage'
+import { GEMINI_IMAGE_DEFAULT_MODEL } from '@/lib/api/geminiImage'
+import { createImageBackend } from '@/lib/api/createImageBackend'
 import { TextField, SelectField } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
 import { SettingsPage } from '@/components/ui/SettingsPage'
@@ -28,6 +31,8 @@ export function ImageGenSettings() {
   const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
   const { saved: secrets } = useSecretStatus()
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
+  const imageBackendQuality = useSettingsStore((s) => s.imageBackendQuality)
+  const [geminiModels, setGeminiModels] = useState<string[] | null>(null)
   const setImageBackendConfig = changeImageBackendConfig
 
   const { models, loading, reload } = useOpenMayhemModels('IMAGES', imageBackend === 'openmayhem')
@@ -75,6 +80,48 @@ export function ImageGenSettings() {
             <GenerateImageButton label="Test image generation" width={768} height={768} initialPrompt="A small lighthouse on a quiet green island, watercolor illustration, no text" onGenerated={setPreview} />
           </div>
           {preview && <img src={preview} alt="OpenMayhem test generation" className="mt-3 max-h-72 rounded-xl" />}
+        </>}
+
+        {(imageBackend === 'openai-image' || imageBackend === 'gemini-image') && <>
+          <SecretKeyField
+            name={imageBackend === 'openai-image' ? 'openaiApiKey' : 'geminiApiKey'}
+            label={imageBackend === 'openai-image' ? 'OpenAI API key' : 'Gemini API key'}
+            saved={imageBackend === 'openai-image' ? secrets.openaiApiKey : secrets.geminiApiKey}
+            hint={imageBackend === 'gemini-image' ? 'From Google AI Studio. The same key will serve Gemini chat and speech later.' : undefined}
+          />
+          <TextField
+            label="Model"
+            value={imageBackendModel}
+            onChange={(e) => { setImageBackendConfig({ imageBackendModel: e.target.value }); setPreview('') }}
+            placeholder={imageBackend === 'openai-image' ? OPENAI_IMAGE_DEFAULT_MODEL : GEMINI_IMAGE_DEFAULT_MODEL}
+            list={`${imageBackend}-models`}
+          />
+          <datalist id={`${imageBackend}-models`}>
+            {(imageBackend === 'openai-image' ? OPENAI_IMAGE_MODELS : geminiModels ?? []).map((m) => <option key={m} value={m} />)}
+          </datalist>
+          {imageBackend === 'gemini-image' && (
+            <Button className="mb-3" disabled={!secrets.geminiApiKey} onClick={async () => setGeminiModels(await createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, secrets }).listModels())}>
+              List image models
+            </Button>
+          )}
+          {imageBackend === 'openai-image' && (
+            <SelectField label="Quality" value={imageBackendQuality} onChange={(e) => setImageBackendConfig({ imageBackendQuality: e.target.value })}
+              hint="Higher quality costs more per image. dall-e-3 takes Standard or HD.">
+              <option value="">Model default</option>
+              {/^dall-e-3/i.test(imageBackendModel) ? <><option value="standard">Standard</option><option value="hd">HD</option></>
+                : <><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></>}
+            </SelectField>
+          )}
+          <p className="my-3 text-xs text-text-muted">
+            {imageBackend === 'openai-image'
+              ? 'Each image is billed to your OpenAI account. gpt-image models can make transparent sprites and use a character\'s portrait as a reference; dall-e-3 can do neither.'
+              : 'Each image counts against your Gemini API quota. Gemini can use a character\'s portrait as a reference, but can\'t make transparent images: sprites get a plain background instead.'}
+          </p>
+          <div className="relative flex items-center gap-2">
+            <span className="text-sm">Test image generation</span>
+            <GenerateImageButton label="Test image generation" purpose="background" initialPrompt="A small lighthouse on a quiet green island, watercolor illustration, no text" onGenerated={setPreview} />
+          </div>
+          {preview && <img src={preview} alt="Test generation" className="mt-3 max-h-72 rounded-xl" />}
         </>}
 
         {isLocal && (
@@ -144,7 +191,9 @@ export function ImageGenSettings() {
         )}
 
         <p className="mt-2 text-xs text-text-muted">
-          {imageBackend === 'openmayhem' ? 'Images are downloaded into Lost Tales Engine, so saved assets remain available after OpenMayhem artifacts expire.' : imageBackend === 'novelai-image'
+          {imageBackend === 'openmayhem' ? 'Images are downloaded into Lost Tales Engine, so saved assets remain available after OpenMayhem artifacts expire.'
+            : imageBackend === 'openai-image' || imageBackend === 'gemini-image' ? 'Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches the key and forwards requests. Generated images are saved into Lost Tales Engine.'
+            : imageBackend === 'novelai-image'
             ? 'Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches the key and forwards requests to NovelAI.'
             : 'Requests pass through your Lost Tales Engine server to the server URL above; it attaches the saved password, if any.'}
         </p>

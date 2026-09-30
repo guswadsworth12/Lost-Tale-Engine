@@ -18,6 +18,59 @@ export interface ImageGenerateParams {
   /** Checkpoint/model name — meaning is backend-specific; omit to use whatever's already loaded. */
   model?: string
   sampler?: string
+  /** Which slot the image is for; decides its shape on backends with fixed sizes. */
+  purpose?: ImagePurpose
+  /** A transparent background (a sprite), on backends that can; see `ImageCapabilities`. */
+  transparent?: boolean
+  /** Images whose look should carry over (a character's portrait), on backends that take them. */
+  referenceImages?: { base64: string; mimeType: string }[]
+}
+
+/** The app's image slots. */
+export type ImagePurpose = 'portrait' | 'sprite' | 'background' | 'cg'
+
+/** The shape each slot asks for, before a backend fits it to what it supports. */
+export const SLOT_SIZES: Record<ImagePurpose, { width: number; height: number }> = {
+  portrait: { width: 832, height: 1216 },
+  sprite: { width: 832, height: 1216 },
+  background: { width: 1216, height: 832 },
+  cg: { width: 1216, height: 832 },
+}
+
+/** What a backend can do with a model. A backend that doesn't say can do none of it. */
+export interface ImageCapabilities {
+  transparency: boolean
+  references: boolean
+}
+
+export const NO_IMAGE_CAPABILITIES: ImageCapabilities = { transparency: false, references: false }
+
+/** Of `options` ("1024x1536" sizes, or "3:4" ratios), the one whose shape is nearest `width`×`height`. */
+export function nearestShape(width: number, height: number, options: readonly string[]): string {
+  const target = Math.log(width / height)
+  const ratio = (option: string) => {
+    const [a, b] = option.split(/[x:]/).map(Number)
+    return Math.log(a / b)
+  }
+  return [...options].sort((x, y) => Math.abs(ratio(x) - target) - Math.abs(ratio(y) - target))[0]
+}
+
+export type ImageGenErrorKind = 'auth' | 'quota' | 'rate' | 'safety' | 'unsupported' | 'network' | 'failed'
+
+/**
+ * A generation failure every backend reports the same way, in words a person can act on. Never
+ * carries a key: providers' error bodies are summarized, not echoed.
+ */
+export class ImageGenError extends Error {
+  constructor(public readonly kind: ImageGenErrorKind, message: string, public readonly status?: number) {
+    super(message)
+    this.name = 'ImageGenError'
+  }
+}
+
+/** Strips anything that looks like a key from a provider's message before it is shown. */
+export function redactKeys(text: string): string {
+  return text.replace(/\b(?:sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{20,})\b/g, '[key hidden]')
 }
 
 export interface ImageGenerateResult {
@@ -31,9 +84,15 @@ export interface ImageGenerateResult {
 export interface ImageBackend {
   generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult>
   listModels(): Promise<string[]>
+  /** What this backend can do with `model`. Unset: nothing beyond a plain image. */
+  capabilities?(model?: string): ImageCapabilities
 }
 
-export type ImageBackendId = 'a1111' | 'comfyui' | 'swarmui' | 'novelai-image' | 'openmayhem'
+export function capabilitiesOf(backend: ImageBackend, model?: string): ImageCapabilities {
+  return backend.capabilities?.(model) ?? NO_IMAGE_CAPABILITIES
+}
+
+export type ImageBackendId = 'a1111' | 'comfyui' | 'swarmui' | 'novelai-image' | 'openmayhem' | 'openai-image' | 'gemini-image'
 
 export const IMAGE_BACKEND_LABELS: Record<ImageBackendId, string> = {
   openmayhem: 'OpenMayhem (hosted)',
@@ -41,4 +100,6 @@ export const IMAGE_BACKEND_LABELS: Record<ImageBackendId, string> = {
   comfyui: 'ComfyUI (local)',
   swarmui: 'SwarmUI (local)',
   'novelai-image': 'NovelAI (hosted, subscription)',
+  'openai-image': 'OpenAI (hosted)',
+  'gemini-image': 'Google Gemini (hosted)',
 }
