@@ -201,19 +201,25 @@ select:focus-visible,
    render counts), and out again the moment they leave the roster — VNStage keeps them mounted a
    beat longer under `phase="exiting"` specifically so this has something to animate. */
 @keyframes vn-sprite-enter {
-  0% { opacity: 0; transform: translateY(18px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% { opacity: 0; transform: var(--vn-sprite-away, translateY(18px) scale(0.96)); }
+  100% { opacity: 1; transform: none; }
 }
 .vn-sprite-enter-anim {
   animation: vn-sprite-enter 450ms ease-out both;
 }
 @keyframes vn-sprite-exit {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(18px) scale(0.96); }
+  0% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: var(--vn-sprite-away, translateY(18px) scale(0.96)); }
 }
 .vn-sprite-exit-anim {
   animation: vn-sprite-exit 450ms ease-in both;
 }
+/* A character's own entry and exit cue (`vn/stageDirection.ts`); `rise` is the default above. */
+.vn-sprite-fade { --vn-sprite-away: none; }
+.vn-sprite-slide-left { --vn-sprite-away: translateX(-45vw); }
+.vn-sprite-slide-right { --vn-sprite-away: translateX(45vw); }
+.vn-sprite-enter-anim.vn-sprite-none { animation: none; }
+.vn-sprite-exit-anim.vn-sprite-none { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .vn-sprite-enter-anim,
   .vn-sprite-exit-anim {

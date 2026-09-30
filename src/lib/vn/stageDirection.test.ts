@@ -23,7 +23,7 @@ describe('automatic direction', () => {
     const homes = cast.map((_, i) => autoHome(i, cast.length))
     expect(homes[0].x).toBeLessThan(homes[1].x)
     expect(homes[1].x).toBeLessThan(homes[2].x)
-    expect(autoHome(0, 1)).toEqual({ x: 0.5, depth: 0.6 })
+    expect(autoHome(0, 1)).toEqual({ x: 0.5, depth: 0.7 })
     // A larger cast alternates rows so nobody stands in front of anybody.
     expect(autoHome(0, 5).depth).not.toBe(autoHome(1, 5).depth)
   })
@@ -109,5 +109,6 @@ describe('saved direction from requests', () => {
   it('turns an arrangement saved in the browser into the scene\'s pinned direction', () => {
     expect(sceneStageFromLegacy({ width: 70, depth: 40, positions: { ash: { x: 0.4, depth: 0.3 } } })).toEqual({ width: 70, depth: 40, cues: { ash: { x: 0.4, depth: 0.3 } } })
     expect(sceneStageFromLegacy(undefined)).toBeUndefined()
+    expect(normalizeSceneStage({ cues: { ash: { x: 0.17496570394114033, depth: 0.7057632398753895 } } })).toEqual({ cues: { ash: { x: 0.175, depth: 0.706 } } })
   })
 })

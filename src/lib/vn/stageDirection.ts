@@ -22,8 +22,8 @@ export type StageTransition = 'rise' | 'fade' | 'slide-left' | 'slide-right' | '
 export const STAGE_TRANSITIONS: { id: StageTransition; label: string }[] = [
   { id: 'rise', label: 'Rise' },
   { id: 'fade', label: 'Fade' },
-  { id: 'slide-left', label: 'From the left' },
-  { id: 'slide-right', label: 'From the right' },
+  { id: 'slide-left', label: 'Left side' },
+  { id: 'slide-right', label: 'Right side' },
   { id: 'none', label: 'Cut' },
 ]
 
@@ -92,10 +92,10 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * rows so nobody hides behind anybody.
  */
 export function autoHome(index: number, count: number): StagePoint {
-  if (count <= 1) return { x: 0.5, depth: 0.6 }
+  if (count <= 1) return { x: 0.5, depth: 0.7 }
   const spacing = Math.min(0.24, 0.62 / (count - 1))
   const x = 0.5 + (index - (count - 1) / 2) * spacing
-  const depth = count <= 3 ? 0.45 : index % 2 === 0 ? 0.55 : 0.25
+  const depth = count <= 3 ? 0.55 : index % 2 === 0 ? 0.6 : 0.3
   return clampStagePoint({ x, depth })
 }
 
@@ -197,7 +197,8 @@ export function normalizeCue(raw: unknown): StageCue | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const v = raw as Record<string, unknown>
   if (typeof v.x !== 'number' || typeof v.depth !== 'number' || !Number.isFinite(v.x) || !Number.isFinite(v.depth)) return undefined
-  const point = clampStagePoint({ x: v.x, depth: v.depth })
+  const clamped = clampStagePoint({ x: v.x, depth: v.depth })
+  const point = { x: Math.round(clamped.x * 1000) / 1000, depth: Math.round(clamped.depth * 1000) / 1000 }
   const scale = typeof v.scale === 'number' && Number.isFinite(v.scale) ? Math.round(clamp(v.scale, 0.6, 1.4) * 100) / 100 : undefined
   return {
     ...point,
