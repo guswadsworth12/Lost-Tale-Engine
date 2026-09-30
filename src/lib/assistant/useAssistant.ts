@@ -19,6 +19,7 @@ import { generatedToCharacterInput } from '@/lib/assistant/saveCharacter'
 import { promptTurnsOf, threadTitleFrom, type AssistantMessage, type AssistantThread, type CharacterUpdateDraft, type RulesetDraft } from '@/lib/assistant/thread'
 import { applyRulesetPatch, benchGmContext, buildRulesetPrompt, parseRulesetResponse, rulesetCampaign, rulesetErrors, undoRulesetPatch, worldNamedIn } from '@/lib/assistant/ruleset'
 import { buildGmPrompt, parseGmTurn, type GmTurn, type RecordedMove } from '@/lib/world/gm'
+import { buildTuningPrompt, parseTuningProposal, type TuningProposal } from '@/lib/assistant/promptTuning'
 
 /**
  * The assistant thread's own session: send, stream, and the two producers.
@@ -531,6 +532,23 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     [client],
   )
 
+  /** A proposed change to one prompt, with its reasoning, for the prompt editor to review. */
+  const proposePromptChange = useCallback(
+    async (input: Parameters<typeof buildTuningPrompt>[0]): Promise<TuningProposal> => {
+      const raw = await generateWithTimeout(client, {
+        prompt: buildTuningPrompt(input),
+        max_context_length: await client.getEffectiveMaxContext(settings.sampler.max_context_length),
+        max_length: 1200,
+        temperature: 0.5,
+        top_p: 0.95,
+        rep_pen: 1.05,
+        jsonOutput: true,
+      }, 'Propose prompt change')
+      return parseTuningProposal(raw)
+    },
+    [client, settings.sampler.max_context_length],
+  )
+
   return {
     thread,
     load,
@@ -547,6 +565,7 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     applyRuleset,
     undoRuleset,
     tryRulesetOnGm,
+    proposePromptChange,
     saveCharacter,
     abort,
     detectProducer,

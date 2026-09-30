@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Send, Square, Sparkles, Trash2, UserPlus } from 'lucide-react'
+import { Plus, Send, SlidersHorizontal, Square, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import { assistantThreadsApi, charactersApi, worldsApi } from '@/lib/api/client'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { useAssistant } from '@/lib/assistant/useAssistant'
@@ -11,6 +11,7 @@ import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { GuidedRpBuilder } from '@/components/assistant/GuidedRpBuilder'
 import { CharacterUpdateCard } from '@/components/assistant/CharacterUpdateCard'
 import { RulesetCard } from '@/components/assistant/RulesetCard'
+import { PromptTuner } from '@/components/assistant/PromptTuner'
 
 /** Writing workspace backed by ordinary assistant threads and their existing producers. */
 
@@ -18,6 +19,7 @@ const STARTERS = [
   { group: 'Brainstorm', label: 'Character', prompt: 'Help me brainstorm a character for my story. Ask about the setting and their role, then suggest a motive, a contradiction, and a relationship that creates tension.' },
   { group: 'Brainstorm', label: 'Location', prompt: 'Help me brainstorm a memorable location. Ask about the world and tone, then suggest sensory details, a secret, and a reason to revisit it.' },
   { group: 'Brainstorm', label: 'Faction', prompt: 'Help me brainstorm a faction. Ask about the setting, then suggest its public goal, internal conflict, key figure, and how it affects the cast.' },
+  { group: 'Brainstorm', label: 'Game system', prompt: 'Make a ruleset for my world: describe the dice you roll, what counts as a success, a partial success, and a failure, and the stats and moves that go with them.' },
   { group: 'Brainstorm', label: 'Story arc', prompt: 'Help me plan a story arc. Ask about the cast and current conflict, then sketch a beginning, turning point, climax, and aftermath.' },
   { group: 'Review & prep', label: 'Continuity check', prompt: 'Search my saved stories for continuity issues. Flag contradictions and uncertainties, and cite the saved material you used.' },
   { group: 'Review & prep', label: 'Summary', prompt: 'Summarize my saved story setup. Separate confirmed events, character changes, and open questions. Do not invent missing details.' },
@@ -162,13 +164,14 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
   const [threadId, setThreadId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [building, setBuilding] = useState(false)
+  const [tuning, setTuning] = useState(false)
   const [pending, setPending] = useState<{ id: string; text: string; kind?: ProducerKind } | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const {
     thread, load, isBusy, streamingText, progress, sendMessage, produceCharacter, produceStory, produceUpdate, applyUpdate, saveCharacter, abort,
-    produceRuleset, editRuleset, applyRuleset, undoRuleset, tryRulesetOnGm,
+    produceRuleset, editRuleset, applyRuleset, undoRuleset, tryRulesetOnGm, proposePromptChange,
   } = useAssistant(threadId, () => setRefreshKey((k) => k + 1))
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
   // Saved names let the composer tell "update Ash's sheet" from "make a new character".
@@ -269,6 +272,7 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
 
   const messages = thread?.messages ?? []
 
+  if (tuning) return <PromptTuner onClose={() => setTuning(false)} propose={proposePromptChange} />
   if (building) return <GuidedRpBuilder onClose={() => setBuilding(false)} onCreated={onCreatedStory}
     conversationBrief={messages.slice(-8).filter((message) => !message.error && message.text.trim()).map((message) => `${message.role === 'user' ? 'Writer' : 'Assistant'}: ${message.text}`).join('\n\n').slice(-6000)} />
 
@@ -287,6 +291,9 @@ export function AssistantView({ onCreatedStory }: { onCreatedStory: (chatId: str
         <div className="px-3 pb-2">
           <Button variant="primary" onClick={() => setBuilding(true)} className="flex w-full items-center justify-center gap-1.5">
             <Sparkles size={14} /> Build a roleplay
+          </Button>
+          <Button onClick={() => setTuning(true)} className="mt-2 flex w-full items-center justify-center gap-1.5">
+            <SlidersHorizontal size={14} /> Tune prompts
           </Button>
         </div>
         <div className="flex gap-1 overflow-x-auto px-2 pb-2 md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto">
