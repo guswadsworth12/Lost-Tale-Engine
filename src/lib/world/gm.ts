@@ -1,4 +1,5 @@
-import { scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
+import { campaignNeedsTarget, scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
+import { describeBands, describeDice, tierLabels } from './customRules'
 import { choiceEffectsText, effectsForChoice, effectsForSetEvent, effectsText, parseEffects, PLAYER_HOLDER, type StateChange, type TrackEffect } from './gameState'
 
 /**
@@ -323,7 +324,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
         'A recorded roll is binding. In adjudication, copy its move, tier, and outcome exactly; use narration to describe how that result looks in the fiction. Never reroll, change the total, or soften a failed check.',
         'A miss can have creative consequences, including a new problem or scene change, but it cannot grant the attempted success unless the recorded miss outcome explicitly says so. Put lasting changes in proposals for the player to confirm.',
         'If the player declares an action that triggers a move and no roll is recorded, set "move" to that move name and leave "tier" null: the player must roll before it resolves.',
-        campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' || campaign.resolver === 'fate'
+        campaignNeedsTarget(campaign)
           ? 'When requesting a roll, set adjudication.target to the difficulty or opposition before the player rolls, unless the move has a fixed target. Choose it from the situation and the ruleset; do not change it after the roll.' : '',
         'You may not invent dice, totals, or resources.',
       ]
@@ -331,10 +332,19 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
         'Resolution mode: GUIDED. The ruleset informs tone and likely consequences only.',
         'Adjudicate with judgment: say plainly what happens because of the declared action. Never claim a die roll, total, or tier.',
       ]
+  // A world's own ruleset: how its dice work and which tier each outcome counts as, so the GM can
+  // copy a recorded result's tier exactly.
+  const custom = campaign.resolver === 'custom' ? campaign.custom : undefined
+  const customLines = custom && campaign.mode === 'mechanical'
+    ? [`This world's own dice: ${describeDice(custom.dice)}`, 'Outcomes (each counts as the tier in brackets):', ...describeBands(custom).map((line) => `- ${line}`)]
+    : []
+  const tierNames = custom ? tierLabels(custom) : undefined
   const moveLines = campaign.moves.length
     ? ['Moves:', ...campaign.moves.map((m) => campaign.resolver === 'pbta'
       ? `- ${m.name} (+${m.stat || 'modifier'}): when ${m.trigger}. 10+: ${m.strong} 7–9: ${m.mixed} 6-: ${m.miss}`
-      : `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. Success: ${m.strong} Tie: ${m.mixed} Failure: ${m.miss}${m.target !== undefined ? ` Fixed target: ${m.target}.` : ''}`)]
+      : tierNames
+        ? `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. ${tierNames.strong} (strong): ${m.strong} ${tierNames.mixed} (mixed): ${m.mixed} ${tierNames.miss} (miss): ${m.miss}${m.target !== undefined ? ` Fixed difficulty: ${m.target}.` : ''}`
+        : `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. Success: ${m.strong} Tie: ${m.mixed} Failure: ${m.miss}${m.target !== undefined ? ` Fixed target: ${m.target}.` : ''}`)]
     : []
   const system = [
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
@@ -342,6 +352,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Never write a carded character’s dialogue, actions, gestures, thoughts, feelings, entrance, or reaction in narration or adjudication. Do not preview or paraphrase their reply. Put present carded characters who should respond in speakers; their agents will write their own turns. Narration is only for scenery, uncarded NPCs, and immediate observable effects of the player’s action. Keep carded character names out of narration. For example: "Rain strikes the windows. The barkeep says the bridge is closed."',
     `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
+    ...customLines,
     ...moveLines,
     scaleGuidance(campaign),
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
@@ -372,7 +383,9 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const availableLine = ctx.availableRoster?.length ? ctx.availableRoster.map(describe).join('\n') : '- (none)'
   const m = ctx.recordedMove
   const recorded = m
-    ? m.resolver && m.resolver !== 'pbta'
+    ? m.resolver === 'custom'
+      ? `Recorded roll (binding): ${m.moveName} — ${m.detail ?? `dice ${m.dice.join(', ')}, result ${m.total}`}; ${m.degree ?? m.tier} (tier: ${m.tier}). Outcome: ${m.outcome}`
+      : m.resolver && m.resolver !== 'pbta'
       ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
       : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
     : 'Recorded roll: none this turn.'
@@ -688,9 +701,9 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     }
     if (ctx.campaign.mode === 'mechanical' && move) {
       const rawTarget = rawAdj.target
-      const target = ctx.campaign.resolver === 'pbta' || ctx.campaign.resolver === 'roll-under' ? undefined
+      const target = !campaignNeedsTarget(ctx.campaign) ? undefined
         : move.target ?? (Number.isInteger(rawTarget) && (rawTarget as number) >= -30 && (rawTarget as number) <= 100 ? rawTarget as number : undefined)
-      if ((ctx.campaign.resolver === 'd20' || ctx.campaign.resolver === 'd20-degree' || ctx.campaign.resolver === 'fate') && target === undefined) {
+      if (campaignNeedsTarget(ctx.campaign) && target === undefined) {
         return fallbackGmTurn(ctx, `The GM requested ${move.name} without setting a difficulty.`)
       }
       adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, ...(target !== undefined ? { target } : {}), outcome: `Roll ${move.name}${target !== undefined ? ` vs ${target}` : ''} to resolve this.` }

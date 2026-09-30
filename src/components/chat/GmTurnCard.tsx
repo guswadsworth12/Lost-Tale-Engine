@@ -33,7 +33,9 @@ export function CampaignRollBadge({ message }: { message: StoredMessage }) {
   const roll = message.campaignRoll
   if (!roll) return null
   const failed = roll.tier === 'miss'
-  const result = roll.resolver === 'roll-under'
+  const result = roll.resolver === 'custom'
+    ? roll.detail ?? `${roll.dice.join(', ')} = ${roll.total}`
+    : roll.resolver === 'roll-under'
     ? `3d6 ${roll.dice.join(' + ')} = ${roll.total} vs skill ${roll.target}`
     : roll.resolver === 'fate'
       ? `4dF ${roll.dice.map((die) => die > 0 ? '+' : die < 0 ? '−' : '0').join(' ')} + ${roll.modifier} = ${roll.total} vs ${roll.target}`

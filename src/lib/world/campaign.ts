@@ -1,7 +1,7 @@
 import type { RomanceEmphasis } from './worldTemplates'
 // The server loads this file with plain Node, which needs the extension on a runtime import.
 import { normalizeMoveEffects, normalizeTracks, type CampaignTrack, type MoveEffects } from './gameState.ts'
-import { rollCustom, validateCustomResolver, type CustomResolver, type FaceRoller } from './customRules.ts'
+import { customNeedsTarget, rollCustom, validateCustomResolver, type CustomResolver, type FaceRoller } from './customRules.ts'
 
 export interface CampaignConfig {
   ruleset: string
@@ -127,6 +127,11 @@ export const STARTER_PBTA_CAMPAIGN: CampaignConfig = {
 
 export function isCampaignResolver(value: unknown): value is CampaignConfig['resolver'] {
   return value === 'pbta' || value === 'd20' || value === 'd20-degree' || value === 'fate' || value === 'roll-under' || value === 'custom'
+}
+
+/** Whether a check needs a difficulty or opposition set before it's rolled. */
+export function campaignNeedsTarget(config: CampaignConfig): boolean {
+  return config.resolver === 'd20' || config.resolver === 'd20-degree' || config.resolver === 'fate' || (config.resolver === 'custom' && customNeedsTarget(config.custom))
 }
 
 const checkMove = (id: string, name: string, statId: string, resolver: CampaignConfig['resolver']): PbtaMove => ({

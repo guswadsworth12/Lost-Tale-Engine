@@ -34,7 +34,7 @@ import { relayRouter } from './relay.ts'
 import { storiesRouter } from './stories.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
-import { createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
+import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
 import { normalizeSceneStage, normalizeStageLayouts } from '../src/lib/vn/stageDirection.ts'
@@ -42,6 +42,7 @@ import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, 
 import { ownershipPatch } from './ownership.ts'
 import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
+import { validateCustomResolver } from '../src/lib/world/customRules.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
 import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
@@ -130,15 +131,27 @@ function normalizeWorldModules(raw: unknown) {
   return modules
 }
 
+/** Why a campaign's custom ruleset can't be saved, or undefined when it can (or it has none). */
+function customRulesetError(raw: unknown): string | undefined {
+  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : undefined
+  if (value?.resolver !== 'custom') return undefined
+  const { errors } = validateCustomResolver(value.custom)
+  return errors.length ? `The custom ruleset needs fixing: ${errors.join(' ')}` : undefined
+}
+
 function normalizeCampaign(raw: unknown) {
   if (!raw || typeof raw !== 'object') return undefined
   const value = raw as Record<string, unknown>
   const ruleset = typeof value.ruleset === 'string' ? value.ruleset.trim().slice(0, 200) : ''
+  // Saving refuses a broken ruleset first (`customRulesetError`); anything else that reaches here
+  // without a valid one can't roll, so it plays guided.
+  const custom = value.resolver === 'custom' ? validateCustomResolver(value.custom).resolver : undefined
   return {
     ruleset: ruleset || 'Custom',
     edition: typeof value.edition === 'string' ? value.edition.trim().slice(0, 100) : undefined,
-    mode: value.mode === 'mechanical' ? 'mechanical' : 'guided',
+    mode: value.mode === 'mechanical' && (value.resolver !== 'custom' || custom) ? 'mechanical' : 'guided',
     resolver: isCampaignResolver(value.resolver) ? value.resolver : 'pbta',
+    ...(custom ? { custom } : {}),
     relationships: value.relationships === true,
     dating: value.dating === true && value.relationships === true,
     ...(Array.isArray(value.stats) ? { stats: normalizeCampaignStats(value.stats) ?? [] } : {}),
@@ -1120,13 +1133,16 @@ app.post('/api/chats/:id/roll', (req, res) => {
   if (move.target !== undefined && target !== undefined && target !== move.target) return res.status(409).json({ error: 'This move has a fixed difficulty set by the world.' })
   if (campaign.resolver !== 'd20' && campaign.resolver !== 'd20-degree' && rollMode !== 'normal') return res.status(400).json({ error: 'Advantage is only available for d20 checks.' })
   const now = Date.now()
-  const dice = campaign.resolver === 'pbta' ? [randomInt(1, 7), randomInt(1, 7)]
+  const dice = campaign.resolver === 'custom' ? []
+    : campaign.resolver === 'pbta' ? [randomInt(1, 7), randomInt(1, 7)]
     : campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' ? Array.from({ length: rollMode === 'normal' ? 1 : 2 }, () => randomInt(1, 21))
     : campaign.resolver === 'fate' ? Array.from({ length: 4 }, () => randomInt(-1, 2))
     : Array.from({ length: 3 }, () => randomInt(1, 7))
   let roll
   try {
-    const resolved = createResolvedCampaignRoll(campaign, move, modifier as number, dice, target as number | undefined, rollMode, action, newId(), now)
+    const resolved = campaign.resolver === 'custom'
+      ? createCustomCampaignRoll(campaign, move, modifier as number, target as number | undefined, (sides) => randomInt(1, sides + 1), action, newId(), now)
+      : createResolvedCampaignRoll(campaign, move, modifier as number, dice, target as number | undefined, rollMode, action, newId(), now)
     // What the move says this result does to tracked state rides on the roll itself: recorded with
     // the dice, as immutable as they are, and replayed by `gameStateFrom` wherever the branch goes.
     const stateChanges = campaign.tracks?.length
@@ -1477,6 +1493,8 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
 }
 
 app.post('/api/worlds', (req, res) => {
+  const rulesError = customRulesetError(req.body?.campaign)
+  if (rulesError) return res.status(400).json({ error: rulesError })
   const ownership = ownershipFor(req, res, undefined)
   if (!ownership) return
   const now = Date.now()
@@ -1497,6 +1515,8 @@ app.put('/api/worlds/:id', (req, res) => {
   if (!existing) return notFound(res)
   const ownership = ownershipFor(req, res, existing)
   if (!ownership) return
+  const rulesError = 'campaign' in req.body ? customRulesetError(req.body.campaign) : undefined
+  if (rulesError) return res.status(400).json({ error: rulesError })
   const { ownerUserId: _o, visibility: _v, ...body } = req.body
   const patch: Record<string, unknown> = { ...body, ...ownership, updatedAt: Date.now() }
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined

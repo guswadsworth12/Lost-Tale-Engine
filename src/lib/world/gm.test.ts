@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, resolvePbtaRoll } from './campaign'
+import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, resolveCustomCampaignRoll, resolvePbtaRoll, type CampaignConfig } from './campaign'
 import {
   branchConsequencesFrom,
   choiceOptions,
@@ -828,5 +828,60 @@ describe('chapters in the GM prompt', () => {
     expect(user).toContain('Current chapter: Chapter 2 · Low Tide. Its goal: Find the bell.')
     expect(user).toContain("Steer the scene toward the chapter's goal")
     expect(buildGmPrompt(ctx()).user).not.toContain('chapter')
+  })
+})
+
+describe('a world\'s own ruleset', () => {
+  const campaign: CampaignConfig = {
+    ruleset: 'Harbor Rules', mode: 'mechanical', resolver: 'custom', relationships: false, dating: false,
+    custom: {
+      dice: { count: 0, sides: 6, pool: true, emptyPool: 2, keep: { which: 'highest', count: 1 } },
+      compare: 'result',
+      bands: [
+        { label: 'Critical', tier: 'strong', topFaces: 2, meaning: 'Increased effect.' },
+        { label: 'Full success', tier: 'strong', min: 6 },
+        { label: 'Partial', tier: 'mixed', min: 4, max: 5 },
+        { label: 'Bad outcome', tier: 'miss', max: 3 },
+      ],
+    },
+    moves: [{ id: 'finesse', name: 'Finesse', trigger: 'you act with a light touch', stat: 'Finesse',
+      strong: 'It works.', mixed: 'It works, but choose: noise, time, or a trace left behind.', miss: 'It goes wrong.' }],
+  }
+  const faces = (...values: number[]) => () => values.shift()!
+  const partial: RecordedMove = { ...resolveCustomCampaignRoll(campaign, campaign.moves[0], 2, undefined, faces(5, 2)), id: 'roll-c', createdAt: 1, action: 'I pick the lock.' }
+
+  it('tells the GM how the dice work and which tier each outcome counts as', () => {
+    const { system, user } = buildGmPrompt(ctx({ campaign, recordedMove: partial }))
+    expect(system).toContain("This world's own dice: Roll a pool of d6 equal to the sheet value")
+    expect(system).toContain('- Result 4 to 5: Partial (mixed)')
+    expect(system).toContain('Full success (strong): It works. Partial (mixed): It works, but choose')
+    expect(user).toContain('Recorded roll (binding): Finesse — 2d6: 5, 2, keeping the highest (5); result 5; Partial (tier: mixed).')
+  })
+
+  it('binds the GM to the recorded outcome, whatever it narrates', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The lock clicks.', speakers: [],
+      adjudication: { move: 'Finesse', tier: 'strong', outcome: 'A clean success.' },
+    }), ctx({ campaign, recordedMove: partial, roster: [] }), ids)
+    expect(turn.adjudication).toMatchObject({ source: 'recorded_roll', tier: 'mixed', degree: 'Partial', outcome: partial.outcome })
+    expect(turn.corrections?.join(' ')).toContain('the recorded mixed result stands')
+  })
+
+  it('holds the scene for the choice its outcome asks for', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The tumblers give.', speakers: ['Hana Pike'],
+      adjudication: { move: 'Finesse', tier: 'mixed', outcome: partial.outcome },
+    }), ctx({ campaign, recordedMove: partial }), ids)
+    expect(turn.adjudication).toMatchObject({ awaitingChoice: ['noise', 'time', 'trace left behind'] })
+    expect(turn.speakerIds).toEqual([])
+  })
+
+  it('asks for a difficulty before a roll only when outcomes read the margin', () => {
+    const request = JSON.stringify({ narration: 'Roll for it.', adjudication: { move: 'Finesse', tier: null, target: null, outcome: '' } })
+    expect(parseGmTurn(request, ctx({ campaign }), ids).adjudication).toMatchObject({ source: 'roll_needed', moveName: 'Finesse' })
+    const margin = { ...campaign, custom: { ...campaign.custom!, compare: 'margin' as const, bands: [{ label: 'Miss', tier: 'miss' as const, max: -1 }, { label: 'Hit', tier: 'strong' as const, min: 0 }] } }
+    expect(buildGmPrompt(ctx({ campaign: margin })).system).toContain('set adjudication.target to the difficulty')
+    expect(parseGmTurn(request, ctx({ campaign: margin }), ids).adjudication?.source).not.toBe('roll_needed')
+    expect(parseGmTurn(JSON.stringify({ narration: 'Roll.', adjudication: { move: 'Finesse', tier: null, target: 3, outcome: '' } }), ctx({ campaign: margin }), ids).adjudication).toMatchObject({ source: 'roll_needed', target: 3 })
   })
 })
