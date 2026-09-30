@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN_PRESETS, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCampaignRanks, normalizeCharacterSheet, normalizeCharacterSheets, parseCampaignFile, resolveCampaignRoll, resolvePbtaRoll, scaleGuidance, sheetForWorld, sheetModifier, statForMove } from './campaign'
+import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, STARTER_PBTA_CAMPAIGN, campaignFileFrom, campaignPrompt, campaignStats, formatPbtaRoll, normalizeCampaignRanks, normalizeCharacterSheet, normalizeCharacterSheets, parseCampaignFile, resolveCampaignRoll, resolveCustomCampaignRoll, resolvePbtaRoll, scaleGuidance, sheetForWorld, sheetModifier, statForMove } from './campaign'
 
 describe('campaign prompt emphasis', () => {
   it('keeps focus guidance and leaves natural/off turns free of campaign romance steering', () => {
@@ -110,5 +110,38 @@ describe('rank ladders', () => {
     const base = { ruleset: 'Custom', mode: 'mechanical' as const, resolver: 'pbta' as const, relationships: false, dating: false, moves: [] }
     expect(scaleGuidance(base)).toBe('')
     expect(scaleGuidance({ ...base, ranks: [{ name: 'Novice' }, { name: 'Master' }] })).toContain('Novice → Master')
+  })
+})
+
+describe('a custom ruleset', () => {
+  const custom = {
+    dice: { count: 0, sides: 6, pool: true, emptyPool: 2, keep: { which: 'highest' as const, count: 1 } },
+    compare: 'result' as const,
+    bands: [
+      { label: 'Full success', tier: 'strong' as const, min: 6 },
+      { label: 'Partial', tier: 'mixed' as const, min: 4, max: 5, meaning: 'There is a consequence.' },
+      { label: 'Bad outcome', tier: 'miss' as const, max: 3 },
+    ],
+  }
+  const config = { ...DEFAULT_CAMPAIGN, mode: 'mechanical' as const, resolver: 'custom' as const, custom }
+  const move = { id: 'skirmish', name: 'Skirmish', trigger: 'you fight', stat: 'Skirmish', strong: 'You win the exchange.', mixed: 'You win, but pay for it.', miss: 'You are driven back.' }
+  const faces = (...values: number[]) => () => values.shift()!
+
+  it('records the band as the degree and its tier, with the band meaning ahead of the move text', () => {
+    expect(resolveCustomCampaignRoll(config, move, 2, undefined, faces(5, 1))).toMatchObject({
+      resolver: 'custom', dice: [5, 1], total: 5, tier: 'mixed', degree: 'Partial',
+      outcome: 'There is a consequence. You win, but pay for it.', detail: expect.stringContaining('2d6: 5, 1'),
+    })
+  })
+
+  it('needs a difficulty only when outcomes read the margin', () => {
+    const margin = { ...config, custom: { ...custom, compare: 'margin' as const, bands: [{ label: 'Miss', tier: 'miss' as const, max: -1 }, { label: 'Hit', tier: 'strong' as const, min: 0 }] } }
+    expect(() => resolveCustomCampaignRoll(margin, move, 2, undefined, faces(5, 1))).toThrow(/difficulty/)
+    expect(resolveCustomCampaignRoll(margin, move, 2, 4, faces(5, 1))).toMatchObject({ target: 4, tier: 'strong', degree: 'Hit' })
+  })
+
+  it('travels in a campaign file, and a broken one says what to fix', () => {
+    expect(parseCampaignFile(campaignFileFrom({ ...config, moves: [move] }))).toMatchObject({ resolver: 'custom', custom })
+    expect(() => parseCampaignFile(JSON.stringify({ resolver: 'custom', custom: { ...custom, bands: [custom.bands[0]] }, moves: [] }))).toThrow(/Give 2 to 12 outcomes/)
   })
 })

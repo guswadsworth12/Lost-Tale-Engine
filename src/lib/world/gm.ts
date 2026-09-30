@@ -1,4 +1,5 @@
-import { scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
+import { campaignNeedsTarget, scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
+import { describeBands, describeDice, tierLabels } from './customRules'
 import { choiceEffectsText, effectsForChoice, effectsForSetEvent, effectsText, parseEffects, PLAYER_HOLDER, type StateChange, type TrackEffect } from './gameState'
 
 /**
@@ -246,6 +247,8 @@ export interface GmRosterEntry {
 
 export interface GmContext {
   campaign: CampaignConfig
+  /** The world's own storytelling style for the GM (`WorldCard.promptOverrides`); unset: `GM_STYLE_GUIDANCE`. */
+  styleGuidance?: string
   worldName: string
   worldDescription?: string
   worldRules?: string
@@ -314,6 +317,27 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
   return a === b || firstName(a) === firstName(b)
 }
 
+/**
+ * How the GM runs a scene: momentum, and who reacts. The part of its prompt a world can tune
+ * (`prompt/tunable.ts`); the rules around it (carded characters, the player's agency, binding
+ * rolls, knowledge boundaries, the reply format) are not.
+ */
+export const GM_STYLE_GUIDANCE = [
+  'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
+  'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
+].join('\n')
+
+/** The binding line the GM receives for a recorded roll, exactly as it reads in the prompt. */
+export function recordedRollLine(m: RecordedMove | undefined): string {
+  return m
+    ? m.resolver === 'custom'
+      ? `Recorded roll (binding): ${m.moveName} — ${m.detail ?? `dice ${m.dice.join(', ')}, result ${m.total}`}; ${m.degree ?? m.tier} (tier: ${m.tier}). Outcome: ${m.outcome}`
+      : m.resolver && m.resolver !== 'pbta'
+      ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+      : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+    : 'Recorded roll: none this turn.'
+}
+
 export function buildGmPrompt(ctx: GmContext): { system: string; user: string } {
   const { campaign } = ctx
   const maxArrivals = Math.min(2, ctx.maxSpeakers)
@@ -323,7 +347,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
         'A recorded roll is binding. In adjudication, copy its move, tier, and outcome exactly; use narration to describe how that result looks in the fiction. Never reroll, change the total, or soften a failed check.',
         'A miss can have creative consequences, including a new problem or scene change, but it cannot grant the attempted success unless the recorded miss outcome explicitly says so. Put lasting changes in proposals for the player to confirm.',
         'If the player declares an action that triggers a move and no roll is recorded, set "move" to that move name and leave "tier" null: the player must roll before it resolves.',
-        campaign.resolver === 'd20' || campaign.resolver === 'd20-degree' || campaign.resolver === 'fate'
+        campaignNeedsTarget(campaign)
           ? 'When requesting a roll, set adjudication.target to the difficulty or opposition before the player rolls, unless the move has a fixed target. Choose it from the situation and the ruleset; do not change it after the roll.' : '',
         'You may not invent dice, totals, or resources.',
       ]
@@ -331,10 +355,19 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
         'Resolution mode: GUIDED. The ruleset informs tone and likely consequences only.',
         'Adjudicate with judgment: say plainly what happens because of the declared action. Never claim a die roll, total, or tier.',
       ]
+  // A world's own ruleset: how its dice work and which tier each outcome counts as, so the GM can
+  // copy a recorded result's tier exactly.
+  const custom = campaign.resolver === 'custom' ? campaign.custom : undefined
+  const customLines = custom && campaign.mode === 'mechanical'
+    ? [`This world's own dice: ${describeDice(custom.dice)}`, 'Outcomes (each counts as the tier in brackets):', ...describeBands(custom).map((line) => `- ${line}`)]
+    : []
+  const tierNames = custom ? tierLabels(custom) : undefined
   const moveLines = campaign.moves.length
     ? ['Moves:', ...campaign.moves.map((m) => campaign.resolver === 'pbta'
       ? `- ${m.name} (+${m.stat || 'modifier'}): when ${m.trigger}. 10+: ${m.strong} 7–9: ${m.mixed} 6-: ${m.miss}`
-      : `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. Success: ${m.strong} Tie: ${m.mixed} Failure: ${m.miss}${m.target !== undefined ? ` Fixed target: ${m.target}.` : ''}`)]
+      : tierNames
+        ? `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. ${tierNames.strong} (strong): ${m.strong} ${tierNames.mixed} (mixed): ${m.mixed} ${tierNames.miss} (miss): ${m.miss}${m.target !== undefined ? ` Fixed difficulty: ${m.target}.` : ''}`
+        : `- ${m.name} (${m.stat || 'sheet value'}): when ${m.trigger}. Success: ${m.strong} Tie: ${m.mixed} Failure: ${m.miss}${m.target !== undefined ? ` Fixed target: ${m.target}.` : ''}`)]
     : []
   const system = [
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
@@ -342,10 +375,11 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Never write a carded character’s dialogue, actions, gestures, thoughts, feelings, entrance, or reaction in narration or adjudication. Do not preview or paraphrase their reply. Put present carded characters who should respond in speakers; their agents will write their own turns. Narration is only for scenery, uncarded NPCs, and immediate observable effects of the player’s action. Keep carded character names out of narration. For example: "Rain strikes the windows. The barkeep says the bridge is closed."',
     `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
+    ...customLines,
     ...moveLines,
     scaleGuidance(campaign),
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
-    'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
+    ctx.styleGuidance?.trim() || GM_STYLE_GUIDANCE,
     `You may add up to ${maxArrivals} available characters to the scene when their entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. Characters loaded for this scene are expected arrivals, but are not physically present until they enter. If two arrive together, add both in the same beat. Each added character responds this beat: list them in speakers too. Never add the player character.`,
     'When the player reaches someone who is not here without bringing them here (a call, a message, telepathy, a sending), put that character in "remote" instead: they answer this beat from where they are and do not join the scene. Never write their reply yourself; their own agent answers.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
@@ -355,7 +389,6 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Set events are canon beats of this story. When the player\'s action carries one out, it happens exactly as written: do not request a roll or name a move; set adjudication.setEvent to its id and narrate its outcome. Never trigger a set event the player has not attempted.',
     'When a recorded result grants questions, the roll is not resolved until the player asks them: on the roll beat, narrate only what the result settles (including any complication it names), invite the question, do not answer anything yet, and list no speakers. While granted questions remain, answer each one and again list no speakers.',
     'When a recorded result asks the player to choose (a cost, a complication, an option), the roll is not resolved until they do. Narrate only what the result has already settled, never pick for them, end by asking them to choose, and list no speakers: nobody reacts until the choice is made. When the player then makes that choice, apply it from the earlier roll: set adjudication.followUp to true, adjudication.choice to their pick, name the earlier move, put what the choice costs in the fiction in adjudication.outcome, and do not request a roll.',
-    'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',
@@ -371,11 +404,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const rosterLine = ctx.roster.length ? ctx.roster.map(describe).join('\n') : '- (nobody else is present)'
   const availableLine = ctx.availableRoster?.length ? ctx.availableRoster.map(describe).join('\n') : '- (none)'
   const m = ctx.recordedMove
-  const recorded = m
-    ? m.resolver && m.resolver !== 'pbta'
-      ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
-      : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
-    : 'Recorded roll: none this turn.'
+  const recorded = recordedRollLine(m)
   const people = gmPeople(ctx)
   const rollChanges = m?.stateChanges?.length ? `This result's tracked-state changes, already applied: ${effectsText(m.stateChanges, campaign.tracks, people)}.` : ''
   const earlier = ctx.earlierRoll
@@ -688,9 +717,9 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     }
     if (ctx.campaign.mode === 'mechanical' && move) {
       const rawTarget = rawAdj.target
-      const target = ctx.campaign.resolver === 'pbta' || ctx.campaign.resolver === 'roll-under' ? undefined
+      const target = !campaignNeedsTarget(ctx.campaign) ? undefined
         : move.target ?? (Number.isInteger(rawTarget) && (rawTarget as number) >= -30 && (rawTarget as number) <= 100 ? rawTarget as number : undefined)
-      if ((ctx.campaign.resolver === 'd20' || ctx.campaign.resolver === 'd20-degree' || ctx.campaign.resolver === 'fate') && target === undefined) {
+      if (campaignNeedsTarget(ctx.campaign) && target === undefined) {
         return fallbackGmTurn(ctx, `The GM requested ${move.name} without setting a difficulty.`)
       }
       adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'roll_needed', moveId: move.id, moveName: move.name, ...(target !== undefined ? { target } : {}), outcome: `Roll ${move.name}${target !== undefined ? ` vs ${target}` : ''} to resolve this.` }

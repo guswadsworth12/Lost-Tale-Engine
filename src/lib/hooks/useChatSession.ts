@@ -4,6 +4,7 @@
  * intimacy scenes, gifts, objectives, world triggers, summarization, choice suggestions).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { promptOverride } from '@/lib/prompt/promptOverrides'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, memoriesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
 import { sceneChain, sceneLabel, storyRecapBlock } from '@/lib/story/recaps'
@@ -1408,6 +1409,7 @@ export function useChatSession(chatId: string | null) {
           .filter((m) => m.active && m.kind !== 'journal' && m.knownBy.some((id) => involved.has(id)))
           .slice(-20)
         const input = {
+          guidance: promptOverride(world?.promptOverrides, 'scribe'),
           worldName: world?.name,
           playerName,
           playerId: fresh.playerCharacterId,
@@ -1481,6 +1483,7 @@ export function useChatSession(chatId: string | null) {
         client,
         {
           prompt: buildJournalPrompt({
+            guidance: promptOverride(world?.promptOverrides, 'journal'),
             name: card.card.name,
             previousJournal: latestJournal(all, id)?.text,
             toFold: toFold.map((m) => ({ text: m.text, feeling: m.feelings?.[id] })),
@@ -2655,6 +2658,7 @@ export function useChatSession(chatId: string | null) {
     const earlier = storyRecapBlock(sceneChain(scenes, chat), 'narrator', { maxTokens: 600, chapters: chaptersOf(storyNow, scenes) })
     const playerName = persona?.name || 'You'
     return writeSceneRecap({
+      guidance: promptOverride(world?.promptOverrides, 'scene-recap'),
       messages: branch
         .filter((m) => !m.failed && m.text.trim())
         .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('char' as const), name: m.role === 'user' ? playerName : m.name, text: m.text })),
@@ -2700,6 +2704,7 @@ export function useChatSession(chatId: string | null) {
     const chapter = chapters.find((c) => c.id === chapterIdOf(chat)) ?? chapters[0]
     const earlier = chapterLine(scenes.some((s) => s.id === chat.id) ? scenes : [...scenes, chat], chat).slice(0, -1)
     return writeChapterRecap({
+      guidance: promptOverride(world?.promptOverrides, 'chapter-recap'),
       chapterLabel: chapterLabel(chapter),
       goal: chapter.goal,
       playerName: persona?.name || 'You',
@@ -3524,6 +3529,7 @@ export function useChatSession(chatId: string | null) {
       const night = sceneryIsNight(scenery, isNightPhase(world.currentPhaseIndex))
       const ctx: GmContext = {
         campaign: { ...world.campaign, mode: rulesMode },
+        styleGuidance: promptOverride(world.promptOverrides, 'gm-style'),
         worldName: world.name,
         worldDescription: world.description,
         worldRules: world.rules,

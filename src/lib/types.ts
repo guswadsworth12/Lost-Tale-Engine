@@ -714,6 +714,10 @@ export interface WorldCard {
   customBackgrounds?: CustomBackground[]
   /** Saved Visual Novel arrangements any scene here can use (`vn/stageDirection.ts`). */
   stageLayouts?: import('@/lib/vn/stageDirection').StageLayout[]
+  /** This world's own guidance for the engine's prompts, by prompt (`prompt/promptOverrides.ts`). Unset: the engine default. */
+  promptOverrides?: Partial<Record<import('@/lib/prompt/promptOverrides').TunablePromptId, string>>
+  /** What Writer's Room changed here and what it replaced, newest first, for one-step revert (`world/revisions.ts`). */
+  revisions?: import('@/lib/world/revisions').WorldRevision[]
   /** Background-music URLs keyed by scene mood id (`src/lib/vn/moods.ts`), plus a `default` key. VN mode only. */
   music?: Record<string, string>
   /** Overrides the default gift catalog for characters here. Empty/unset falls back to the built-in catalog. */

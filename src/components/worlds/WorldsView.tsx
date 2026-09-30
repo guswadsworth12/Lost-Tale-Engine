@@ -31,7 +31,8 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { GenerateImageButton } from '@/components/ui/GenerateImageButton'
 import { WorldTemplateGallery } from './WorldTemplateGallery'
-import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignRank, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
+import { CAMPAIGN_PRESETS, DEFAULT_CAMPAIGN, campaignFileFrom, campaignNeedsTarget, campaignStats, parseCampaignFile, statForMove, type CampaignConfig, type CampaignRank, type CampaignStat, type PbtaMove } from '@/lib/world/campaign'
+import { describeBands, describeDice, tierLabels } from '@/lib/world/customRules'
 import { MAX_RANKS, RANK_NAME_MAX, RANK_NOTE_MAX, moveItem, nextRankName, rankLadderProblem } from './rankLadder'
 import { ChoiceEffectsField, EffectsField, TracksEditor } from './TracksEditor'
 import { ExportPackDialog } from './ExportPackDialog'
@@ -690,6 +691,7 @@ function WorldEditor({
   const effectiveModules = modulesForWorld({ template, campaign, modules })
   const tabs = worldEditorTabs(effectiveModules, lorebook.entries.length + canonFacts.length)
   const sheetStats = campaignStats(campaign)
+  const customTiers = campaign.resolver === 'custom' && campaign.custom ? tierLabels(campaign.custom) : undefined
   const sheetNames = sheetStats.map((stat) => stat.name.trim().toLowerCase())
   const sheetStatsValid = sheetStats.length <= 30 && sheetNames.every(Boolean) && new Set(sheetNames).size === sheetNames.length
   const rankLadderValid = !rankLadderProblem(campaign.ranks ?? [])
@@ -885,12 +887,18 @@ function WorldEditor({
               <option value="d20-degree">D20 · four degrees</option>
               <option value="fate">Fate · four Fate dice</option>
               <option value="roll-under">3d6 · roll under</option>
+              <option value="custom" disabled={!campaign.custom}>{campaign.custom ? 'Custom · this world\'s own dice' : 'Custom · draft one in Writer\'s Room'}</option>
             </SelectField>
+            {campaign.resolver === 'custom' && campaign.custom && <div className="mb-4 rounded-lg border border-border bg-bg-sunken p-3 text-xs text-text-muted">
+              <p className="mb-1 text-text">{describeDice(campaign.custom.dice)}</p>
+              <ul className="list-disc space-y-0.5 pl-4">{describeBands(campaign.custom).map((line) => <li key={line}>{line}</li>)}</ul>
+              <p className="mt-2">To change these rules, ask Writer's Room.</p>
+            </div>}
             <div className="mb-4 flex flex-wrap gap-2">
               <Chip on={campaign.mode === 'guided'} onClick={() => setModule('campaignRules', 'guided')}>Guided outcomes</Chip>
               <Chip on={campaign.mode === 'mechanical'} onClick={() => setModule('campaignRules', 'mechanical')}>Roll for outcomes</Chip>
             </div>
-            <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a {campaign.resolver === 'pbta' ? '2d6' : campaign.resolver === 'fate' ? 'four Fate dice' : campaign.resolver === 'roll-under' ? '3d6' : 'd20'} check before the narrator describes it. The player chooses when to roll.</p>
+            <p className="mb-4 text-xs text-text-muted">Guided mode uses the ruleset as story guidance. Mechanical mode records a {campaign.resolver === 'custom' ? 'custom' : campaign.resolver === 'pbta' ? '2d6' : campaign.resolver === 'fate' ? 'four Fate dice' : campaign.resolver === 'roll-under' ? '3d6' : 'd20'} check before the narrator describes it. The player chooses when to roll.</p>
             <TextAreaField label="Game Master continuity notes" hint="Only the Game Master sees these. Record secrets, relationship visibility, and future story threads here; character agents receive only what their own cards and public lore permit." rows={6} value={gmNotes} onChange={(e) => setGmNotes(e.target.value)} />
             <label className="mb-3 flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.relationships} onChange={(e) => setModule('relationships', e.target.checked)} /> Use RP relationship scoring</label>
             <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Enable dating features</label>
@@ -934,17 +942,17 @@ function WorldEditor({
                     <option value="">Choose a sheet stat</option>
                     {sheetStats.map((stat) => <option key={stat.id} value={stat.id}>{stat.name}</option>)}
                   </SelectField>
-                  {campaign.resolver !== 'pbta' && campaign.resolver !== 'roll-under' && <NumberField label="Fixed target / opposition (optional)" hint="Leave blank for the GM or player to set a scene target before rolling." min={-30} max={100} step={1} value={move.target ?? ''} onChange={(e) => {
+                  {campaignNeedsTarget(campaign) && <NumberField label="Fixed target / opposition (optional)" hint="Leave blank for the GM or player to set a scene target before rolling." min={-30} max={100} step={1} value={move.target ?? ''} onChange={(e) => {
                     const value = e.target.value === '' ? undefined : Number(e.target.value)
                     if (value === undefined || Number.isInteger(value) && value >= -30 && value <= 100) update({ target: value })
                   }} />}
-                  <TextAreaField label={campaign.resolver === 'pbta' ? '10+ result' : 'Success result'} value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
-                  <TextAreaField label={campaign.resolver === 'pbta' ? '7–9 result' : 'Tie or complication result'} value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
-                  <TextAreaField label={campaign.resolver === 'pbta' ? '6 or less result' : 'Failure result'} value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
+                  <TextAreaField label={customTiers ? `${customTiers.strong} result` : campaign.resolver === 'pbta' ? '10+ result' : 'Success result'} value={move.strong} onChange={(e) => update({ strong: e.target.value })} />
+                  <TextAreaField label={customTiers ? `${customTiers.mixed} result` : campaign.resolver === 'pbta' ? '7–9 result' : 'Tie or complication result'} value={move.mixed} onChange={(e) => update({ mixed: e.target.value })} />
+                  <TextAreaField label={customTiers ? `${customTiers.miss} result` : campaign.resolver === 'pbta' ? '6 or less result' : 'Failure result'} value={move.miss} onChange={(e) => update({ miss: e.target.value })} />
                   {!!campaign.tracks?.length && <div className="space-y-2">
                     <p className="text-xs text-text-muted">What each result changes, e.g. "Supplies -1, Hurt on, Trouble +1". Items: "Gear + rope".</p>
                     {(['strong', 'mixed', 'miss'] as const).map((tier) => <EffectsField key={tier} tracks={campaign.tracks!}
-                      label={`Changes on ${campaign.resolver === 'pbta' ? { strong: '10+', mixed: '7–9', miss: '6 or less' }[tier] : { strong: 'success', mixed: 'a tie or complication', miss: 'failure' }[tier]}`}
+                      label={`Changes on ${customTiers ? customTiers[tier] : campaign.resolver === 'pbta' ? { strong: '10+', mixed: '7–9', miss: '6 or less' }[tier] : { strong: 'success', mixed: 'a tie or complication', miss: 'failure' }[tier]}`}
                       effects={move.effects?.[tier]}
                       onChange={(effects) => {
                         const { [tier]: _old, ...others } = move.effects ?? {}

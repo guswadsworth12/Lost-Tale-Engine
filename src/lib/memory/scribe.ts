@@ -8,6 +8,8 @@ import { parseLenientJson } from '@/lib/jsonRepair'
 import type { MemoryCertainty, MemoryKind } from '@/lib/types'
 
 export interface ScribeInput {
+  /** The world's own guidance for what to record (`WorldCard.promptOverrides`); unset: `SCRIBE_GUIDANCE`. */
+  guidance?: string
   worldName?: string
   playerName: string
   /** The card the player plays, when there is one. */
@@ -78,6 +80,12 @@ const EXAMPLE = [
   '{"add":[{"from":1,"text":"Ash gave Bea the key and asked her to keep it until he returns.","kind":"promise","certainty":"firsthand","importance":0.6,"about":["Ash","Bea"],"unresolved":true},{"from":2,"text":"Bea told Ash her real name is Wren.","kind":"secret","certainty":"claim","importance":0.8,"about":["Bea"],"witnesses":["Ash","Bea"],"feelings":{"Ash":0.4}},{"from":3,"text":"Cole said that, according to talk at the inn, the mayor fled the city last night.","kind":"learned","certainty":"claim","importance":0.5,"about":["Cole"]}],"told":[],"retire":[],"resolve":[]}',
 ].join('\n')
 
+/** What the scribe records and skips: the part of its prompt a world can tune (`prompt/tunable.ts`). */
+export const SCRIBE_GUIDANCE = [
+  'Most batches add nothing, or one memory. Only record concrete, durable things: a promise, a revelation, a name or secret learned, a changed relationship, an injury, a decision, a moment that landed hard.',
+  'Skip small talk, greetings, and narration flavour. Skip tactical orders, formations, and plans for the next few minutes (who scouts, who watches the rear, a time limit): they matter now, not later. If nothing here will matter in a later scene, add nothing.',
+].join('\n')
+
 export function buildScribePrompt(input: ScribeInput): string {
   const maxNew = Math.max(0, input.maxNew ?? DEFAULT_SCRIBE_MAX_NEW)
   const castNames = [...new Set(input.cast.map((c) => c.name.trim()).filter(Boolean))]
@@ -94,8 +102,7 @@ export function buildScribePrompt(input: ScribeInput): string {
   const sections = [
     `Task: you are the scribe for a roleplay${input.worldName?.trim() ? ` set in ${input.worldName.trim()}` : ''}. Read the new messages below and record what the characters in them will remember.`,
     [
-      'Most batches add nothing, or one memory. Only record concrete, durable things: a promise, a revelation, a name or secret learned, a changed relationship, an injury, a decision, a moment that landed hard.',
-      'Skip small talk, greetings, and narration flavour. Skip tactical orders, formations, and plans for the next few minutes (who scouts, who watches the rear, a time limit): they matter now, not later. If nothing here will matter in a later scene, add nothing.',
+      input.guidance?.trim() || SCRIBE_GUIDANCE,
       `${player || 'The player'} is the player's character. Speech or action presented as theirs counts the same as anyone else's.`,
     ].join('\n'),
     castNames.length ? `Characters: ${castNames.join(', ')}.` : '',

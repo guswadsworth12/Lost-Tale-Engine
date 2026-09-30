@@ -181,6 +181,7 @@ export function normalizeSelection(raw: unknown): PackSelection {
     worldContent: flag(v.worldContent, d.worldContent),
     cast: flag(v.cast, d.cast),
     media: Object.fromEntries((Object.keys(d.media) as MediaKind[]).map((k) => [k, flag(media[k], d.media[k])])) as PackSelection['media'],
+    promptOverrides: flag(v.promptOverrides, d.promptOverrides),
     gmNotes: flag(v.gmNotes, d.gmNotes),
     canonFacts: flag(v.canonFacts, d.canonFacts),
     npcSheets: flag(v.npcSheets, d.npcSheets),
@@ -204,11 +205,14 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
     const take = cls === 'setting'
       || (cls === 'lore' && selection.lore)
       || (cls === 'worldContent' && selection.worldContent)
+      || (cls === 'promptOverrides' && selection.promptOverrides)
       || (cls === 'gmNotes' && selection.gmNotes)
       || (cls === 'canonFacts' && selection.canonFacts)
       || (cls.startsWith('media:') && selection.media[cls.slice(6) as MediaKind])
     if (take) worldOut[field] = value
   }
+  const tuned = world.promptOverrides && typeof world.promptOverrides === 'object' ? Object.keys(world.promptOverrides).length : 0
+  if (!selection.promptOverrides && tuned) excluded.push(`Prompt tuning (${tuned})`)
   if (!selection.gmNotes && str(world.gmNotes)) excluded.push('GM notes')
   const canon = Array.isArray(world.canonFacts) ? world.canonFacts.length : 0
   if (!selection.canonFacts && canon) excluded.push(`Canon facts from play (${canon})`)
@@ -304,6 +308,7 @@ export function planExport(input: ExportInput, selection: PackSelection = DEFAUL
     ...(selection.lore ? [{ label: 'Lore entries', count: loreEntries }, { label: 'World-info books', count: lorebooks.length }] : []),
     ...(selection.worldContent ? [{ label: 'Prompt items, scenarios, triggers, gifts, items, scene flags, and stage layouts' }] : []),
     ...(selection.cast ? [{ label: 'Cast', count: characters.length }] : []),
+    ...(selection.promptOverrides && tuned ? [{ label: 'Prompt tuning', count: tuned }] : []),
     ...(selection.gmNotes && str(world.gmNotes) ? [{ label: 'GM notes' }] : []),
     ...(selection.canonFacts && canon ? [{ label: 'Canon facts from play', count: canon }] : []),
     ...(selection.npcSheets ? [{ label: 'Stat sheets', count: characters.filter((c) => c.sheets).length }] : []),

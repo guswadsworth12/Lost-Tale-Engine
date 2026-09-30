@@ -38,7 +38,7 @@ In **mechanical** mode, the server records the dice, modifier or sheet value, ta
 
 ### Build with Writer's Room
 
-**Writer's Room** can brainstorm with your configured model and search the worlds, cast, lore, stories, goals, and facts saved on this device. Its replies identify the local sources they used. The guided **Build a roleplay** flow drafts a world, lore, cast, rules, and an opening scene for review before creating them. It can also prepare an editable update to an existing character and world-specific sheet.
+**Writer's Room** can brainstorm with your configured model and search the worlds, cast, lore, stories, goals, and facts saved on this device. Its replies identify the local sources they used. The guided **Build a roleplay** flow drafts a world, lore, cast, rules, and an opening scene for review before creating them. It can also prepare an editable update to an existing character and world-specific sheet, draft a game system the presets don't cover from a description (test-roll it, then apply it to a world), and tune the prompts that drive the GM, memory, recaps, and journals for a world, with previews, history, and revert.
 
 [![The first step of the Writer's Room guided roleplay builder](screenshots/lost-tales-writers-room.jpg)](screenshots/lost-tales-writers-room.jpg)
 
@@ -75,7 +75,7 @@ Text connections support KoboldCpp, OpenAI-compatible endpoints (including OpenM
 - Writer's Room can write prose chapters; those are separate from a story's playable chapters.
 - Mechanical presets resolve core checks. They do not implement complete D&D, Starfinder, Fate, or GURPS rules, combat, or resource tracking.
 - Guided rulings are GM judgments. Only mechanical mode produces a recorded, enforced roll.
-- Writer's Room can create a new RP and prepare reviewed character updates. Conversational editing of existing worlds and lore is still outside that flow.
+- Writer's Room can create a new RP, prepare reviewed character updates, draft game systems, and tune prompts. Conversational editing of existing worlds and lore is still outside that flow.
 
 ## Credits
 

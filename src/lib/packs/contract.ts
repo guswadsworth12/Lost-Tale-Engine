@@ -38,6 +38,8 @@ export interface PackSelection {
     /** VRM models. Large, so off by default. */
     models: boolean
   }
+  /** The world's own tuning of the engine's prompts (`WorldCard.promptOverrides`). */
+  promptOverrides: boolean
   /** Storyteller-only notes; may hold spoilers. */
   gmNotes: boolean
   /** Facts confirmed during someone's play. */
@@ -57,6 +59,7 @@ export const DEFAULT_PACK_SELECTION: PackSelection = {
   worldContent: true,
   cast: true,
   media: { portraits: true, sprites: true, backgrounds: true, music: true, gallery: true, models: false },
+  promptOverrides: true,
   gmNotes: false,
   canonFacts: false,
   npcSheets: false,

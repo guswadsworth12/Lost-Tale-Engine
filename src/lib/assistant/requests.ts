@@ -9,7 +9,7 @@
  * the producer, and plain chat stays plain.
  */
 
-export type ProducerKind = 'character' | 'story' | 'update'
+export type ProducerKind = 'character' | 'story' | 'update' | 'ruleset'
 
 /** A verb that means "bring this into existence", as opposed to discussing it. */
 const MAKE = String.raw`(?:generate|create|make|design|build|write|draft|come up with|invent|give me)`
@@ -47,6 +47,13 @@ function namedCharacter(text: string, knownNames: readonly string[]): string | u
   return undefined
 }
 
+/** A game system to roll: named as one, or described by its dice. */
+const RULESET_PATTERNS = [
+  new RegExp(String.raw`\b${MAKE}\b[^.?!]{0,80}?\b(?:ruleset|rule set|game system|dice system|dice mechanics?|resolution system|rpg system|rules for (?:rolling|dice|checks))\b`, 'i'),
+  // "Blades in the Dark: roll d6 pools, take the highest..." describes dice without asking in so many words.
+  /\b(?:roll|rolls|rolling)\b[^.?!]{0,60}?\b\d*d(?:4|6|8|10|12|20|100)\b[^.?!]{0,80}?\b(?:pools?|highest|lowest|explod\w*|success(?:es)?|target number|wild die)\b/i,
+]
+
 const STORY_PATTERNS = [
   // "chapters" is one of the object nouns rather than a pattern of its own: standalone it matches
   // "I like stories with chapters", which is conversation, not a commission.
@@ -76,6 +83,7 @@ export function detectProducer(text: string, knownNames: readonly string[] = [])
   ) {
     return undefined
   }
+  if (RULESET_PATTERNS.some((re) => re.test(trimmed))) return 'ruleset'
   if (STORY_PATTERNS.some((re) => re.test(trimmed))) return 'story'
   // A saved character named with something to change ("make Ash's character sheet", "give Ash
   // stats") is an update to them, not a request for a new character. "Make a new character who is
@@ -90,6 +98,7 @@ export const PRODUCER_LABEL: Record<ProducerKind, string> = {
   character: 'Build this as a character',
   story: 'Write this as a full story',
   update: 'Update this character',
+  ruleset: 'Draft this as a ruleset',
 }
 
 /** One line under the chip saying what pressing it will actually do. */
@@ -98,4 +107,5 @@ export const PRODUCER_DETAIL: Record<ProducerKind, string> = {
     'Runs the full character build (card, profile, wardrobe, lore) and offers to save it to your library for roleplay.',
   story: 'Plans a chapter outline first, then writes each chapter in order, keeping continuity across them.',
   update: "Drafts the change, such as a character sheet for a world's rules, for you to review and edit. Nothing is saved until you apply it.",
+  ruleset: 'Drafts the dice, outcomes, stats and moves for you to test-roll and review. Nothing changes until you apply it to a world.',
 }

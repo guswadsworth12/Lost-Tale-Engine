@@ -19,7 +19,7 @@ export function formatBytes(bytes: number): string {
   return `${value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`
 }
 
-type Flag = 'lore' | 'worldContent' | 'cast' | 'gmNotes' | 'canonFacts' | 'npcSheets' | 'privateMemory' | 'playerCards'
+type Flag = 'lore' | 'worldContent' | 'cast' | 'promptOverrides' | 'gmNotes' | 'canonFacts' | 'npcSheets' | 'privateMemory' | 'playerCards'
 
 export interface ExportRow {
   /** A top-level option, or `media:<kind>`. */
@@ -40,6 +40,7 @@ export const EXPORT_ROWS: ExportRow[] = [
   { key: 'media:music', label: 'Music' },
   { key: 'media:gallery', label: 'Gallery art' },
   { key: 'media:models', label: 'VRM models', hint: 'Large files.', optional: true },
+  { key: 'promptOverrides', label: 'Prompt tuning', hint: "This world's own guidance for the GM, scribe, recaps and journals." },
   { key: 'gmNotes', label: 'GM notes', hint: 'May hold spoilers.', optional: true },
   { key: 'canonFacts', label: 'Canon facts from play', hint: 'Facts confirmed in your own stories.', optional: true },
   { key: 'npcSheets', label: 'Stat sheets of the cast', optional: true },

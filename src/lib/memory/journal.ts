@@ -55,6 +55,8 @@ function clampUnit(n: number): number {
 }
 
 export interface JournalInput {
+  /** The world's own guidance for how a journal reads; unset: `JOURNAL_GUIDANCE`. `{name}` is the character. */
+  guidance?: string
   name: string
   previousJournal?: string
   toFold: { text: string; feeling?: number }[]
@@ -67,6 +69,12 @@ function feelingNote(name: string, feeling: number | undefined): string {
   if (feeling <= -0.3) return ` (sat badly with ${name})`
   return ''
 }
+
+/** How a journal reads: the part of its prompt a world can tune (`prompt/tunable.ts`). `{name}` is the character. */
+export const JOURNAL_GUIDANCE = [
+  'Third person, plain prose, under 180 words. No headers, no bullet points, no em dashes.',
+  'Keep names, promises and secrets exact. Keep how things left {name} feeling where it matters. Drop trivia.',
+].join('\n')
 
 export function buildJournalPrompt(input: JournalInput): string {
   const name = input.name.trim() || 'the character'
@@ -81,8 +89,7 @@ export function buildJournalPrompt(input: JournalInput): string {
     `Older memories to fold in:\n${lines.join('\n')}`,
     [
       `Write the updated journal. Integrate the journal so far and the memories above into one account; do not just append.`,
-      `Third person, plain prose, under 180 words. No headers, no bullet points, no em dashes.`,
-      `Keep names, promises and secrets exact. Keep how things left ${name} feeling where it matters. Drop trivia.`,
+      (input.guidance?.trim() || JOURNAL_GUIDANCE).replace(/\{name\}/g, name),
       'Never invent anything that is not above.',
       'Reply with only the journal text.',
     ].join('\n'),
