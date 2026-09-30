@@ -70,7 +70,7 @@ For Docker, run `docker compose up -d --build`; see [DOCKER.md](DOCKER.md) for d
 
 Worlds, characters, stories, and media live in the git-ignored `data/` folder or the folder set by `LOST_TALES_DATA_DIR`. Back up that folder or use the app's backup and restore feature. The app requires no account. A local model can keep inference on your machine; a hosted provider receives the prompts you send to it.
 
-Text connections support KoboldCpp, OpenAI-compatible endpoints (including OpenMayhem), and NovelAI. Optional image generation supports AUTOMATIC1111, ComfyUI, SwarmUI, NovelAI, and OpenMayhem. Voice settings include KoboldCpp, OpenAI-compatible speech, LuxTTS, ElevenLabs, Azure Speech, Alibaba, and OpenMayhem. These features depend on the providers you configure; their availability and costs vary.
+Text connections support KoboldCpp, OpenAI-compatible endpoints (including OpenMayhem), and NovelAI. Optional image generation supports AUTOMATIC1111, ComfyUI, SwarmUI, NovelAI, OpenMayhem, OpenAI, and Google Gemini. Hosted image keys are stored encrypted per account, and every generated image is previewed before it is saved. Voice settings include KoboldCpp, OpenAI-compatible speech, LuxTTS, ElevenLabs, Azure Speech, Alibaba, and OpenMayhem. These features depend on the providers you configure; their availability and costs vary.
 
 - Writer's Room can write prose chapters; those are separate from a story's playable chapters.
 - Mechanical presets resolve core checks. They do not implement complete D&D, Starfinder, Fate, or GURPS rules, combat, or resource tracking.

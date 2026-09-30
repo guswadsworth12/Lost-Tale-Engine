@@ -5,8 +5,8 @@ const PNG = 'data:image/png;base64,iVBORw0KGgo='
 
 describe('a new moment', () => {
   it('keeps known shapes and says what is missing', () => {
-    expect(normalizeMomentInput({ kind: 'moment', caption: '  The lantern goes out  ', prompt: 'x', messageId: 'm1', characterIds: ['bea', 'bea', 7], image: PNG, extra: 1 }))
-      .toEqual({ value: { kind: 'moment', caption: 'The lantern goes out', prompt: 'x', messageId: 'm1', characterIds: ['bea'], image: PNG } })
+    expect(normalizeMomentInput({ kind: 'moment', caption: '  The lamp goes out  ', prompt: 'x', messageId: 'm1', characterIds: ['bea', 'bea', 7], image: PNG, extra: 1 }))
+      .toEqual({ value: { kind: 'moment', caption: 'The lamp goes out', prompt: 'x', messageId: 'm1', characterIds: ['bea'], image: PNG } })
     expect(normalizeMomentInput({ kind: 'selfie', image: PNG }).error).toMatch(/what kind of picture/)
     expect(normalizeMomentInput({ kind: 'moment', image: '/avatars/x.png' }).error).toMatch(/needs its picture/)
   })
@@ -15,9 +15,13 @@ describe('a new moment', () => {
 describe('the drafted prompt', () => {
   const cast = [{ name: 'Bea', appearance: 'tall, short grey hair, oilskin coat' }, { name: 'Cole' }]
   it('pictures the line, who is there and how they look, and where', () => {
-    expect(draftMomentPrompt({ kind: 'moment', messageText: 'She blows out the lantern.', speaker: 'Bea', location: 'the lighthouse', timeOfDay: 'night', characters: cast, artStyle: 'Watercolor, muted colors' }))
-      .toBe('Bea (tall, short grey hair, oilskin coat) and Cole at the lighthouse, night. The moment: Bea: She blows out the lantern. Watercolor, muted colors.')
+    expect(draftMomentPrompt({ kind: 'moment', messageText: 'She blows out the lamp.', speaker: 'Bea', location: 'the lighthouse', timeOfDay: 'night', characters: cast, artStyle: 'Watercolor, muted colors' }))
+      .toBe('Bea (tall, short grey hair, oilskin coat) and Cole at the lighthouse, night. The moment: Bea: She blows out the lamp. Watercolor, muted colors.')
   })
+  it('says the time of day even when the place is unknown', () => {
+    expect(draftMomentPrompt({ kind: 'moment', timeOfDay: 'morning', characters: [{ name: 'Bea' }] })).toBe('Bea, morning. Illustration, cinematic lighting, no text.')
+  })
+
   it('drafts backgrounds without people, and portraits of one character', () => {
     expect(draftMomentPrompt({ kind: 'background', location: 'the harbor', timeOfDay: 'dawn', characters: cast })).toBe('Scenery of the harbor, dawn, no people. Illustration, cinematic lighting, no text.')
     expect(draftMomentPrompt({ kind: 'portrait', subject: 'Bea', characters: cast })).toBe('Portrait of Bea (tall, short grey hair, oilskin coat). Illustration, cinematic lighting, no text.')

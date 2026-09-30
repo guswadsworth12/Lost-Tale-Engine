@@ -33,7 +33,7 @@ import { authGate, authRouter, requireOwner } from './auth.ts'
 import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
 import { storiesRouter } from './stories.ts'
-import { momentsRouter } from './moments.ts'
+import { momentsRouter, purgeChatMoments } from './moments.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
@@ -901,13 +901,14 @@ app.delete('/api/personas/:id', (req, res) => {
 // How long a deleted chat sits recoverable before `purgeExpiredTrash` purges it for real (called at server startup).
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-/** Permanent cascading delete: messages/objectives/relationship events/facts/memories, un-parents any fork, then the chat row. */
+/** Permanent cascading delete: messages/objectives/relationship events/facts/memories/moments, un-parents any fork, then the chat row. */
 function purgeChat(chatId: string): void {
   for (const msg of messageStore.list({ where: 'chatId = ?', params: [chatId] })) messageStore.remove(msg.id as string)
   for (const o of objectiveStore.list({ where: 'chatId = ?', params: [chatId] })) objectiveStore.remove(o.id as string)
   for (const e of relationshipEventStore.list({ where: 'chatId = ?', params: [chatId] })) relationshipEventStore.remove(e.id as string)
   for (const f of chatFactStore.list({ where: 'chatId = ?', params: [chatId] })) chatFactStore.remove(f.id as string)
   purgeChatMemories(chatId)
+  purgeChatMoments(chatId)
   // Un-parent any chat forked from this one (parentChatId isn't indexed, so a full scan).
   for (const chat of chatStore.list()) {
     if (chat.parentChatId !== chatId) continue

@@ -60,11 +60,13 @@ export function PictureThisDialog({
   const places = useMemo(() => [...backgroundCatalog(world), ...(world?.customBackgrounds ?? [])], [world])
   const [slot, setSlot] = useState(() => matchBackgroundKeyword(location ?? '', places) ?? places[0]?.id ?? '')
   const [caption, setCaption] = useState((message?.text ?? location ?? '').replace(/\s+/g, ' ').trim().slice(0, 80))
-  const draftFor = (k: MomentKind, subject = subjectId) => draftMomentPrompt({
+  const placeLabel = (id: string) => places.find((p) => p.id === id)?.label
+  const draftFor = (k: MomentKind, subject = subjectId, place = slot) => draftMomentPrompt({
     kind: k,
     messageText: message?.text,
     speaker: message?.role === 'user' ? undefined : message?.name,
-    location,
+    // A background is of the picked location, when the scene doesn't name one.
+    location: k === 'background' ? location || placeLabel(place) : location,
     timeOfDay,
     characters: cast.map((c) => ({ name: c.card.name, appearance: appearanceOf(c, chat) })),
     subject: cast.find((c) => c.id === subject)?.card.name,
@@ -97,7 +99,7 @@ export function PictureThisDialog({
   const changeKind = (next: MomentKind) => {
     setKind(next)
     setPrompt(draftFor(next))
-    if (next === 'background') setCaption(places.find((p) => p.id === slot)?.label ?? caption)
+    if (next === 'background') setCaption(placeLabel(slot) ?? caption)
     if (next === 'portrait') setCaption(cast.find((c) => c.id === subjectId)?.card.name ?? caption)
   }
   const subject = cast.find((c) => c.id === subjectId)
@@ -109,7 +111,7 @@ export function PictureThisDialog({
       await momentsApi.create(chat.id, { kind, caption, prompt, ...(message ? { messageId: message.id } : {}), characterIds, image: dataUrl })
       if (kind === 'background' && world && slot) {
         const fresh = await worldsApi.get(world.id)
-        const label = places.find((p) => p.id === slot)?.label ?? slot
+        const label = placeLabel(slot) ?? slot
         const replace = !fresh?.backgrounds?.[slot] || await confirmDialog({ title: `Replace ${label}?`, body: `${world.name} already has a picture for ${label}. Every story in this world will use the new one.`, confirmLabel: 'Replace' })
         if (fresh && replace) await worldsApi.update(world.id, { backgrounds: { ...fresh.backgrounds, [slot]: dataUrl } })
       }
@@ -150,7 +152,7 @@ export function PictureThisDialog({
           ))}
         </div>
         {kind === 'background' && (
-          <SelectField label="Location" value={slot} onChange={(e) => setSlot(e.target.value)} hint={`Offered to ${world?.name ?? 'the world'}'s backgrounds too. Replacing one asks first.`}>
+          <SelectField label="Location" value={slot} onChange={(e) => { setSlot(e.target.value); setPrompt(draftFor('background', subjectId, e.target.value)); setCaption(placeLabel(e.target.value) ?? caption) }} hint={`Offered to ${world?.name ?? 'the world'}'s backgrounds too. Replacing one asks first.`}>
             {places.map((p) => <option key={p.id} value={p.id}>{p.label}{world?.backgrounds?.[p.id] ? ' (has a picture)' : ''}</option>)}
           </SelectField>
         )}

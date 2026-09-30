@@ -46,6 +46,23 @@ describe('story moments over HTTP', () => {
     expect((await t.call('/api/moments', 'GET', { cookie: ash })).body).toHaveLength(1)
   })
 
+  it('hides a trashed scene\'s moments, and deletes them with their pictures when it is purged', async () => {
+    const lead = (await t.call('/api/characters', 'POST', { cookie: ash, body: { card: { name: 'Wren' } } })).body
+    const chat = (await t.call('/api/chats', 'POST', { cookie: ash, body: { characterId: lead.id, title: 'Low Tide' } })).body
+    const moment = (await t.call(`/api/chats/${chat.id}/moments`, 'POST', { cookie: ash, body: { kind: 'moment', caption: 'Low tide', prompt: 'x', image: RED_PNG } })).body
+    const file = path.join(t.dataDir, moment.imageUrl.replace(/^\//, ''))
+    const ids = async () => (await t.call('/api/moments', 'GET', { cookie: ash })).body.map((m: { id: string }) => m.id)
+
+    await t.call(`/api/chats/${chat.id}`, 'DELETE', { cookie: ash })
+    expect(await ids()).not.toContain(moment.id)
+    await t.call(`/api/chats/${chat.id}/restore`, 'POST', { cookie: ash })
+    expect(await ids()).toContain(moment.id)
+
+    expect((await t.call(`/api/chats/${chat.id}/purge`, 'DELETE', { cookie: ash })).status).toBe(204)
+    expect(await ids()).not.toContain(moment.id)
+    expect(fs.existsSync(file)).toBe(false)
+  })
+
   it('refuses a moment without a picture or kind, and needs a sign-in', async () => {
     const lead = (await t.call('/api/characters', 'POST', { cookie: ash, body: { card: { name: 'Wren' } } })).body
     const chat = (await t.call('/api/chats', 'POST', { cookie: ash, body: { characterId: lead.id, title: 'Dock' } })).body

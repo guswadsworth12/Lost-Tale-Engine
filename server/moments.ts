@@ -13,7 +13,19 @@ export const momentsRouter = express.Router()
 
 type Row = Record<string, unknown>
 
-const visible = (req: express.Request, moment: Row | undefined) => !!moment && canSeeChat(req, chatStore.get(String(moment.chatId)))
+/** Seen by whoever can see its scene, and hidden while the scene is in the trash. */
+function visible(req: express.Request, moment: Row | undefined): boolean {
+  const chat = moment && chatStore.get(String(moment.chatId))
+  return !!chat && !chat.deletedAt && canSeeChat(req, chat)
+}
+
+/** Deletes a scene's moments and their pictures, when the scene itself is purged. */
+export function purgeChatMoments(chatId: string): void {
+  for (const moment of storyMomentStore.list({ where: 'chatId = ?', params: [chatId] })) {
+    removeMomentImage(moment.imageUrl)
+    storyMomentStore.remove(moment.id as string)
+  }
+}
 
 momentsRouter.get('/moments', (req, res) => {
   res.json(storyMomentStore.list({ orderBy: 'createdAt' }).filter((m) => visible(req, m)))

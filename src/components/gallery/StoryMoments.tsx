@@ -80,7 +80,7 @@ export function StoryMoments({ onOpenMoment }: { onOpenMoment?: (chatId: string,
                             <span>{KIND_LABEL[moment.kind]}</span>
                             <span className="flex gap-1">
                               {onOpenMoment && (
-                                <Button variant="ghost" className="inline-flex items-center gap-1 !px-1.5 !py-0.5 text-[11px]" onClick={() => onOpenMoment(moment.chatId, moment.messageId)}>
+                                <Button variant="ghost" className="inline-flex items-center gap-1 whitespace-nowrap !px-1.5 !py-0.5 !text-[11px]" onClick={() => onOpenMoment(moment.chatId, moment.messageId)}>
                                   Go to moment <ArrowRight size={11} />
                                 </Button>
                               )}

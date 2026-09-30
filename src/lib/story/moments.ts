@@ -76,6 +76,8 @@ const clip = (value: string, max: number) => (value.length > max ? `${value.slic
  */
 export function draftMomentPrompt(input: MomentDraftInput): string {
   const where = [input.location, input.timeOfDay].filter(Boolean).join(', ')
+  // "at the pier, night", or just ", night" when the place isn't known.
+  const at = input.location ? ` at ${where}` : input.timeOfDay ? `, ${input.timeOfDay}` : ''
   const look = (c: { name: string; appearance?: string }) => (c.appearance ? `${c.name} (${clip(c.appearance.replace(/\s+/g, ' ').trim(), 160)})` : c.name)
   const style = input.artStyle?.trim() ? `${input.artStyle.trim()}.` : 'Illustration, cinematic lighting, no text.'
   if (input.kind === 'background') {
@@ -87,7 +89,7 @@ export function draftMomentPrompt(input: MomentDraftInput): string {
   }
   const line = input.messageText?.replace(/\s+/g, ' ').trim()
   return [
-    input.characters.length ? `${input.characters.map(look).join(' and ')}${where ? ` at ${where}` : ''}.` : where ? `${where}.` : '',
+    input.characters.length ? `${input.characters.map(look).join(' and ')}${at}.` : where ? `${where}.` : '',
     line ? `The moment: ${input.speaker ? `${input.speaker}: ` : ''}${clip(line, 320)}` : '',
     style,
   ].filter(Boolean).join(' ')

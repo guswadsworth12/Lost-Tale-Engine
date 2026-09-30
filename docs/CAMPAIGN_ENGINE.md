@@ -57,6 +57,8 @@ Stories contain chapters, and chapters contain numbered scenes. Ending a scene r
 
 Visual Novel play uses character sprites, expressions, outfits, and optional VRM models. Stage controls are in a collapsible side rail. The adjustable desktop stage area supports moving characters; mobile emphasizes the current speaker. World clock and dating controls appear only when their modules are enabled.
 
+**Picture this**, on a message or in the scene's tools, makes a picture of what happened: a moment, a background for the current location, or a portrait of someone present. Its prompt is drafted for free from the line, the location and time of day, how the cast looks now (outfits and forms included), and the world's art style. The story model can improve the draft, or do so automatically when the dialog opens (Settings → Images). Moments show under their message, full-bleed on the Visual Novel stage, and in the Gallery's **Story moments** tab, grouped by story, chapter, and scene, with **Go to moment**. A background is also offered to the world, and a portrait to the character; replacing either asks first. Deleting a scene for good deletes its moments.
+
 The separate **Writer's Room** can search saved worlds, cast, lore, stories, goals, and facts locally for relevant context. Its guided builder creates a new world, cast, rules, and first scene from a reviewed draft. It can prepare a reviewed update to an existing character and sheet. It does not yet offer the same conversational edit flow for existing worlds or lore.
 
 ## Current limits and next work
