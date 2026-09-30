@@ -315,6 +315,17 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
   return a === b || firstName(a) === firstName(b)
 }
 
+/** The binding line the GM receives for a recorded roll, exactly as it reads in the prompt. */
+export function recordedRollLine(m: RecordedMove | undefined): string {
+  return m
+    ? m.resolver === 'custom'
+      ? `Recorded roll (binding): ${m.moveName} — ${m.detail ?? `dice ${m.dice.join(', ')}, result ${m.total}`}; ${m.degree ?? m.tier} (tier: ${m.tier}). Outcome: ${m.outcome}`
+      : m.resolver && m.resolver !== 'pbta'
+      ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+      : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
+    : 'Recorded roll: none this turn.'
+}
+
 export function buildGmPrompt(ctx: GmContext): { system: string; user: string } {
   const { campaign } = ctx
   const maxArrivals = Math.min(2, ctx.maxSpeakers)
@@ -382,13 +393,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
   const rosterLine = ctx.roster.length ? ctx.roster.map(describe).join('\n') : '- (nobody else is present)'
   const availableLine = ctx.availableRoster?.length ? ctx.availableRoster.map(describe).join('\n') : '- (none)'
   const m = ctx.recordedMove
-  const recorded = m
-    ? m.resolver === 'custom'
-      ? `Recorded roll (binding): ${m.moveName} — ${m.detail ?? `dice ${m.dice.join(', ')}, result ${m.total}`}; ${m.degree ?? m.tier} (tier: ${m.tier}). Outcome: ${m.outcome}`
-      : m.resolver && m.resolver !== 'pbta'
-      ? `Recorded roll (binding): ${m.moveName} — dice ${m.dice.join(', ')}; sheet value ${m.modifier} ${m.stat}; total ${m.total}${m.target !== undefined ? ` vs target ${m.target}` : ''}; ${m.degree ?? TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
-      : `Recorded roll (binding): ${m.moveName} — dice ${m.dice[0]} + ${m.dice[1]} ${m.modifier >= 0 ? '+' : '-'} ${Math.abs(m.modifier)} ${m.stat} = ${m.total}, ${TIER_LABEL[m.tier]}. Outcome: ${m.outcome}`
-    : 'Recorded roll: none this turn.'
+  const recorded = recordedRollLine(m)
   const people = gmPeople(ctx)
   const rollChanges = m?.stateChanges?.length ? `This result's tracked-state changes, already applied: ${effectsText(m.stateChanges, campaign.tracks, people)}.` : ''
   const earlier = ctx.earlierRoll

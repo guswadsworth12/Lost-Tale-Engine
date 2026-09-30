@@ -15,13 +15,40 @@ import type { LocalSource } from '@/lib/assistant/localSources'
 
 /** What a turn produced beyond its text, when the assistant was asked to *make* something. */
 export interface AssistantAttachment {
-  kind: 'character' | 'story' | 'update'
+  kind: 'character' | 'story' | 'update' | 'ruleset'
   /** A generated character, ready to save into the library. */
   character?: GeneratedCharacter
   /** A generated long-form story. */
   story?: GeneratedStory
   /** A proposed change to a saved character, applied only when the writer confirms it. */
   update?: CharacterUpdateDraft
+  /** A drafted game system, tested and applied to a world only when the writer chooses. */
+  ruleset?: RulesetDraft
+}
+
+/**
+ * A game system drafted from a description (`assistant/ruleset.ts`): the dice and outcomes as
+ * drafted or edited, valid or not, with what still needs fixing; and the stats and moves that go
+ * with them. Nothing is saved until the writer applies it to a world.
+ */
+export interface RulesetDraft {
+  name: string
+  summary: string
+  /** `{ dice, compare, bands }` as drafted (`world/customRules.ts`). */
+  custom: unknown
+  /** What stops `custom` from being used, in plain words. Empty when it's ready. */
+  errors: string[]
+  stats: { name: string; description?: string }[]
+  moves: { name: string; trigger: string; stat: string; strong: string; mixed: string; miss: string }[]
+  /** The world the request named, suggested as the one to apply it to. */
+  worldId?: string
+  /** Set once applied, and where; the world revisions it made, for undo. */
+  appliedAt?: number
+  appliedWorldId?: string
+  appliedWorldName?: string
+  appliedRevisionIds?: string[]
+  /** Set when the applied rules were undone. */
+  undoneAt?: number
 }
 
 /** Text fields Writer's Room may propose changing on a saved character. List fields hold one entry per line. */

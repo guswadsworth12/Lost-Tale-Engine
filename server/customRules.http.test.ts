@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { applyRulesetPatch, undoRulesetPatch } from '../src/lib/assistant/ruleset.ts'
 import { startTestServer, type TestServer } from './httpTestServer.ts'
 
 let t: TestServer
@@ -62,5 +63,24 @@ describe('custom rulesets over HTTP', () => {
       labels.add(roll.degree)
     }
     expect(labels.size).toBeGreaterThan(1)
+  })
+
+  it('applies a Writer\'s Room draft to a world and undoes it, through the saved history', async () => {
+    const starter = { ruleset: 'Starter', mode: 'guided', resolver: 'pbta', relationships: true, dating: false, moves: [] }
+    const world = (await t.call('/api/worlds', 'POST', { cookie: ash, body: { name: 'Quay', description: '', lorebook: { entries: [] }, campaign: starter } })).body
+    const draft = { name: 'Harbor Rules', summary: '', custom, errors: [], stats: [{ name: 'Prowl' }], moves: [{ ...move, stat: 'Prowl' }] }
+    let n = 0
+    const { patch, revisionIds } = applyRulesetPatch(world, draft, 10, () => `rev-${++n}`)
+    const applied = await t.call(`/api/worlds/${world.id}`, 'PUT', { cookie: ash, body: patch })
+    expect(applied.status).toBe(200)
+    expect(applied.body).toMatchObject({ campaign: { resolver: 'custom', mode: 'mechanical', relationships: true }, modules: { campaignRules: 'mechanical' } })
+    expect(applied.body.revisions.map((r: { label: string }) => r.label)).toEqual(['Applied Harbor Rules from Writer\'s Room', 'Turned on rolls for outcomes'])
+
+    const reloaded = (await t.call(`/api/worlds/${world.id}`, 'GET', { cookie: ash })).body
+    const undone = await t.call(`/api/worlds/${world.id}`, 'PUT', { cookie: ash, body: undoRulesetPatch(reloaded, revisionIds, 20, () => `undo-${++n}`) })
+    expect(undone.body.campaign).toMatchObject({ ruleset: 'Starter', resolver: 'pbta', mode: 'guided' })
+    expect(undone.body.campaign).not.toHaveProperty('custom')
+    expect(undone.body.modules?.campaignRules).toBeUndefined()
+    expect(undone.body.revisions).toHaveLength(4)
   })
 })

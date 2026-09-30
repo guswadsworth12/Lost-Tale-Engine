@@ -16,7 +16,9 @@ import { formatLocalSources } from '@/lib/assistant/localSources'
 import { detectProducer, type ProducerKind } from '@/lib/assistant/requests'
 import { DEFAULT_CHAPTER_COUNT, planStory, requestedChapterCount, writeChapter } from '@/lib/assistant/story'
 import { generatedToCharacterInput } from '@/lib/assistant/saveCharacter'
-import { promptTurnsOf, threadTitleFrom, type AssistantMessage, type AssistantThread, type CharacterUpdateDraft } from '@/lib/assistant/thread'
+import { promptTurnsOf, threadTitleFrom, type AssistantMessage, type AssistantThread, type CharacterUpdateDraft, type RulesetDraft } from '@/lib/assistant/thread'
+import { applyRulesetPatch, benchGmContext, buildRulesetPrompt, parseRulesetResponse, rulesetCampaign, rulesetErrors, undoRulesetPatch, worldNamedIn } from '@/lib/assistant/ruleset'
+import { buildGmPrompt, parseGmTurn, type GmTurn, type RecordedMove } from '@/lib/world/gm'
 
 /**
  * The assistant thread's own session: send, stream, and the two producers.
@@ -416,6 +418,119 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     [persist, threadId],
   )
 
+  /** Rewrites one message's ruleset draft (an edit, or the record of applying it). */
+  const saveRulesetDraft = useCallback(
+    async (messageId: string, draft: RulesetDraft) => {
+      const id = threadId
+      if (!id) return
+      await persist(
+        (threadRef.current?.messages ?? []).map((m) =>
+          m.id === messageId && m.attachment?.ruleset ? { ...m, attachment: { ...m.attachment, ruleset: draft } } : m,
+        ),
+        id,
+      )
+    },
+    [persist, threadId],
+  )
+
+  /**
+   * Drafts a game system from the writer's description, with one more pass when validation finds
+   * problems (a gap between outcomes, dice that can't be rolled). The draft card is the reply.
+   */
+  const produceRuleset = useCallback(
+    async (request: string) => {
+      const id = threadId
+      const trimmed = request.trim()
+      if (!id || !trimmed || isBusy) return
+      const controller = new AbortController()
+      abortRef.current = controller
+      setIsBusy(true)
+      setProgress({ kind: 'ruleset', label: 'Drafting the rules' })
+      const withUser: AssistantMessage[] = [...(threadRef.current?.messages ?? []), { id: newId(), role: 'user', text: trimmed, createdAt: Date.now() }]
+      await persist(withUser, id)
+      const reply = (message: Omit<AssistantMessage, 'id' | 'role' | 'createdAt'>) =>
+        persist([...withUser, { id: newId(), role: 'assistant', createdAt: Date.now(), ...message }], id)
+      try {
+        const world = worldNamedIn(trimmed, await worldsApi.list())
+        const maxContext = await client.getEffectiveMaxContext(settings.sampler.max_context_length)
+        const generate = (prompt: string) => generateWithTimeout(
+          client,
+          { prompt, max_context_length: maxContext, max_length: 1800, temperature: 0.4, top_p: 0.95, top_k: 0, min_p: 0.05, typical: 1, tfs: 1, rep_pen: 1.05, rep_pen_range: 1024, rep_pen_slope: 0.7, jsonOutput: true },
+          'Draft ruleset',
+          controller.signal,
+        )
+        let draft = parseRulesetResponse(await generate(buildRulesetPrompt({ request: trimmed, world })))
+        if (draft.errors.length) {
+          setProgress({ kind: 'ruleset', label: 'Fixing the draft' })
+          const previous = { name: draft.name, summary: draft.summary, ...(draft.custom as object), stats: draft.stats, moves: draft.moves }
+          const fixed = parseRulesetResponse(await generate(buildRulesetPrompt({ request: trimmed, world, previous: { draft: previous, errors: draft.errors } })))
+          if (fixed.errors.length <= draft.errors.length) draft = fixed
+        }
+        await reply({ text: draft.summary || `A draft of ${draft.name}.`, attachment: { kind: 'ruleset', ruleset: { ...draft, ...(world ? { worldId: world.id } : {}) } } })
+      } catch (e) {
+        if (!isAbortError(e)) await reply({ text: '', error: errorMessage(e) })
+      } finally {
+        setProgress(null)
+        setIsBusy(false)
+        abortRef.current = null
+      }
+    },
+    [client, isBusy, persist, settings.sampler.max_context_length, threadId],
+  )
+
+  /** Saves an edit to a draft's dice and outcomes, rechecked. */
+  const editRuleset = useCallback(
+    (messageId: string, draft: RulesetDraft, custom: unknown) =>
+      saveRulesetDraft(messageId, { ...draft, custom, errors: rulesetErrors({ custom, moves: draft.moves }) }),
+    [saveRulesetDraft],
+  )
+
+  /** Applies a valid draft to a world, from its freshest copy, keeping what it replaced for undo. */
+  const applyRuleset = useCallback(
+    async (messageId: string, draft: RulesetDraft, worldId: string) => {
+      const world = await worldsApi.get(worldId)
+      if (!world) throw new Error('That world is no longer in your library.')
+      const { patch, revisionIds } = applyRulesetPatch(world, draft, Date.now(), newId)
+      await worldsApi.update(worldId, patch)
+      toastSuccess(`${draft.name} now runs ${world.name}.`)
+      await saveRulesetDraft(messageId, { ...draft, appliedAt: Date.now(), appliedWorldId: worldId, appliedWorldName: world.name, appliedRevisionIds: revisionIds, undoneAt: undefined })
+    },
+    [saveRulesetDraft],
+  )
+
+  /** Puts the world's rules back as they were before this draft was applied. */
+  const undoRuleset = useCallback(
+    async (messageId: string, draft: RulesetDraft) => {
+      if (!draft.appliedWorldId || !draft.appliedRevisionIds?.length) return
+      const world = await worldsApi.get(draft.appliedWorldId)
+      if (!world) throw new Error('That world is no longer in your library.')
+      await worldsApi.update(world.id, undoRulesetPatch(world, draft.appliedRevisionIds, Date.now(), newId))
+      toastSuccess(`${world.name}'s earlier rules are back.`)
+      await saveRulesetDraft(messageId, { ...draft, undoneAt: Date.now() })
+    },
+    [saveRulesetDraft],
+  )
+
+  /** How the GM would narrate a test roll under the draft, before it reaches any world. */
+  const tryRulesetOnGm = useCallback(
+    async (draft: RulesetDraft, roll: RecordedMove, worldName: string): Promise<GmTurn> => {
+      const ctx = benchGmContext(rulesetCampaign(draft), worldName, roll.action, roll)
+      const { system, user } = buildGmPrompt(ctx)
+      const raw = await generateWithTimeout(client, {
+        max_length: 700,
+        max_context_length: await client.getEffectiveMaxContext(8192),
+        temperature: 0.7,
+        top_p: 0.95,
+        rep_pen: 1.05,
+        jsonOutput: true,
+        prompt: `${system}\n\n${user}`,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      }, 'Game Master test')
+      return parseGmTurn(raw, ctx)
+    },
+    [client],
+  )
+
   return {
     thread,
     load,
@@ -427,6 +542,11 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
     produceStory,
     produceUpdate,
     applyUpdate,
+    produceRuleset,
+    editRuleset,
+    applyRuleset,
+    undoRuleset,
+    tryRulesetOnGm,
     saveCharacter,
     abort,
     detectProducer,
