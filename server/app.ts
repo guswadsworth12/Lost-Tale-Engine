@@ -44,6 +44,7 @@ import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { validateCustomResolver } from '../src/lib/world/customRules.ts'
 import { normalizeWorldRevisions } from '../src/lib/world/revisions.ts'
+import { normalizePromptOverrides } from '../src/lib/prompt/promptOverrides.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
 import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
@@ -737,6 +738,7 @@ app.put('/api/characters/:id', (req, res) => {
   const patch: Record<string, unknown> = { updatedAt: Date.now(), ...ownership }
   if ('card' in req.body) patch.card = req.body.card
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
+  if ('revisions' in req.body) patch.revisions = normalizeWorldRevisions(req.body.revisions) ?? []
   if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
   if ('modelOverride' in req.body) patch.modelOverride = typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined
   if ('playerOnly' in req.body) patch.playerOnly = req.body.playerOnly === true || undefined
@@ -1482,6 +1484,7 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     customSceneFlags,
     customBackgrounds: normalizeCustomBackgrounds(body.customBackgrounds),
     stageLayouts: normalizeStageLayouts(body.stageLayouts),
+    promptOverrides: normalizePromptOverrides(body.promptOverrides),
     relationshipThresholds: normalizeRelationshipThresholds(body.relationshipThresholds),
     intimacyLevel: normalizeIntimacyLevel(body.intimacyLevel),
     triggers: normalizeTriggers(body.triggers),
@@ -1537,6 +1540,7 @@ app.put('/api/worlds/:id', (req, res) => {
   if ('customBackgrounds' in req.body) patch.customBackgrounds = normalizeCustomBackgrounds(req.body.customBackgrounds)
   if ('stageLayouts' in req.body) patch.stageLayouts = normalizeStageLayouts(req.body.stageLayouts) ?? []
   if ('revisions' in req.body) patch.revisions = normalizeWorldRevisions(req.body.revisions) ?? []
+  if ('promptOverrides' in req.body) patch.promptOverrides = normalizePromptOverrides(req.body.promptOverrides) ?? {}
   if ('items' in req.body) {
     // Validate against whichever custom flags are in effect after this same request, so an item
     // referencing a flag saved in the same request isn't wrongly rejected.

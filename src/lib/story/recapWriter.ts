@@ -12,6 +12,8 @@ export interface RecapDraft {
 }
 
 export interface RecapInput {
+  /** The world's own guidance for how a recap reads; unset: `SCENE_RECAP_GUIDANCE`. */
+  guidance?: string
   messages: { role: 'user' | 'char'; name: string; text: string }[]
   playerName: string
   castNames: string[]
@@ -46,6 +48,9 @@ function fitTranscript(messages: RecapInput['messages'], maxChars: number): { li
   return { lines, cut: false }
 }
 
+/** How a scene recap reads: the part of its prompt a world can tune (`prompt/tunable.ts`). */
+export const SCENE_RECAP_GUIDANCE = 'About 80 to 160 words, third person, plain prose, no headers, no em dashes. Name who was there. Cover what happened and what changed between people. End with where things were left.'
+
 export function buildRecapPrompt(input: RecapInput): string {
   const maxChars = input.maxChars ?? DEFAULT_RECAP_MAX_CHARS
   const { lines, cut } = fitTranscript(input.messages, maxChars)
@@ -67,7 +72,7 @@ export function buildRecapPrompt(input: RecapInput): string {
     `Scene transcript:\n${lines.join('\n')}`,
     [
       'Write:',
-      '- "recap": a compact past-tense recap of this scene, about 80 to 160 words, third person, plain prose, no headers, no em dashes. Name who was there. Cover what happened and what changed between people. End with where things were left.',
+      `- "recap": a compact past-tense recap of this scene. ${input.guidance?.trim() || SCENE_RECAP_GUIDANCE}`,
       '- "openThreads": unresolved questions or promises made in this scene, one short line each. Empty if there are none.',
       '- "lastingChanges": concrete, durable facts that should stay true in this world from now on (for example a death, a destroyed place, a title granted, a secret now public), one short line each. Only lasting facts, not moods or plans. It is fine to have none.',
       'Never invent events that are not in the transcript.',

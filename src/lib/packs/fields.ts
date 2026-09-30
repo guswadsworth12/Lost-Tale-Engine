@@ -77,9 +77,11 @@ export const CHARACTER_FIELDS: Record<keyof Character, CharacterFieldClass> = {
   outreach: 'template',
   ownerUserId: 'local',
   visibility: 'local',
+  // This install's history of changes made here.
+  revisions: 'local',
 }
 
-export type WorldFieldClass = 'setting' | 'lore' | 'worldContent' | `media:${MediaKind}` | 'gmNotes' | 'canonFacts' | 'record' | 'local'
+export type WorldFieldClass = 'setting' | 'lore' | 'worldContent' | `media:${MediaKind}` | 'promptOverrides' | 'gmNotes' | 'canonFacts' | 'record' | 'local'
 
 export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   id: 'record',
@@ -112,6 +114,7 @@ export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   backgrounds: 'media:backgrounds',
   backgroundsNight: 'media:backgrounds',
   music: 'media:music',
+  promptOverrides: 'promptOverrides',
   gmNotes: 'gmNotes',
   canonFacts: 'canonFacts',
   // Where this install's world clock stands.

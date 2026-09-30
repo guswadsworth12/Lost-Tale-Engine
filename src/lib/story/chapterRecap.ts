@@ -7,6 +7,8 @@
 import { MAX_OPEN_THREADS, parseRecapResponse } from './recapWriter'
 
 export interface ChapterRecapInput {
+  /** The world's own guidance for how a chapter recap reads; unset: `CHAPTER_RECAP_GUIDANCE`. */
+  guidance?: string
   /** e.g. "Chapter 2 · Low Tide". */
   chapterLabel: string
   goal?: string
@@ -22,6 +24,9 @@ export interface ChapterRecapDraft {
   fallback?: string
 }
 
+/** How a chapter recap reads: the part of its prompt a world can tune (`prompt/tunable.ts`). */
+export const CHAPTER_RECAP_GUIDANCE = 'About 100 to 200 words, third person, plain prose, no headers, no em dashes. Cover the arc: what was at stake, what happened, what changed between people, and whether the goal was reached. End with where things stand.'
+
 export function buildChapterRecapPrompt(input: ChapterRecapInput): string {
   return [
     `Task: a chapter of a roleplay story has just ended: ${input.chapterLabel}. Write the recap later chapters will rely on. They will see this instead of the scene recaps below.`,
@@ -30,7 +35,7 @@ export function buildChapterRecapPrompt(input: ChapterRecapInput): string {
     `The chapter's scenes, in order:\n${input.scenes.map((s) => `${s.label}: ${s.recap.trim()}${s.openThreads?.length ? ` (Left open: ${s.openThreads.join('; ')})` : ''}`).join('\n')}`,
     [
       'Write:',
-      '- "recap": a compact past-tense account of the whole chapter, about 100 to 200 words, third person, plain prose, no headers, no em dashes. Cover the arc: what was at stake, what happened, what changed between people, and whether the goal was reached. End with where things stand.',
+      `- "recap": a compact past-tense account of the whole chapter. ${input.guidance?.trim() || CHAPTER_RECAP_GUIDANCE}`,
       '- "openThreads": what is still unresolved at the end of the chapter, one short line each. Drop threads a later scene resolved. Empty if there are none.',
       'Never invent events that are not in the scene recaps.',
       'Reply with only a JSON object: {"recap": "...", "openThreads": ["..."]}',

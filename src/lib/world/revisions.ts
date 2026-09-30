@@ -1,16 +1,17 @@
 /**
- * A world's revision history: whenever Writer's Room applies a change to a world (its rules, one of
- * its prompts), what was there before is kept here, so any applied change can be reverted in one
- * step. A revert is itself a change, so it can be undone the same way.
+ * Revision history: whenever Writer's Room applies a change to a world (its rules, one of its
+ * prompts, its GM notes) or a character (its prompt items), what was there before is kept here, so
+ * any applied change can be reverted in one step. A revert is itself a change, so it can be undone
+ * the same way.
  *
- * Kept on the world (`WorldCard.revisions`), newest first, at most `MAX_REVISIONS`. It is this
- * install's history: it never travels in a world pack.
+ * Kept on the record (`WorldCard.revisions`, `Character.revisions`), newest first, at most
+ * `MAX_REVISIONS`. It is this install's history: it never travels in a pack.
  *
  * Only relative `.ts` imports here: the server loads this file with plain Node.
  */
 
 /** The parts of a world a revision can hold. A keyed field keeps one history per key. */
-export const REVISABLE_FIELDS = ['campaign', 'modules', 'promptOverrides'] as const
+export const REVISABLE_FIELDS = ['campaign', 'modules', 'promptOverrides', 'gmNotes', 'promptItems'] as const
 export type RevisableField = (typeof REVISABLE_FIELDS)[number]
 const KEYED: readonly RevisableField[] = ['promptOverrides']
 
@@ -89,7 +90,7 @@ export function revisionsOf(world: Revisable, field: RevisableField, key?: strin
   return (world.revisions ?? []).filter((r) => r.field === field && (key === undefined || r.key === key))
 }
 
-/** A world's history from a request: known fields only, newest first, capped. */
+/** A world's or character's history from a request: known fields only, newest first, capped. */
 export function normalizeWorldRevisions(raw: unknown): WorldRevision[] | undefined {
   if (!Array.isArray(raw)) return undefined
   return raw.slice(0, MAX_REVISIONS).flatMap((entry: unknown) => {

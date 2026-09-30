@@ -247,6 +247,8 @@ export interface GmRosterEntry {
 
 export interface GmContext {
   campaign: CampaignConfig
+  /** The world's own storytelling style for the GM (`WorldCard.promptOverrides`); unset: `GM_STYLE_GUIDANCE`. */
+  styleGuidance?: string
   worldName: string
   worldDescription?: string
   worldRules?: string
@@ -315,6 +317,16 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
   return a === b || firstName(a) === firstName(b)
 }
 
+/**
+ * How the GM runs a scene: momentum, and who reacts. The part of its prompt a world can tune
+ * (`prompt/tunable.ts`); the rules around it (carded characters, the player's agency, binding
+ * rolls, knowledge boundaries, the reply format) are not.
+ */
+export const GM_STYLE_GUIDANCE = [
+  'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
+  'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
+].join('\n')
+
 /** The binding line the GM receives for a recorded roll, exactly as it reads in the prompt. */
 export function recordedRollLine(m: RecordedMove | undefined): string {
   return m
@@ -367,7 +379,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ...moveLines,
     scaleGuidance(campaign),
     'Your job each beat: (1) adjudicate the player\'s declared action without deciding any carded character’s response, (2) narrate the immediate, observable result in 1-3 sentences of present-tense prose, (3) choose which present characters react and in what order, (4) choose pacing, (5) propose lasting changes only when something durable really happened.',
-    'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
+    ctx.styleGuidance?.trim() || GM_STYLE_GUIDANCE,
     `You may add up to ${maxArrivals} available characters to the scene when their entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. Characters loaded for this scene are expected arrivals, but are not physically present until they enter. If two arrive together, add both in the same beat. Each added character responds this beat: list them in speakers too. Never add the player character.`,
     'When the player reaches someone who is not here without bringing them here (a call, a message, telepathy, a sending), put that character in "remote" instead: they answer this beat from where they are and do not join the scene. Never write their reply yourself; their own agent answers.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
@@ -377,7 +389,6 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'Set events are canon beats of this story. When the player\'s action carries one out, it happens exactly as written: do not request a roll or name a move; set adjudication.setEvent to its id and narrate its outcome. Never trigger a set event the player has not attempted.',
     'When a recorded result grants questions, the roll is not resolved until the player asks them: on the roll beat, narrate only what the result settles (including any complication it names), invite the question, do not answer anything yet, and list no speakers. While granted questions remain, answer each one and again list no speakers.',
     'When a recorded result asks the player to choose (a cost, a complication, an option), the roll is not resolved until they do. Narrate only what the result has already settled, never pick for them, end by asking them to choose, and list no speakers: nobody reacts until the choice is made. When the player then makes that choice, apply it from the earlier roll: set adjudication.followUp to true, adjudication.choice to their pick, name the earlier move, put what the choice costs in the fiction in adjudication.outcome, and do not request a roll.',
-    'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
     'Pacing: "linger" keeps the moment open, "advance" moves the situation forward, "cut" ends the scene.',
     'Proposals are suggestions the player must confirm. Use scope "branch" for consequences of this story branch and "world" only for setting facts every story in this world should inherit.',

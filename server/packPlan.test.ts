@@ -279,3 +279,22 @@ describe('stage layouts in a pack', () => {
     expect(plan.content.world).not.toHaveProperty('stageLayouts')
   })
 })
+
+describe('prompt tuning in a pack', () => {
+  const tunedWorld = { ...world, promptOverrides: { scribe: 'Record only promises.', journal: 'Short.' }, revisions: [{ id: 'r1', at: 1, field: 'promptOverrides', key: 'scribe', label: 'Tuned' }] }
+
+  it('travels by default, and never the history of changes', () => {
+    const plan = planExport({ ...input, world: tunedWorld })
+    expect(plan.content.world.promptOverrides).toEqual(tunedWorld.promptOverrides)
+    expect(plan.content.world).not.toHaveProperty('revisions')
+    expect(plan.included).toContainEqual({ label: 'Prompt tuning', count: 2 })
+    const result = planImport(parseContent(withPackMedia(plan.content, fileNames())), { worlds: [], characters: [] }, { ownerUserId: 'u', now: 1, newId: () => `id-${Math.random()}`, mediaPath: () => undefined })
+    expect(result.world.row?.promptOverrides).toEqual(tunedWorld.promptOverrides)
+  })
+
+  it('stays behind when left out, and says so', () => {
+    const plan = planExport({ ...input, world: tunedWorld }, { ...DEFAULT_PACK_SELECTION, promptOverrides: false })
+    expect(plan.content.world).not.toHaveProperty('promptOverrides')
+    expect(plan.excluded).toContain('Prompt tuning (2)')
+  })
+})

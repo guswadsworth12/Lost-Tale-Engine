@@ -230,6 +230,8 @@ export interface Character {
   ownerUserId?: string
   /** `private`: only its owner sees or uses it. Unset reads as `shared`. */
   visibility?: import('@/lib/packs/contract').Visibility
+  /** What Writer's Room changed here and what it replaced, newest first, for one-step revert (`world/revisions.ts`). */
+  revisions?: import('@/lib/world/revisions').WorldRevision[]
   createdAt: number
   updatedAt: number
 }
