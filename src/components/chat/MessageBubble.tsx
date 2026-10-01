@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
-import { AlertCircle, Brain, ChevronLeft, ChevronRight, Compass, GitFork, Heart, History, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
+import { AlertCircle, Brain, ChevronLeft, ChevronRight, Compass, GitFork, Heart, History, ImagePlus, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
+import type { StoryMoment } from '@/lib/story/moments'
 import { useSettingsStore, type AvatarShape } from '@/lib/store/useSettingsStore'
 import { messageAnchorId } from '@/lib/scrollToMessage'
 import { renderMessageText } from '@/lib/text/messageText'
@@ -87,6 +88,29 @@ interface MessageBubbleProps {
   onSwipe: (id: string, dir: 'left' | 'right') => void
   onFork: (id: string) => void
   onTogglePin: (id: string) => void
+  /** "Picture this" for this message; omitted where pictures can't be made. */
+  onPicture?: (id: string) => void
+  /** Story moments pictured from this message. Must be the same array across renders for `memo` to skip. */
+  moments?: StoryMoment[]
+  /** Opens a moment (in Visual Novel mode, on the stage); unset: in a new tab. */
+  onShowMoment?: (moment: StoryMoment) => void
+}
+
+/** Thumbnails of the pictures made from a message. */
+function MomentStrip({ moments, onShow }: { moments: StoryMoment[]; onShow?: (moment: StoryMoment) => void }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-2" aria-label="Pictures of this moment">
+      {moments.map((m) => onShow ? (
+        <button key={m.id} type="button" onClick={() => onShow(m)} title={m.caption || 'Story moment'} className="overflow-hidden rounded-lg ring-1 ring-border hover:ring-accent">
+          <img src={m.imageUrl} alt={m.caption || 'Story moment'} className="h-16 w-24 object-cover" />
+        </button>
+      ) : (
+        <a key={m.id} href={m.imageUrl} target="_blank" rel="noreferrer" title={m.caption || 'Story moment'} className="overflow-hidden rounded-lg ring-1 ring-border hover:ring-accent">
+          <img src={m.imageUrl} alt={m.caption || 'Story moment'} className="h-16 w-24 object-cover" />
+        </a>
+      ))}
+    </div>
+  )
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -105,6 +129,9 @@ export const MessageBubble = memo(function MessageBubble({
   onSwipe,
   onFork,
   onTogglePin,
+  onPicture,
+  moments,
+  onShowMoment,
 }: MessageBubbleProps) {
   const chatStyle = useSettingsStore((s) => s.chatStyle)
   const avatarShape = useSettingsStore((s) => s.avatarShape)
@@ -283,6 +310,16 @@ export const MessageBubble = memo(function MessageBubble({
       )}
       {!isStreaming && (
         <>
+          {onPicture && (
+            <button
+              onClick={() => onPicture(message.id)}
+              className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-bg-sunken hover:text-text"
+              title="Picture this"
+              aria-label="Picture this"
+            >
+              <ImagePlus size={13} strokeWidth={2} />
+            </button>
+          )}
           <button
             onClick={() => onTogglePin(message.id)}
             className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-bg-sunken ${message.pinned ? 'text-accent' : 'hover:text-text'}`}
@@ -413,10 +450,11 @@ export const MessageBubble = memo(function MessageBubble({
       {message.intimacyAction.label}
     </span>
   ) : null
-  const campaignExtras = message.gm || message.campaignRoll ? (
+  const campaignExtras = message.gm || message.campaignRoll || moments?.length ? (
     <>
       <CampaignRollBadge message={message} />
       <GmTurnCard message={message} />
+      {!!moments?.length && <MomentStrip moments={moments} onShow={onShowMoment} />}
     </>
   ) : null
   const memoryMarker = memoryNote && !isStreaming ? <MemoryMarker note={memoryNote} /> : null

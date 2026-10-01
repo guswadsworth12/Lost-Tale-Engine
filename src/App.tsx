@@ -11,6 +11,7 @@ import { AssistantView } from '@/components/assistant/AssistantView'
 import { CastView } from '@/components/cast/CastView'
 import { WorldsView } from '@/components/worlds/WorldsView'
 import { WorldInfoView } from '@/components/worldinfo/WorldInfoView'
+import { requestMessageJump } from '@/lib/scrollToMessage'
 import { GalleryView } from '@/components/gallery/GalleryView'
 import { SettingsView } from '@/components/settings/SettingsView'
 import { ToastViewport } from '@/components/ui/ToastViewport'
@@ -186,6 +187,10 @@ function SignedInApp() {
         {view === 'media' && (
           <GalleryView
             onOpenWorld={navigateToWorld}
+            onOpenMoment={(chatId, messageId) => {
+              if (messageId) requestMessageJump(chatId, messageId)
+              play(chatId)
+            }}
             onOpenCharacter={(id, tab) => {
               setPendingCharacterId(id)
               setPendingCharacterTab(tab ?? null)

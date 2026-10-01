@@ -124,6 +124,7 @@ describe('credential vault routes', () => {
     expect(initial.json).toEqual([
       { name: 'chatBackendApiKey', set: false }, { name: 'openMayhemApiKey', set: false },
       { name: 'ttsApiKey', set: false }, { name: 'imageBackendPassword', set: false },
+      { name: 'openaiApiKey', set: false }, { name: 'geminiApiKey', set: false },
     ])
 
     const put = await call('/api/me/secrets/chatBackendApiKey', 'PUT', { user: ALICE, body: { value: ALICE_KEY } })

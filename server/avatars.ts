@@ -20,7 +20,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Parses a `data:<mime>;base64,<data>` URL into an extension + decoded buffer, enforcing MAX_IMAGE_BYTES. */
-function decodeImageDataUrl(dataUrl: string): { ext: string; buffer: Buffer } {
+export function decodeImageDataUrl(dataUrl: string): { ext: string; buffer: Buffer } {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/s)
   if (!match) throw new Error('Malformed image data URL.')
   const [, mime, base64] = match
@@ -272,4 +272,25 @@ export function resolveCharacterModel(id: string, value: unknown): string | unde
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(path.join(dir, 'model.vrm'), buffer)
   return `/avatars/characters/${id}/model.vrm?t=${Date.now()}`
+}
+
+/**
+ * A story moment's picture: data/avatars/stories/<storyKey>/moments/<id>.<ext>. The story key is
+ * the story's id, or a lone scene's own id (a story of one scene).
+ */
+export function writeMomentImage(storyKey: string, id: string, dataUrl: string): string {
+  if (!UUID_RE.test(storyKey) || !UUID_RE.test(id)) throw new Error('Invalid id')
+  const { ext, buffer } = decodeImageDataUrl(dataUrl)
+  const dir = path.join(avatarsDir, 'stories', storyKey, 'moments')
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, `${id}.${ext}`), buffer)
+  return `/avatars/stories/${storyKey}/moments/${id}.${ext}`
+}
+
+/** Removes a moment's picture, when the path is one `writeMomentImage` wrote. */
+export function removeMomentImage(url: unknown): void {
+  const match = typeof url === 'string' ? /^\/avatars\/stories\/([0-9a-f-]{36})\/moments\/([0-9a-f-]{36})\.(\w+)$/i.exec(url) : null
+  if (!match) return
+  const file = path.join(avatarsDir, 'stories', match[1], 'moments', `${match[2]}.${match[3]}`)
+  if (fs.existsSync(file)) fs.unlinkSync(file)
 }

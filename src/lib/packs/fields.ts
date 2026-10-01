@@ -90,6 +90,7 @@ export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   name: 'setting',
   description: 'setting',
   rules: 'setting',
+  artStyle: 'setting',
   template: 'setting',
   modules: 'setting',
   campaign: 'setting',

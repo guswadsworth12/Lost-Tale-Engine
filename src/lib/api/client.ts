@@ -1,4 +1,5 @@
 import type { Character } from '@/lib/characters/cardSpec'
+import type { MomentInput, StoryMoment } from '@/lib/story/moments'
 import type {
   Chat,
   CharacterMemory,
@@ -242,6 +243,27 @@ export interface NextSceneBody {
 }
 
 /** Stories made of scenes. A story's scenes are chats carrying its id. */
+/** Story moments: pictures of things that happened in a story (`story/moments.ts`). */
+export const momentsApi = {
+  list(): Promise<StoryMoment[]> {
+    return request('GET', '/moments')
+  },
+  async create(chatId: string, body: MomentInput): Promise<StoryMoment> {
+    const created = await request<StoryMoment>('POST', `/chats/${chatId}/moments`, body)
+    invalidate('moments')
+    return created
+  },
+  async update(id: string, patch: { caption: string }): Promise<StoryMoment> {
+    const updated = await request<StoryMoment>('PATCH', `/moments/${id}`, patch)
+    invalidate('moments')
+    return updated
+  },
+  async remove(id: string): Promise<void> {
+    await request<void>('DELETE', `/moments/${id}`)
+    invalidate('moments')
+  },
+}
+
 export const storiesApi = {
   list(): Promise<Story[]> {
     return request('GET', '/stories')

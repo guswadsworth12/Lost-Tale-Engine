@@ -883,6 +883,7 @@ export function CharacterEditor({
               </label>
               <div className="absolute -bottom-1.5 -right-1.5">
                 <GenerateImageButton
+                  purpose="portrait"
                   label="Generate avatar with AI"
                   initialPrompt={form.description ? `portrait of ${form.name || 'a character'}, ${form.description}`.slice(0, 300) : ''}
                   onGenerated={setAvatarCropSource}
@@ -1435,6 +1436,8 @@ export function CharacterEditor({
                 )}
                 <div className="absolute -bottom-1 -right-1 hidden group-hover:block">
                   <GenerateImageButton
+                    purpose="sprite"
+                    referenceImage={avatarDataUrl || undefined}
                     label={`Generate ${exp.label} with AI`}
                     initialPrompt={form.description ? `portrait of ${form.name || 'a character'}, ${form.description}, ${exp.label.toLowerCase()} expression${activeOutfit === BASE_OUTFIT_ID ? '' : `, wearing ${activeOutfitLabel.toLowerCase()}`}`.slice(0, 300) : ''}
                     onGenerated={(dataUrl) => setSprites((s) => ({ ...s, [keyFor(exp.id)]: dataUrl }))}
@@ -1522,6 +1525,8 @@ export function CharacterEditor({
                     </label>
                     <div className="relative shrink-0 self-center">
                       <GenerateImageButton
+                        purpose="cg"
+                        referenceImage={avatarDataUrl || undefined}
                         label={`Generate "${entry.title}" with AI`}
                         initialPrompt={[
                           form.description ? `${form.name || 'a character'}, ${form.description}` : form.name,

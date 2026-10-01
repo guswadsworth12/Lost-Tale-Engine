@@ -7,6 +7,7 @@ import {
   characterStore,
   chatFactStore,
   storyStore,
+  storyMomentStore,
   chatStore,
   db,
   assistantThreadStore,
@@ -32,6 +33,7 @@ import { authGate, authRouter, requireOwner } from './auth.ts'
 import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
 import { storiesRouter } from './stories.ts'
+import { momentsRouter, purgeChatMoments } from './moments.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
@@ -78,6 +80,7 @@ app.use(meRouter)
 app.use(packsRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
+app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
 app.use('/avatars', express.static(avatarsDir))
 
@@ -898,13 +901,14 @@ app.delete('/api/personas/:id', (req, res) => {
 // How long a deleted chat sits recoverable before `purgeExpiredTrash` purges it for real (called at server startup).
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-/** Permanent cascading delete: messages/objectives/relationship events/facts/memories, un-parents any fork, then the chat row. */
+/** Permanent cascading delete: messages/objectives/relationship events/facts/memories/moments, un-parents any fork, then the chat row. */
 function purgeChat(chatId: string): void {
   for (const msg of messageStore.list({ where: 'chatId = ?', params: [chatId] })) messageStore.remove(msg.id as string)
   for (const o of objectiveStore.list({ where: 'chatId = ?', params: [chatId] })) objectiveStore.remove(o.id as string)
   for (const e of relationshipEventStore.list({ where: 'chatId = ?', params: [chatId] })) relationshipEventStore.remove(e.id as string)
   for (const f of chatFactStore.list({ where: 'chatId = ?', params: [chatId] })) chatFactStore.remove(f.id as string)
   purgeChatMemories(chatId)
+  purgeChatMoments(chatId)
   // Un-parent any chat forked from this one (parentChatId isn't indexed, so a full scan).
   for (const chat of chatStore.list()) {
     if (chat.parentChatId !== chatId) continue
@@ -1470,6 +1474,7 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     canonFacts: normalizeCanonFacts(body.canonFacts),
     description: body.description,
     rules: body.rules,
+    artStyle: typeof body.artStyle === 'string' ? body.artStyle.trim().slice(0, 300) || undefined : undefined,
     gmNotes: typeof body.gmNotes === 'string' ? body.gmNotes.slice(0, 100_000) : undefined,
     template: body.template ?? undefined,
     scenerySet: ['adventure', 'modern-school', 'custom-only'].includes(body.scenerySet) ? body.scenerySet : undefined,
@@ -1523,6 +1528,7 @@ app.put('/api/worlds/:id', (req, res) => {
   if (rulesError) return res.status(400).json({ error: rulesError })
   const { ownerUserId: _o, visibility: _v, ...body } = req.body
   const patch: Record<string, unknown> = { ...body, ...ownership, updatedAt: Date.now() }
+  if ('artStyle' in req.body) patch.artStyle = typeof req.body.artStyle === 'string' ? req.body.artStyle.trim().slice(0, 300) || undefined : undefined
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
@@ -1653,6 +1659,7 @@ const BACKUP_STORES = {
   chatFacts: chatFactStore,
   memories: memoryStore,
   stories: storyStore,
+  storyMoments: storyMomentStore,
 } as const
 
 function listAvatarFiles(): { relPath: string; base64: string }[] {
