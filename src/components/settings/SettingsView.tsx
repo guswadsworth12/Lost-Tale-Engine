@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CircleHelp } from 'lucide-react'
 import { TutorialSettingsSection } from '@/components/help'
 import { openHelp } from '@/lib/help/helpStore'
-import { ConnectionSettings } from './ConnectionSettings'
+import { ModelsAndServicesSettings } from './ModelsAndServicesSettings'
 import { ThemeEditor } from './ThemeEditor'
 import { SamplingControls } from './SamplingControls'
 import { VoiceSettings } from './VoiceSettings'
@@ -10,13 +10,13 @@ import { ImageGenSettings } from './ImageGenSettings'
 import { DataSettings } from './DataSettings'
 import { AccountSettings } from './AccountSettings'
 
-type Tab = 'connection' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
+type Tab = 'models' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
 
 export function SettingsView() {
-  const [tab, setTab] = useState<Tab>('connection')
+  const [tab, setTab] = useState<Tab>('models')
 
   const TABS: [Tab, string][] = [
-    ['connection', 'Connection'],
+    ['models', 'Models and services'],
     ['appearance', 'Appearance'],
     ['generation', 'Generation'],
     ['voice', 'Voice'],
@@ -74,7 +74,7 @@ export function SettingsView() {
         </div>
       </div>
       <div className="pt-6">
-        {tab === 'connection' && <ConnectionSettings />}
+        {tab === 'models' && <ModelsAndServicesSettings />}
         {tab === 'appearance' && <ThemeEditor />}
         {tab === 'generation' && <SamplingControls />}
         {tab === 'voice' && <VoiceSettings />}

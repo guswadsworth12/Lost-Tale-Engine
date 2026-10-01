@@ -19,7 +19,8 @@ import { collectImageBase64, composeMessageText, type PendingAttachment } from '
 import { makeGenKey } from '@/lib/api/kobold'
 import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithTimeout'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
-import { createChatBackend } from '@/lib/api/createChatBackend'
+import { characterClient, useJobClients, useModelSettings } from '@/lib/hooks/useModelFor'
+import { servedByLabel, usesChatCompletion, type ServiceKind } from '@/lib/api/services'
 import type { ChatBackend } from '@/lib/api/chatBackend'
 import { campaignPrompt, sheetForWorld } from '@/lib/world/campaign'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
@@ -447,9 +448,6 @@ export interface GenerationStats {
 export function useChatSession(chatId: string | null) {
   const sampler = useSettingsStore((s) => s.sampler)
   const reasoningTokenReserve = useSettingsStore((s) => s.reasoningTokenReserve)
-  const chatBackend = useSettingsStore((s) => s.chatBackend)
-  const baseUrl = useSettingsStore((s) => s.baseUrl)
-  const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
   const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
   const chatCompletionSampler = useSettingsStore((s) => s.chatCompletionSampler)
@@ -474,7 +472,15 @@ export function useChatSession(chatId: string | null) {
   const globalPostHistory = useSettingsStore((s) => s.postHistoryInstructions)
   const promptSections = useSettingsStore((s) => s.promptSections)
   const setActiveChatId = useSettingsStore((s) => s.setActiveChatId)
-  const client = useChatBackendClient()
+  // Each job uses the model chosen for it (Settings → Models by job), else Main. `client` is Story replies.
+  const jobClients = useJobClients()
+  const modelSettings = useModelSettings()
+  const mainClient = useChatBackendClient()
+  const client = jobClients.story.client
+  const gmClient = jobClients.gm.client
+  const memoryClient = jobClients.memory.client
+  const trackingClient = jobClients.tracking.client
+  const visionClient = jobClients.vision.client
   const activeGenerationClientRef = useRef<ChatBackend | null>(null)
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
 
@@ -490,19 +496,27 @@ export function useChatSession(chatId: string | null) {
   // would otherwise leak into the system/user message content as literal text (only `plain-chat`'s
   // empty affixes happen to hide this). Force the token-free, name-prefixed `plain-chat` template
   // for this backend instead; KoboldCpp keeps using whatever the user actually has configured.
-  const template =
-    chatBackend === 'openai-compatible'
-      ? getInstructTemplate('plain-chat')
-      : resolveInstructTemplate(character?.instructTemplateId || instructTemplateId, customInstructTemplates)
+  const instructTemplate = resolveInstructTemplate(character?.instructTemplateId || instructTemplateId, customInstructTemplates)
+  // Per job: each may run on a different kind of service (Settings → Models by job).
+  const templateFor = useCallback(
+    (kind: ServiceKind) => (usesChatCompletion(kind) ? getInstructTemplate('plain-chat') : instructTemplate),
+    [instructTemplate],
+  )
+  const template = templateFor(jobClients.story.kind)
   // Shared prompt shaping for every background judge/assist call below (relationship tracker,
   // objectives, choices, director pick, rapport, scene vision) — never for the main reply, which
   // already builds its own fully-templated, reasoning-aware prompt via `buildPrompt`/`replyMaxTokens`.
-  // Reuses this same `template` (already forced to `plain-chat` for `openai-compatible`) so a
-  // background call looks exactly like the reply's own turn shape instead of a flat, unwrapped block
-  // a strict template model (Gemma) reads as already-finished text and answers with EOS to (rp#7),
-  // and adds the same reasoning-token headroom the reply gets so a thinking model's hidden reasoning
-  // doesn't eat the whole small assist budget before the visible JSON is due (rp#6).
-  const assistShaping: AssistShaping = { reasoningReserve: reasoningTokenReserve, template }
+  // Each job uses its own connection's template (`plain-chat` for a chat-completion one, as the reply
+  // does) so a background call looks like that model's own turn shape instead of a flat, unwrapped
+  // block a strict template model (Gemma) reads as already-finished text and answers with EOS to
+  // (rp#7), and adds the same reasoning-token headroom the reply gets so a thinking model's hidden
+  // reasoning doesn't eat the whole small assist budget before the visible JSON is due (rp#6).
+  const jobShaping: Record<'gm' | 'memory' | 'tracking' | 'vision', AssistShaping> = useMemo(() => ({
+    gm: { reasoningReserve: reasoningTokenReserve, template: templateFor(jobClients.gm.kind) },
+    memory: { reasoningReserve: reasoningTokenReserve, template: templateFor(jobClients.memory.kind) },
+    tracking: { reasoningReserve: reasoningTokenReserve, template: templateFor(jobClients.tracking.kind) },
+    vision: { reasoningReserve: reasoningTokenReserve, template: templateFor(jobClients.vision.kind) },
+  }), [jobClients, reasoningTokenReserve, templateFor])
   // Extra characters in a group chat, beyond the primary — [] for today's ordinary single-character
   // chats. Fetched by id rather than a batched endpoint since the character list is small (a local,
   // single-user app) and this reuses the exact same reactive `characters` resource as `character` above.
@@ -640,6 +654,12 @@ export function useChatSession(chatId: string | null) {
 
   // Cached: `buildPrompt` counts every history turn to decide what fits, and a single generation
   // builds the prompt more than once. See `tokenCache.ts` for how the cache is invalidated.
+  /** Where a character's replies go: their own connection or model, else the Story replies job. */
+  const replyJobFor = useCallback(
+    (speaker: Character) => (speaker.modelServiceId || speaker.modelOverride ? characterClient(speaker, modelSettings, mainClient, secrets) : jobClients.story),
+    [modelSettings, jobClients.story, mainClient, secrets],
+  )
+
   const countTokens = useCallback(
     async (text: string) =>
       countTokensCached(text, async (t) => {
@@ -649,8 +669,8 @@ export function useChatSession(chatId: string | null) {
         } catch {
           return estimateTokens(t)
         }
-      }),
-    [client],
+      }, jobClients.story.scope),
+    [client, jobClients.story.scope],
   )
 
   const buildCurrentPrompt = useCallback(
@@ -671,6 +691,8 @@ export function useChatSession(chatId: string | null) {
       if (!character || !chat) return null
       const { active: speaker, roster } = resolveSpeaker(opts?.speakerId)
       if (!speaker) return null
+      // Shaped for the service this speaker's reply goes to: their own connection, else Story replies.
+      const speakerTemplate = templateFor(replyJobFor(speaker).kind)
       // Fresh read — the reactive `chat` closure can be one render behind a summary update that just landed.
       const freshChat = (await chatsApi.get(chat.id)) ?? chat
       const sceneRoster = freshChat.scene?.presentCharacterIds
@@ -1222,7 +1244,7 @@ export function useChatSession(chatId: string | null) {
         worldDescription,
         worldMoment,
         lorebooks: [...worldLorebook, ...lorebooks, ...boundBooks, ...factsLorebook],
-        template,
+        template: speakerTemplate,
         contextBudget: Math.max(contextBudget, 256),
         scanDepth: 8,
         promptSections,
@@ -1313,6 +1335,8 @@ export function useChatSession(chatId: string | null) {
       slowBurnPacing,
       styleGuidanceNote,
       template,
+      templateFor,
+      replyJobFor,
       world,
       worldInfoBooks,
     ],
@@ -1338,7 +1362,7 @@ export function useChatSession(chatId: string | null) {
           voiceFingerprint: character.voiceFingerprint,
           generate: (prompt) =>
             generateWithTimeout(
-              client,
+              memoryClient,
               {
                 prompt,
                 max_length: SUMMARY_MAX_LENGTH[summaryDetail],
@@ -1355,7 +1379,7 @@ export function useChatSession(chatId: string | null) {
               },
               'Update memory summary',
               undefined,
-              assistShaping,
+              jobShaping.memory,
             ),
         })
         const summaryUpToTimestamp = newBatch[newBatch.length - 1].createdAt
@@ -1365,7 +1389,7 @@ export function useChatSession(chatId: string | null) {
         summarizingRef.current = false
       }
     },
-    [character, chat, client, keepRecentMessages, messages, persona, sampler.max_context_length, summaryDetail],
+    [character, chat, memoryClient, keepRecentMessages, messages, persona, sampler.max_context_length, summaryDetail],
   )
 
   /** Marks the given indices (into `pending`) done on `objective`. Shared by the standalone task-detection pass and the merged pass in `runGeneration`. */
@@ -1422,7 +1446,7 @@ export function useChatSession(chatId: string | null) {
           existing: known.map((m, i) => ({ n: i + 1, id: m.id, text: m.text, knownByIds: m.knownBy, unresolved: m.unresolved })),
         }
         const raw = await generateWithTimeout(
-          client,
+          memoryClient,
           {
             prompt: buildScribePrompt(input),
             max_length: 700,
@@ -1439,7 +1463,7 @@ export function useChatSession(chatId: string | null) {
           },
           'Record character memories',
           undefined,
-          assistShaping,
+          jobShaping.memory,
         )
         const result = parseScribeResponse(raw, input)
         if (result.add.length) {
@@ -1469,7 +1493,7 @@ export function useChatSession(chatId: string | null) {
     } finally {
       scribingRef.current = false
     }
-  }, [assistShaping, character, characterMemoryOn, chatId, client, participantCharacters, persona?.name, playerCharacter, sampler.max_context_length, world?.name])
+  }, [jobShaping.memory, character, characterMemoryOn, chatId, memoryClient, participantCharacters, persona?.name, playerCharacter, sampler.max_context_length, world?.name])
 
   /**
    * When a scene ends, each character there folds their older, settled memories into their own
@@ -1484,7 +1508,7 @@ export function useChatSession(chatId: string | null) {
       const toFold = pickForJournal(all, id)
       if (!toFold.length) continue
       const raw = await generateWithTimeout(
-        client,
+        memoryClient,
         {
           prompt: buildJournalPrompt({
             guidance: promptOverride(world?.promptOverrides, 'journal'),
@@ -1507,14 +1531,14 @@ export function useChatSession(chatId: string | null) {
         },
         'Update character journal',
         undefined,
-        assistShaping,
+        jobShaping.memory,
       ).catch(() => '')
       const text = parseJournalResponse(raw)
       if (!text) continue
       await memoriesApi.create({ chatId: sceneId, kind: 'journal', text, witnesses: [id], importance: 1, origin: 'journal' })
       await memoriesApi.consolidate(id, toFold.map((m) => m.id))
     }
-  }, [allCharactersById, assistShaping, characterMemoryOn, client, playerCharacter?.id, sampler.max_context_length, world?.name])
+  }, [allCharactersById, jobShaping.memory, characterMemoryOn, memoryClient, playerCharacter?.id, sampler.max_context_length, world?.name])
 
   /** Checks whether the reply that just landed completed any pending objective tasks. Standalone path only — see `runGeneration` for the merged one. */
   const detectAndMarkTasks = useCallback(
@@ -1524,15 +1548,15 @@ export function useChatSession(chatId: string | null) {
       const pending = objective.tasks.filter((t) => t.status === 'pending')
       if (pending.length === 0) return
       const completedIndices = await detectCompletedTasks(
-        client,
+        trackingClient,
         replyText,
         pending.map((t) => t.description),
-        assistShaping,
+        jobShaping.tracking,
       )
       if (completedIndices.length === 0) return
       await applyCompletedTasks(objective, pending, completedIndices)
     },
-    [client, applyCompletedTasks],
+    [trackingClient, applyCompletedTasks],
   )
 
   /** Scores relationship movement for whichever character actually just spoke, reading/writing their own track (`stage.ts`). `pendingTasks`, when passed, rides along in the same judge call and its completed indices are handed back for the caller to apply. */
@@ -1599,7 +1623,7 @@ export function useChatSession(chatId: string | null) {
         expectationUpdates,
         currentFear,
         currentDesire,
-      } = await assessRelationshipMoment(client, {
+      } = await assessRelationshipMoment(trackingClient, {
         history,
         latestReply,
         charName: speaker.card.name,
@@ -1633,7 +1657,7 @@ export function useChatSession(chatId: string | null) {
         presentParticipants: [...(character ? [character] : []), ...participantCharacters]
           .filter((c) => c.id !== speaker.id)
           .map((c) => c.card.name),
-      }, assistShaping)
+      }, jobShaping.tracking)
       // A due window always closes even with no verdict — an unusable answer reads as the middle outcome, not "ask again next turn".
       const resolvedAftercare = aftercareDue ? (aftercareVerdict ?? 'awkward') : undefined
       // Same intent chip played 3+ turns running scales positive gains toward nothing (a bad move/friction still passes through).
@@ -1694,12 +1718,12 @@ export function useChatSession(chatId: string | null) {
         (g) => !g.isEnding && !unlockedSet.has(g.id) && hasRequiredFlags(g.requiredFlags, existingFlags),
       )
       if (lockedGallery.length > 0) {
-        const unlockedIds = await detectGalleryUnlocks(client, {
+        const unlockedIds = await detectGalleryUnlocks(trackingClient, {
           character: speaker,
           locked: lockedGallery,
           affection,
           latestReply,
-        }, assistShaping)
+        }, jobShaping.tracking)
         unlockedIds.forEach((id) => unlockedSet.add(id))
       }
       // Evaluated against the state this turn just produced (not the state it started from), so a "trust >= 70" trigger fires the turn it's reached. Primary's own track only.
@@ -2038,7 +2062,7 @@ export function useChatSession(chatId: string | null) {
       }
       return completedTaskIndices
     },
-    [activeFacts, character, client, participantCharacters, persona?.name, relationshipDifficulty, world],
+    [activeFacts, character, trackingClient, participantCharacters, persona?.name, relationshipDifficulty, world],
   )
 
   // buyGift/buyItem/buyToy/useItem's currency branch, plus the coin writes in
@@ -2266,7 +2290,7 @@ export function useChatSession(chatId: string | null) {
       const historyForAssist: ChatMessage[] = messages.map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
       let outcome
       try {
-        outcome = await assessCommitmentAsk(client, {
+        outcome = await assessCommitmentAsk(trackingClient, {
           history: historyForAssist,
           charName: target.card.name,
           charPersonality: target.card.personality,
@@ -2274,7 +2298,7 @@ export function useChatSession(chatId: string | null) {
           tierLabel: formatCommitmentStatus(tier),
           currentStatusLabel: formatCommitmentStatus(currentStatus),
           current: { affection: currentAffection, ...currentStats },
-        }, assistShaping)
+        }, jobShaping.tracking)
       } catch (e) {
         toastError(errorMessage(e))
         return
@@ -2350,7 +2374,7 @@ export function useChatSession(chatId: string | null) {
           .catch(() => {})
         // A married/living_together accept earns an actual wedding/moving-in scene, reusing the normal date-event machinery. Primary-only. Not awaited — the ask's own promise shouldn't block on this best-effort scene.
         if ((tier === 'married' || tier === 'living_together') && target.id === character?.id) {
-          suggestDateEvent(client, {
+          suggestDateEvent(trackingClient, {
             characterName: target.card.name,
             characterDescription: target.card.description,
             personaName: persona?.name || 'You',
@@ -2360,7 +2384,7 @@ export function useChatSession(chatId: string | null) {
             commitmentStatus: tier,
             milestoneOccasion: tier,
             recentGiftName: recentMeaningfulGiftName(track.giftLog, target.giftPreferences, world),
-          }, assistShaping)
+          }, jobShaping.tracking)
             .then((milestoneEvent) => (milestoneEvent ? startDateEventRef.current(milestoneEvent) : undefined))
             .catch((e) =>
               toastError(`Accepted, but couldn't put together the ${tier === 'married' ? 'wedding' : 'moving-in'} scene: ${errorMessage(e)}`),
@@ -2381,7 +2405,7 @@ export function useChatSession(chatId: string | null) {
         turnCount: countCharReplies(messages),
       })
     },
-    [character, chatId, client, messages, persona?.name, relationshipDifficulty, resolveSpeaker, world],
+    [character, chatId, trackingClient, messages, persona?.name, relationshipDifficulty, resolveSpeaker, world],
   )
 
   /** A deliberate "first time together" ask — mirrors `askForCommitment`'s shape, but sets `firstIntimateSceneAt` instead of a tier, with no auto-sent narrative line afterward. */
@@ -2398,13 +2422,13 @@ export function useChatSession(chatId: string | null) {
       const historyForAssist: ChatMessage[] = messages.map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
       let outcome
       try {
-        outcome = await assessIntimacyMilestone(client, {
+        outcome = await assessIntimacyMilestone(trackingClient, {
           history: historyForAssist,
           charName: target.card.name,
           charPersonality: target.card.personality,
           userName: persona?.name || 'You',
           current: { affection: currentAffection, ...currentStats },
-        }, assistShaping)
+        }, jobShaping.tracking)
       } catch (e) {
         toastError(errorMessage(e))
         return
@@ -2483,7 +2507,7 @@ export function useChatSession(chatId: string | null) {
         turnCount: countCharReplies(messages),
       })
     },
-    [chatId, client, messages, persona?.name, relationshipDifficulty, resolveSpeaker, world],
+    [chatId, trackingClient, messages, persona?.name, relationshipDifficulty, resolveSpeaker, world],
   )
 
   /** Deliberately ending a committed relationship (behind a UI confirmation), applying the same one-time scar a strain-driven breakup does. */
@@ -2691,7 +2715,7 @@ export function useChatSession(chatId: string | null) {
       recordedChecks: recentRollsFrom(branch, 8),
       generate: (prompt) =>
         generateWithTimeout(
-          client,
+          memoryClient,
           {
             prompt,
             max_length: 700,
@@ -2708,10 +2732,10 @@ export function useChatSession(chatId: string | null) {
           },
           'Write scene recap',
           undefined,
-          assistShaping,
+          jobShaping.memory,
         ),
     })
-  }, [assistShaping, character, chat, chatId, client, participantCharacters, persona?.name, sampler.max_context_length, world])
+  }, [jobShaping.memory, character, chat, chatId, memoryClient, participantCharacters, persona?.name, sampler.max_context_length, world])
 
   /**
    * Drafts the recap of this scene's chapter, for the End scene dialog when it ends the chapter too:
@@ -2735,10 +2759,10 @@ export function useChatSession(chatId: string | null) {
         { label: sceneLabel(chat), recap: current.recapText, openThreads: current.openThreads },
       ],
       generate: (prompt) =>
-        generateWithTimeout(client, { prompt, max_length: 700, max_context_length: sampler.max_context_length, temperature: 0.4, top_p: 1, top_k: 0, min_p: 0, typical: 1, tfs: 1, rep_pen: 1.1, rep_pen_range: 1024, rep_pen_slope: 0.7 },
-          'Write chapter recap', undefined, assistShaping),
+        generateWithTimeout(memoryClient, { prompt, max_length: 700, max_context_length: sampler.max_context_length, temperature: 0.4, top_p: 1, top_k: 0, min_p: 0, typical: 1, tfs: 1, rep_pen: 1.1, rep_pen_range: 1024, rep_pen_slope: 0.7 },
+          'Write chapter recap', undefined, jobShaping.memory),
     })
-  }, [assistShaping, chat, client, persona?.name, sampler.max_context_length])
+  }, [jobShaping.memory, chat, memoryClient, persona?.name, sampler.max_context_length])
 
   /** Names this scene's chapter or sets its goal; with `chapterId`, another chapter's, or an ended chapter's recap. */
   const updateChapter = useCallback(
@@ -2820,12 +2844,12 @@ export function useChatSession(chatId: string | null) {
           name: item.name,
           quantity: inventory[item.id] ?? 0,
         })).filter((g) => g.quantity > 0)
-        const choiceCards = await generateChoices(client, {
+        const choiceCards = await generateChoices(trackingClient, {
           history: historyForChoices,
           charName: character.card.name,
           userName: persona?.name || 'You',
           availableGifts,
-        }, assistShaping)
+        }, jobShaping.tracking)
         await messagesApi.update(messageId, {
           choiceCards,
           choices: choiceCards.map((c) => c.text),
@@ -2834,7 +2858,7 @@ export function useChatSession(chatId: string | null) {
         // a failed suggestion just means no choice buttons render — never surfaced as a chat error
       }
     },
-    [character, chatId, client, persona, world],
+    [character, chatId, trackingClient, persona, world],
   )
 
   const regenerateChoices = useCallback(
@@ -2882,13 +2906,13 @@ export function useChatSession(chatId: string | null) {
         const candidates = spriteExpressionIds.map((id) => ({ id, label: labelById.get(id) ?? id }))
 
         // Narrow to a few plausible candidates first — too many sprites to send the vision model at once.
-        const shortlist = await shortlistExpressions(client, {
+        const shortlist = await shortlistExpressions(visionClient, {
           charName: speaker.card.name,
           replyText,
           candidates,
           taggedExpression: currentScene.expression,
           limit: 6,
-        }, assistShaping)
+        }, jobShaping.vision)
 
         const cache = spriteBase64Ref.current
         const sprites = (
@@ -2907,21 +2931,21 @@ export function useChatSession(chatId: string | null) {
           )
         ).filter((s): s is { id: string; label: string; base64: string } => !!s)
 
-        const detected = await detectExpressionFromSprites(client, {
+        const detected = await detectExpressionFromSprites(visionClient, {
           charName: speaker.card.name,
           replyText,
           sprites,
           taggedExpression: currentScene.expression,
-        }, assistShaping)
+        }, jobShaping.vision)
         if (detected) next.expression = detected
       }
 
       if (userImages.length > 0) {
-        const cls = await classifyAttachedImageScene(client, {
+        const cls = await classifyAttachedImageScene(visionClient, {
           images: userImages,
           backgroundIds: unlockedBackgrounds,
           moodIds: [...SCENE_MOOD_IDS],
-        }, assistShaping)
+        }, jobShaping.vision)
         if (cls.background) next.background = cls.background
         if (cls.mood) next.mood = cls.mood
       }
@@ -2937,7 +2961,7 @@ export function useChatSession(chatId: string | null) {
       swipeScenes[activeSwipe] = sanitized
       await messagesApi.update(messageId, { scene: sanitized, swipeScenes })
     },
-    [chat, chatId, character, client, world],
+    [chat, chatId, character, visionClient, world],
   )
 
   /** Text-only fallback for `refineSceneWithVision` when no vision model is loaded — corrects a stale expression tag from the reply text alone. Expression only, writes back only on actual change. */
@@ -2956,12 +2980,12 @@ export function useChatSession(chatId: string | null) {
       if (!currentScene.expression) return
 
       const candidates = expressionCandidatesFor(unlockedExpressions, speaker.customExpressions)
-      const corrected = await detectExpressionTextMismatch(client, {
+      const corrected = await detectExpressionTextMismatch(visionClient, {
         charName: speaker.card.name,
         replyText,
         taggedExpression: currentScene.expression,
         candidates,
-      }, assistShaping)
+      }, jobShaping.vision)
       if (!corrected) return
 
       const next: SceneTag = { ...currentScene, expression: corrected }
@@ -2976,7 +3000,7 @@ export function useChatSession(chatId: string | null) {
       swipeScenes[activeSwipe] = sanitized
       await messagesApi.update(messageId, { scene: sanitized, swipeScenes })
     },
-    [chat, client, world],
+    [chat, visionClient, world],
   )
 
   /** Best-effort form read for the whole cast. The GM or another character can describe an arrival. */
@@ -3003,7 +3027,7 @@ export function useChatSession(chatId: string | null) {
       }
     }).filter((candidate) => candidate.forms.length >= 2)
     if (!candidates.length) return
-    const picked = await detectCharacterForms(client, { text: replyText, candidates }, assistShaping)
+    const picked = await detectCharacterForms(visionClient, { text: replyText, candidates }, jobShaping.vision)
     if (!Object.keys(picked).length) return
     const fresh = await messagesApi.get(messageId)
     if (!fresh) return
@@ -3013,7 +3037,7 @@ export function useChatSession(chatId: string | null) {
     const swipeScenes = fresh.swipeScenes ? [...fresh.swipeScenes] : []
     swipeScenes[activeSwipe] = scene
     await messagesApi.update(messageId, { scene, swipeScenes })
-  }, [assistShaping, character, chat, chatId, client, participantCharacters])
+  }, [jobShaping.vision, character, chat, chatId, visionClient, participantCharacters])
 
   const runGeneration = useCallback(
     async (
@@ -3037,9 +3061,9 @@ export function useChatSession(chatId: string | null) {
       if (!character || !chat) return
       const { active: speaker } = resolveSpeaker(opts?.speakerId)
       if (!speaker) return
-      const replyClient = speaker.modelOverride && chatBackend !== 'koboldcpp'
-        ? createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel: speaker.modelOverride, secrets })
-        : client
+      // A character with their own connection or model replies through it; everyone else through Story replies.
+      const replyJob = replyJobFor(speaker)
+      const replyClient = replyJob.client
       activeGenerationClientRef.current = replyClient
       // Relationship tracking/rapport stay scoped to the primary; choice suggestions apply to anyone.
       const isPrimarySpeaker = speaker.id === character.id
@@ -3095,11 +3119,11 @@ export function useChatSession(chatId: string | null) {
           // a card's own `<START>`/name-prefixed example-dialogue delimiters instead of stopping its turn.
           const personaName = persona?.name || 'You'
           const dynamicStops = ['<START>', `\n${personaName}:`, `\n${speaker.card.name}:`]
-          const stopSequence = [...new Set([...template.stopSequences, ...(sampler.stop_sequence ?? []), ...dynamicStops])]
+          const stopSequence = [...new Set([...templateFor(replyJob.kind).stopSequences, ...(sampler.stop_sequence ?? []), ...dynamicStops])]
 
           // A chat-completion backend needs its own native sampler params, not KoboldCpp's shape.
           const generationParams =
-            chatBackend === 'openai-compatible'
+            usesChatCompletion(replyJob.kind)
               ? { max_context_length: sampler.max_context_length, ...chatCompletionSamplerToRequest(chatCompletionSampler) }
               : sampler
 
@@ -3216,6 +3240,7 @@ export function useChatSession(chatId: string | null) {
               tokenCount: await countTokens(combined),
               failed: !isUsableReply,
               continueUndo: opts?.continueUndo ?? null,
+              servedBy: servedByLabel(replyJob),
             })
           } else {
             const freshMsg = await messagesApi.get(targetMessageId)
@@ -3238,6 +3263,7 @@ export function useChatSession(chatId: string | null) {
               failed: !isUsableReply,
               // A fresh (non-continue) generation replaces the whole reply, so any earlier continue is moot.
               continueUndo: null,
+              servedBy: servedByLabel(replyJob),
             })
           }
           wroteAnything = wroteAnything || isUsableReply
@@ -3437,12 +3463,12 @@ export function useChatSession(chatId: string | null) {
             { id: targetMessageId, role: 'char' as const, name: speaker.card.name, text: combined },
           ]
           runAssist('rapport', 'Reading the room', async () => {
-            const read = await assessRapport(client, {
+            const read = await assessRapport(trackingClient, {
               transcript: rapportTail,
               charName: character.card.name,
               userName: persona?.name || 'You',
               charPersonality: character.card.personality,
-            }, assistShaping)
+            }, jobShaping.tracking)
             if (!read) return
             // A genuine dealbreaker ends the date immediately; hangouts are stakes-free so a walkOut read is ignored there.
             if (read.walkOut && chat.activeEvent?.kind === 'date') {
@@ -3490,9 +3516,6 @@ export function useChatSession(chatId: string | null) {
     [
       applyCompletedTasks,
       autoDetectTasks,
-      baseUrl,
-      chatBackend,
-      chatBackendBaseUrl,
       secrets,
       chatBackendModel,
       autoSummarize,
@@ -3502,6 +3525,13 @@ export function useChatSession(chatId: string | null) {
       character,
       chat,
       client,
+      modelSettings,
+      jobClients,
+      jobShaping,
+      mainClient,
+      replyJobFor,
+      templateFor,
+      trackingClient,
       countTokens,
       detectAndMarkTasks,
       messages,
@@ -3630,11 +3660,11 @@ export function useChatSession(chatId: string | null) {
       }
       let ctx = baseCtx
       try {
-        const maxContext = await client.getEffectiveMaxContext(8192)
+        const maxContext = await gmClient.getEffectiveMaxContext(8192)
         const requestRuling = (extra = '') => {
           const { system, user } = buildGmPrompt(ctx)
           const promptUser = extra ? `${user}\n\n${extra}` : user
-          return generateWithTimeout(client, {
+          return generateWithTimeout(gmClient, {
             max_length: 700,
             max_context_length: maxContext,
             temperature: 0.7,
@@ -3643,7 +3673,7 @@ export function useChatSession(chatId: string | null) {
             jsonOutput: true,
             prompt: `${system}\n\n${promptUser}`,
             messages: [{ role: 'system', content: system }, { role: 'user', content: promptUser }],
-          }, 'Game Master', abortRef.current?.signal, assistShaping)
+          }, 'Game Master', abortRef.current?.signal, jobShaping.gm)
         }
         let raw = await requestRuling()
         // It decided this beat needs someone's card: read it, and rule again with it in hand.
@@ -3661,13 +3691,16 @@ export function useChatSession(chatId: string | null) {
         if (turn.fallback?.startsWith('The GM did not answer a question earned by')) {
           turn = parseGmTurn(await requestRuling(`Correction: ${playerName}'s question is already paid for by the recorded ${ctx.earlierRoll?.moveName} result. Answer it directly in adjudication.outcome, set followUp true, and do not request another roll.`), ctx)
         }
+        // Which connection ruled, when it wasn't Main.
+        const servedBy = servedByLabel(jobClients.gm)
+        if (servedBy) turn = { ...turn, servedBy }
         return turn
       } catch (e) {
         return fallbackGmTurn(baseCtx, `GM model call failed: ${errorMessage(e)}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeFacts, activeObjective, character, characterMemoryOn, chat, chatId, client, participantCharacters, persona, world, callableLore],
+    [activeFacts, activeObjective, character, characterMemoryOn, chat, chatId, gmClient, jobClients.gm, participantCharacters, persona, world, callableLore],
   )
 
   /** The GM rules, its turn is stored as its own message, then each chosen character agent replies in order. */
@@ -4108,12 +4141,12 @@ export function useChatSession(chatId: string | null) {
             if (mention) speaker = resolveSpeaker(mention.id).active
           } else if (turnPolicy === 'director') {
             const historyForDirector: ChatMessage[] = messages.map((m) => ({ id: m.id, role: m.role, name: m.name, text: m.text }))
-            const pickedId = await pickDirectorSpeaker(client, {
+            const pickedId = await pickDirectorSpeaker(gmClient, {
               roster,
               history: historyForDirector,
               userName: persona?.name || 'You',
               sceneLocation: sceneSettingFrom(messages, freshChat.scene, (id) => backgroundLabel(id, world)).location,
-            }, assistShaping)
+            }, jobShaping.gm)
             if (pickedId) speaker = resolveSpeaker(pickedId).active
           }
         }
@@ -4153,7 +4186,7 @@ export function useChatSession(chatId: string | null) {
         endGeneration()
       }
     },
-    [beginGeneration, character, chatId, client, endGeneration, messages, participantCharacters, persona, reducedAudio, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
+    [beginGeneration, character, chatId, gmClient, endGeneration, messages, participantCharacters, persona, reducedAudio, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
   )
 
   const regenerate = useCallback(
@@ -4446,12 +4479,12 @@ export function useChatSession(chatId: string | null) {
   const generateTasksForActiveObjective = useCallback(async () => {
     if (!activeObjective || !character) return
     const tasks = await generateTasks(
-      client,
+      trackingClient,
       activeObjective.title,
       activeObjective.description ?? '',
       character.card,
       4,
-      assistShaping,
+      jobShaping.tracking,
     )
     const newTasks: ObjectiveTask[] = tasks.map((description) => ({
       id: newId(),
@@ -4459,7 +4492,7 @@ export function useChatSession(chatId: string | null) {
       status: 'pending',
     }))
     await objectivesApi.update(activeObjective.id, { tasks: [...activeObjective.tasks, ...newTasks] })
-  }, [activeObjective, character, client])
+  }, [activeObjective, character, trackingClient])
 
   const addManualTask = useCallback(
     async (description: string) => {
@@ -4508,17 +4541,17 @@ export function useChatSession(chatId: string | null) {
   const suggestObjectiveIdea = useCallback(async (): Promise<{ title: string; description: string }> => {
     if (!character) return { title: '', description: '' }
     return suggestObjective(
-      client,
+      trackingClient,
       character.card,
       { name: persona?.name || 'You', description: persona?.description || '' },
-      assistShaping,
+      jobShaping.tracking,
     )
-  }, [character, client, persona])
+  }, [character, trackingClient, persona])
 
   const suggestDateEventIdea = useCallback(async (): Promise<DateEventCard | null> => {
     if (!character || !chat) return null
     const availableBackgrounds = getUnlockedBackgroundIds(world, chat.affection ?? 0)
-    return suggestDateEvent(client, {
+    return suggestDateEvent(trackingClient, {
       characterName: character.card.name,
       characterDescription: character.card.description,
       personaName: persona?.name || 'You',
@@ -4527,8 +4560,8 @@ export function useChatSession(chatId: string | null) {
       affection: chat.affection ?? 0,
       commitmentStatus: chat.commitmentStatus ?? 'none',
       recentGiftName: recentMeaningfulGiftName(chat.giftLog, character.giftPreferences, world),
-    }, assistShaping)
-  }, [character, chat, client, persona?.name, world])
+    }, jobShaping.tracking)
+  }, [character, chat, trackingClient, persona?.name, world])
 
   /** Starting a date/hangout spends one of the world's daily energy actions; gift/milestone cards stay free. No world means energy doesn't apply. */
   const startDateEvent = useCallback(
@@ -4583,14 +4616,14 @@ export function useChatSession(chatId: string | null) {
           ),
         )
         hiddenAgenda =
-          (await draftHiddenAgenda(client, {
+          (await draftHiddenAgenda(trackingClient, {
             charName: character.card.name,
             charPersonality: character.card.personality,
             charGoals: character.goals,
             charBoundaries: character.boundaries,
             eventTitle: event.title,
             warmthLabel,
-          }, assistShaping).catch(() => null)) ?? undefined
+          }, jobShaping.tracking).catch(() => null)) ?? undefined
       }
       // Marks this as a live, scored date/hangout; also the cutoff `endDateEvent` uses to gather its transcript. Clears any leftover rapport read.
       await chatsApi.update(chatId, { activeEvent: { ...event, startedAt: Date.now(), hiddenAgenda }, rapport: null })
@@ -4629,7 +4662,7 @@ export function useChatSession(chatId: string | null) {
         }
       }
     },
-    [beginGeneration, character, chat?.affection, chat?.relationshipStats, chatId, client, createObjective, endGeneration, messages, persona?.name, runGeneration, world],
+    [beginGeneration, character, chat?.affection, chat?.relationshipStats, chatId, trackingClient, createObjective, endGeneration, messages, persona?.name, runGeneration, world],
   )
   // Kept current every render — see `startDateEventRef`'s own doc comment, above `askForCommitment`.
   startDateEventRef.current = startDateEvent
@@ -4660,7 +4693,7 @@ export function useChatSession(chatId: string | null) {
     const currentAffection = freshChat.affection ?? 0
     const currentStats = getRelationshipStats(freshChat)
     const existingFlags = new Set((freshChat.sceneFlags ?? []) as SceneFlag[])
-    const outcome = await assessDateOutcome(client, {
+    const outcome = await assessDateOutcome(trackingClient, {
       transcript,
       eventTitle: event.title,
       charName: character.card.name,
@@ -4672,7 +4705,7 @@ export function useChatSession(chatId: string | null) {
       hiddenAgenda: event.hiddenAgenda,
       walkedOut: opts?.walkedOut,
       sceneKind: event.kind === 'hangout' ? 'hangout' : 'date',
-    }, assistShaping)
+    }, jobShaping.tracking)
     const deltas = scaleDeltasForDifficulty(outcome.deltas, relationshipDifficulty)
     outcome.newFlags.forEach((flag) => existingFlags.add(flag))
     if (outcome.newFacts.length > 0) {
@@ -4706,12 +4739,12 @@ export function useChatSession(chatId: string | null) {
       (g) => !g.isEnding && !unlockedSet.has(g.id) && hasRequiredFlags(g.requiredFlags, existingFlags),
     )
     if (lockedGallery.length > 0) {
-      const unlockedIds = await detectGalleryUnlocks(client, {
+      const unlockedIds = await detectGalleryUnlocks(trackingClient, {
         character,
         locked: lockedGallery,
         affection,
         latestReply: outcome.recap,
-      }, assistShaping)
+      }, jobShaping.tracking)
       unlockedIds.forEach((id) => unlockedSet.add(id))
     }
 
@@ -4764,7 +4797,7 @@ export function useChatSession(chatId: string | null) {
       const entry = character.gallery?.find((g) => g.id === id)
       toastSuccess(entry?.isEnding ? `An ending unlocked: ${entry.title}` : `New gallery scene unlocked: ${entry?.title ?? 'untitled'}`)
     }
-  }, [activeFacts, activeObjective, character, chatId, client, messages, persona?.name, relationshipDifficulty, world])
+  }, [activeFacts, activeObjective, character, chatId, trackingClient, messages, persona?.name, relationshipDifficulty, world])
 
   /**
    * Runs one activity picked from `DayPlannerPanel`. A 'rest' just spends the world's energy and

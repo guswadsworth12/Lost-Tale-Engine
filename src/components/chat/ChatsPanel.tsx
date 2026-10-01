@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Copy, GitFork, MoreHorizontal, Pencil, Pin, PinOff, Plus, Star, Trash2 } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatsApi, messagesApi, objectivesApi, storiesApi, worldsApi } from '@/lib/api/client'
-import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { useModelFor } from '@/lib/hooks/useModelFor'
 import { createChat } from '@/lib/chat/createChat'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
@@ -57,7 +57,7 @@ export function ChatsPanel({
   const [showNew, setShowNew] = useState(false)
   const [showTrash, setShowTrash] = useState(false)
   const trashCount = useApiQuery('chats', () => chatsApi.trash(), [])?.length ?? 0
-  const client = useChatBackendClient()
+  const client = useModelFor('story')
   const [menuForId, setMenuForId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')

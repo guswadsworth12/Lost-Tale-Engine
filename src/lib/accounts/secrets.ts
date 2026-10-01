@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { SECRET_SETTING_KEYS, type SecretName, type SecretStatus } from './contract'
+import { SECRET_SETTING_KEYS, isServiceSecretName, type SecretName, type SecretStatus } from './contract'
 import { invalidate } from '@/lib/api/client'
 import { relayFetch } from '@/lib/api/relay'
 import { isOpenMayhem } from '@/lib/api/openMayhem'
@@ -28,7 +28,9 @@ let listed = false
 
 function flagsFrom(list: SecretStatus[]): SecretFlags {
   const flags = { ...NO_SECRETS }
-  for (const status of list) if (status && (SECRET_SETTING_KEYS as readonly string[]).includes(status.name)) flags[status.name] = !!status.set
+  for (const status of list) {
+    if (status && ((SECRET_SETTING_KEYS as readonly string[]).includes(status.name) || isServiceSecretName(status.name))) flags[status.name] = !!status.set
+  }
   return flags
 }
 
@@ -62,6 +64,12 @@ export const secretsApi = {
     known = { ...known, [name]: false }
     invalidate(RESOURCE)
   },
+  /** Moves a saved key to another name, server-side: the value never comes back here. */
+  async move(from: SecretName, to: SecretName): Promise<void> {
+    await send('POST', `/${encodeURIComponent(from)}/move`, { to })
+    known = { ...known, [from]: false, [to]: true }
+    invalidate(RESOURCE)
+  },
 }
 
 /** Fresh flags from the server, for code outside React; falls back to the last known list if the server can't answer. */
@@ -81,7 +89,10 @@ export function hasSecret(name: SecretName): boolean {
 /** Which credentials are saved. `saved` keeps one identity until the list changes, so it's safe as a memo dependency. */
 export function useSecretStatus(): { saved: SecretFlags; loading: boolean } {
   const list = useApiQuery<SecretStatus[]>(RESOURCE, () => secretsApi.list(), [])
-  const key = list ? SECRET_SETTING_KEYS.map((name) => (list.some((s) => s.name === name && s.set) ? 1 : 0)).join('') : ''
+  // Fixed keys by position, then whichever service keys are saved.
+  const key = list
+    ? `${SECRET_SETTING_KEYS.map((name) => (list.some((s) => s.name === name && s.set) ? 1 : 0)).join('')}|${list.filter((s) => s.set && isServiceSecretName(s.name)).map((s) => s.name).sort().join(',')}`
+    : ''
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const saved = useMemo(() => (list ? flagsFrom(list) : NO_SECRETS), [key])
   return { saved, loading: list === undefined }
@@ -97,6 +108,11 @@ export function chatSecretName(chatBackendBaseUrl: string): SecretName {
  * store already blanks its own copy on such a change; these wrap its setters to also forget the
  * saved credential. Use them wherever the user edits a provider, base URL, or backend.
  */
+/** Removes a saved key that no longer has a use, such as a deleted connection's. */
+export function forgetSecret(name: SecretName): void {
+  forget(name)
+}
+
 function forget(name: SecretName): void {
   // Before the first list arrives, "not known to be saved" isn't "not saved": remove regardless.
   if (listed && !known[name]) return

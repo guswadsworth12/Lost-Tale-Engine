@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { charactersApi, chatsApi, instructTemplatesApi, messagesApi, worldsApi } from '@/lib/api/client'
 import { playerViewOf } from '@/lib/characters/player'
 import { newId } from '@/lib/id'
-import { createChatBackend } from '@/lib/api/createChatBackend'
+import { jobClientNow } from '@/lib/hooks/useModelFor'
 import { evaluateOutreach, generateOutreachMessage } from '@/lib/dating/outreach'
 import { resolveInstructTemplate } from '@/lib/prompt/instructTemplates'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
@@ -20,7 +20,6 @@ import type { Chat, WorldCard } from '@/lib/types'
  */
 export function useOutreachTick() {
   const hasRunRef = useRef(false)
-  const baseUrl = useSettingsStore((s) => s.baseUrl)
 
   useEffect(() => {
     // React StrictMode double-invokes effects in dev; the ref (not a `[]`-dep effect alone)
@@ -28,12 +27,12 @@ export function useOutreachTick() {
     // actually runs once per real session.
     if (hasRunRef.current) return
     hasRunRef.current = true
-    void runTick(baseUrl)
+    void runTick()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }
 
-async function runTick(baseUrl: string) {
+async function runTick() {
   const now = Date.now()
   let chats: Chat[]
   let characters: Character[]
@@ -55,14 +54,8 @@ async function runTick(baseUrl: string) {
     )
   if (candidates.length === 0) return
 
-  const backendSettings = useSettingsStore.getState()
-  const client = createChatBackend({
-    baseUrl,
-    chatBackend: backendSettings.chatBackend,
-    chatBackendBaseUrl: backendSettings.chatBackendBaseUrl,
-    chatBackendModel: backendSettings.chatBackendModel,
-    secrets: await loadSecretFlags(),
-  })
+  // A character reaching out writes as they would reply: the Story replies job's model.
+  const client = jobClientNow('story', await loadSecretFlags()).client
   const worldsById = new Map<string, WorldCard | undefined>()
   const customTemplates = await instructTemplatesApi.list().catch(() => [])
 

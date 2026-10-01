@@ -82,7 +82,9 @@ export function WelcomeView({
   const setChatBackendConfig = changeChatBackendConfig
   const { saved: secrets } = useSecretStatus()
   // OpenMayhem chat uses the one OpenMayhem key (its server proxy attaches it); every other provider uses the chat key.
-  const chatKeyName = chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey'
+  // Where the Text model's service keeps its key (Settings → Models and services), else the long-standing chat key.
+  const chatBackendSecret = useSettingsStore((s) => s.chatBackendSecret)
+  const chatKeyName = chatBackendSecret ?? (chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey')
   const chatKeySaved = secrets[chatKeyName]
 
   // Which panel is showing. Local now covers both KoboldCpp and an OpenAI-compatible server on
@@ -388,7 +390,7 @@ export function WelcomeView({
               <p>
                 Need more control (custom base URL, per-provider notes)?{' '}
                 <button className="text-accent transition-colors hover:underline" onClick={() => onNavigate('settings')}>
-                  Open Settings → Connection
+                  Open Settings → Models and services
                 </button>
                 .
               </p>

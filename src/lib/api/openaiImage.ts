@@ -54,11 +54,11 @@ export async function openaiImageError(res: Response): Promise<ImageGenError> {
     // Not JSON: the status says enough.
   }
   const detail = redactKeys(message).slice(0, 240)
-  if (res.status === 401) return new ImageGenError('auth', 'OpenAI did not accept the API key. Check it in Settings → Images.', 401)
+  if (res.status === 401) return new ImageGenError('auth', 'OpenAI did not accept the API key. Check it in Settings → Models and services.', 401)
   if (code === 'insufficient_quota' || code === 'billing_hard_limit_reached') return new ImageGenError('quota', 'Your OpenAI account is out of credit or over its spending limit.', res.status)
   if (res.status === 429) return new ImageGenError('rate', 'OpenAI is limiting requests right now. Wait a moment and try again.', 429)
   if (code === 'moderation_blocked' || /safety system|content policy/i.test(message)) return new ImageGenError('safety', 'OpenAI\'s safety system declined this prompt. Try rewording it.', res.status)
-  if (res.status === 404 || code === 'model_not_found') return new ImageGenError('unsupported', 'That OpenAI model is not available to this account. Pick another in Settings → Images.', res.status)
+  if (res.status === 404 || code === 'model_not_found') return new ImageGenError('unsupported', 'That OpenAI model is not available to this account. Pick another in Settings → Models and services.', res.status)
   if (res.status === 400) return new ImageGenError('unsupported', `OpenAI could not use these settings${detail ? `: ${detail}` : '.'}`, 400)
   return new ImageGenError('failed', `OpenAI image generation failed (${res.status})${detail ? `: ${detail}` : '.'}`, res.status)
 }
@@ -88,7 +88,7 @@ export class OpenAIImageClient implements ImageBackend {
     const model = params.model?.trim() || this.modelName
     const gpt = isGptImage(model)
     if (params.transparent && !gpt) throw new ImageGenError('unsupported', `${model} can't make transparent images. Use a gpt-image model for sprites.`)
-    if (!this.keySaved) throw new ImageGenError('auth', 'Add an OpenAI API key in Settings → Images first.')
+    if (!this.keySaved) throw new ImageGenError('auth', 'Add an OpenAI API key in Settings → Models and services first.')
     const size = openaiImageSize(model, params)
     const references = gpt ? params.referenceImages ?? [] : []
     const options: Record<string, string> = {

@@ -1,11 +1,10 @@
 import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
 import { OpenMayhemVoiceField } from './OpenMayhemVoiceField'
-import { OpenMayhemModelSelect } from './OpenMayhemModelSelect'
-import { OpenMayhemMediaKey } from './OpenMayhemMediaKey'
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { listKoboldSpeakers, synthesizeSpeech, TTS_PROVIDER_LABELS, type TtsProviderId } from '@/lib/voice/ttsProviders'
+import { chosen, modelLabel } from '@/lib/api/services'
+import { listKoboldSpeakers, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { TextField } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { Section } from '@/components/ui/Section'
@@ -13,9 +12,7 @@ import { VoiceSampleField } from './VoiceSampleField'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { errorMessage } from '@/lib/store/useToastStore'
 import { changeVoiceConfig, useSecretStatus } from '@/lib/accounts/secrets'
-import { SecretKeyField } from './SecretKeyField'
 
-const PROVIDERS = Object.keys(TTS_PROVIDER_LABELS) as TtsProviderId[]
 
 export function VoiceSettings() {
   const baseUrl = useSettingsStore((s) => s.baseUrl)
@@ -24,10 +21,14 @@ export function VoiceSettings() {
   const ttsRegion = useSettingsStore((s) => s.ttsRegion)
   const ttsVoice = useSettingsStore((s) => s.ttsVoice)
   const ttsModel = useSettingsStore((s) => s.ttsModel)
+  const services = useSettingsStore((s) => s.services)
+  const voiceModel = useSettingsStore((s) => s.voiceModel)
+  const voice = chosen({ services }, voiceModel, 'voice')
   const { saved: secrets } = useSecretStatus()
-  const ttsKeySaved = secrets.ttsApiKey
+  const ttsSecret = useSettingsStore((s) => s.ttsSecret) ?? 'ttsApiKey'
+  const ttsKeySaved = !!secrets[ttsSecret]
   const openMayhemKeySaved = secrets.openMayhemApiKey
-  const { models, loading, reload } = useOpenMayhemModels('AUDIO_SPEECH', ttsProvider === 'openmayhem')
+  const { models } = useOpenMayhemModels('AUDIO_SPEECH', ttsProvider === 'openmayhem')
   const setVoiceConfig = changeVoiceConfig
   const [speakers, setSpeakers] = useState<string[]>([])
   const [loadingSpeakers, setLoadingSpeakers] = useState(false)
@@ -72,7 +73,7 @@ export function VoiceSettings() {
     setTestError('')
     try {
       const blob = await synthesizeSpeech(
-        { provider: ttsProvider, keySaved: ttsProvider === 'openmayhem' ? openMayhemKeySaved : ttsKeySaved, model: ttsModel, baseUrl: ttsBaseUrl, region: ttsRegion, voice: ttsVoice },
+        { provider: ttsProvider, keySaved: ttsProvider === 'openmayhem' ? openMayhemKeySaved : ttsKeySaved, secret: ttsSecret, model: ttsModel, baseUrl: ttsBaseUrl, region: ttsRegion, voice: ttsVoice },
         'Testing, one two three.',
         baseUrl,
         controller.signal,
@@ -115,36 +116,16 @@ export function VoiceSettings() {
     <SettingsPage>
       <Section
         title="Voice (text-to-speech)"
-        description="Read a character's lines aloud from Visual Novel mode. Keys are saved encrypted to your account on your Lost Tales Engine server, which attaches them and forwards each request; the browser never holds them."
+        description="Read a character's lines aloud from Visual Novel mode, with the Voice model from Settings → Models and services."
       >
-          <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-medium text-text-muted">Provider</span>
-            <select
-              value={ttsProvider}
-              onChange={(e) => {
-                setVoiceConfig({ ttsProvider: e.target.value as TtsProviderId })
-                setTestState('idle')
-              }}
-              className="w-full rounded-xl bg-bg-sunken px-3 py-2 text-sm text-text outline-none ring-1 ring-transparent transition-shadow focus:ring-accent/40"
-            >
-              {PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {TTS_PROVIDER_LABELS[p]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="mb-3 text-sm text-text">{voice ? <>Voice comes from <strong>{modelLabel(voice.service, voice.model)}</strong>.</> : 'No Voice model is picked yet. Pick one in Models and services.'}</p>
 
-          {ttsProvider === 'openmayhem' && <>
-            <OpenMayhemMediaKey />
-            <OpenMayhemModelSelect kind="speech" models={models?.map((m) => m.id) ?? null} loading={loading} value={ttsModel}
-              onChange={(model) => setVoiceConfig({ ttsModel: model, ttsVoice: '' })} />
-            <Button onClick={reload} disabled={loading}>Refresh models</Button>
+          {voice && ttsProvider === 'openmayhem' && <>
             <OpenMayhemVoiceField model={models?.find((m) => m.id === ttsModel)} value={ttsVoice} onChange={(voice) => setVoiceConfig({ ttsVoice: voice })} />
             <p className="my-3 text-xs text-text-muted">Testing and reading lines aloud generate billed speech jobs. Visual Novel mode uses this model and voice; character voice overrides must be supported by this model. Stop requests cancellation; work already done may still be billed.</p>
           </>}
 
-          {ttsProvider === 'luxtts' && (
+          {voice && ttsProvider === 'luxtts' && (
             <>
               <p className="mb-2 text-xs text-text-muted">
                 Clones voices on your own LuxTTS server. Its address and token live in this app's
@@ -160,11 +141,10 @@ export function VoiceSettings() {
             </>
           )}
 
-          {ttsProvider === 'koboldcpp' && (
+          {voice && ttsProvider === 'koboldcpp' && (
             <>
               <p className="mb-2 text-xs text-text-muted">
-                Uses your existing KoboldCpp connection. Needs a TTS-capable model (e.g. OuteTTS, Kokoro)
-                loaded there.
+                Needs a TTS-capable model (e.g. OuteTTS, Kokoro) loaded in KoboldCpp.
               </p>
               <div className="mb-3 flex items-end gap-2">
                 <TextField
@@ -187,15 +167,8 @@ export function VoiceSettings() {
             </>
           )}
 
-          {ttsProvider === 'openai-compatible' && (
+          {voice && ttsProvider === 'openai-compatible' && (
             <>
-              <TextField
-                label="Server URL"
-                value={ttsBaseUrl}
-                onChange={(e) => setVoiceConfig({ ttsBaseUrl: e.target.value })}
-                placeholder="e.g. http://localhost:8880 for local Kokoro-FastAPI"
-              />
-              <SecretKeyField name="ttsApiKey" label="API key (optional)" saved={ttsKeySaved} />
               <TextField
                 label="Voice"
                 value={ttsVoice}
@@ -205,9 +178,8 @@ export function VoiceSettings() {
             </>
           )}
 
-          {ttsProvider === 'elevenlabs' && (
+          {voice && ttsProvider === 'elevenlabs' && (
             <>
-              <SecretKeyField name="ttsApiKey" label="API key" saved={ttsKeySaved} />
               <TextField
                 label="Voice ID"
                 value={ttsVoice}
@@ -217,15 +189,8 @@ export function VoiceSettings() {
             </>
           )}
 
-          {ttsProvider === 'azure' && (
+          {voice && ttsProvider === 'azure' && (
             <>
-              <SecretKeyField name="ttsApiKey" label="Subscription key" saved={ttsKeySaved} />
-              <TextField
-                label="Region"
-                value={ttsRegion}
-                onChange={(e) => setVoiceConfig({ ttsRegion: e.target.value })}
-                placeholder="e.g. eastus"
-              />
               <TextField
                 label="Voice name"
                 value={ttsVoice}
@@ -235,7 +200,7 @@ export function VoiceSettings() {
             </>
           )}
 
-          {ttsProvider !== 'alibaba' && (
+          {voice && (
             <div className="mt-3 flex items-center gap-2.5">
               <Button onClick={testConnection} disabled={testState === 'loading' || ttsProvider === 'openmayhem' && (!openMayhemKeySaved || !models?.some((m) => m.id === ttsModel))} className="flex items-center gap-1.5">
                 {testState === 'loading' ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : null}

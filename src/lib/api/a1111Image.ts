@@ -1,6 +1,7 @@
 import { KoboldApiError } from './types'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
 import { relayFetch, type RelayInit } from './relay'
+import type { SecretName } from '@/lib/accounts/contract'
 
 /**
  * Automatic1111's `stable-diffusion-webui` (and forks like Forge/reForge that keep the same API
@@ -16,6 +17,8 @@ export class A1111Client implements ImageBackend {
     private username?: string,
     /** Whether the password (`imageBackendPassword`) is saved. The server's relay builds the Basic header; the browser never holds the password. */
     private passwordSaved = false,
+    /** Which saved key holds the password: the A1111 service's own, or the long-standing name. */
+    private secretName: SecretName = 'imageBackendPassword',
   ) {}
 
   private url(path: string): string {
@@ -27,7 +30,7 @@ export class A1111Client implements ImageBackend {
   }
 
   private credential(): Pick<RelayInit, 'secret' | 'auth' | 'username'> {
-    return this.username && this.passwordSaved ? { secret: 'imageBackendPassword', auth: 'basic', username: this.username } : {}
+    return this.username && this.passwordSaved ? { secret: this.secretName, auth: 'basic', username: this.username } : {}
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {

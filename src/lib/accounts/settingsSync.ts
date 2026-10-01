@@ -15,7 +15,8 @@
  * (an install from before accounts, when the one user was the owner) hands its preferences and keys
  * to the owner account only; anyone else signing in there starts from defaults.
  */
-import { migrateLocalSecrets } from '@/lib/accounts/secrets'
+import { loadSecretFlags, migrateLocalSecrets, secretsApi } from '@/lib/accounts/secrets'
+import { migrateToServices, type PreServiceSettings } from '@/lib/api/servicesMigration'
 import { meSettingsApi } from '@/lib/accounts/api'
 import { inheritsLocalSettings, settingsPatchFromServer, settingsSnapshot } from '@/lib/accounts/settingsSnapshot'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
@@ -106,6 +107,13 @@ export async function startSettingsSync(user: Pick<AccountUser, 'id' | 'role'>):
   }
   if (mine !== session) return
 
+  try {
+    await moveToServices()
+  } catch (e) {
+    console.warn('Could not set up services from the earlier settings:', e)
+  }
+  if (mine !== session) return
+
   unsubscribe = useSettingsStore.subscribe(() => {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
@@ -114,6 +122,21 @@ export async function startSettingsSync(user: Pick<AccountUser, 'id' | 'role'>):
       send(currentSnapshot()).catch((e) => console.warn('Could not save preferences:', e))
     }, SETTINGS_SYNC_DEBOUNCE_MS)
   })
+}
+
+/**
+ * Once per account: the chat, image and voice providers set up before services become services,
+ * with their saved keys moved (server-side) to the service that now owns each.
+ */
+async function moveToServices(): Promise<void> {
+  const state = useSettingsStore.getState()
+  if (state.servicesMigrated) return
+  const { settings, keyMoves } = migrateToServices(state as unknown as PreServiceSettings, await loadSecretFlags())
+  for (const { from, to } of keyMoves) {
+    // A key that can't be moved is entered again on its service; nothing else depends on it.
+    await secretsApi.move(from, to).catch((e) => console.warn(`Could not move the saved ${from} key:`, e))
+  }
+  useSettingsStore.getState().applyServices(settings)
 }
 
 /** Save a pending change now (before an explicit sign-out). */

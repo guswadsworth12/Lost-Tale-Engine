@@ -7,10 +7,23 @@
 
 /** Settings that are credentials. Stored encrypted per user, write-only from the browser's side. */
 export const SECRET_SETTING_KEYS = ['chatBackendApiKey', 'openMayhemApiKey', 'ttsApiKey', 'imageBackendPassword', 'openaiApiKey', 'geminiApiKey'] as const
-export type SecretName = (typeof SECRET_SETTING_KEYS)[number]
+/** A saved service's own key (`api/services.ts`): one per service, named by its id. */
+export type ServiceSecretName = `service:${string}`
+export type SecretName = (typeof SECRET_SETTING_KEYS)[number] | ServiceSecretName
+
+const SERVICE_SECRET = /^service:[a-z0-9-]{1,40}$/
+
+/** The key a service keeps for itself (one without a provider-wide key, like OpenAI's). */
+export function serviceSecretName(serviceId: string): ServiceSecretName {
+  return `service:${serviceId}`
+}
+
+export function isServiceSecretName(name: string): name is ServiceSecretName {
+  return SERVICE_SECRET.test(name)
+}
 
 export function isSecretName(name: string): name is SecretName {
-  return (SECRET_SETTING_KEYS as readonly string[]).includes(name)
+  return (SECRET_SETTING_KEYS as readonly string[]).includes(name) || isServiceSecretName(name)
 }
 
 /** Settings holding service addresses. The relay only forwards to these origins (and the fixed ones below). */

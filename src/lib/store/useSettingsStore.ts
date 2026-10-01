@@ -9,6 +9,9 @@ import { persist } from 'zustand/middleware'
 import type { ChatCompletionSamplerParams, GenerationParams } from '@/lib/api/types'
 import { DEFAULT_CHAT_COMPLETION_SAMPLER } from '@/lib/api/types'
 import type { TtsProviderId } from '@/lib/voice/ttsProviders'
+import { adoptLegacyText } from '@/lib/api/servicesMigration'
+import { legacyFieldsFor, type Capability, type ModelChoice, type ModelJob, type Service, type ServiceSettings } from '@/lib/api/services'
+import type { SecretName } from '@/lib/accounts/contract'
 import type { ChatBackendId } from '@/lib/api/chatBackend'
 import type { ImageBackendId } from '@/lib/api/imageBackend'
 import type { RelationshipDifficulty } from '@/lib/dating/relationshipAssist'
@@ -339,6 +342,29 @@ interface SettingsState {
   chatCompletionSampler: ChatCompletionSamplerParams
   setChatCompletionSampler: (patch: Partial<ChatCompletionSamplerParams>) => void
 
+  /** The accounts and servers models come from, each added once (`api/services.ts`). */
+  services: Service[]
+  addService: (service: Service) => void
+  updateService: (id: string, patch: Partial<Omit<Service, 'id' | 'kind'>>) => void
+  /** Also clears any model chosen from it. */
+  removeService: (id: string) => void
+  /** The model for text, images and voice. Written through to the long-standing fields above (`legacyFieldsFor`). */
+  textModel: ModelChoice | null
+  imageModel: ModelChoice | null
+  voiceModel: ModelChoice | null
+  setModelChoice: (capability: Capability, choice: ModelChoice | null) => void
+  /** A different text model for a job. Unset: the Text model. */
+  modelJobs: Partial<Record<ModelJob, ModelChoice>>
+  setModelJob: (job: ModelJob, choice: ModelChoice | null) => void
+  /** Puts the result of `migrateToServices` in place, once. */
+  applyServices: (settings: ServiceSettings) => void
+  /** Set once this install's providers have become services. */
+  servicesMigrated: boolean
+  /** Which saved key the chat, image and voice code attaches: the chosen service's. Unset: the long-standing names. */
+  chatBackendSecret?: SecretName
+  imageBackendSecret?: SecretName
+  ttsSecret?: SecretName
+
   /** `imageBackendUsername`/`imageBackendPassword` double as Automatic1111's `--api-auth user:pass` or (username only) NovelAI's API key. */
   imageBackend: ImageBackendId
   imageBackendBaseUrl: string
@@ -357,11 +383,28 @@ interface SettingsState {
   }>) => void
 }
 
+/**
+ * A change to the long-standing text fields (the Welcome screen's first-run setup), on an install
+ * that has services: the service it means becomes the Text model, so services and those fields agree
+ * and the key is saved where the client reads it.
+ */
+function adoptingText(state: SettingsState, patch: Partial<SettingsState>): Partial<SettingsState> {
+  if (!state.servicesMigrated) return patch
+  const adopted = adoptLegacyText({ ...state, ...patch } as SettingsState)
+  return adopted ? withLegacy(state, { ...patch, ...adopted }) : patch
+}
+
+/** A services change, plus the long-standing fields it implies (`legacyFieldsFor`), so every reader of those stays in step. */
+function withLegacy(state: ServiceSettings, patch: Partial<SettingsState>): Partial<SettingsState> {
+  const next = { ...state, ...patch } as ServiceSettings
+  return { ...patch, ...legacyFieldsFor(next) }
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       baseUrl: 'http://localhost:5001',
-      setBaseUrl: (url) => set({ baseUrl: url }),
+      setBaseUrl: (url) => set((s) => (s.chatBackend === 'koboldcpp' ? adoptingText(s, { baseUrl: url }) : { baseUrl: url })),
 
       activeCharacterId: null,
       activePersonaId: null,
@@ -560,13 +603,35 @@ export const useSettingsStore = create<SettingsState>()(
         const next = changesProvider ? { chatBackendApiKey: '', chatBackendModel: '', ...patch } : { ...patch }
         if ((patch.chatBackend ?? s.chatBackend) === 'openai-compatible' && isOpenMayhem(patch.chatBackendBaseUrl ?? s.chatBackendBaseUrl)) {
           const key = patch.chatBackendApiKey ?? s.openMayhemApiKey
-          return { ...next, openMayhemApiKey: key, chatBackendApiKey: key }
+          return adoptingText(s, { ...next, openMayhemApiKey: key, chatBackendApiKey: key })
         }
-        return next
+        return adoptingText(s, next)
       }),
 
       chatCompletionSampler: DEFAULT_CHAT_COMPLETION_SAMPLER,
       setChatCompletionSampler: (patch) => set((s) => ({ chatCompletionSampler: { ...s.chatCompletionSampler, ...patch } })),
+
+      services: [],
+      addService: (service) => set((s) => withLegacy(s, { services: [...s.services.filter((c) => c.id !== service.id), service] })),
+      updateService: (id, patch) => set((s) => withLegacy(s, { services: s.services.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+      removeService: (id) => set((s) => withLegacy(s, {
+        services: s.services.filter((c) => c.id !== id),
+        textModel: s.textModel?.serviceId === id ? null : s.textModel,
+        imageModel: s.imageModel?.serviceId === id ? null : s.imageModel,
+        voiceModel: s.voiceModel?.serviceId === id ? null : s.voiceModel,
+        modelJobs: Object.fromEntries(Object.entries(s.modelJobs).filter(([, choice]) => choice?.serviceId !== id)),
+      })),
+      textModel: null,
+      imageModel: null,
+      voiceModel: null,
+      setModelChoice: (capability, choice) => set((s) => withLegacy(s, capability === 'text' ? { textModel: choice } : capability === 'images' ? { imageModel: choice } : { voiceModel: choice })),
+      modelJobs: {},
+      setModelJob: (job, choice) => set((s) => {
+        const { [job]: _old, ...rest } = s.modelJobs
+        return { modelJobs: choice ? { ...rest, [job]: choice } : rest }
+      }),
+      applyServices: (settings) => set((s) => withLegacy(s, { ...settings, servicesMigrated: true })),
+      servicesMigrated: false,
 
       imageBackend: 'a1111',
       imageBackendBaseUrl: '',
@@ -587,7 +652,9 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (s) => omitSecrets(s),
       // Deep-merge just these nested keys so new tokens/params backfill instead of being hidden by an old persisted object.
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<SettingsState>
+        // `connections` was services' unreleased first try; the one-time move to services replaced it.
+        const { connections: _connections, ...rest } = (persisted ?? {}) as Partial<SettingsState> & { connections?: unknown }
+        const p = rest as Partial<SettingsState>
         const usesOpenMayhem = p.chatBackend === 'openai-compatible' && isOpenMayhem(p.chatBackendBaseUrl ?? '')
         const key = p.openMayhemApiKey || (usesOpenMayhem ? p.chatBackendApiKey : '') || ''
         return {

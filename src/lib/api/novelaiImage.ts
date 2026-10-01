@@ -2,6 +2,7 @@ import { KoboldApiError } from './types'
 import { extractFirstFileFromZip, uint8ArrayToBase64 } from './binaryUtils'
 import type { ImageBackend, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
 import { relayFetch } from './relay'
+import type { SecretName } from '@/lib/accounts/contract'
 
 /** NovelAI's current image models — no confirmed introspection endpoint, so this is a fixed, best-effort list rather than a guessed-at one; lower confidence than the text-model ids in `chatBackend.ts`, which came from a currently-shipping SillyTavern source. */
 export const NOVELAI_IMAGE_MODELS = ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-full', 'nai-diffusion-3']
@@ -22,6 +23,8 @@ export class NovelAIImageClient implements ImageBackend {
   constructor(
     private keySaved: boolean,
     private model: string,
+    /** Which saved key the relay attaches: the NovelAI service's own, or the long-standing name. */
+    private secretName: SecretName = 'imageBackendPassword',
   ) {}
 
   private headers(): Record<string, string> {
@@ -35,7 +38,7 @@ export class NovelAIImageClient implements ImageBackend {
       res = await relayFetch('https://image.novelai.net/ai/generate-image', {
         method: 'POST',
         headers: this.headers(),
-        ...(this.keySaved ? { secret: 'imageBackendPassword' as const, auth: 'bearer' as const } : {}),
+        ...(this.keySaved ? { secret: this.secretName, auth: 'bearer' as const } : {}),
         signal,
         body: JSON.stringify({
           input: params.prompt,

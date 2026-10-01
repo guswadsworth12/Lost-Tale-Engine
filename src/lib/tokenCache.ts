@@ -26,21 +26,23 @@ const inflight = new Map<string, Promise<number>>()
  * Returns the cached count for `text`, or awaits `compute` once and caches it. Concurrent callers
  * for the same text share a single `compute` call rather than each firing their own.
  */
-export async function countTokensCached(text: string, compute: (text: string) => Promise<number>): Promise<number> {
+export async function countTokensCached(text: string, compute: (text: string) => Promise<number>, scope = ''): Promise<number> {
   if (!text) return 0
-  const hit = counts.get(text)
+  // Counts differ per tokenizer: `scope` names the model they came from (`useModelFor`'s `JobClient.scope`).
+  const key = scope ? `${scope}\u0000${text}` : text
+  const hit = counts.get(key)
   if (hit !== undefined) {
     // Re-insert so the most recently used entry is last, making the eviction below a real LRU.
-    counts.delete(text)
-    counts.set(text, hit)
+    counts.delete(key)
+    counts.set(key, hit)
     return hit
   }
-  const pending = inflight.get(text)
+  const pending = inflight.get(key)
   if (pending) return pending
 
   const promise = compute(text)
     .then((count) => {
-      counts.set(text, count)
+      counts.set(key, count)
       if (counts.size > MAX_ENTRIES) {
         // Map iterates in insertion order, so the first key is the least recently used.
         const oldest = counts.keys().next().value
@@ -49,9 +51,9 @@ export async function countTokensCached(text: string, compute: (text: string) =>
       return count
     })
     .finally(() => {
-      inflight.delete(text)
+      inflight.delete(key)
     })
-  inflight.set(text, promise)
+  inflight.set(key, promise)
   return promise
 }
 

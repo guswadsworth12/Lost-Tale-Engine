@@ -752,7 +752,9 @@ export function VNStage({
   const koboldBaseUrl = useSettingsStore((s) => s.baseUrl)
   const ttsProvider = useSettingsStore((s) => s.ttsProvider)
   const { saved: secrets } = useSecretStatus()
-  const ttsKeySaved = secrets.ttsApiKey
+  // The chosen voice service's key (Settings → Models and services), else the long-standing one.
+  const ttsSecret = useSettingsStore((s) => s.ttsSecret) ?? 'ttsApiKey'
+  const ttsKeySaved = !!secrets[ttsSecret]
   const ttsBaseUrl = useSettingsStore((s) => s.ttsBaseUrl)
   const ttsRegion = useSettingsStore((s) => s.ttsRegion)
   const ttsModel = useSettingsStore((s) => s.ttsModel)
@@ -792,11 +794,12 @@ export function VNStage({
       const override = voiceOwner?.voice
       const provider = override?.provider ?? ttsProvider
       if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
-        throw new Error('This character overrides the voice provider. Select that provider in Settings → Voice first, or use the global default for this character.')
+        throw new Error('This character overrides the voice provider. Pick that service as the Voice model in Settings → Models and services first, or use the global default for this character.')
       }
       const narratorConfig = {
         provider: ttsProvider,
         keySaved: ttsProvider === 'openmayhem' ? openMayhemKeySaved : ttsKeySaved,
+        secret: ttsSecret,
         model: ttsModel,
         baseUrl: ttsBaseUrl,
         region: ttsRegion,

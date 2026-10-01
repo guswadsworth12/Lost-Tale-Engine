@@ -267,6 +267,8 @@ export interface GmTurn {
   corrections?: string[]
   /** Tracked state this beat changed by rule: the player's pick for a roll, or a set event carried out. */
   stateChanges?: StateChange[]
+  /** Which connection and model ruled, when that wasn't Main (`api/connections.ts` `servedByLabel`). */
+  servedBy?: string
   /** Characters the GM was playing whose set event happened this beat: their own agents take over now (`GmPlayedCharacter`). */
   handedOver?: { id: string; name: string; as: string; form?: string }[]
 }

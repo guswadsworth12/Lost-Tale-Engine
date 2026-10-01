@@ -36,9 +36,9 @@ export async function geminiImageError(res: Response): Promise<ImageGenError> {
     // Not JSON: the status code says enough.
   }
   const detail = redactKeys(message).slice(0, 240)
-  if (res.status === 401 || res.status === 403 || /api key not valid|API_KEY_INVALID/i.test(message)) return new ImageGenError('auth', 'Google did not accept the Gemini API key. Check it in Settings → Images.', res.status)
+  if (res.status === 401 || res.status === 403 || /api key not valid|API_KEY_INVALID/i.test(message)) return new ImageGenError('auth', 'Google did not accept the Gemini API key. Check it in Settings → Models and services.', res.status)
   if (res.status === 429 || status === 'RESOURCE_EXHAUSTED') return new ImageGenError('quota', 'The Gemini API quota is used up or requests are being limited. Wait, or check the plan on your Google account.', res.status)
-  if (res.status === 404) return new ImageGenError('unsupported', 'That Gemini model is not available, or can\'t make images. Pick another in Settings → Images.', 404)
+  if (res.status === 404) return new ImageGenError('unsupported', 'That Gemini model is not available, or can\'t make images. Pick another in Settings → Models and services.', 404)
   if (res.status === 400) return new ImageGenError('unsupported', `Gemini could not use these settings${detail ? `: ${detail}` : '.'}`, 400)
   return new ImageGenError('failed', `Gemini image generation failed (${res.status})${detail ? `: ${detail}` : '.'}`, res.status)
 }
@@ -76,7 +76,7 @@ export class GeminiImageClient implements ImageBackend {
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
-    if (!this.keySaved) throw new ImageGenError('auth', 'Add a Gemini API key in Settings → Images first.')
+    if (!this.keySaved) throw new ImageGenError('auth', 'Add a Gemini API key in Settings → Models and services first.')
     const model = (params.model?.trim() || this.model.trim() || GEMINI_IMAGE_DEFAULT_MODEL).replace(/^models\//, '')
     let res: Response
     try {

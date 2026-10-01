@@ -31,6 +31,7 @@ export const CHARACTER_FIELDS: Record<keyof Character, CharacterFieldClass> = {
   privateMemory: 'privateMemory',
   // A model name on this install's provider.
   modelOverride: 'local',
+  modelServiceId: 'local',
   avatarDataUrl: 'media:portraits',
   worldId: 'reference',
   sheet: 'npcSheets',

@@ -286,6 +286,7 @@ export const MessageBubble = memo(function MessageBubble({
     <div className="flex items-center gap-0.5 text-[11px] text-text-muted">
       {showTimestamps && <span className="mr-1.5">{new Date(message.createdAt).toLocaleTimeString()}</span>}
       {showTokenCounts && message.tokenCount ? <span className="mr-1.5">{message.tokenCount} tok</span> : null}
+      {message.servedBy && <span className="mr-1.5" title="The connection and model that wrote this reply">via {message.servedBy}</span>}
       {canSwipe && (
         <span className="mr-1 flex items-center gap-0.5">
           <button

@@ -236,6 +236,34 @@ describe('service relay', () => {
     expect((await relay(ALICE, `${upstreamOrigin}/echo`, { 'x-relay-secret': 'chatBackendApiKey', 'x-relay-auth': 'header:Cookie' })).status).toBe(400)
   })
 
+  it('keeps a key per service, and reaches a service saved in the settings list', async () => {
+    const GROQ_KEY = 'gsk-alice-connection-key-0123456789'
+    expect((await call('/api/me/secrets/service:BAD', 'PUT', { user: ALICE, body: { value: 'x' } })).status).toBe(404)
+    expect((await call('/api/me/secrets/service:groq', 'PUT', { user: ALICE, body: { value: GROQ_KEY } })).status).toBe(204)
+    const listed = (await call('/api/me/secrets', 'GET', { user: ALICE })).json as { name: string; set: boolean }[]
+    expect(listed).toContainEqual(expect.objectContaining({ name: 'service:groq', set: true }))
+    expect(JSON.stringify(listed)).not.toContain(GROQ_KEY)
+    expect((await call('/api/me/secrets', 'GET', { user: BOB })).json.some((s: { name: string }) => s.name === 'service:groq')).toBe(false)
+
+    // Only in the services list, not the text model's own address field.
+    await call('/api/me/settings', 'PUT', { user: ALICE, body: { settings: { chatBackendBaseUrl: 'https://example.invalid/v1', services: [{ id: 'groq', name: 'Groq', kind: 'openai-compatible', baseUrl: `${upstreamOrigin}/v1` }] } } })
+    const reply = await relay(ALICE, `${upstreamOrigin}/v1/chat/completions`, { 'x-relay-secret': 'service:groq', 'Content-Type': 'application/json' }, { body: { model: 'llama' } })
+    expect(reply.status).toBe(201)
+    expect(seen.at(-1)!.headers.authorization).toBe(`Bearer ${GROQ_KEY}`)
+    expect((await relay(ALICE, `${upstreamOrigin}/v1/chat/completions`, { 'x-relay-secret': 'service:other' })).status).toBe(400)
+    // A key moves to another name on the server, never over one already saved.
+    expect((await call('/api/me/secrets/service:groq/move', 'POST', { user: ALICE, body: { to: 'ttsApiKey' } })).status).toBe(204)
+    const moved = (await call('/api/me/secrets', 'GET', { user: ALICE })).json as { name: string; set: boolean }[]
+    expect(moved.find((s) => s.name === 'ttsApiKey')?.set).toBe(true)
+    expect(moved.some((s) => s.name === 'service:groq')).toBe(false)
+    await call('/api/me/secrets/service:groq', 'PUT', { user: ALICE, body: { value: GROQ_KEY } })
+    expect((await call('/api/me/secrets/service:groq/move', 'POST', { user: ALICE, body: { to: 'ttsApiKey' } })).status).toBe(409)
+    expect((await call('/api/me/secrets/service:nothing/move', 'POST', { user: ALICE, body: { to: 'service:else' } })).status).toBe(409)
+    await call('/api/me/secrets/ttsApiKey', 'DELETE', { user: ALICE })
+    expect((await call('/api/me/secrets/service:groq', 'DELETE', { user: ALICE })).status).toBe(204)
+    expect((await call('/api/me/secrets', 'GET', { user: ALICE })).json.some((s: { name: string }) => s.name === 'service:groq')).toBe(false)
+  })
+
   it('explains a missing credential and never uses another user\'s', async () => {
     await call('/api/me/settings', 'PUT', { user: BOB, body: { settings: { baseUrl: upstreamOrigin } } })
     const before = seen.length

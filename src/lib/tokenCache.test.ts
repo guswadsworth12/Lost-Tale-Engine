@@ -75,4 +75,10 @@ describe('countTokensCached', () => {
     await countTokensCached('hot', compute)
     expect(compute.mock.calls.length).toBe(callsBefore)
   })
+
+  it('keeps counts from different models apart', async () => {
+    await countTokensCached('same words', async () => 3, 'main:gpt-4o')
+    expect(await countTokensCached('same words', async () => 5, 'gemini:gemini-2.5-pro')).toBe(5)
+    expect(await countTokensCached('same words', async () => 99, 'main:gpt-4o')).toBe(3)
+  })
 })

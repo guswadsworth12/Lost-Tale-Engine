@@ -1,7 +1,7 @@
 import express from 'express'
 import { currentUser } from './auth.ts'
 import { userSettingsStore } from './db.ts'
-import { SecretInputError, deleteSecret, secretStatuses, setSecret } from './vault.ts'
+import { SecretInputError, deleteSecret, moveSecret, secretStatuses, setSecret } from './vault.ts'
 import { SECRET_SETTING_KEYS, isSecretName, type AccountUser } from '../src/lib/accounts/contract.ts'
 
 /**
@@ -57,6 +57,24 @@ meRouter.put('/api/me/secrets/:name', json, (req, res) => {
     if (error instanceof SecretInputError) { res.status(400).json({ error: error.message }); return }
     console.error(`[vault] Could not save ${name}`)
     res.status(500).json({ error: 'Could not save it. Try again.' })
+    return
+  }
+  res.status(204).end()
+})
+
+/** Moves a saved key to another name (`moveSecret`): `{ "to": "service:groq" }`. */
+meRouter.post('/api/me/secrets/:name/move', json, (req, res) => {
+  const user = requireCurrentUser(req, res)
+  if (!user) return
+  const { name } = req.params
+  const to = (req.body as { to?: unknown } | undefined)?.to
+  if (!isSecretName(name) || typeof to !== 'string' || !isSecretName(to)) { res.status(404).json({ error: 'Unknown secret' }); return }
+  try {
+    moveSecret(user.id, name, to)
+  } catch (error) {
+    if (error instanceof SecretInputError) { res.status(409).json({ error: error.message }); return }
+    console.error(`[vault] Could not move ${name}`)
+    res.status(500).json({ error: 'Could not move it. Try again.' })
     return
   }
   res.status(204).end()

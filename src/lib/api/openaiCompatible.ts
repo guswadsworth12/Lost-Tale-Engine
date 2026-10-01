@@ -1,4 +1,5 @@
 import type { GenerateRequest } from './types'
+import type { SecretName } from '@/lib/accounts/contract'
 import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
@@ -31,6 +32,9 @@ function isOpenRouter(baseUrl: string): boolean {
 // OpenAI, OpenRouter, Groq, Together, local servers (llama.cpp, LM Studio, Ollama's OpenAI shim),
 // and more. Does not attempt native Anthropic/Google wire formats; OpenRouter already re-exposes
 // both through this same shape.
+/** Finish reasons that mean a filter stopped the reply, across providers (Gemini says `content_filter` or `safety`). */
+const BLOCKED_FINISH = /^(content_filter|safety|prohibited_content|blocklist|recitation)$/i
+
 export class OpenAICompatibleClient implements ChatBackend {
   get prefersJsonObject(): boolean { return isOpenMayhem(this.baseUrl) }
   /**
@@ -42,6 +46,8 @@ export class OpenAICompatibleClient implements ChatBackend {
     public baseUrl: string,
     private keySaved: boolean,
     private model: string,
+    /** Which saved key the relay attaches: the chat key for Main, or a connection's own (`api/connections.ts`). */
+    private secretName: SecretName = 'chatBackendApiKey',
   ) {}
 
   /**
@@ -75,7 +81,7 @@ export class OpenAICompatibleClient implements ChatBackend {
 
   /** The relay attaches the saved chat key as a bearer token. OpenMayhem's proxy attaches its own key, so it is never named there. */
   private credential(auth: RelayInit['auth'] = 'bearer'): Pick<RelayInit, 'secret' | 'auth'> {
-    return this.keySaved && !isOpenMayhem(this.baseUrl) ? { secret: 'chatBackendApiKey', auth } : {}
+    return this.keySaved && !isOpenMayhem(this.baseUrl) ? { secret: this.secretName, auth } : {}
   }
 
   private url(): string {
@@ -119,8 +125,10 @@ export class OpenAICompatibleClient implements ChatBackend {
   private async parseErrorBody(res: Response): Promise<string> {
     const text = await res.text().catch(() => '')
     try {
-      const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
-      return parsed.error?.message || parsed.message || text
+      // Google's OpenAI-compatible endpoint can wrap its error in a one-element array.
+      const raw = JSON.parse(text) as unknown
+      const parsed = (Array.isArray(raw) ? raw[0] : raw) as { error?: { message?: string }; message?: string } | undefined
+      return parsed?.error?.message || parsed?.message || text
     } catch {
       return text
     }
@@ -145,6 +153,11 @@ export class OpenAICompatibleClient implements ChatBackend {
    * model without a "thinking" step — which is worth surfacing rather than leaving indistinguishable
    * from the model just declining to answer.
    */
+  /** An empty reply the provider stopped on purpose (Gemini's safety filter, OpenAI's moderation): said, so it isn't mistaken for silence. */
+  private safetyBlockedError(): KoboldApiError {
+    return new KoboldApiError('The provider\'s safety filter blocked this reply. Rephrase, or give this job a different model in Settings → Models and services.')
+  }
+
   private reasoningExhaustedError(reasoningChars: number): KoboldApiError {
     return new KoboldApiError(
       `The model spent its whole reply budget on hidden reasoning and never wrote an actual reply (${reasoningChars} reasoning characters, 0 in the reply). Try a larger Reply length, or a model without a "thinking" step.`,
@@ -188,9 +201,10 @@ export class OpenAICompatibleClient implements ChatBackend {
   async generate(params: GenerateRequest, signal?: AbortSignal): Promise<string> {
     const res = await this.postChatCompletion(params, false, signal)
     const data = (await res.json()) as {
-      choices?: { message?: { content?: string; reasoning?: string; reasoning_content?: string } }[]
+      choices?: { finish_reason?: string; message?: { content?: string; reasoning?: string; reasoning_content?: string } }[]
     }
     const message = data.choices?.[0]?.message
+    if (!(message?.content ?? '').trim() && BLOCKED_FINISH.test(data.choices?.[0]?.finish_reason ?? '')) throw this.safetyBlockedError()
     const content = message?.content ?? ''
     if (isOpenMayhem(this.baseUrl) && !content.trim()) {
       throw new KoboldApiError('OpenMayhem returned no reply text. Check the model and response token limit; generation may still have used credit.')
@@ -224,6 +238,7 @@ export class OpenAICompatibleClient implements ChatBackend {
     // Never surfaced as reply text (`onToken` is never called with it) — tracked only so an
     // all-reasoning, no-content stream can be told apart from a model that legitimately sent nothing.
     let reasoningChars = 0
+    let blocked = false
 
     try {
       while (true) {
@@ -245,11 +260,12 @@ export class OpenAICompatibleClient implements ChatBackend {
           if (dataStr === '[DONE]') continue
           let parsed: {
             error?: { message?: string }
-            choices?: { delta?: { content?: string; reasoning?: string; reasoning_content?: string } }[]
+            choices?: { finish_reason?: string | null; delta?: { content?: string; reasoning?: string; reasoning_content?: string } }[]
           }
           try { parsed = JSON.parse(dataStr) } catch { continue }
           if (!parsed || typeof parsed !== 'object') continue
           if (parsed.error) throw new KoboldApiError(parsed.error.message || 'The provider failed while streaming the reply.')
+          if (BLOCKED_FINISH.test(parsed.choices?.[0]?.finish_reason ?? '')) blocked = true
           const delta = parsed.choices?.[0]?.delta
           const token = delta?.content
           if (typeof token === 'string' && token) {
@@ -267,6 +283,7 @@ export class OpenAICompatibleClient implements ChatBackend {
     if (isOpenMayhem(this.baseUrl) && !full.trim()) {
       throw new KoboldApiError('OpenMayhem returned no reply text. Check the model and response token limit; generation may still have used credit.')
     }
+    if (!full.trim() && blocked) throw this.safetyBlockedError()
     if (!full.trim() && reasoningChars > 0) throw this.reasoningExhaustedError(reasoningChars)
     return full
   }
@@ -293,6 +310,20 @@ export class OpenAICompatibleClient implements ChatBackend {
   /** Not a locally-loaded GGUF — nothing to compare the active instruct template against. */
   async getChatTemplate(): Promise<string | null> {
     return null
+  }
+
+  /** The service's models (`GET /models`), for picking one. Empty when it can't say. Gemini's come back as `models/…`; the prefix is dropped. */
+  async listModels(): Promise<string[]> {
+    const trimmed = this.baseUrl.replace(/\/+$/, '')
+    if (!trimmed || isOpenMayhem(this.baseUrl)) return []
+    try {
+      const res = await relayFetch(`${trimmed}/models`, { headers: this.headers(), ...this.credential() })
+      if (!res.ok) return []
+      const body = await res.json() as { data?: { id?: unknown }[] }
+      return (body.data ?? []).map((m) => (typeof m.id === 'string' ? m.id.replace(/^models\//, '') : '')).filter(Boolean).sort()
+    } catch {
+      return []
+    }
   }
 
   /** Settings → Connection's reachability+auth check, without a real (billed) chat completion. Uses `GET /models` (validates the key on most providers) except for OpenRouter and Nano-GPT, whose `/models` is public and returns 200 for any key — `/key` (OpenRouter) and the balance endpoint (Nano-GPT) are used there instead, and double as a usage/balance readout for the success detail. */

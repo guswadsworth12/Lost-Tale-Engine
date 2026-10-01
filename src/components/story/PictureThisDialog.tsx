@@ -260,7 +260,7 @@ export function PictureThisDialog({
             </div>
             <p className="mt-1 text-xs text-text-muted">{takesReferences
               ? `Sent so people and places look like themselves. This model takes up to ${maxReferences}.`
-              : 'The selected image model can\'t take reference images. Pick one that can in Settings → Images.'}</p>
+              : 'The selected image model can\'t take reference images. Pick one that can in Settings → Models and services.'}</p>
           </fieldset>
         )}
         <TextField label="Caption" value={caption} maxLength={200} onChange={(e) => setCaption(e.target.value)} />
