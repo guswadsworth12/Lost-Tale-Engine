@@ -14,6 +14,22 @@ import { Spinner } from '@/components/ui/Spinner'
 /** Said to a model that can't make transparent images, so a sprite is at least easy to cut out. */
 export const PLAIN_BACKGROUND = 'isolated on a plain, flat, light background'
 
+/** The most reference images sent at once: what every backend that takes them accepts. */
+export const MAX_REFERENCES = 3
+
+/** An image to match someone's look, and whose it is. */
+export interface LookReference {
+  url: string
+  name?: string
+}
+
+/** The prompt with the references named in the order they're sent, so the model knows who is who. */
+export function withReferenceNames(prompt: string, references: readonly LookReference[]): string {
+  const names = references.map((r) => r.name?.trim()).filter(Boolean)
+  if (names.length !== references.length || !names.length) return prompt
+  return `${prompt} ${names.length === 1 ? `Reference image: ${names[0]}.` : `Reference images, in order: ${names.join(', ')}.`}`
+}
+
 /** An image the app shows (a saved path or a data URL), as a reference to send to a backend. */
 export async function imageReference(url: string): Promise<{ base64: string; mimeType: string }> {
   const blob = await (await fetch(url)).blob()
@@ -39,6 +55,7 @@ export function ImageGenerateDialog({
   width,
   height,
   referenceImage,
+  references: givenReferences,
   onUse,
   onClose,
   title = 'Generate an image',
@@ -49,13 +66,16 @@ export function ImageGenerateDialog({
   height?: number
   /** The character's portrait or sprite, offered as "Match their look". */
   referenceImage?: string
+  /** Several people's images, for a picture with more than one person in it. */
+  references?: LookReference[]
   onUse: (dataUrl: string) => void
   onClose: () => void
   title?: string
 }) {
   const [prompt, setPrompt] = useState(initialPrompt)
   const [transparent, setTransparent] = useState(purpose === 'sprite')
-  const [matchLook, setMatchLook] = useState(!!referenceImage)
+  const references = givenReferences ?? (referenceImage ? [{ url: referenceImage }] : [])
+  const [matchLook, setMatchLook] = useState(references.length > 0)
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
@@ -83,8 +103,10 @@ export function ImageGenerateDialog({
     controllerRef.current = controller
     try {
       const wantsTransparent = purpose === 'sprite' && transparent
-      const text = wantsTransparent && !caps.transparency ? `${prompt.trim()}, ${PLAIN_BACKGROUND}` : prompt.trim()
-      const references = matchLook && referenceImage && caps.references ? [await imageReference(referenceImage)] : undefined
+      const sent = matchLook && caps.references ? references.slice(0, MAX_REFERENCES) : []
+      const base = wantsTransparent && !caps.transparency ? `${prompt.trim()}, ${PLAIN_BACKGROUND}` : prompt.trim()
+      const text = withReferenceNames(base, sent)
+      const referenceImages = sent.length ? await Promise.all(sent.map((r) => imageReference(r.url))) : undefined
       const result = await backend.generateImage({
         prompt: text,
         width: width ?? size.width,
@@ -94,7 +116,7 @@ export function ImageGenerateDialog({
         model: settings.imageBackendModel || undefined,
         purpose,
         ...(wantsTransparent && caps.transparency ? { transparent: true } : {}),
-        ...(references ? { referenceImages: references } : {}),
+        ...(referenceImages ? { referenceImages } : {}),
       }, controller.signal)
       controller.signal.throwIfAborted()
       if (!result.base64) throw new Error('The backend returned no image data.')
@@ -121,11 +143,13 @@ export function ImageGenerateDialog({
             </span>
           </label>
         )}
-        {referenceImage && (
+        {references.length > 0 && (
           <label className="flex items-start gap-2 text-sm text-text">
             <input type="checkbox" className="mt-1" checked={matchLook && caps.references} disabled={!caps.references} onChange={(e) => setMatchLook(e.target.checked)} />
             <span>Match their look
-              <span className="block text-xs text-text-muted">{caps.references ? 'Sends their current image as a reference.' : 'This backend can\'t take a reference image.'}</span>
+              <span className="block text-xs text-text-muted">{!caps.references ? 'This backend can\'t take a reference image.'
+                : references.length === 1 ? 'Sends their current image as a reference.'
+                : `Sends ${references.length > MAX_REFERENCES ? `the first ${MAX_REFERENCES} of their ${references.length}` : `their ${references.length}`} images as references, named in the prompt.`}</span>
             </span>
           </label>
         )}

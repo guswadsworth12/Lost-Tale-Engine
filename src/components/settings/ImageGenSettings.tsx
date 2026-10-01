@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { IMAGE_BACKEND_LABELS, type ImageBackendId } from '@/lib/api/imageBackend'
 import { NOVELAI_IMAGE_MODELS } from '@/lib/api/novelaiImage'
 import { OPENAI_IMAGE_DEFAULT_MODEL, OPENAI_IMAGE_MODELS } from '@/lib/api/openaiImage'
-import { GEMINI_IMAGE_DEFAULT_MODEL } from '@/lib/api/geminiImage'
+import { GEMINI_IMAGE_DEFAULT_MODEL, GEMINI_IMAGE_MODELS } from '@/lib/api/geminiImage'
 import { createImageBackend } from '@/lib/api/createImageBackend'
 import { TextField, SelectField } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
@@ -32,8 +32,9 @@ export function ImageGenSettings() {
   const { saved: secrets } = useSecretStatus()
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
   const imageBackendQuality = useSettingsStore((s) => s.imageBackendQuality)
-  const [geminiModels, setGeminiModels] = useState<string[] | null>(null)
+  const [listedModels, setListedModels] = useState<{ backend: string; models: string[] } | null>(null)
   const autoImprovePicturePrompt = useSettingsStore((s) => s.autoImprovePicturePrompt)
+  const pictureIncludeEveryone = useSettingsStore((s) => s.pictureIncludeEveryone)
   const toggleFlag = useSettingsStore((s) => s.toggleFlag)
   const setImageBackendConfig = changeImageBackendConfig
 
@@ -99,13 +100,12 @@ export function ImageGenSettings() {
             list={`${imageBackend}-models`}
           />
           <datalist id={`${imageBackend}-models`}>
-            {(imageBackend === 'openai-image' ? OPENAI_IMAGE_MODELS : geminiModels ?? []).map((m) => <option key={m} value={m} />)}
+            {(listedModels?.backend === imageBackend ? listedModels.models : imageBackend === 'openai-image' ? OPENAI_IMAGE_MODELS : GEMINI_IMAGE_MODELS).map((m) => <option key={m} value={m} />)}
           </datalist>
-          {imageBackend === 'gemini-image' && (
-            <Button className="mb-3" disabled={!secrets.geminiApiKey} onClick={async () => setGeminiModels(await createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, secrets }).listModels())}>
-              List image models
-            </Button>
-          )}
+          <Button className="mb-3" disabled={!(imageBackend === 'openai-image' ? secrets.openaiApiKey : secrets.geminiApiKey)}
+            onClick={async () => setListedModels({ backend: imageBackend, models: await createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, secrets }).listModels() })}>
+            List image models
+          </Button>
           {imageBackend === 'openai-image' && (
             <SelectField label="Quality" value={imageBackendQuality} onChange={(e) => setImageBackendConfig({ imageBackendQuality: e.target.value })}
               hint="Higher quality costs more per image. dall-e-3 takes Standard or HD.">
@@ -116,7 +116,7 @@ export function ImageGenSettings() {
           )}
           <p className="my-3 text-xs text-text-muted">
             {imageBackend === 'openai-image'
-              ? 'Each image is billed to your OpenAI account. gpt-image models can make transparent sprites and use a character\'s portrait as a reference; dall-e-3 can do neither.'
+              ? 'Each image is billed to your OpenAI account. gpt-image models can make transparent sprites and use a character\'s portrait as a reference; dall-e-3 can do neither. List image models shows the ones your account can use.'
               : 'Each image counts against your Gemini API quota. Gemini can use a character\'s portrait as a reference, but can\'t make transparent images: sprites get a plain background instead.'}
           </p>
           <div className="relative flex items-center gap-2">
@@ -205,6 +205,12 @@ export function ImageGenSettings() {
           <input type="checkbox" className="mt-1" checked={autoImprovePicturePrompt} onChange={() => toggleFlag('autoImprovePicturePrompt')} />
           <span>Improve each drafted prompt with the story model as it opens
             <span className="block text-xs text-text-muted">One chat call per picture. Off: the prompt is drafted from the scene for free, and "Improve" is a button.</span>
+          </span>
+        </label>
+        <label className="mt-3 flex items-start gap-2 text-sm text-text">
+          <input type="checkbox" className="mt-1" checked={pictureIncludeEveryone} onChange={() => toggleFlag('pictureIncludeEveryone')} />
+          <span>Include everyone in the scene
+            <span className="block text-xs text-text-muted">A moment starts with everyone present, you included, described in the prompt and sent as references. Off: just whoever is speaking. Either way, you can change who is in each picture.</span>
           </span>
         </label>
       </Section>
