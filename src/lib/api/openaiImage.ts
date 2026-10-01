@@ -2,12 +2,29 @@ import type { ImageBackend, ImageCapabilities, ImageGenerateParams, ImageGenerat
 import { ImageGenError, nearestShape, redactKeys } from './imageBackend'
 import { relayFetch } from './relay'
 
-/** OpenAI's image models, offered as suggestions; any model name can be typed. */
-export const OPENAI_IMAGE_MODELS = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini', 'dall-e-3']
+/**
+ * OpenAI's image models, offered as suggestions until the account's own list is read; any model
+ * name can be typed.
+ */
+export const OPENAI_IMAGE_MODELS = [
+  'chatgpt-image-latest',
+  'dall-e-3',
+  'gpt-image-1',
+  'gpt-image-1-mini',
+  'gpt-image-1.5',
+  'gpt-image-2',
+  'gpt-image-2-2026-04-21',
+  'gpt-image-2.5-flare',
+  'gpt-image-2.5-flare-2026-09-08',
+  'gpt-image-2.5-sunburst',
+  'gpt-image-2.5-sunburst-2026-09-08',
+]
 export const OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2'
 const API = 'https://api.openai.com/v1/images'
 
-const isGptImage = (model: string) => /^gpt-image/i.test(model)
+/** Every model but DALL·E takes the gpt-image options: PNG output, transparency, reference images. */
+const isGptImage = (model: string) => !/^dall-e/i.test(model)
+const isImageModel = (id: string) => /image|^dall-e/i.test(id)
 
 /** Sizes a model accepts. */
 function sizesFor(model: string): string[] {
@@ -103,7 +120,17 @@ export class OpenAIImageClient implements ImageBackend {
     return { base64, mimeType: 'image/png' }
   }
 
+  /** The account's image models in name order, or the fixed list when they can't be read. */
   async listModels(): Promise<string[]> {
-    return [...OPENAI_IMAGE_MODELS]
+    if (!this.keySaved) return [...OPENAI_IMAGE_MODELS]
+    try {
+      const res = await relayFetch('https://api.openai.com/v1/models', { secret: 'openaiApiKey', auth: 'bearer' })
+      if (!res.ok) return [...OPENAI_IMAGE_MODELS]
+      const body = await res.json() as { data?: { id?: string }[] }
+      const found = (body.data ?? []).map((m) => m.id ?? '').filter(isImageModel).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      return found.length ? found : [...OPENAI_IMAGE_MODELS]
+    } catch {
+      return [...OPENAI_IMAGE_MODELS]
+    }
   }
 }

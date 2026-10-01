@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ImageGenError, type ImageGenerateParams } from './imageBackend'
-import { OpenAIImageClient, openaiImageSize } from './openaiImage'
+import { OPENAI_IMAGE_MODELS, OpenAIImageClient, openaiImageSize } from './openaiImage'
 import { stubRelayedFetch } from './relayTestUtils'
 
 const params = (extra: Partial<ImageGenerateParams> = {}): ImageGenerateParams => ({ prompt: 'a lighthouse', width: 832, height: 1216, steps: 28, cfgScale: 7, ...extra })
@@ -40,6 +40,8 @@ describe('OpenAI images', () => {
     // Blank model: gpt-image-2, which makes them too.
     await new OpenAIImageClient(true, '').generateImage(params({ purpose: 'sprite', transparent: true }))
     expect(body).toMatchObject({ model: 'gpt-image-2', size: '1024x1536', background: 'transparent', output_format: 'png' })
+    // So does any other model that isn't DALL·E.
+    expect(new OpenAIImageClient(true, 'chatgpt-image-latest').capabilities()).toEqual({ transparency: true, references: true })
     const dalle = new OpenAIImageClient(true, 'dall-e-3')
     expect(dalle.capabilities()).toEqual({ transparency: false, references: false })
     await expect(dalle.generateImage(params({ transparent: true }))).rejects.toMatchObject({ kind: 'unsupported' })
@@ -83,5 +85,18 @@ describe('OpenAI images', () => {
     const pending = new OpenAIImageClient(true, '').generateImage(params(), controller.signal)
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('lists the account\'s image models in name order, or every known one when it can\'t', async () => {
+    const urls: string[] = []
+    stubRelayedFetch((url) => {
+      urls.push(url)
+      return json(200, { data: [{ id: 'gpt-image-2' }, { id: 'gpt-4o' }, { id: 'dall-e-3' }, { id: 'gpt-image-1.5' }, { id: 'whisper-1' }, { id: 'chatgpt-image-latest' }] })
+    })
+    expect(await new OpenAIImageClient(true, '').listModels()).toEqual(['chatgpt-image-latest', 'dall-e-3', 'gpt-image-1.5', 'gpt-image-2'])
+    expect(urls).toEqual(['https://api.openai.com/v1/models'])
+    stubRelayedFetch(() => json(401, {}))
+    expect(await new OpenAIImageClient(true, '').listModels()).toEqual(OPENAI_IMAGE_MODELS)
+    expect(OPENAI_IMAGE_MODELS).toEqual(expect.arrayContaining(['gpt-image-1', 'gpt-image-1-mini', 'gpt-image-1.5', 'gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst']))
   })
 })
