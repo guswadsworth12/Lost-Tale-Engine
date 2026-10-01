@@ -33,7 +33,7 @@ import { charactersApi, chatsApi, momentsApi, worldsApi } from '@/lib/api/client
 import { generateWithTimeout } from '@/lib/api/generateWithTimeout'
 import { takeMessageJump } from '@/lib/scrollToMessage'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
-import { buildImprovePromptRequest, type MomentKind, type StoryMoment } from '@/lib/story/moments'
+import { buildImprovePromptRequest, type MomentContext, type MomentKind, type StoryMoment } from '@/lib/story/moments'
 import { PictureThisDialog } from '@/components/story/PictureThisDialog'
 import { IconButton } from '@/components/ui/IconButton'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
@@ -220,8 +220,8 @@ export function ChatWindow({
   const autoImprovePicture = useSettingsStore((s) => s.autoImprovePicturePrompt)
   const pictureIncludeEveryone = useSettingsStore((s) => s.pictureIncludeEveryone)
   const storyModel = useChatBackendClient()
-  const improvePicturePrompt = async (prompt: string, kind: MomentKind) => (await generateWithTimeout(storyModel, {
-    prompt: buildImprovePromptRequest(prompt, kind), max_length: 400, max_context_length: await storyModel.getEffectiveMaxContext(4096), temperature: 0.7, top_p: 0.95, rep_pen: 1.05,
+  const improvePicturePrompt = async (prompt: string, kind: MomentKind, context: MomentContext) => (await generateWithTimeout(storyModel, {
+    prompt: buildImprovePromptRequest(prompt, kind, context), max_length: 400, max_context_length: await storyModel.getEffectiveMaxContext(4096), temperature: 0.7, top_p: 0.95, rep_pen: 1.05,
   }, 'Improve picture prompt')).trim()
   const vnInputMode = useSettingsStore((s) => s.vnInputMode)
   const autoTrackRelationship = useSettingsStore((s) => s.autoTrackRelationship)
@@ -1146,6 +1146,7 @@ export function ChatWindow({
             .filter((c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i)
             .filter((c) => c.id === chat.characterId || c.id === chat.playerCharacterId || (chat.scene?.presentCharacterIds ?? chat.participants ?? []).includes(c.id))}
           message={picturing.messageId ? messages.find((m) => m.id === picturing.messageId) : [...messages].reverse().find((m) => !m.failed && m.text.trim())}
+          history={messages}
           location={sceneSetting.location}
           timeOfDay={chat.scene?.timePhase ?? (world ? PHASES[world.currentPhaseIndex ?? 0] : undefined)}
           improve={improvePicturePrompt}

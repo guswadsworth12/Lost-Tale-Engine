@@ -5,6 +5,11 @@ import { relayFetch } from './relay'
 export const GEMINI_IMAGE_DEFAULT_MODEL = 'gemini-2.5-flash-image'
 /** Offered when the model list can't be read. */
 export const GEMINI_IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation']
+
+/** Reference images a Gemini image model takes at once: the Pro (Gemini 3) image models up to 14, the Flash ones about 3. */
+export function geminiMaxReferences(model: string): number {
+  return /gemini-3|pro-image/i.test(model) ? 14 : 3
+}
 const API = 'https://generativelanguage.googleapis.com/v1beta'
 const AUTH = { secret: 'geminiApiKey' as const, auth: 'header:x-goog-api-key' as const }
 
@@ -66,8 +71,8 @@ export function parseGeminiImage(body: GeminiResponse): ImageGenerateResult {
 export class GeminiImageClient implements ImageBackend {
   constructor(private keySaved: boolean, private model: string) {}
 
-  capabilities(): ImageCapabilities {
-    return { transparency: false, references: true }
+  capabilities(model?: string): ImageCapabilities {
+    return { transparency: false, references: true, maxReferences: geminiMaxReferences(model?.trim() || this.model.trim() || GEMINI_IMAGE_DEFAULT_MODEL) }
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
@@ -79,7 +84,11 @@ export class GeminiImageClient implements ImageBackend {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: params.prompt }, ...(params.referenceImages ?? []).slice(0, 3).map((ref) => ({ inlineData: { mimeType: ref.mimeType, data: ref.base64 } }))] }],
+          // Each image right after a label naming it, so the model knows who or what it shows.
+          contents: [{ parts: [{ text: params.prompt }, ...(params.referenceImages ?? []).slice(0, geminiMaxReferences(model)).flatMap((ref) => [
+            ...(ref.name?.trim() ? [{ text: `Reference: ${ref.name.trim()}` }] : []),
+            { inlineData: { mimeType: ref.mimeType, data: ref.base64 } },
+          ])] }],
           generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: geminiAspectRatio(params) } },
         }),
         ...AUTH,

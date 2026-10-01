@@ -53,11 +53,21 @@ export function normalizeMomentInput(raw: unknown): { value?: MomentInput; error
 
 // ---- Drafting the prompt -------------------------------------------------------------------------
 
+/** One line of the story picked as a key moment to picture. */
+export interface MomentLine {
+  speaker?: string
+  text: string
+}
+
+/** A line as it reads in the story: without GM labels (`[Set event …]`) or out-of-character notes (`{…}`). */
+export function momentText(text: string): string {
+  return text.replace(/\[[^\]\n]*\]/g, ' ').replace(/\{[^}]*\}/g, ' ').replace(/[*_]/g, '').replace(/\s+/g, ' ').trim()
+}
+
 export interface MomentDraftInput {
   kind: MomentKind
-  /** The line being pictured. */
-  messageText?: string
-  speaker?: string
+  /** The key moments being pictured, in story order. */
+  moments?: MomentLine[]
   location?: string
   timeOfDay?: string
   /** Who is there, with how they look now (outfit, form). */
@@ -87,22 +97,40 @@ export function draftMomentPrompt(input: MomentDraftInput): string {
     const subject = input.characters.find((c) => c.name === input.subject) ?? input.characters[0]
     return [`Portrait of ${subject ? look(subject) : 'the character'}${where ? `, ${where}` : ''}.`, style].join(' ')
   }
-  const line = input.messageText?.replace(/\s+/g, ' ').trim()
+  const lines = (input.moments ?? []).map((m) => ({ ...m, text: momentText(m.text) })).filter((m) => m.text)
+  const said = (m: MomentLine, max: number) => `${m.speaker ? `${m.speaker}: ` : ''}${clip(m.text, max)}`
   return [
     input.characters.length ? `${input.characters.map(look).join(' and ')}${at}.` : where ? `${where}.` : '',
-    line ? `The moment: ${input.speaker ? `${input.speaker}: ` : ''}${clip(line, 320)}` : '',
+    lines.length === 1 ? `The moment: ${said(lines[0], 320)}` : '',
+    lines.length > 1 ? `The moments, in order: ${lines.map((m) => said(m, Math.max(80, Math.floor(720 / lines.length)))).join(' / ')}` : '',
     style,
   ].filter(Boolean).join(' ')
 }
 
-/** Asks the story model to turn the draft into a better image prompt, keeping every fact in it. */
-export function buildImprovePromptRequest(draft: string, kind: MomentKind): string {
+/** What the story model can draw on beyond the draft: the key moments picked, and how the people in them look. */
+export interface MomentContext {
+  moments?: MomentLine[]
+  /** Who is in the picture, from their own cards (`cardBrief`). */
+  cards?: { name: string; card: string }[]
+}
+
+/**
+ * Asks the story model to turn the draft into a better image prompt, keeping every fact in it. With
+ * key moments picked, it writes one picture from them; with cards, it takes people's looks from those.
+ */
+export function buildImprovePromptRequest(draft: string, kind: MomentKind, context: MomentContext = {}): string {
+  const moments = (context.moments ?? []).map((m) => ({ ...m, text: momentText(m.text) })).filter((m) => m.text)
+  const cards = (context.cards ?? []).filter((c) => c.card.trim())
   return [
-    `Rewrite this into a strong prompt for an image generator making a ${kind === 'moment' ? 'wide story illustration' : kind === 'background' ? 'wide scenery background with no people' : 'tall character portrait'}.`,
-    'Keep every name, appearance detail, place and action in it; invent nothing else. One paragraph of concrete visual description: subject, composition, setting, lighting, mood, style. No text or lettering in the image.',
+    `${moments.length ? 'Write' : 'Rewrite this into'} a strong prompt for an image generator making a ${kind === 'moment' ? 'wide story illustration' : kind === 'background' ? 'wide scenery background with no people' : 'tall character portrait'}.`,
+    moments.length
+      ? `The story moments to picture, in order:\n${moments.map((m) => `- ${m.speaker ? `${m.speaker}: ` : ''}${clip(m.text, 600)}`).join('\n')}\nMake one picture of them: the single instant that shows them best, unless they plainly belong in one frame.`
+      : '',
+    cards.length ? `How the people in it look, from their character cards (take only what can be seen):\n${cards.map((c) => `- ${c.name}: ${clip(c.card.replace(/\s+/g, ' '), 600)}`).join('\n')}` : '',
+    `Keep every name, appearance detail, place and action in the draft${moments.length || cards.length ? ', and draw only on the moments and cards above' : ''}; invent nothing else. One paragraph of concrete visual description: subject, composition, setting, lighting, mood, style. No text or lettering in the image.`,
     `Draft:\n${draft}`,
     'Reply with only the new prompt.',
-  ].join('\n\n')
+  ].filter(Boolean).join('\n\n')
 }
 
 // ---- The Gallery ----------------------------------------------------------------------------------

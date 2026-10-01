@@ -23,7 +23,8 @@ export interface ImageGenerateParams {
   /** A transparent background (a sprite), on backends that can; see `ImageCapabilities`. */
   transparent?: boolean
   /** Images whose look should carry over (a character's portrait), on backends that take them. */
-  referenceImages?: { base64: string; mimeType: string }[]
+  /** `name`: who or what it shows ("Aveline Pyre", "Underground Cistern (location)"); sent with the image so the model can tell them apart. */
+  referenceImages?: { base64: string; mimeType: string; name?: string }[]
 }
 
 /** The app's image slots. */
@@ -41,9 +42,11 @@ export const SLOT_SIZES: Record<ImagePurpose, { width: number; height: number }>
 export interface ImageCapabilities {
   transparency: boolean
   references: boolean
+  /** How many reference images the model takes at once; 0 when it takes none. */
+  maxReferences: number
 }
 
-export const NO_IMAGE_CAPABILITIES: ImageCapabilities = { transparency: false, references: false }
+export const NO_IMAGE_CAPABILITIES: ImageCapabilities = { transparency: false, references: false, maxReferences: 0 }
 
 /** Of `options` ("1024x1536" sizes, or "3:4" ratios), the one whose shape is nearest `width`×`height`. */
 export function nearestShape(width: number, height: number, options: readonly string[]): string {
@@ -102,4 +105,10 @@ export const IMAGE_BACKEND_LABELS: Record<ImageBackendId, string> = {
   'novelai-image': 'NovelAI (hosted, subscription)',
   'openai-image': 'OpenAI (hosted)',
   'gemini-image': 'Google Gemini (hosted)',
+}
+
+/** A reference image's file name from what it shows: "Aveline Pyre" → `aveline-pyre-reference.png`. */
+export function referenceFileName(ref: { mimeType: string; name?: string }, index: number): string {
+  const slug = (ref.name ?? '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
+  return `${slug || `image-${index + 1}`}-reference.${ref.mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'}`
 }
