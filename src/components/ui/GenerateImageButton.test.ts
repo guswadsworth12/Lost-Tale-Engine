@@ -8,7 +8,7 @@ vi.mock('@/lib/store/useSettingsStore', () => {
   return { useSettingsStore }
 })
 
-const { ImageGenerateDialog } = await import('./GenerateImageButton')
+const { ImageGenerateDialog, withReferenceNames } = await import('./GenerateImageButton')
 
 const render = (backend: string, model: string, props: Partial<Parameters<typeof ImageGenerateDialog>[0]> = {}) => {
   settings = { imageBackend: backend, imageBackendModel: model, imageBackendBaseUrl: '', imageBackendUsername: '', imageBackendQuality: '' }
@@ -35,5 +35,15 @@ describe('ImageGenerateDialog', () => {
 
   it('shows the transparency choice only on a sprite slot', () => {
     expect(render('openai-image', 'gpt-image-1', { purpose: 'background', referenceImage: undefined })).not.toContain('Transparent background')
+  })
+
+  it('sends several people\'s images, at most three, named in the prompt in order', () => {
+    const four = ['Bea', 'Cole', 'Wren', 'Ash'].map((name) => ({ url: `/avatars/${name}.png`, name }))
+    expect(render('gemini-image', '', { purpose: 'cg', referenceImage: undefined, references: four })).toContain('Sends the first 3 of their 4 images as references, named in the prompt.')
+    expect(render('gemini-image', '', { purpose: 'cg', referenceImage: undefined, references: four.slice(0, 2) })).toContain('Sends their 2 images as references, named in the prompt.')
+    expect(withReferenceNames('Two pilots on a pier.', four.slice(0, 2))).toBe('Two pilots on a pier. Reference images, in order: Bea, Cole.')
+    expect(withReferenceNames('Bea on a pier.', four.slice(0, 1))).toBe('Bea on a pier. Reference image: Bea.')
+    // An unnamed image can't be matched to anyone, so none are named.
+    expect(withReferenceNames('A pier.', [{ url: '/a.png' }])).toBe('A pier.')
   })
 })

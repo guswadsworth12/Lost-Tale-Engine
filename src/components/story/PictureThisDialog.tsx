@@ -9,20 +9,22 @@ import type { Chat, StoredMessage, WorldCard } from '@/lib/types'
 import { backgroundCatalog, matchBackgroundKeyword } from '@/lib/vn/backgrounds'
 import { Button } from '@/components/ui/Button'
 import { SelectField, TextAreaField, TextField } from '@/components/ui/Field'
-import { ImageGenerateDialog } from '@/components/ui/GenerateImageButton'
+import { ImageGenerateDialog, type LookReference } from '@/components/ui/GenerateImageButton'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
 
 const KIND_LABEL: Record<MomentKind, string> = { moment: 'Moment', background: 'Background for this location', portrait: 'Portrait' }
 const PURPOSE = { moment: 'cg', background: 'background', portrait: 'portrait' } as const
 
+const firstSentence = (text: string | undefined) => ((text ?? '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s/)[0] ?? '').replace(/[.!?]+$/, '')
+
 /** How a character looks right now: their card, and the outfit or form the scene has them in. */
 export function appearanceOf(character: Character, chat: Pick<Chat, 'scene'>): string {
   const outfitId = chat.scene?.appearanceOverrides?.[character.id]
   const outfit = outfitId ? character.outfits?.find((o) => o.id === outfitId) : undefined
-  const card = ((character.card.description ?? '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s/)[0] ?? '').replace(/[.!?]+$/, '')
-  return [card, outfit ? (outfit.kind === 'form' ? `in ${outfit.label} form` : `wearing ${outfit.label}`) : ''].filter(Boolean).join(', ')
+  return [firstSentence(character.card.description), outfit ? (outfit.kind === 'form' ? `in ${outfit.label} form` : `wearing ${outfit.label}`) : ''].filter(Boolean).join(', ')
 }
+
 
 /**
  * "Picture this": a picture of something that happened in the story, made from a scene (and the
@@ -40,11 +42,12 @@ export function PictureThisDialog({
   timeOfDay,
   improve,
   autoImprove = false,
+  includeEveryone = true,
   onClose,
 }: {
   chat: Chat
   world?: WorldCard
-  /** Characters present in the scene. */
+  /** Characters present in the scene, the player's own character included. */
   cast: Character[]
   message?: StoredMessage
   location?: string
@@ -53,22 +56,31 @@ export function PictureThisDialog({
   improve: (prompt: string, kind: MomentKind) => Promise<string>
   /** Improve the draft as soon as the dialog opens. */
   autoImprove?: boolean
+  /** A moment starts with everyone present in it; off, just the speaker of the line. */
+  includeEveryone?: boolean
   onClose: () => void
 }) {
   const [kind, setKind] = useState<MomentKind>('moment')
   const [subjectId, setSubjectId] = useState(cast[0]?.id ?? '')
+  const people = useMemo(() => cast.map((c) => ({ id: c.id, name: c.card.name, appearance: appearanceOf(c, chat), image: c.avatarDataUrl || undefined })), [cast, chat])
+  const [included, setIncluded] = useState<string[]>(() => {
+    if (includeEveryone) return people.map((p) => p.id)
+    const speaker = message?.role === 'user' ? people.find((p) => p.id === chat.playerCharacterId) : people.find((p) => p.name === message?.name)
+    return speaker ? [speaker.id] : []
+  })
+  const inPicture = people.filter((p) => included.includes(p.id))
   const places = useMemo(() => [...backgroundCatalog(world), ...(world?.customBackgrounds ?? [])], [world])
   const [slot, setSlot] = useState(() => matchBackgroundKeyword(location ?? '', places) ?? places[0]?.id ?? '')
   const [caption, setCaption] = useState((message?.text ?? location ?? '').replace(/\s+/g, ' ').trim().slice(0, 80))
   const placeLabel = (id: string) => places.find((p) => p.id === id)?.label
-  const draftFor = (k: MomentKind, subject = subjectId, place = slot) => draftMomentPrompt({
+  const draftFor = (k: MomentKind, subject = subjectId, place = slot, who = included) => draftMomentPrompt({
     kind: k,
     messageText: message?.text,
     speaker: message?.role === 'user' ? undefined : message?.name,
     // A background is of the picked location, when the scene doesn't name one.
     location: k === 'background' ? location || placeLabel(place) : location,
     timeOfDay,
-    characters: cast.map((c) => ({ name: c.card.name, appearance: appearanceOf(c, chat) })),
+    characters: (k === 'portrait' ? people : people.filter((p) => who.includes(p.id))).map((p) => ({ name: p.name, appearance: p.appearance })),
     subject: cast.find((c) => c.id === subject)?.card.name,
     artStyle: world?.artStyle,
   })
@@ -103,11 +115,19 @@ export function PictureThisDialog({
     if (next === 'portrait') setCaption(cast.find((c) => c.id === subjectId)?.card.name ?? caption)
   }
   const subject = cast.find((c) => c.id === subjectId)
+  const toggle = (id: string) => {
+    const next = included.includes(id) ? included.filter((i) => i !== id) : people.filter((p) => p.id === id || included.includes(p.id)).map((p) => p.id)
+    setIncluded(next)
+    setPrompt(draftFor('moment', subjectId, slot, next))
+  }
+  const references: LookReference[] = kind === 'portrait'
+    ? (subject?.avatarDataUrl ? [{ url: subject.avatarDataUrl, name: subject.card.name }] : [])
+    : kind === 'moment' ? inPicture.filter((p) => p.image).map((p) => ({ url: p.image!, name: p.name })) : []
 
   const save = async (dataUrl: string) => {
     setSaving(true)
     try {
-      const characterIds = kind === 'portrait' ? (subject ? [subject.id] : []) : cast.map((c) => c.id)
+      const characterIds = kind === 'portrait' ? (subject ? [subject.id] : []) : kind === 'moment' ? inPicture.map((p) => p.id) : []
       await momentsApi.create(chat.id, { kind, caption, prompt, ...(message ? { messageId: message.id } : {}), characterIds, image: dataUrl })
       if (kind === 'background' && world && slot) {
         const fresh = await worldsApi.get(world.id)
@@ -133,7 +153,7 @@ export function PictureThisDialog({
         title={`Picture this: ${KIND_LABEL[kind].toLowerCase()}`}
         purpose={PURPOSE[kind]}
         initialPrompt={prompt}
-        referenceImage={(kind === 'portrait' ? subject : cast[0])?.avatarDataUrl || undefined}
+        references={references}
         onUse={(dataUrl) => void save(dataUrl)}
         onClose={() => { if (!saving) setGenerating(false) }}
       />
@@ -161,6 +181,20 @@ export function PictureThisDialog({
             hint="Offered as their portrait too. Replacing it asks first.">
             {cast.map((c) => <option key={c.id} value={c.id}>{c.card.name}</option>)}
           </SelectField>
+        )}
+        {kind === 'moment' && people.length > 0 && (
+          <fieldset>
+            <legend className="mb-1 text-sm text-text">In the picture</legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {people.map((p) => (
+                <label key={p.id} className="flex items-center gap-1.5 text-sm text-text">
+                  <input type="checkbox" checked={included.includes(p.id)} onChange={() => toggle(p.id)} />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-text-muted">Their looks go into the prompt, and their pictures can be sent so they look like themselves.</p>
+          </fieldset>
         )}
         <TextField label="Caption" value={caption} maxLength={200} onChange={(e) => setCaption(e.target.value)} />
         <TextAreaField label="Prompt" rows={6} value={prompt} onChange={(e) => setPrompt(e.target.value)}

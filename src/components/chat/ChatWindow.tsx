@@ -218,6 +218,7 @@ export function ChatWindow({
   const [picturing, setPicturing] = useState<{ messageId?: string } | null>(null)
   const [stageMoment, setStageMoment] = useState<StoryMoment | null>(null)
   const autoImprovePicture = useSettingsStore((s) => s.autoImprovePicturePrompt)
+  const pictureIncludeEveryone = useSettingsStore((s) => s.pictureIncludeEveryone)
   const storyModel = useChatBackendClient()
   const improvePicturePrompt = async (prompt: string, kind: MomentKind) => (await generateWithTimeout(storyModel, {
     prompt: buildImprovePromptRequest(prompt, kind), max_length: 400, max_context_length: await storyModel.getEffectiveMaxContext(4096), temperature: 0.7, top_p: 0.95, rep_pen: 1.05,
@@ -1141,12 +1142,15 @@ export function ChatWindow({
         <PictureThisDialog
           chat={chat}
           world={world}
-          cast={[character, ...participantCharacters].filter((c): c is NonNullable<typeof c> => !!c)}
+          cast={[character, ...participantCharacters, playerCharacter]
+            .filter((c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i)
+            .filter((c) => c.id === chat.characterId || c.id === chat.playerCharacterId || (chat.scene?.presentCharacterIds ?? chat.participants ?? []).includes(c.id))}
           message={picturing.messageId ? messages.find((m) => m.id === picturing.messageId) : [...messages].reverse().find((m) => !m.failed && m.text.trim())}
           location={sceneSetting.location}
           timeOfDay={chat.scene?.timePhase ?? (world ? PHASES[world.currentPhaseIndex ?? 0] : undefined)}
           improve={improvePicturePrompt}
           autoImprove={autoImprovePicture}
+          includeEveryone={pictureIncludeEveryone}
           onClose={() => setPicturing(null)}
         />
       )}

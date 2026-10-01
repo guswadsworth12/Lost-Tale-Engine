@@ -34,6 +34,7 @@ export function ImageGenSettings() {
   const imageBackendQuality = useSettingsStore((s) => s.imageBackendQuality)
   const [listedModels, setListedModels] = useState<{ backend: string; models: string[] } | null>(null)
   const autoImprovePicturePrompt = useSettingsStore((s) => s.autoImprovePicturePrompt)
+  const pictureIncludeEveryone = useSettingsStore((s) => s.pictureIncludeEveryone)
   const toggleFlag = useSettingsStore((s) => s.toggleFlag)
   const setImageBackendConfig = changeImageBackendConfig
 
@@ -204,6 +205,12 @@ export function ImageGenSettings() {
           <input type="checkbox" className="mt-1" checked={autoImprovePicturePrompt} onChange={() => toggleFlag('autoImprovePicturePrompt')} />
           <span>Improve each drafted prompt with the story model as it opens
             <span className="block text-xs text-text-muted">One chat call per picture. Off: the prompt is drafted from the scene for free, and "Improve" is a button.</span>
+          </span>
+        </label>
+        <label className="mt-3 flex items-start gap-2 text-sm text-text">
+          <input type="checkbox" className="mt-1" checked={pictureIncludeEveryone} onChange={() => toggleFlag('pictureIncludeEveryone')} />
+          <span>Include everyone in the scene
+            <span className="block text-xs text-text-muted">A moment starts with everyone present, you included, described in the prompt and sent as references. Off: just whoever is speaking. Either way, you can change who is in each picture.</span>
           </span>
         </label>
       </Section>

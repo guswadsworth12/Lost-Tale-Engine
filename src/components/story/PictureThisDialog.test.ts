@@ -29,4 +29,19 @@ describe('Picture this', () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Background for this location/)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Portrait/)
   })
+
+  it('puts everyone present in a moment, the player included, or just the speaker when asked', () => {
+    const cole = { id: 'cole', card: { name: 'Cole', description: 'A tall dockhand.' }, createdAt: 1, updatedAt: 1 } as unknown as Character
+    // The player's own character is in the cast like anyone else.
+    const wren = { id: 'wren', card: { name: 'Wren', description: 'A courier in a red scarf. Always late.' }, createdAt: 1, updatedAt: 1 } as unknown as Character
+    const open = (includeEveryone: boolean) => renderToStaticMarkup(createElement(PictureThisDialog, { chat: { ...chat, playerCharacterId: 'wren' }, world, cast: [bea, cole, wren], message, location: 'the pier', includeEveryone, improve: async (p) => p, onClose: () => {} }))
+    const everyone = open(true)
+    expect(everyone).toContain('In the picture')
+    expect(everyone.match(/type="checkbox" checked=""/g)).toHaveLength(3)
+    expect(everyone).toContain('Bea (A ferry pilot with short grey hair, wearing oilskin coat) and Cole (A tall dockhand) and Wren (A courier in a red scarf) at the pier.')
+    const speaker = open(false)
+    expect(speaker.match(/type="checkbox" checked=""/g)).toHaveLength(1)
+    expect(speaker).toContain('Bea (A ferry pilot with short grey hair, wearing oilskin coat) at the pier.')
+    expect(speaker).not.toContain('Cole (')
+  })
 })

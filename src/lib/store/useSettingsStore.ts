@@ -151,6 +151,8 @@ interface SettingsState {
   sfxBursts: boolean
   /** "Picture this" improves its drafted image prompt with the story model as it opens. */
   autoImprovePicturePrompt: boolean
+  /** "Picture this" starts with everyone in the scene in the picture; off, just the speaker. */
+  pictureIncludeEveryone: boolean
   /** Extra sound-effect words applied to every character, comma/newline separated. */
   sfxWords: string
   setSfxWords: (v: string) => void
@@ -197,7 +199,8 @@ interface SettingsState {
       | 'tagsAsFolders'
       | 'clickToEdit'
       | 'visionSceneDetection'
-      | 'autoImprovePicturePrompt',
+      | 'autoImprovePicturePrompt'
+      | 'pictureIncludeEveryone',
   ) => void
 
   // generation
@@ -417,6 +420,7 @@ export const useSettingsStore = create<SettingsState>()(
       reducedAudio: false,
       sfxBursts: true,
       autoImprovePicturePrompt: false,
+      pictureIncludeEveryone: true,
       sfxWords: '',
       setSfxWords: (v) => set({ sfxWords: v }),
       bgmVolume: 0,
