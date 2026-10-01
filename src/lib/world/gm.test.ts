@@ -229,7 +229,7 @@ describe('Game Master decision validation', () => {
       adjudication: { action: 'return home', move: null, tier: null, outcome: 'Hana welcomes Wren warmly.' },
     }), context, ids)
     expect(duplicate.speakerIds).toEqual(['hana'])
-    expect(duplicate.narration).toBe('')
+    expect(duplicate.narration).toBe('The rain stops.')
     expect(duplicate.adjudication).toBeUndefined()
     expect(formatGmMessage(duplicate)).not.toContain('Welcome home')
     expect(formatGmMessage(duplicate)).not.toContain('welcomes Wren')
@@ -241,6 +241,20 @@ describe('Game Master decision validation', () => {
     const npc = parseGmTurn('{"narration":"The barkeep says the bridge is closed.","speakers":["Hana"],"adjudication":{"action":"ask directions","outcome":"The bridge is blocked."}}', context, ids)
     expect(npc.narration).toBe('The barkeep says the bridge is closed.')
     expect(npc.adjudication?.outcome).toBe('The bridge is blocked.')
+  })
+
+  it('keeps what the world and the opposition do when the GM also narrates a carded character', () => {
+    const context = ctx({ cardedNames: ['Ivo Brand', 'Hana Pike', 'Tobin Reed'], campaign: { ...STARTER_PBTA_CAMPAIGN, mode: 'guided' } })
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'Hana slams into the lookout. His whistle dies in his throat! The two at the seal spin around, acid flasks raised.',
+      pacing: 'advance',
+      speakers: ['Hana'],
+      adjudication: { action: 'charge', outcome: 'The group hits the junction first. Tobin pins the runner. The saboteurs are cut off from the seal.' },
+    }), context, ids)
+    expect(turn.narration).toBe('His whistle dies in his throat! The two at the seal spin around, acid flasks raised.')
+    expect(turn.adjudication).toMatchObject({ source: 'guided_judgment', outcome: 'The group hits the junction first. The saboteurs are cut off from the seal.' })
+    expect(turn.corrections?.join(' ')).toContain('Hana Pike')
+    expect(turn.corrections?.join(' ')).toContain('Tobin Reed')
   })
 
   it('falls back without the model, still honoring the roll and the addressed character', () => {
@@ -339,6 +353,24 @@ describe('group interplay and scene moves', () => {
     expect(last).toContain('Ivo Brand and Tobin Reed just spoke this beat. Hana Pike can respond to them as readily as to Wren Calloway.')
     expect(last).toContain('Never speak or act for Wren Calloway or any other carded character.')
     expect(gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway')).not.toContain('just spoke')
+  })
+
+  it('has each agent carry out what was settled instead of planning it again', () => {
+    const turn = parseGmTurn('{"speakers":["Ivo","Hana"],"pacing":"advance"}', ctx(), ids)
+    const direction = gmDirectionFor(turn, 'Hana Pike', 'Wren Calloway', ['Ivo Brand', 'Hana Pike'])
+    expect(direction).toContain('Continue from the latest line in the transcript')
+    expect(direction).toContain('Do not repeat a count, plan, or order someone has already given.')
+    expect(direction).toContain('If Wren Calloway gave Hana Pike a task, or the group has settled on a plan, Hana Pike carries it out now')
+    expect(direction).toContain('Do not reassign roles, issue new orders, or restate the plan.')
+    expect(direction).toContain('not on waiting for a signal')
+    expect(direction).toContain('Hana Pike acts rather than waits')
+  })
+
+  it('asks the GM to resolve a committed action forward with fewer voices', () => {
+    const { system } = buildGmPrompt(ctx())
+    expect(system).toContain('resolve it forward')
+    expect(system).toContain('do not hold a confrontation at "about to" or "on the verge"')
+    expect(system).toContain('list only the one or two whose part matters this beat')
   })
 })
 
@@ -687,6 +719,7 @@ describe('someone reached from afar', () => {
     expect(direction).toContain('Sera Vale is not in this scene')
     expect(direction).toContain('does not join it')
     expect(direction).not.toContain('drawn into this scene')
+    expect(direction).not.toContain('carries it out now')
   })
 
   it('does not treat a stray word as a call', () => {

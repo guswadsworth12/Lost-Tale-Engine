@@ -324,7 +324,8 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
  */
 export const GM_STYLE_GUIDANCE = [
   'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
-  'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out.',
+  'When the player commits the group to a course of action (an assault, a chase, a plan put in motion), resolve it forward: narrate what the opposing NPCs and the world do in response, and where things now stand. Each beat should change the situation; do not hold a confrontation at "about to" or "on the verge" for another beat. Refer to the player\'s companions as "the group", never by name.',
+  'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out. In action, or once the player has given orders, list only the one or two whose part matters this beat.',
 ].join('\n')
 
 /** The binding line the GM receives for a recorded roll, exactly as it reads in the prompt. */
@@ -518,6 +519,16 @@ export function fallbackGmTurn(ctx: GmContext, reason: string): GmTurn {
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 /**
+ * Drops only the sentences that name a carded character. Their agents own what they do, but the
+ * rest of the GM's word (the world, the opposition, where things stand) still has to reach the
+ * scene, or the beat never moves.
+ */
+function withoutSentencesNaming(text: string, namedCardIn: (text: string) => string | undefined): string {
+  const sentences = text.match(/[^.!?…]+(?:[.!?…]+["”’)\]]*|$)\s*/g) ?? [text]
+  return sentences.filter((sentence) => !namedCardIn(sentence)).join('').trim()
+}
+
+/**
  * Validates the model's GM decision against the engine's own state. The model proposes; this
  * function is where the rules win: a recorded roll overrides whatever tier the model narrated,
  * guided mode can't claim a tier at all, mechanical mode without dice can only ask for a roll, and
@@ -547,7 +558,7 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
   const rawAdjText = obj.adjudication && typeof obj.adjudication === 'object' ? str((obj.adjudication as Record<string, unknown>).outcome, 1000) : ''
   const gmVoiced = [namedCard, namedCardIn(rawAdjText)].filter((name): name is string => !!name)
   if (namedCard) {
-    narration = ''
+    narration = withoutSentencesNaming(narration, namedCardIn)
     corrections.push(`Removed GM narration involving ${namedCard}; the character agent owns that turn.`)
   }
 
@@ -741,7 +752,8 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
   if (adjudication?.source === 'guided_judgment') {
     const namedInRuling = namedCardIn(adjudication.outcome)
     if (namedInRuling) {
-      adjudication = undefined
+      const outcome = withoutSentencesNaming(adjudication.outcome, namedCardIn)
+      adjudication = outcome ? { ...adjudication, outcome } : undefined
       corrections.push(`Removed a GM judgment involving ${namedInRuling}; the character agent owns that response.`)
     }
   }
@@ -884,7 +896,13 @@ export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: st
   const after = at >= 0 ? beatOrder.slice(at + 1) : []
   if (before.length) lines.push(`${listNames(before)} just spoke this beat. ${speakerName} can respond to them as readily as to ${playerName}.`)
   if (after.length) lines.push(`${listNames(after)} will speak after ${speakerName}; leave their responses to them.`)
-  if (turn.pacing === 'advance') lines.push('Move the situation forward.')
+  if (!remote) {
+    // A beat is a step forward in time, not a fresh huddle: answer the latest line and do what was settled.
+    lines.push(`Continue from the latest line in the transcript; that is where the moment is now. Do not repeat a count, plan, or order someone has already given.`)
+    lines.push(`If ${playerName} gave ${speakerName} a task, or the group has settled on a plan, ${speakerName} carries it out now: show it happening, not getting ready for it. Do not reassign roles, issue new orders, or restate the plan. If ${speakerName} truly objects, a brief word, then act.`)
+    lines.push(`End on what ${speakerName} does or says, not on waiting for a signal.`)
+  }
+  if (turn.pacing === 'advance') lines.push(`Move the situation forward: time has passed since the last line, so ${speakerName} acts rather than waits.`)
   if (turn.pacing === 'cut') lines.push('Bring the scene to a close.')
   lines.push(`Never speak or act for ${playerName} or any other carded character.`)
   return lines.join(' ')
