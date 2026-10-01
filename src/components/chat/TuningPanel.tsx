@@ -268,8 +268,8 @@ export function TuningPanel({
               </div>
             </div>
             <p className="mt-1.5 text-[11px] text-text-muted">
-              Applies to every chat. Separate from the KoboldCpp sampler above. Switch backends in
-              Settings → Connection.
+              Applies to every chat. Separate from the KoboldCpp sampler above. Pick models in
+              Settings → Models and services.
             </p>
           </div>
         )}

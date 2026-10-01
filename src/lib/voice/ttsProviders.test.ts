@@ -53,7 +53,7 @@ describe('synthesizeSpeech', () => {
     stubRelayedFetch(fetchMock)
     await expect(
       synthesizeSpeech({ provider: 'openai-compatible', voice: 'alloy' }, 'Hi', 'http://localhost:5001'),
-    ).rejects.toThrow('Set a server URL')
+    ).rejects.toThrow('Set an address for the OpenAI-compatible voice service')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

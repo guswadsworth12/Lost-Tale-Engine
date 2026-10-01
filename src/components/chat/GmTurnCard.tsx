@@ -136,6 +136,7 @@ export function GmTurnCard({ message }: { message: StoredMessage }) {
         </button>
       )}
       {turn.fallback && <p className="text-warning">GM fallback: {turn.fallback}</p>}
+      {turn.servedBy && <p>Ruled by {turn.servedBy}</p>}
       {turn.corrections?.map((c) => <p key={c}>Engine correction: {c}</p>)}
       {!!turn.stateChanges?.length && !!tracks?.length && <p className="text-text">State: {effectsText(turn.stateChanges, tracks, people)}</p>}
       {!!turn.addCharacterIds?.length && <p>Entered scene: {turn.addCharacterIds.map((id) => nameOf?.(id) ?? id).join(', ')}</p>}

@@ -52,6 +52,8 @@ import { RegenerateFieldButton } from './RegenerateFieldButton'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { getGiftCatalog } from '@/lib/dating/gifts'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
+import { resolveJob } from '@/lib/api/services'
+import { ModelPicker } from '@/components/settings/ModelPicker'
 import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
 import type { PromptItem } from '@/lib/prompt/items'
 import { parseTavernAi2Card } from '@/lib/characters/tavernAi2Import'
@@ -196,6 +198,16 @@ function composeKinkProfile(
   return Object.keys(profile).length ? profile : null
 }
 
+/**
+ * The service a character's own model comes from. One saved before services kept only a model name
+ * on the text service; it shows as that model there, rather than as an override nobody can see.
+ */
+function characterServiceId(character: Pick<Character, 'modelServiceId' | 'modelOverride'> | null | undefined): string {
+  if (character?.modelServiceId) return character.modelServiceId
+  if (!character?.modelOverride) return ''
+  return resolveJob('story', useSettingsStore.getState())?.service.id ?? ''
+}
+
 export function CharacterEditor({
   character,
   onSaved,
@@ -216,6 +228,7 @@ export function CharacterEditor({
   const [promptItems, setPromptItems] = useState<PromptItem[]>(character?.promptItems ?? [])
   const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
   const [modelOverride, setModelOverride] = useState(character?.modelOverride ?? '')
+  const [modelServiceId, setModelServiceId] = useState(() => characterServiceId(character))
   const [avatarDataUrl, setAvatarDataUrl] = useState(character?.avatarDataUrl)
   const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null)
   const [sprites, setSprites] = useState<Record<string, string>>(character?.sprites ?? {})
@@ -302,6 +315,7 @@ export function CharacterEditor({
     setPromptItems(character?.promptItems ?? [])
     setPrivateMemory(character?.privateMemory ?? '')
     setModelOverride(character?.modelOverride ?? '')
+    setModelServiceId(characterServiceId(character))
     setVrm(character?.vrm)
     setAvatarDataUrl(character?.avatarDataUrl)
     setAvatarCropSource(null)
@@ -475,6 +489,7 @@ export function CharacterEditor({
       promptItems,
       privateMemory,
       modelOverride: modelOverride.trim() || null,
+      modelServiceId: modelServiceId || null,
       vrm: vrm ?? null,
       avatarDataUrl,
       sprites,
@@ -1924,7 +1939,7 @@ export function CharacterEditor({
         <div className="mt-10 space-y-10">
           <Section
             title="Voice"
-          description="Leave blank to use the global voice. A provider override must match Settings → Voice, where its key and model are configured. OpenMayhem voices use that speech model."
+          description="Leave blank to use the global voice. A provider override must match the Voice model's service in Settings → Models and services. OpenMayhem voices use that speech model."
           surface="bare"
         >
           <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
@@ -2092,12 +2107,13 @@ export function CharacterEditor({
                 </optgroup>
               )}
             </SelectField>
-            <TextField
-              label="Speaker model override"
-              hint="For the configured OpenAI-compatible or NovelAI provider. Leave blank to use the global model. Each character keeps its own prompt and context."
-              value={modelOverride}
-              onChange={(e) => setModelOverride(e.target.value)}
-            />
+            <div className="mb-3">
+              <span className="mb-1 block text-xs font-medium text-text-muted">Model</span>
+              <ModelPicker capability="text" label="This character's model" emptyLabel="Same as Story replies"
+                value={modelServiceId ? { serviceId: modelServiceId, model: modelOverride } : null}
+                onChange={(choice) => { setModelServiceId(choice?.serviceId ?? ''); setModelOverride(choice?.model ?? '') }} />
+              <span className="mt-1 block text-[11px] text-text-muted">A model of their own for their replies. Each character keeps its own prompt and context.</span>
+            </div>
             <SelectField
               label="Reply length"
               hint={

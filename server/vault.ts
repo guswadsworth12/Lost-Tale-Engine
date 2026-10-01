@@ -3,7 +3,7 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { dataDir, userSecretStore } from './db.ts'
 import { MASTER_KEY_BYTES, openSecret, parseMasterKey, sealSecret, type SealedValue } from './vaultCrypto.ts'
-import { SECRET_SETTING_KEYS, isSecretName, type SecretName, type SecretStatus } from '../src/lib/accounts/contract.ts'
+import { SECRET_SETTING_KEYS, isServiceSecretName, isSecretName, type SecretName, type SecretStatus } from '../src/lib/accounts/contract.ts'
 
 /**
  * Per-user credential vault. Values are sealed with AES-256-GCM (see vaultCrypto.ts) under a
@@ -80,12 +80,32 @@ export function deleteSecret(userId: string, name: string): void {
   userSecretStore.remove(rowId(userId, validName(name)))
 }
 
-/** Whether each known credential is saved. Never the value, or any part of it. */
+/** Whether each known credential is saved, and every service key that is. Never the value, or any part of it. */
 export function secretStatuses(userId: string): SecretStatus[] {
-  return SECRET_SETTING_KEYS.map((name) => {
+  const fixed = SECRET_SETTING_KEYS.map((name): SecretStatus => {
     const row = userSecretStore.get(rowId(userId, name)) as unknown as SecretRow | undefined
     return row && row.userId === userId ? { name, set: true, updatedAt: row.updatedAt } : { name, set: false }
   })
+  const services = (userSecretStore.list({ where: 'userId = ?', params: [userId] }) as unknown as SecretRow[])
+    .filter((row) => isServiceSecretName(row.name))
+    .map((row): SecretStatus => ({ name: row.name, set: true, updatedAt: row.updatedAt }))
+  return [...fixed, ...services]
+}
+
+/**
+ * Moves a saved key to another name, re-encrypted there: when a credential's owner changes, like a
+ * chat key becoming a service's own. Never overwrites a key already saved under `to`. The value
+ * never leaves the server.
+ */
+export function moveSecret(userId: string, from: string, to: string): void {
+  const source = validName(from)
+  const target = validName(to)
+  if (source === target) return
+  if (userSecretStore.get(rowId(userId, target))) throw new SecretInputError('A key is already saved under that name')
+  const value = revealSecretForOutgoingRequest(userId, source)
+  if (value === undefined) throw new SecretInputError('There is no saved key to move')
+  setSecret(userId, target, value)
+  deleteSecret(userId, source)
 }
 
 /**

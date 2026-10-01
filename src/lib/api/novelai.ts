@@ -1,4 +1,5 @@
 import type { GenerateRequest } from './types'
+import type { SecretName } from '@/lib/accounts/contract'
 import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
@@ -24,6 +25,8 @@ export class NovelAIClient implements ChatBackend {
   constructor(
     private keySaved: boolean,
     private model: string,
+    /** Which saved key the relay attaches: the chat key for Main, or a connection's own. */
+    private secretName: SecretName = 'chatBackendApiKey',
   ) {}
 
   private headers(): Record<string, string> {
@@ -31,7 +34,7 @@ export class NovelAIClient implements ChatBackend {
   }
 
   private credential(): Pick<RelayInit, 'secret' | 'auth'> {
-    return this.keySaved ? { secret: 'chatBackendApiKey', auth: 'bearer' } : {}
+    return this.keySaved ? { secret: this.secretName, auth: 'bearer' } : {}
   }
 
   /** Converts plain-string stop sequences to the token-id arrays NovelAI wants, via the server's bundled tokenizer. Best-effort: any failure just means no stop sequences rather than a failed generation. */

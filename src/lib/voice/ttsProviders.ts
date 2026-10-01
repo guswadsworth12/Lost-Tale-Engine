@@ -3,6 +3,7 @@
 
 import { speakOpenMayhem } from '../api/openMayhemMedia'
 import { relayFetch } from '../api/relay'
+import type { SecretName } from '@/lib/accounts/contract'
 
 export type TtsProviderId = 'koboldcpp' | 'openai-compatible' | 'elevenlabs' | 'azure' | 'alibaba' | 'openmayhem' | 'luxtts'
 
@@ -22,6 +23,8 @@ export interface TtsConfig {
   model?: string
   /** Speaking rate, 0.5–2. Only LuxTTS reads it today. */
   speed?: number
+  /** Which saved key to attach: the chosen voice service's (`api/services.ts`). Unset: `ttsApiKey`. */
+  secret?: SecretName
 }
 
 export const TTS_PROVIDER_LABELS: Record<TtsProviderId, string> = {
@@ -55,24 +58,24 @@ async function speakLuxtts(text: string, voice: string, speed: number | undefine
   return res.blob()
 }
 
-async function speakOpenAiCompatible(baseUrl: string, keySaved: boolean, text: string, voice: string): Promise<Blob> {
+async function speakOpenAiCompatible(baseUrl: string, keySaved: boolean, text: string, voice: string, secret: SecretName = 'ttsApiKey', model = ''): Promise<Blob> {
   const res = await relayFetch(`${baseUrl.replace(/\/+$/, '')}/v1/audio/speech`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    ...(keySaved ? { secret: 'ttsApiKey' as const, auth: 'bearer' as const } : {}),
-    body: JSON.stringify({ model: 'tts-1', input: text, voice: voice || 'alloy' }),
+    ...(keySaved ? { secret, auth: 'bearer' as const } : {}),
+    body: JSON.stringify({ model: model || 'tts-1', input: text, voice: voice || 'alloy' }),
   })
   if (!res.ok) throw new Error(`TTS request to ${baseUrl} failed (${res.status})`)
   return res.blob()
 }
 
-async function speakElevenLabs(keySaved: boolean, voiceId: string, text: string): Promise<Blob> {
-  if (!keySaved) throw new Error('ElevenLabs needs an API key (Settings → Voice)')
+async function speakElevenLabs(keySaved: boolean, voiceId: string, text: string, secret: SecretName = 'ttsApiKey'): Promise<Blob> {
+  if (!keySaved) throw new Error('ElevenLabs needs an API key (Settings → Models and services)')
   if (!voiceId) throw new Error('ElevenLabs needs a voice ID (Settings → Voice)')
   const res = await relayFetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    secret: 'ttsApiKey',
+    secret,
     auth: 'header:xi-api-key',
     body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2' }),
   })
@@ -84,8 +87,8 @@ function escapeSsml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-async function speakAzure(keySaved: boolean, region: string, voiceName: string, text: string): Promise<Blob> {
-  if (!keySaved || !region) throw new Error('Azure Speech needs a subscription key and region (Settings → Voice)')
+async function speakAzure(keySaved: boolean, region: string, voiceName: string, text: string, secret: SecretName = 'ttsApiKey'): Promise<Blob> {
+  if (!keySaved || !region) throw new Error('Azure Speech needs a subscription key and region (Settings → Models and services)')
   const ssml = `<speak version="1.0" xml:lang="en-US"><voice name="${voiceName || 'en-US-JennyNeural'}">${escapeSsml(text)}</voice></speak>`
   const res = await relayFetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
     method: 'POST',
@@ -93,7 +96,7 @@ async function speakAzure(keySaved: boolean, region: string, voiceName: string, 
       'Content-Type': 'application/ssml+xml',
       'X-Microsoft-OutputFormat': 'audio-16khz-64kbitrate-mono-mp3',
     },
-    secret: 'ttsApiKey',
+    secret,
     auth: 'header:Ocp-Apim-Subscription-Key',
     body: ssml,
   })
@@ -126,12 +129,12 @@ export async function synthesizeSpeech(config: TtsConfig, text: string, koboldBa
     case 'koboldcpp':
       return speakOpenAiCompatible(koboldBaseUrl, false, trimmed, voice)
     case 'openai-compatible':
-      if (!baseUrl) throw new Error('Set a server URL for the OpenAI-compatible provider (Settings → Voice)')
-      return speakOpenAiCompatible(baseUrl, keySaved, trimmed, voice)
+      if (!baseUrl) throw new Error('Set an address for the OpenAI-compatible voice service (Settings → Models and services)')
+      return speakOpenAiCompatible(baseUrl, keySaved, trimmed, voice, config.secret, config.model)
     case 'elevenlabs':
-      return speakElevenLabs(keySaved, voice, trimmed)
+      return speakElevenLabs(keySaved, voice, trimmed, config.secret)
     case 'azure':
-      return speakAzure(keySaved, region ?? '', voice, trimmed)
+      return speakAzure(keySaved, region ?? '', voice, trimmed, config.secret)
     case 'alibaba':
       // DashScope's TTS request/response shape hasn't been confirmed against a live account —
       // rather than guess at an API contract, this is left honestly unimplemented.

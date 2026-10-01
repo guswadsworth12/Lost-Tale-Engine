@@ -3,7 +3,7 @@ import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, worldsApi } from '@/lib/api/client'
 import { blankCharacterData } from '@/lib/characters/cardSpec'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { useModelFor } from '@/lib/hooks/useModelFor'
 import { availableGreetings, createChat } from '@/lib/chat/createChat'
 import { WORLD_TEMPLATES, getWorldTemplate, normalizeWorldTemplateId, type WorldTemplateId } from '@/lib/world/worldTemplates'
 import { Button } from '@/components/ui/Button'
@@ -24,7 +24,7 @@ export function NewChatDialog({
 }) {
   const characters = useApiQuery('characters', () => charactersApi.list(), []) ?? []
   const worlds = useApiQuery('worlds', () => worldsApi.list(), []) ?? []
-  const client = useChatBackendClient()
+  const client = useModelFor('story')
   const [characterId, setCharacterId] = useState<string>(initialCharacterId)
   const [worldId, setWorldId] = useState<string>('')
   const [step, setStep] = useState(0)

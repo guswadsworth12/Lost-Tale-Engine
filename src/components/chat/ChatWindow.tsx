@@ -32,7 +32,7 @@ import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, chatsApi, momentsApi, worldsApi } from '@/lib/api/client'
 import { generateWithTimeout } from '@/lib/api/generateWithTimeout'
 import { takeMessageJump } from '@/lib/scrollToMessage'
-import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { useModelFor } from '@/lib/hooks/useModelFor'
 import { buildImprovePromptRequest, type MomentContext, type MomentKind, type StoryMoment } from '@/lib/story/moments'
 import { PictureThisDialog } from '@/components/story/PictureThisDialog'
 import { IconButton } from '@/components/ui/IconButton'
@@ -219,7 +219,7 @@ export function ChatWindow({
   const [stageMoment, setStageMoment] = useState<StoryMoment | null>(null)
   const autoImprovePicture = useSettingsStore((s) => s.autoImprovePicturePrompt)
   const pictureIncludeEveryone = useSettingsStore((s) => s.pictureIncludeEveryone)
-  const storyModel = useChatBackendClient()
+  const storyModel = useModelFor('images')
   const improvePicturePrompt = async (prompt: string, kind: MomentKind, context: MomentContext) => (await generateWithTimeout(storyModel, {
     prompt: buildImprovePromptRequest(prompt, kind, context), max_length: 400, max_context_length: await storyModel.getEffectiveMaxContext(4096), temperature: 0.7, top_p: 0.95, rep_pen: 1.05,
   }, 'Improve picture prompt')).trim()

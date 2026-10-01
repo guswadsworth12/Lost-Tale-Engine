@@ -661,3 +661,36 @@ describe('checkConnection', () => {
     })
   })
 })
+
+describe('OpenAICompatibleClient — as a model connection', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('carries the connection\'s own key, not the chat key', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
+    stubRelayedFetch(fetchMock)
+    await new OpenAICompatibleClient('https://api.groq.com/openai/v1', true, 'llama', 'service:groq').generate(BASE_REQUEST)
+    expect(fetchMock.mock.calls[0][1].relay).toEqual({ secret: 'service:groq', auth: 'bearer', username: null })
+  })
+
+  it('says when a safety filter stopped the reply, streaming or not', async () => {
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ finish_reason: 'content_filter', message: { content: '' } }] })))
+    await expect(new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', true, 'gemini-2.5-pro').generate(BASE_REQUEST))
+      .rejects.toThrow(/safety filter blocked this reply/)
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse('data: {"choices":[{"finish_reason":"SAFETY","delta":{}}]}\n\ndata: [DONE]\n\n')))
+    await expect(new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', true, 'gemini-2.5-pro').generateStream(BASE_REQUEST, () => {}))
+      .rejects.toThrow(/safety filter blocked this reply/)
+  })
+
+  it('reads an error Gemini wraps in an array', async () => {
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(429, [{ error: { code: 429, message: 'Quota exceeded for gemini-2.5-pro.', status: 'RESOURCE_EXHAUSTED' } }])))
+    await expect(new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', true, 'gemini-2.5-pro').generate(BASE_REQUEST))
+      .rejects.toThrow(/Quota exceeded for gemini-2.5-pro/)
+  })
+
+  it('lists a service\'s models, without Gemini\'s models/ prefix', async () => {
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { data: [{ id: 'models/gemini-2.5-pro' }, { id: 'models/gemini-2.5-flash' }] })))
+    expect(await new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', true, '').listModels()).toEqual(['gemini-2.5-flash', 'gemini-2.5-pro'])
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, {})))
+    expect(await new OpenAICompatibleClient('https://api.example.com/v1', false, '').listModels()).toEqual([])
+  })
+})

@@ -24,6 +24,7 @@ export function useImageCapabilities(): ImageCapabilities {
     imageBackendUsername: settings.imageBackendUsername,
     imageBackendModel: settings.imageBackendModel,
     imageBackendQuality: settings.imageBackendQuality,
+    imageBackendSecret: settings.imageBackendSecret,
     secrets,
   })
   return capabilitiesOf(backend, settings.imageBackendModel)
@@ -101,6 +102,7 @@ export function ImageGenerateDialog({
     imageBackendUsername: settings.imageBackendUsername,
     imageBackendModel: settings.imageBackendModel,
     imageBackendQuality: settings.imageBackendQuality,
+    imageBackendSecret: settings.imageBackendSecret,
     secrets,
   })
   const caps = capabilitiesOf(backend, settings.imageBackendModel)
@@ -146,7 +148,7 @@ export function ImageGenerateDialog({
       <div className="space-y-3">
         <TextAreaField label="Prompt" rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder="e.g. portrait of a young woman, dark purple twintails, library background"
-          hint={`Sends to ${IMAGE_BACKEND_LABELS[settings.imageBackend] ?? settings.imageBackend}. See Settings → Images.`} />
+          hint={`Sends to ${IMAGE_BACKEND_LABELS[settings.imageBackend] ?? settings.imageBackend}. See Settings → Models and services.`} />
         {purpose === 'sprite' && (
           <label className="flex items-start gap-2 text-sm text-text">
             <input type="checkbox" className="mt-1" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} />

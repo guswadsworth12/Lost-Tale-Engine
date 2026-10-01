@@ -379,6 +379,8 @@ export interface DateEventCard {
 }
 
 export interface StoredMessage extends ChatMessage {
+  /** Which connection and model wrote it, when that wasn't Main (`api/connections.ts` `servedByLabel`). */
+  servedBy?: string | null
   chatId: string
   createdAt: number
   giftId?: string

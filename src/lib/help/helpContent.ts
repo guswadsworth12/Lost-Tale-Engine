@@ -108,7 +108,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'steps',
             items: [
-              'Connect a model. A fresh install opens on the Welcome screen, which asks for a **Local server** or a **Cloud provider**. You can change it any time in **Settings → Connection**.',
+              'Connect a model. A fresh install opens on the Welcome screen, which asks for a **Local server** or a **Cloud provider**. You can change it any time in **Settings → Models and services**.',
               'Meet your cast. Open **Cast** to create a character with **New character**, build one with **Generate with AI**, bring one in with **Import card** (.json or .png), or **Start from a template**.',
               'Start a story. Go to **Stories** and choose **Start a story**.',
             ],
@@ -694,7 +694,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             items: [
               "**Expressions** holds art per expression. Visual Novel mode shows the one matching each reply's mood; a blank slot falls back to the avatar. The small number is the warmth needed to unlock it.",
               '**Outfit** chips switch which outfit the grid is editing. **Base** is the default art; type a **New outfit** name and press + to add another. Each outfit has a name and **Unlocks at warmth**, and any expression it lacks falls back to Base.',
-              '**Generate expression set with AI** fills the grid using the image generator from Settings → Images.',
+              '**Generate expression set with AI** fills the grid using the Images model from Settings → Models and services.',
               '**Voice** and **Voice fingerprint** shape how the character sounds and speaks.',
             ],
           },

@@ -19,10 +19,11 @@ export function useChatBackendClient(): ChatBackend {
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
   const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
+  const chatBackendSecret = useSettingsStore((s) => s.chatBackendSecret)
   return useMemo(() => {
     // A different backend or model means a different tokenizer, so every memoized token count from
     // the previous one is now wrong.
     invalidateTokenCache()
-    return createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel, secrets })
-  }, [chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel, secrets])
+    return createChatBackend({ chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel, chatBackendSecret, secrets })
+  }, [chatBackend, baseUrl, chatBackendBaseUrl, chatBackendModel, chatBackendSecret, secrets])
 }

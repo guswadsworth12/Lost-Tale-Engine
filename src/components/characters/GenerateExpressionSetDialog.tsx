@@ -59,6 +59,7 @@ export function GenerateExpressionSetDialog({
   const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
   const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
   const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
+  const imageBackendSecret = useSettingsStore((s) => s.imageBackendSecret)
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -78,7 +79,7 @@ export function GenerateExpressionSetDialog({
     setResults(null)
     setProgress({ done: 0, total: targets.length, currentLabel: targets[0].label })
 
-    const backend = createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, secrets })
+    const backend = createImageBackend({ imageBackend, imageBackendBaseUrl, imageBackendUsername, imageBackendModel, imageBackendSecret, secrets })
     const succeeded: string[] = []
     const failed: string[] = []
 
@@ -124,7 +125,7 @@ export function GenerateExpressionSetDialog({
         value={basePrompt}
         onChange={(e) => setBasePrompt(e.target.value)}
         placeholder="e.g. portrait of Sumire, dark purple twintails, library background"
-        hint={`Sends to ${imageBackend}. See Settings → Images. Each expression appends its own name to this.`}
+        hint={`Sends to ${imageBackend}. See Settings → Models and services. Each expression appends its own name to this.`}
       />
 
       <div className="mt-4">

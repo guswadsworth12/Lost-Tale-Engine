@@ -642,6 +642,11 @@ function normalizePlayerDescription(raw: unknown): string | undefined {
   return typeof raw === 'string' ? raw.slice(0, 20_000) || undefined : undefined
 }
 
+/** A character's service id (`api/services.ts`): the same shape a service key's name allows. */
+function serviceIdOf(value: unknown): string | undefined {
+  return typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : undefined
+}
+
 /** Refuses a character or chat pointing at a world or character this user can't see. */
 function refuseHiddenReferences(req: express.Request, res: express.Response, refs: { worldIds?: unknown[]; characterIds?: unknown[] }): boolean {
   const hidden = [...hiddenIds(req, refs.worldIds ?? [], (id) => worldStore.get(id)), ...hiddenIds(req, refs.characterIds ?? [], lookups.character)]
@@ -671,6 +676,7 @@ export function characterRow(id: string, body: Record<string, any>): Record<stri
     promptItems: normalizePromptItems(body.promptItems),
     privateMemory: typeof body.privateMemory === 'string' ? body.privateMemory.slice(0, 100_000) : undefined,
     modelOverride: typeof body.modelOverride === 'string' ? body.modelOverride.trim().slice(0, 200) || undefined : undefined,
+    modelServiceId: serviceIdOf(body.modelServiceId),
     playerOnly: body.playerOnly === true || undefined,
     playerDescription: normalizePlayerDescription(body.playerDescription),
     sheet: normalizeCharacterSheet(body.sheet),
@@ -744,6 +750,7 @@ app.put('/api/characters/:id', (req, res) => {
   if ('revisions' in req.body) patch.revisions = normalizeWorldRevisions(req.body.revisions) ?? []
   if ('privateMemory' in req.body) patch.privateMemory = typeof req.body.privateMemory === 'string' ? req.body.privateMemory.slice(0, 100_000) : undefined
   if ('modelOverride' in req.body) patch.modelOverride = typeof req.body.modelOverride === 'string' ? req.body.modelOverride.trim().slice(0, 200) || undefined : undefined
+  if ('modelServiceId' in req.body) patch.modelServiceId = serviceIdOf(req.body.modelServiceId)
   if ('playerOnly' in req.body) patch.playerOnly = req.body.playerOnly === true || undefined
   if ('playerDescription' in req.body) patch.playerDescription = normalizePlayerDescription(req.body.playerDescription)
   if ('sheet' in req.body) patch.sheet = normalizeCharacterSheet(req.body.sheet)

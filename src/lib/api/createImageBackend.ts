@@ -23,6 +23,8 @@ export interface ImageBackendSettings {
    * NovelAI's image key; `openMayhemApiKey` is OpenMayhem's.
    */
   secrets: Record<SecretName, boolean>
+  /** The chosen image service's key (`api/services.ts`); unset, the long-standing `imageBackendPassword`. */
+  imageBackendSecret?: SecretName
 }
 
 /** Section 11's image-backend factory — the `createChatBackend` pattern applied to image generation. */
@@ -38,10 +40,14 @@ export function createImageBackend(settings: ImageBackendSettings): ImageBackend
       return new OpenAIImageClient(settings.secrets.openaiApiKey, settings.imageBackendModel, settings.imageBackendQuality ?? '')
     case 'gemini-image':
       return new GeminiImageClient(settings.secrets.geminiApiKey, settings.imageBackendModel)
-    case 'novelai-image':
-      return new NovelAIImageClient(settings.secrets.imageBackendPassword, settings.imageBackendModel)
+    case 'novelai-image': {
+      const secret = settings.imageBackendSecret ?? 'imageBackendPassword'
+      return new NovelAIImageClient(!!settings.secrets[secret], settings.imageBackendModel, secret)
+    }
     case 'a1111':
-    default:
-      return new A1111Client(settings.imageBackendBaseUrl, settings.imageBackendUsername || undefined, settings.secrets.imageBackendPassword)
+    default: {
+      const secret = settings.imageBackendSecret ?? 'imageBackendPassword'
+      return new A1111Client(settings.imageBackendBaseUrl, settings.imageBackendUsername || undefined, !!settings.secrets[secret], secret)
+    }
   }
 }

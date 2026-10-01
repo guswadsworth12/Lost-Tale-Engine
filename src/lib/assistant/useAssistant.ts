@@ -1,14 +1,13 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { assistantLibraryApi, assistantThreadsApi, charactersApi, instructTemplatesApi, worldsApi } from '@/lib/api/client'
 import { generateWithTimeout } from '@/lib/api/generateWithTimeout'
 import { buildUpdatePrompt, findTargetCharacter, findTargetWorld, parseUpdateResponse, updatePatch, wantsSheet } from '@/lib/assistant/characterUpdate'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { createChatBackend } from '@/lib/api/createChatBackend'
+import { useModelFor } from '@/lib/hooks/useModelFor'
 import { cleanModelOutput } from '@/lib/text/slop'
 import { newId } from '@/lib/id'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { useSecretStatus } from '@/lib/accounts/secrets'
 import { resolveInstructTemplate } from '@/lib/prompt/instructTemplates'
 import { draftFullCharacter, isAbortError } from '@/lib/characters/generateFullCharacter'
 import { assistantStopSequences, buildAssistantPrompt } from '@/lib/assistant/prompt'
@@ -41,7 +40,6 @@ export interface AssistantProgress {
 
 export function useAssistant(threadId: string | null, onThreadsChanged?: () => void) {
   const settings = useSettingsStore()
-  const { saved: secrets } = useSecretStatus()
   const customInstructTemplates = useApiQuery('instruct-templates', () => instructTemplatesApi.list(), []) ?? []
   const [thread, setThread] = useState<AssistantThread | null>(null)
   const [streamingText, setStreamingText] = useState('')
@@ -51,17 +49,8 @@ export function useAssistant(threadId: string | null, onThreadsChanged?: () => v
   /** The live thread, so a long producer run writes onto the newest state rather than a stale closure. */
   const threadRef = useRef<AssistantThread | null>(null)
 
-  const client = useMemo(
-    () =>
-      createChatBackend({
-        chatBackend: settings.chatBackend,
-        baseUrl: settings.baseUrl,
-        chatBackendBaseUrl: settings.chatBackendBaseUrl,
-        chatBackendModel: settings.chatBackendModel,
-        secrets,
-      }),
-    [settings.chatBackend, settings.baseUrl, settings.chatBackendBaseUrl, settings.chatBackendModel, secrets],
-  )
+  // Writer's Room runs on the model chosen for creation work (Settings → Models by job), else Main.
+  const client = useModelFor('creation')
 
   const load = useCallback(async (id: string) => {
     const found = await assistantThreadsApi.get(id)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { assistantLibraryApi, charactersApi, chatsApi, messagesApi, objectivesApi, worldsApi } from '@/lib/api/client'
-import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
+import { useModelFor } from '@/lib/hooks/useModelFor'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { createChat } from '@/lib/chat/createChat'
@@ -49,7 +49,7 @@ function CastFields({ value, onChange }: { value: RpCastDraft; onChange: (next: 
 }
 
 export function GuidedRpBuilder({ onClose, onCreated, conversationBrief }: { onClose: () => void; onCreated: (chatId: string) => void; conversationBrief?: string }) {
-  const client = useChatBackendClient()
+  const client = useModelFor('creation')
   const setActivePlayerCharacterId = useSettingsStore((s) => s.setActivePlayerCharacterId)
   const [draft, setDraft] = useState(savedDraft)
   const [checkpoint, setCheckpoint] = useState<Checkpoint>(savedCheckpoint)

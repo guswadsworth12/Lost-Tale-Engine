@@ -145,6 +145,8 @@ export interface Character {
   privateMemory?: string
   /** Model id for this speaker on the configured hosted provider. Empty uses the global model. */
   modelOverride?: string
+  /** A service of their own for their replies (`api/services.ts`), with `modelOverride` as its model. Unset: the Story replies job's. */
+  modelServiceId?: string
   avatarDataUrl?: string
   /** The world this character lives in, if any. */
   worldId?: string

@@ -15,19 +15,19 @@ export interface ChatBackendSettings {
   chatBackendModel: string
   /** Which credentials the user has saved (`useSecretStatus().saved`). The browser never holds a key; the server's relay attaches it. */
   secrets: Record<SecretName, boolean>
+  /** The chosen text service's key (`api/services.ts`); unset, the long-standing chat key. */
+  chatBackendSecret?: SecretName
 }
 
 export function createChatBackend(settings: ChatBackendSettings): ChatBackend {
   if (settings.chatBackend === 'openai-compatible') {
-    return new OpenAICompatibleClient(
-      settings.chatBackendBaseUrl,
-      isOpenMayhem(settings.chatBackendBaseUrl) ? settings.secrets.openMayhemApiKey : settings.secrets.chatBackendApiKey,
-      settings.chatBackendModel,
-    )
+    const secret = settings.chatBackendSecret ?? (isOpenMayhem(settings.chatBackendBaseUrl) ? 'openMayhemApiKey' : 'chatBackendApiKey')
+    return new OpenAICompatibleClient(settings.chatBackendBaseUrl, !!settings.secrets[secret], settings.chatBackendModel, secret)
   }
   if (settings.chatBackend === 'novelai') {
     // NovelAI has no base URL field — its two hosts are fixed per model (see novelai.ts).
-    return new NovelAIClient(settings.secrets.chatBackendApiKey, settings.chatBackendModel)
+    const secret = settings.chatBackendSecret ?? 'chatBackendApiKey'
+    return new NovelAIClient(!!settings.secrets[secret], settings.chatBackendModel, secret)
   }
   return new KoboldClient(settings.baseUrl)
 }
