@@ -32,7 +32,7 @@ import { openMayhemRouter } from './openMayhem.ts'
 import { authGate, authRouter, requireOwner } from './auth.ts'
 import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
-import { storiesRouter } from './stories.ts'
+import { restoreScene, storiesRouter } from './stories.ts'
 import { momentsRouter, purgeChatMoments } from './moments.ts'
 import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
@@ -1077,6 +1077,9 @@ app.delete('/api/chats/:id', (req, res) => {
 })
 
 app.post('/api/chats/:id/restore', (req, res) => {
+  // A scene deleted on its own goes back into its place in the story.
+  const existing = chatStore.get(req.params.id)
+  if (existing?.sceneRemoval) return restoreScene(existing, res)
   const updated = chatStore.update(req.params.id, { deletedAt: null, updatedAt: Date.now() })
   if (!updated) return notFound(res)
   res.json(updated)

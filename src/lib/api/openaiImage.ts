@@ -1,11 +1,14 @@
 import type { ImageBackend, ImageCapabilities, ImageGenerateParams, ImageGenerateResult } from './imageBackend'
-import { ImageGenError, nearestShape, redactKeys } from './imageBackend'
+import { ImageGenError, nearestShape, redactKeys, referenceFileName } from './imageBackend'
 import { relayFetch } from './relay'
 
 /**
  * OpenAI's image models, offered as suggestions until the account's own list is read; any model
  * name can be typed.
  */
+/** The gpt-image models take up to 16 input images on an edit. */
+export const OPENAI_MAX_REFERENCES = 16
+
 export const OPENAI_IMAGE_MODELS = [
   'chatgpt-image-latest',
   'dall-e-3',
@@ -78,7 +81,7 @@ export class OpenAIImageClient implements ImageBackend {
 
   capabilities(model?: string): ImageCapabilities {
     const gpt = isGptImage(model?.trim() || this.modelName)
-    return { transparency: gpt, references: gpt }
+    return { transparency: gpt, references: gpt, maxReferences: gpt ? OPENAI_MAX_REFERENCES : 0 }
   }
 
   async generateImage(params: ImageGenerateParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
@@ -98,9 +101,9 @@ export class OpenAIImageClient implements ImageBackend {
       if (references.length) {
         const form = new FormData()
         for (const [key, value] of Object.entries(options)) form.append(key, value)
-        references.slice(0, 4).forEach((ref, i) => {
+        references.slice(0, OPENAI_MAX_REFERENCES).forEach((ref, i) => {
           const bytes = Uint8Array.from(atob(ref.base64), (c) => c.charCodeAt(0))
-          form.append('image[]', new Blob([bytes], { type: ref.mimeType }), `reference-${i + 1}.${ref.mimeType.split('/')[1] || 'png'}`)
+          form.append('image[]', new Blob([bytes], { type: ref.mimeType }), referenceFileName(ref, i))
         })
         res = await relayFetch(`${API}/edits`, { method: 'POST', body: form, secret: 'openaiApiKey', auth: 'bearer', signal })
       } else {

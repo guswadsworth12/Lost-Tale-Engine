@@ -26,6 +26,20 @@ describe('Gemini images', () => {
     })
   })
 
+  it('labels each reference image with who or what it shows, just before it', async () => {
+    let body: Record<string, any> | undefined
+    stubRelayedFetch((_url, init) => { body = JSON.parse(init.body as string); return reply([{ inlineData: { mimeType: 'image/png', data: 'aGVsbG8=' } }]) })
+    await new GeminiImageClient(true, '').generateImage(params({ purpose: 'cg', referenceImages: [
+      { base64: 'YQ==', mimeType: 'image/png', name: 'Emily' },
+      { base64: 'Yg==', mimeType: 'image/png', name: 'Underground Cistern (location)' },
+    ] }))
+    expect(body!.contents[0].parts).toEqual([
+      { text: 'a lighthouse' },
+      { text: 'Reference: Emily' }, { inlineData: { mimeType: 'image/png', data: 'YQ==' } },
+      { text: 'Reference: Underground Cistern (location)' }, { inlineData: { mimeType: 'image/png', data: 'Yg==' } },
+    ])
+  })
+
   it('maps each slot and shape to a supported aspect ratio', () => {
     expect(geminiAspectRatio({ purpose: 'cg', width: 1, height: 1 })).toBe('3:2')
     expect(geminiAspectRatio({ width: 1920, height: 1080 })).toBe('16:9')
@@ -57,7 +71,8 @@ describe('Gemini images', () => {
   })
 
   it('can\'t make transparent images, needs a key, and stops when cancelled', async () => {
-    expect(new GeminiImageClient(true, '').capabilities()).toEqual({ transparency: false, references: true })
+    expect(new GeminiImageClient(true, '').capabilities()).toEqual({ transparency: false, references: true, maxReferences: 3 })
+    expect(new GeminiImageClient(true, 'gemini-3-pro-image-preview').capabilities().maxReferences).toBe(14)
     await expect(new GeminiImageClient(false, '').generateImage(params())).rejects.toMatchObject({ kind: 'auth' })
     const controller = new AbortController()
     stubRelayedFetch((_url, init) => new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))))

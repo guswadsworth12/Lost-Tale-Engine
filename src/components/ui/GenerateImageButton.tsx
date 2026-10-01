@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { createImageBackend } from '@/lib/api/createImageBackend'
-import { capabilitiesOf, IMAGE_BACKEND_LABELS, SLOT_SIZES, type ImagePurpose } from '@/lib/api/imageBackend'
+import { capabilitiesOf, IMAGE_BACKEND_LABELS, SLOT_SIZES, type ImageCapabilities, type ImagePurpose } from '@/lib/api/imageBackend'
 import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage } from '@/lib/store/useToastStore'
 import { Button } from '@/components/ui/Button'
@@ -14,8 +14,20 @@ import { Spinner } from '@/components/ui/Spinner'
 /** Said to a model that can't make transparent images, so a sprite is at least easy to cut out. */
 export const PLAIN_BACKGROUND = 'isolated on a plain, flat, light background'
 
-/** The most reference images sent at once: what every backend that takes them accepts. */
-export const MAX_REFERENCES = 3
+/** What the selected image backend and model can do, including how many reference images it takes. */
+export function useImageCapabilities(): ImageCapabilities {
+  const { saved: secrets } = useSecretStatus()
+  const settings = useSettingsStore()
+  const backend = createImageBackend({
+    imageBackend: settings.imageBackend,
+    imageBackendBaseUrl: settings.imageBackendBaseUrl,
+    imageBackendUsername: settings.imageBackendUsername,
+    imageBackendModel: settings.imageBackendModel,
+    imageBackendQuality: settings.imageBackendQuality,
+    secrets,
+  })
+  return capabilitiesOf(backend, settings.imageBackendModel)
+}
 
 /** An image to match someone's look, and whose it is. */
 export interface LookReference {
@@ -103,10 +115,10 @@ export function ImageGenerateDialog({
     controllerRef.current = controller
     try {
       const wantsTransparent = purpose === 'sprite' && transparent
-      const sent = matchLook && caps.references ? references.slice(0, MAX_REFERENCES) : []
+      const sent = matchLook && caps.references ? references.slice(0, caps.maxReferences) : []
       const base = wantsTransparent && !caps.transparency ? `${prompt.trim()}, ${PLAIN_BACKGROUND}` : prompt.trim()
       const text = withReferenceNames(base, sent)
-      const referenceImages = sent.length ? await Promise.all(sent.map((r) => imageReference(r.url))) : undefined
+      const referenceImages = sent.length ? await Promise.all(sent.map(async (r) => ({ ...await imageReference(r.url), ...(r.name ? { name: r.name } : {}) }))) : undefined
       const result = await backend.generateImage({
         prompt: text,
         width: width ?? size.width,
@@ -149,7 +161,7 @@ export function ImageGenerateDialog({
             <span>Match their look
               <span className="block text-xs text-text-muted">{!caps.references ? 'This backend can\'t take a reference image.'
                 : references.length === 1 ? 'Sends their current image as a reference.'
-                : `Sends ${references.length > MAX_REFERENCES ? `the first ${MAX_REFERENCES} of their ${references.length}` : `their ${references.length}`} images as references, named in the prompt.`}</span>
+                : `Sends ${references.length > caps.maxReferences ? `the first ${caps.maxReferences} of their ${references.length}` : `their ${references.length}`} images as references, named in the prompt.`}</span>
             </span>
           </label>
         )}

@@ -1,7 +1,8 @@
 import express from 'express'
 import { characterStore, chatFactStore, chatStore, messageStore, newId, objectiveStore, relationshipEventStore, storyStore, worldStore } from './db.ts'
-import { StoryPlanError, planChapterEdit, planNextScene, type ChapterEdit, type NextSceneRequest } from './storyPlan.ts'
-import { canSeeChat, storyVisible } from './access.ts'
+import { StoryPlanError, planChapterEdit, planNextScene, planSceneRemoval, planSceneRestore, type ChapterEdit, type NextSceneRequest } from './storyPlan.ts'
+import { canSeeChat, hiddenIds, lookups, storyVisible } from './access.ts'
+import { planLeadChange } from '../src/lib/story/lead.ts'
 import { carryGameState, gameStateFrom, type CampaignTrack, type GameState } from '../src/lib/world/gameState.ts'
 
 /**
@@ -71,7 +72,10 @@ storiesRouter.post('/chats/:id/next-scene', (req, res) => {
   if (!str(body?.recap?.text).trim()) return res.status(400).json({ error: 'A recap is required to end a scene.' })
 
   const existingStory = str(source.storyId) ? storyStore.get(str(source.storyId)) : undefined
-  const storyScenes = existingStory ? chatStore.list().filter((c) => c.storyId === existingStory.id) : []
+  // Scenes in the trash don't count: a deleted scene's number is free again.
+  const storyScenes = existingStory ? chatStore.list().filter((c) => c.storyId === existingStory.id && !c.deletedAt) : []
+  const nextLead = str(body?.next?.leadId)
+  if (nextLead && (!characterStore.get(nextLead) || hiddenIds(req, [nextLead], lookups.character).length)) return res.status(404).json({ error: 'That character was not found.' })
   const now = Date.now()
   // Tracked state is folded here, from the saved branch, rather than taken from the client.
   const lead = str(source.characterId) ? characterStore.get(str(source.characterId)) : undefined
@@ -137,3 +141,70 @@ storiesRouter.put('/chats/:id/chapter', (req, res) => {
   if (Object.keys(plan.sourcePatch).length) chatStore.update(str(source.id), plan.sourcePatch)
   res.json(plan.story)
 })
+
+/**
+ * Makes another character this scene's lead (`story/lead.ts`). Both relationship tracks move with
+ * it. `keepPrevious: false` takes the old lead out of the scene. An ended scene keeps its lead.
+ */
+storiesRouter.put('/chats/:id/lead', (req, res) => {
+  const chat = chatStore.get(req.params.id)
+  if (!chat || chat.deletedAt) return res.status(404).json({ error: 'Not found' })
+  if (chat.endedAt) return res.status(409).json({ error: 'This scene has ended. Change the lead in the scene you are playing.' })
+  const leadId = str(req.body?.characterId)
+  if (!leadId || !characterStore.get(leadId) || hiddenIds(req, [leadId], lookups.character).length) return res.status(404).json({ error: 'That character was not found.' })
+  if (leadId === chat.playerCharacterId) return res.status(409).json({ error: 'That is the character you play. Switch Play As first.' })
+  if (leadId === chat.characterId) return res.json(chat)
+  // The lead's own lines are saved with no speaker: it's implied. Name them before it stops being true.
+  const oldLead = str(chat.characterId)
+  for (const m of messageStore.list({ where: 'chatId = ?', params: [chat.id] })) {
+    if (oldLead && m.role === 'char' && !m.speakerId) messageStore.update(str(m.id), { speakerId: oldLead })
+  }
+  const patch = planLeadChange(chat as never, leadId, { keepPrevious: req.body?.keepPrevious !== false })
+  res.json(chatStore.update(str(chat.id), { ...patch, updatedAt: Date.now() }))
+})
+
+/**
+ * Deletes one scene of a story into the trash (`planSceneRemoval`): the story closes the gap around
+ * it. Answers with the scene to open in its place.
+ */
+storiesRouter.delete('/chats/:id/scene', (req, res) => {
+  const source = chatStore.get(req.params.id)
+  if (!source || source.deletedAt) return res.status(404).json({ error: 'Not found' })
+  const story = str(source.storyId) ? storyStore.get(str(source.storyId)) : undefined
+  const scenes = story ? chatStore.list().filter((c) => c.storyId === story.id) : []
+  const messages = messageStore.list({ where: 'chatId = ?', params: [source.id], orderBy: 'createdAt' })
+  let plan
+  try {
+    plan = planSceneRemoval(source, scenes, story, messages, Date.now())
+  } catch (error) {
+    if (error instanceof StoryPlanError) return res.status(error.status).json({ error: error.message })
+    throw error
+  }
+  for (const [id, patch] of Object.entries(plan.scenePatches)) chatStore.update(id, patch)
+  if (plan.storyPatch && story) storyStore.update(str(story.id), plan.storyPatch)
+  chatStore.update(str(source.id), plan.sourcePatch)
+  res.json({ openSceneId: plan.openSceneId })
+})
+
+/**
+ * Puts a scene deleted with `DELETE /chats/:id/scene` back in its place (`planSceneRestore`).
+ * `POST /chats/:id/restore` hands a deleted scene here. Answers with the restored scene.
+ */
+export function restoreScene(source: Record<string, unknown>, res: express.Response): void {
+  const story = str(source.storyId) ? storyStore.get(str(source.storyId)) : undefined
+  const scenes = story ? chatStore.list().filter((c) => c.storyId === story.id) : []
+  const removal = source.sceneRemoval as { removedAt: number; reopened?: { id: string } } | undefined
+  const playedSince = removal?.reopened
+    ? messageStore.list({ where: 'chatId = ? AND createdAt > ?', params: [removal.reopened.id, removal.removedAt] }).length
+    : 0
+  let plan
+  try {
+    plan = planSceneRestore(source, scenes, story, playedSince, Date.now())
+  } catch (error) {
+    if (error instanceof StoryPlanError) { res.status(error.status).json({ error: error.message }); return }
+    throw error
+  }
+  for (const [id, patch] of Object.entries(plan.scenePatches)) chatStore.update(id, patch)
+  if (plan.storyPatch && story) storyStore.update(str(story.id), plan.storyPatch)
+  res.json(chatStore.update(str(source.id), plan.sourcePatch))
+}

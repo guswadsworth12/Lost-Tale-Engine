@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { draftMomentPrompt, groupMoments, normalizeMomentInput, type StoryMoment } from './moments'
+import { buildImprovePromptRequest, draftMomentPrompt, groupMoments, momentText, normalizeMomentInput, type StoryMoment } from './moments'
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo='
 
@@ -15,7 +15,7 @@ describe('a new moment', () => {
 describe('the drafted prompt', () => {
   const cast = [{ name: 'Bea', appearance: 'tall, short grey hair, oilskin coat' }, { name: 'Cole' }]
   it('pictures the line, who is there and how they look, and where', () => {
-    expect(draftMomentPrompt({ kind: 'moment', messageText: 'She blows out the lamp.', speaker: 'Bea', location: 'the lighthouse', timeOfDay: 'night', characters: cast, artStyle: 'Watercolor, muted colors' }))
+    expect(draftMomentPrompt({ kind: 'moment', moments: [{ speaker: 'Bea', text: 'She blows out the lamp.' }], location: 'the lighthouse', timeOfDay: 'night', characters: cast, artStyle: 'Watercolor, muted colors' }))
       .toBe('Bea (tall, short grey hair, oilskin coat) and Cole at the lighthouse, night. The moment: Bea: She blows out the lamp. Watercolor, muted colors.')
   })
   it('says the time of day even when the place is unknown', () => {
@@ -45,5 +45,30 @@ describe('the Gallery', () => {
       ['Chapter 1', [['Scene 1', ['d', 'a']], ['Scene 2', ['c']]]],
       ['Chapter 2 · Low Tide', [['Scene 1', ['b']]]],
     ])
+  })
+})
+
+describe('picturing key moments', () => {
+  const rend = { speaker: 'Rend', text: '*Rend draws the circle.* "Four great beasts." {OOC: make it epic}' }
+  const gm = { speaker: 'Game Master', text: '[Set event (canon, no roll)] The binding takes: a small green cat.' }
+
+  it('reads a line as the story tells it, without labels or out-of-character notes', () => {
+    expect(momentText(rend.text)).toBe('Rend draws the circle. "Four great beasts."')
+    expect(momentText(gm.text)).toBe('The binding takes: a small green cat.')
+  })
+
+  it('drafts from every picked moment, in order', () => {
+    expect(draftMomentPrompt({ kind: 'moment', moments: [rend, gm], characters: [{ name: 'Rend' }] }))
+      .toBe('Rend. The moments, in order: Rend: Rend draws the circle. "Four great beasts." / Game Master: The binding takes: a small green cat. Illustration, cinematic lighting, no text.')
+  })
+
+  it('asks the story model for one picture of the moments, looks taken from the cards', () => {
+    const request = buildImprovePromptRequest('Rend in a chamber.', 'moment', { moments: [rend, gm], cards: [{ name: 'Emily', card: 'A small, bright-green feline Exceed.' }] })
+    expect(request).toContain('Write a strong prompt for an image generator making a wide story illustration.')
+    expect(request).toContain('The story moments to picture, in order:\n- Rend: Rend draws the circle. "Four great beasts."\n- Game Master: The binding takes: a small green cat.')
+    expect(request).toContain('Make one picture of them: the single instant that shows them best')
+    expect(request).toContain('- Emily: A small, bright-green feline Exceed.')
+    expect(request).toContain('draw only on the moments and cards above')
+    expect(buildImprovePromptRequest('Rend in a chamber.', 'moment')).toContain('Rewrite this into a strong prompt')
   })
 })

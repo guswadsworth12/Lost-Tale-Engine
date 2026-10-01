@@ -41,9 +41,9 @@ describe('OpenAI images', () => {
     await new OpenAIImageClient(true, '').generateImage(params({ purpose: 'sprite', transparent: true }))
     expect(body).toMatchObject({ model: 'gpt-image-2', size: '1024x1536', background: 'transparent', output_format: 'png' })
     // So does any other model that isn't DALL·E.
-    expect(new OpenAIImageClient(true, 'chatgpt-image-latest').capabilities()).toEqual({ transparency: true, references: true })
+    expect(new OpenAIImageClient(true, 'chatgpt-image-latest').capabilities()).toEqual({ transparency: true, references: true, maxReferences: 16 })
     const dalle = new OpenAIImageClient(true, 'dall-e-3')
-    expect(dalle.capabilities()).toEqual({ transparency: false, references: false })
+    expect(dalle.capabilities()).toEqual({ transparency: false, references: false, maxReferences: 0 })
     await expect(dalle.generateImage(params({ transparent: true }))).rejects.toMatchObject({ kind: 'unsupported' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
@@ -57,6 +57,17 @@ describe('OpenAI images', () => {
     const file = seen!.form.getAll('image[]')[0] as Blob
     expect(file.type).toBe('image/png')
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(new TextEncoder().encode('hello'))
+    expect((file as File).name).toBe('image-1-reference.png')
+  })
+
+  it('names each reference file after who or what it shows', async () => {
+    let form: FormData | undefined
+    stubRelayedFetch((_url, init) => { form = init.body as FormData; return image })
+    await new OpenAIImageClient(true, '').generateImage(params({ purpose: 'cg', referenceImages: [
+      { base64: 'aGVsbG8=', mimeType: 'image/png', name: 'Aveline Pyre' },
+      { base64: 'aGVsbG8=', mimeType: 'image/jpeg', name: 'Underground Cistern (location)' },
+    ] }))
+    expect(form!.getAll('image[]').map((f) => (f as File).name)).toEqual(['aveline-pyre-reference.png', 'underground-cistern-location-reference.jpg'])
   })
 
   it('says what went wrong, without the key', async () => {

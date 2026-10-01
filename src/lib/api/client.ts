@@ -214,6 +214,23 @@ export const chatsApi = {
     invalidate('stories')
     return result
   },
+  /** Makes another character this scene's lead (`story/lead.ts`); both relationship tracks move with it. */
+  async changeLead(id: string, characterId: string, keepPrevious: boolean): Promise<Chat> {
+    const result = await request<Chat>('PUT', `/chats/${id}/lead`, { characterId, keepPrevious })
+    invalidate('chats')
+    invalidate('messages')
+    return result
+  },
+  /**
+   * Deletes one scene of a story into the trash; the story closes the gap around it. Restoring it
+   * from the trash puts it back in its place. Returns the scene to open instead.
+   */
+  async removeScene(id: string): Promise<{ openSceneId: string }> {
+    const result = await request<{ openSceneId: string }>('DELETE', `/chats/${id}/scene`)
+    invalidate('chats')
+    invalidate('stories')
+    return result
+  },
   /** Ends this scene with its recap and opens the next one (`server/stories.ts`). Returns the new scene. */
   async nextScene(id: string, body: NextSceneBody): Promise<Chat> {
     const result = await request<Chat>('POST', `/chats/${id}/next-scene`, body)
@@ -237,6 +254,8 @@ export interface NextSceneBody {
     location?: string | null
     atmosphere?: string | null
     presentIds?: string[]
+    /** The next scene's lead, when it changes. */
+    leadId?: string
     storylineId?: string
     newStorylineName?: string
   }

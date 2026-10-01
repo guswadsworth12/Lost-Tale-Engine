@@ -4,6 +4,7 @@
  */
 
 import { FIRST_CHAPTER_ID, chapterIdOf, chapterLine, chaptersOf, nextSceneNumberIn } from '../src/lib/story/chapters.ts'
+import { planLeadChange } from '../src/lib/story/lead.ts'
 import type { Chapter, Chat, Story } from '../src/lib/types.ts'
 
 type Row = Record<string, unknown>
@@ -37,6 +38,8 @@ export interface NextSceneRequest {
     atmosphere?: string | null
     /** Who is in the next scene. The lead is always included. */
     presentIds?: string[]
+    /** The next scene's lead, when it changes (`story/lead.ts`). Unset keeps this scene's. */
+    leadId?: string
     /** An existing storyline to continue in, or a new one to split off with this name. */
     storylineId?: string
     newStorylineName?: string
@@ -142,8 +145,10 @@ export function planNextScene(
   } = source
   const lead = str(source.characterId)
   const player = str(source.playerCharacterId)
+  const nextLead = str(body.next?.leadId) || lead
+  if (nextLead !== lead && nextLead === player) throw new StoryPlanError('The lead can\'t be the character you play. Switch Play As first.', 409)
   const participants = strings(source.participants)
-  const present = body.next?.presentIds ? [...new Set([lead, ...strings(body.next.presentIds)])].filter((p) => p !== player) : undefined
+  const present = body.next?.presentIds ? [...new Set([nextLead, ...strings(body.next.presentIds)])].filter((p) => p !== player) : undefined
   const scene = (source.scene as Row | undefined) ?? undefined
   const nextScene: Row | undefined = scene || present || body.next?.location !== undefined
     ? {
@@ -175,7 +180,205 @@ export function planNextScene(
     createdAt: now,
     updatedAt: now,
   }
+  // A new lead takes over the lead's place and track; the old lead stays only if picked to be there.
+  if (nextLead !== lead) {
+    Object.assign(newChat, planLeadChange(newChat as unknown as Chat, nextLead, { keepPrevious: present ? present.includes(lead) : true }))
+  }
   return { story, storyIsNew, sourcePatch, newChat }
+}
+
+/**
+ * What deleting a scene changed elsewhere in its story. Kept on the deleted scene so restoring it
+ * can put everything back exactly (`planSceneRestore`).
+ */
+export interface SceneRemoval {
+  removedAt: number
+  /** The scene it continued from, if any: the scenes after it continue from this now. */
+  previousSceneId?: string
+  /** Scenes that continued from it. */
+  relinked: string[]
+  /** Scenes numbered down by one in the story, and within its chapter. A restore numbers by position instead, as scenes may have been added since. */
+  renumbered: string[]
+  chapterRenumbered: string[]
+  /** Set events carried out in it and consequences confirmed in it, taken off the scenes after it. */
+  events: string[]
+  consequences: string[]
+  /** The scene before it, opened again because the deleted scene was where the story stood. */
+  reopened?: { id: string; endedAt: number; recap?: unknown }
+  /** Its chapter, removed with it when it was the chapter's only scene, and the chapter before reopened. */
+  chapter?: { removed: Chapter; reopened?: { id: string; endedAt: number; recap?: Chapter['recap'] } }
+}
+
+export interface SceneRemovalPlan {
+  sourcePatch: Row
+  /** Changes to the story's other scenes, by id. */
+  scenePatches: Record<string, Row>
+  /** Set when the story's chapters change. */
+  storyPatch?: Row
+  /** The scene to open in its place. */
+  openSceneId: string
+}
+
+/** Set events a scene's GM turns carried out, and the branch consequences confirmed in it. */
+function eventsAndConsequencesOf(messages: Row[]): { events: string[]; consequences: string[] } {
+  const events = new Set<string>()
+  const consequences = new Set<string>()
+  for (const m of messages) {
+    const gm = m.gm as { adjudication?: { setEventId?: string; setEventIds?: string[] }; proposals?: { scope?: string; status?: string; text?: string }[] } | undefined
+    for (const id of [gm?.adjudication?.setEventId, ...(gm?.adjudication?.setEventIds ?? [])]) if (id) events.add(id)
+    for (const p of gm?.proposals ?? []) if (p.scope === 'branch' && p.status === 'confirmed' && p.text) consequences.add(p.text)
+  }
+  return { events: [...events], consequences: [...consequences] }
+}
+
+/** Every scene that follows on from `fromId`, at any distance. */
+function scenesAfter(fromId: string, scenes: Row[]): Row[] {
+  const after: Row[] = []
+  const frontier = [fromId]
+  while (frontier.length) {
+    const id = frontier.shift()!
+    for (const s of scenes) if (str(s.previousSceneId) === id && !after.includes(s)) { after.push(s); frontier.push(str(s.id)) }
+  }
+  return after
+}
+
+const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
+
+/**
+ * Plans deleting one scene of a story. The scenes after it continue from the scene before it, and
+ * are numbered down to close the gap. What happened only in it (its set events and confirmed
+ * consequences) is taken off the scenes after it. Deleting the scene the story stands at opens the
+ * scene before it again, and a chapter that scene started goes with it. Its own messages, memories,
+ * and moments stay with it in the trash. Pure, like `planNextScene`.
+ */
+export function planSceneRemoval(source: Row, storyScenes: Row[], story: Row | undefined, messages: Row[], now: number): SceneRemovalPlan {
+  if (!str(source.storyId)) throw new StoryPlanError('This chat is not a scene of a story.')
+  const live = storyScenes.filter((s) => !s.deletedAt && s.id !== source.id)
+  if (!live.length) throw new StoryPlanError('This is the story\'s only scene. Delete the story instead.', 409)
+  const byId = (id: string) => live.find((s) => s.id === id)
+  const previous = byId(str(source.previousSceneId))
+  const children = live.filter((s) => str(s.previousSceneId) === source.id)
+  const later = scenesAfter(str(source.id), live)
+  const { events, consequences } = eventsAndConsequencesOf(messages)
+  const number = num(source.sceneNumber) ?? 1
+  const chapterId = chapterIdOf(source as Pick<Chat, 'chapterId'>)
+  const inChapter = num(source.chapterSceneNumber)
+
+  const patches: Record<string, Row> = {}
+  const patch = (s: Row, change: Row) => { patches[str(s.id)] = { ...patches[str(s.id)], ...change } }
+  for (const s of children) patch(s, { previousSceneId: previous ? str(previous.id) : undefined })
+  const renumbered = live.filter((s) => (num(s.sceneNumber) ?? 0) > number)
+  for (const s of renumbered) patch(s, { sceneNumber: num(s.sceneNumber)! - 1 })
+  const chapterRenumbered = inChapter === undefined ? [] : live.filter((s) => chapterIdOf(s as Pick<Chat, 'chapterId'>) === chapterId && (num(s.chapterSceneNumber) ?? 0) > inChapter)
+  for (const s of chapterRenumbered) patch(s, { chapterSceneNumber: num(s.chapterSceneNumber)! - 1 })
+  for (const s of later) {
+    const done = strings(s.setEventsDone).filter((id) => !events.includes(id))
+    const carried = strings(s.carriedConsequences).filter((c) => !consequences.includes(c))
+    patch(s, { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined })
+  }
+
+  const removal: SceneRemoval = {
+    removedAt: now,
+    ...(previous ? { previousSceneId: str(previous.id) } : {}),
+    relinked: children.map((s) => str(s.id)),
+    renumbered: renumbered.map((s) => str(s.id)),
+    chapterRenumbered: chapterRenumbered.map((s) => str(s.id)),
+    events,
+    consequences,
+  }
+
+  // The story stood at this scene: the one before it is where it stands again.
+  let storyPatch: Row | undefined
+  const reopen = !children.length && previous && typeof previous.endedAt === 'number' && !live.some((s) => str(s.previousSceneId) === previous.id)
+  if (reopen) {
+    removal.reopened = { id: str(previous.id), endedAt: previous.endedAt as number, ...(previous.recap ? { recap: previous.recap } : {}) }
+    patch(previous, { endedAt: undefined, recap: undefined })
+    const previousChapterId = chapterIdOf(previous as Pick<Chat, 'chapterId'>)
+    const chapters = (story?.chapters as Chapter[] | undefined) ?? []
+    const removed = chapters.find((c) => c.id === chapterId)
+    if (removed && previousChapterId !== chapterId && !live.some((s) => chapterIdOf(s as Pick<Chat, 'chapterId'>) === chapterId)) {
+      const before = chapters.find((c) => c.id === previousChapterId)
+      removal.chapter = {
+        removed,
+        ...(before?.endedAt ? { reopened: { id: before.id, endedAt: before.endedAt, ...(before.recap ? { recap: before.recap } : {}) } } : {}),
+      }
+      storyPatch = {
+        chapters: chapters.filter((c) => c.id !== chapterId).map((c) => {
+          if (c.id !== previousChapterId) return c
+          const { endedAt: _e, recap: _r, ...open } = c
+          return open
+        }),
+        updatedAt: now,
+      }
+    }
+  }
+
+  return {
+    sourcePatch: { deletedAt: now, sceneRemoval: removal },
+    scenePatches: patches,
+    ...(storyPatch ? { storyPatch } : {}),
+    openSceneId: reopen ? str(previous!.id) : str(children[0]?.id) || str(previous?.id) || str(live[0].id),
+  }
+}
+
+/**
+ * Plans putting a deleted scene back where it was, undoing `planSceneRemoval`. Refuses when the
+ * story has moved on in a way that can't be undone cleanly: the scenes after it now continue from
+ * somewhere else, or the scene that was opened again has been played on (`playedSince` is how
+ * many messages it gained after the deletion) or ended again.
+ */
+export function planSceneRestore(source: Row, storyScenes: Row[], story: Row | undefined, playedSince: number, now: number): Omit<SceneRemovalPlan, 'openSceneId'> {
+  const removal = source.sceneRemoval as SceneRemoval | undefined
+  if (!removal) return { sourcePatch: { deletedAt: undefined, updatedAt: now }, scenePatches: {} }
+  const moved = new StoryPlanError('The story has moved on since this scene was deleted, so it can\'t go back in its place.', 409)
+  const live = storyScenes.filter((s) => !s.deletedAt && s.id !== source.id)
+  const byId = (id: string) => live.find((s) => s.id === id)
+  const previousId = removal.previousSceneId
+  if (previousId && !byId(previousId)) throw moved
+  for (const id of removal.relinked) {
+    const s = byId(id)
+    if (s && str(s.previousSceneId) !== (previousId ?? '')) throw moved
+  }
+  if (removal.reopened) {
+    const s = byId(removal.reopened.id)
+    if (!s || s.endedAt || playedSince > 0 || live.some((other) => str(other.previousSceneId) === removal.reopened!.id)) throw moved
+  }
+
+  const patches: Record<string, Row> = {}
+  const patch = (id: string, change: Row) => { if (byId(id)) patches[id] = { ...patches[id], ...change } }
+  for (const id of removal.relinked) patch(id, { previousSceneId: str(source.id) })
+  // Open its place again by number, not by the recorded list: scenes may have been added since.
+  const number = num(source.sceneNumber) ?? 1
+  const chapterId = chapterIdOf(source as Pick<Chat, 'chapterId'>)
+  const inChapter = num(source.chapterSceneNumber)
+  for (const s of live) {
+    if ((num(s.sceneNumber) ?? 0) >= number) patch(str(s.id), { sceneNumber: num(s.sceneNumber)! + 1 })
+    if (inChapter !== undefined && chapterIdOf(s as Pick<Chat, 'chapterId'>) === chapterId && (num(s.chapterSceneNumber) ?? 0) >= inChapter) {
+      patch(str(s.id), { chapterSceneNumber: num(s.chapterSceneNumber)! + 1 })
+    }
+  }
+  // Everything after it again: the relinked scenes and whatever follows them.
+  const after = removal.relinked.flatMap((id) => [byId(id), ...scenesAfter(id, live)]).filter((s): s is Row => !!s)
+  for (const s of after) {
+    const done = [...new Set([...strings(s.setEventsDone), ...removal.events])]
+    const carried = [...new Set([...strings(s.carriedConsequences), ...removal.consequences])]
+    patch(str(s.id), { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined })
+  }
+  if (removal.reopened) patch(removal.reopened.id, { endedAt: removal.reopened.endedAt, recap: removal.reopened.recap })
+
+  let storyPatch: Row | undefined
+  if (removal.chapter) {
+    const chapters = ((story?.chapters as Chapter[] | undefined) ?? []).filter((c) => c.id !== removal.chapter!.removed.id).map((c) => {
+      const reopened = removal.chapter!.reopened
+      return reopened && c.id === reopened.id ? { ...c, endedAt: reopened.endedAt, ...(reopened.recap ? { recap: reopened.recap } : {}) } : c
+    })
+    storyPatch = { chapters: [...chapters, removal.chapter.removed].sort((a, b) => a.number - b.number), updatedAt: now }
+  }
+  return {
+    sourcePatch: { deletedAt: undefined, sceneRemoval: undefined, updatedAt: now },
+    scenePatches: patches,
+    ...(storyPatch ? { storyPatch } : {}),
+  }
 }
 
 export interface ChapterEdit {
