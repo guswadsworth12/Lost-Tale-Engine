@@ -10,6 +10,8 @@ import {
   formatGmMessage,
   earlierRollFrom,
   gmDirectionFor,
+  gmHeld,
+  cardCallsFrom,
   grantedQuestions,
   isPlayerCharacter,
   parseGmTurn,
@@ -777,6 +779,88 @@ describe('set events', () => {
     const turn = parseGmTurn(JSON.stringify({ narration: '', speakers: [], adjudication: { move: move.name, tier: 'mixed', outcome: move.mixed } }),
       ctx({ setEvents: events, recordedMove: mixedRoll, playerAction: 'Wren binds the sleeper.' }), ids)
     expect(turn.adjudication?.source).toBe('recorded_roll')
+  })
+})
+
+describe('characters the GM plays until a set event', () => {
+  const bind = { id: 'bind-lyra', trigger: 'Wren binds the sleeper into Lyra\'s form', outcome: 'The binding takes: the sleeper becomes Lyra.', match: ['bind', 'Lyra|sleeper'] }
+  const lyra = { id: 'lyra', name: 'Lyra', as: 'the sleeper, a formless hunger behind the seal', form: 'cat', until: bind }
+  const played = ctx({
+    campaign: { ...STARTER_PBTA_CAMPAIGN, mode: 'guided' },
+    setEvents: [bind],
+    gmPlayed: [lyra],
+    // The engine leaves a GM-played character out of the carded names, so the GM may voice them.
+    cardedNames: ['Ivo Brand', 'Hana Pike', 'Tobin Reed'],
+  })
+
+  it('tells the GM it voices them, and who takes over when', () => {
+    const { system, user } = buildGmPrompt(played)
+    expect(system).toContain('The one exception: characters listed as played by you.')
+    expect(system).toContain('never leave the scene waiting on them')
+    expect(system).toContain('call them only what the characters know them as')
+    expect(system).toContain('when the player offers or attempts it, they accept, and it happens this beat')
+    expect(user).toContain('- Lyra, as the sleeper, a formless hunger behind the seal. Their own agent takes over when this set event happens: [bind-lyra]')
+    expect(buildGmPrompt(ctx()).system).not.toContain('played by you')
+  })
+
+  it('keeps the GM voicing them, and hands them over when their set event happens', () => {
+    const before = parseGmTurn(JSON.stringify({ narration: 'Lyra presses at the seal, and the runes groan.', speakers: ['Hana Pike', 'Lyra'] }),
+      { ...played, playerAction: 'I hold the line.' }, ids)
+    expect(before.narration).toBe('Lyra presses at the seal, and the runes groan.')
+    expect(before.speakerIds).toEqual(['hana'])
+    expect(before.handedOver).toBeUndefined()
+
+    const bound = parseGmTurn(JSON.stringify({ narration: 'The hunger folds small.', speakers: ['Hana Pike', 'Ivo Brand', 'Tobin Reed'] }),
+      { ...played, playerAction: 'Wren binds the sleeper into its new shape.' }, ids)
+    expect(bound.adjudication).toMatchObject({ source: 'set_event', setEventId: 'bind-lyra' })
+    expect(bound.handedOver).toEqual([{ id: 'lyra', name: 'Lyra', as: lyra.as, form: 'cat' }])
+    expect(bound.addCharacterIds).toEqual(['lyra'])
+    // Still at most three voices: the one handed over keeps their turn.
+    expect(bound.speakerIds).toEqual(['hana', 'ivo', 'lyra'])
+
+    const direction = gmDirectionFor(bound, 'Lyra', 'Wren Calloway', ['Hana Pike', 'Ivo Brand', 'Lyra'], false)
+    expect(direction).toContain('Until now the Game Master played Lyra, as the sleeper')
+    expect(direction).toContain('speaks and acts for themself')
+    expect(direction).not.toContain('drawn into this scene')
+  })
+
+  it('carries out every set event one action accomplishes, and hands each one over', () => {
+    const forge = { id: 'bind-zara', trigger: 'Wren binds the guardian\'s construct form', outcome: 'The construct takes Zara\'s form.', consequence: 'Wren is strained from binding Zara.', match: ['bind|body', 'Zara|guardian'] }
+    const zara = { id: 'zara', name: 'Zara', as: 'the guardian construct', until: forge }
+    const both = { ...played, setEvents: [bind, forge], gmPlayed: [lyra, zara], playerAction: 'Wren opens the circle wider.' }
+    // The GM names both; nothing in the wording would match either.
+    const turn = parseGmTurn(JSON.stringify({ narration: 'The circle takes them both.', speakers: ['Hana Pike'], adjudication: { setEvents: ['bind-lyra', 'bind-zara'], outcome: 'x' } }), both, ids)
+    expect(turn.adjudication).toMatchObject({ source: 'set_event', setEventId: 'bind-lyra', setEventIds: ['bind-lyra', 'bind-zara'], outcome: `${bind.outcome} ${forge.outcome}` })
+    expect(setEventsDoneFrom([{ gm: turn }])).toEqual(['bind-lyra', 'bind-zara'])
+    expect(turn.handedOver?.map((h) => h.id)).toEqual(['lyra', 'zara'])
+    expect(turn.addCharacterIds).toEqual(['lyra', 'zara'])
+    expect(turn.speakerIds).toEqual(['hana', 'lyra', 'zara'])
+    expect(turn.proposals.filter((p) => p.status === 'confirmed').map((p) => p.text)).toEqual([forge.consequence])
+
+    // Or the player's words identify both.
+    const worded = parseGmTurn(JSON.stringify({ narration: '', speakers: [] }), { ...both, playerAction: 'Wren offers the sleeper and the guardian a body, and binds them.' }, ids)
+    expect(worded.adjudication?.setEventIds).toEqual(['bind-lyra', 'bind-zara'])
+    expect(buildGmPrompt(both).system).toContain('list every set event a single action carries out')
+  })
+
+  it('reads a character\'s card only when it decides a beat needs it', () => {
+    const indexed = { ...played, cardIndex: ['Lyra', 'Hana Pike'] }
+    expect(buildGmPrompt(indexed).user).toContain('Character cards you can read before ruling: Lyra, Hana Pike.')
+    expect(cardCallsFrom('{"cardCalls": ["lyra", "Hana", "Nobody", "Hana Pike"]}', indexed)).toEqual(['Lyra', 'Hana Pike'])
+    expect(cardCallsFrom('{"narration": "x", "speakers": []}', indexed)).toEqual([])
+    // On the second pass it has them, and isn't offered them again.
+    const second = { ...indexed, calledCards: [{ name: 'Lyra', card: 'A small, bright-green feline Exceed.' }] }
+    const { user } = buildGmPrompt(second)
+    expect(user).toContain('Character cards you asked for (names in them are for you; the story may not know them yet):\n- Lyra: A small, bright-green feline Exceed.')
+    expect(user).not.toContain('can read before ruling')
+    expect(cardCallsFrom('{"cardCalls": ["Lyra"]}', second)).toEqual([])
+  })
+
+  it('stops holding them once their set event is done', () => {
+    const entries = [{ characterId: 'lyra', as: 'the sleeper', until: 'bind-lyra' }, { characterId: 'mask', as: 'a voice in the dark' }]
+    expect(gmHeld(entries, []).map((p) => p.characterId)).toEqual(['lyra', 'mask'])
+    expect(gmHeld(entries, ['bind-lyra']).map((p) => p.characterId)).toEqual(['mask'])
+    expect(gmHeld(undefined, [])).toEqual([])
   })
 })
 

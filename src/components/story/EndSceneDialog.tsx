@@ -11,7 +11,7 @@ export interface EndSceneConfirmInput {
   recapText: string
   openThreads: string[]
   canonFacts: string[]
-  next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
+  next: { title?: string; location?: string; presentIds: string[]; leadId: string; storylineId?: string; newStorylineName?: string }
   /** Set when the chapter ends too. */
   chapter?: { recapText: string; openThreads: string[]; next: { title?: string; goal?: string } }
 }
@@ -98,6 +98,7 @@ export function EndSceneDialog({
   const [title, setTitle] = useState('')
   const [nextLocation, setNextLocation] = useState(location ?? '')
   const [presentIds, setPresentIds] = useState<Set<string>>(() => initialPresent(cast, leadId))
+  const [nextLeadId, setNextLeadId] = useState(leadId)
   const [mode, setMode] = useState<StorylineMode>('continue')
   const [storylineName, setStorylineName] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -123,6 +124,7 @@ export function EndSceneDialog({
     setTitle('')
     setNextLocation(location ?? '')
     setPresentIds(initialPresent(cast, leadId))
+    setNextLeadId(leadId)
     setMode('continue')
     setStorylineName('')
     setSubmitError(null)
@@ -161,7 +163,7 @@ export function EndSceneDialog({
   }
 
   const togglePresent = (id: string) => {
-    if (id === leadId) return
+    if (id === nextLeadId) return
     setPresentIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -198,7 +200,8 @@ export function EndSceneDialog({
         next: {
           title: title.trim() || undefined,
           location: nextLocation.trim() || undefined,
-          presentIds: [leadId, ...cast.map((c) => c.id).filter((id) => id !== leadId && presentIds.has(id))],
+          presentIds: [nextLeadId, ...cast.map((c) => c.id).filter((id) => id !== nextLeadId && presentIds.has(id))],
+          leadId: nextLeadId,
           storylineId: mode === 'continue' ? currentStorylineId : undefined,
           newStorylineName: mode === 'split' ? storylineName.trim() : undefined,
         },
@@ -384,12 +387,30 @@ export function EndSceneDialog({
             <TextField label="Location" value={nextLocation} onChange={(e) => setNextLocation(e.target.value)} placeholder="Where it opens" />
           </div>
 
+          {cast.length > 1 && (
+            <label className="mb-3 block space-y-1 text-xs font-medium text-text-muted">
+              Lead
+              <select
+                value={nextLeadId}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setNextLeadId(id)
+                  setPresentIds((prev) => new Set([...prev, id]))
+                }}
+                className="w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-base text-text outline-none ring-1 ring-transparent focus:ring-accent/40 sm:py-2 sm:text-sm"
+              >
+                {cast.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === leadId ? ' (lead now)' : ''}</option>)}
+              </select>
+              <span className="block font-normal">The lead is always in the scene. A new lead takes over the lead's place; whoever led before stays only if ticked below.</span>
+            </label>
+          )}
+
           {cast.length > 0 && (
             <fieldset className="mb-3">
               <legend className="mb-1 text-xs font-medium text-text-muted">Who's there</legend>
               <div className="grid gap-1.5 sm:grid-cols-2">
                 {cast.map((c) => {
-                  const isLead = c.id === leadId
+                  const isLead = c.id === nextLeadId
                   return (
                     <label key={c.id} className={`${CHECK_ROW} ${isLead ? 'cursor-default' : ''}`}>
                       <input

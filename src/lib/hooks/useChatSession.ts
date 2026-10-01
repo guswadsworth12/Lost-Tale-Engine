@@ -3,6 +3,7 @@
  * prompts, streams generation, and runs the post-reply "assist" passes (relationship judging,
  * intimacy scenes, gifts, objectives, world triggers, summarization, choice suggestions).
  */
+import { cardBrief } from '@/lib/characters/cardBrief'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { promptOverride } from '@/lib/prompt/promptOverrides'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
@@ -30,12 +31,15 @@ import {
   earlierRollFrom,
   pendingChoiceFrom,
   setEventsDoneFrom,
+  gmHeld,
+  type GmPlayedCharacter,
   type SetEvent,
   buildGmPrompt,
   formatGmMessage,
   gmDirectionFor,
   isPlayerCharacter,
   parseGmTurn,
+  cardCallsFrom,
   recentRollsFrom,
   fallbackGmTurn,
   type GmContext,
@@ -2547,6 +2551,24 @@ export function useChatSession(chatId: string | null) {
     [chatId],
   )
 
+  /** Who the Game Master plays itself until a set event hands them over (`GmPlayedCharacter`). */
+  const updateGmPlayed = useCallback(
+    async (played: GmPlayedCharacter[]) => {
+      if (!chatId) return
+      await chatsApi.update(chatId, { gmPlayed: played.length ? played : null } as Partial<Chat>)
+    },
+    [chatId],
+  )
+
+  /** Makes another character this scene's lead. `keepPrevious: false` takes the old lead out of the scene. */
+  const changeLead = useCallback(
+    async (characterId: string, keepPrevious: boolean) => {
+      if (!chatId) return
+      await chatsApi.changeLead(chatId, characterId, keepPrevious)
+    },
+    [chatId],
+  )
+
   /**
    * The player's own correction to tracked state. It happens at this point in the story, so it rides
    * the latest message and follows rewinds and forks (`world/gameState.ts`); with no messages yet it
@@ -2736,7 +2758,7 @@ export function useChatSession(chatId: string | null) {
       recapText: string
       openThreads: string[]
       canonFacts: string[]
-      next: { title?: string; location?: string; presentIds: string[]; storylineId?: string; newStorylineName?: string }
+      next: { title?: string; location?: string; presentIds: string[]; leadId?: string; storylineId?: string; newStorylineName?: string }
       /** Ends the chapter too (`story/chapters.ts`). */
       chapter?: { recapText: string; openThreads: string[]; next: { title?: string; goal?: string } }
     }): Promise<Chat> => {
@@ -2775,6 +2797,7 @@ export function useChatSession(chatId: string | null) {
           title: input.next.title?.trim() || undefined,
           ...(location !== undefined ? { location: location || null } : {}),
           presentIds: input.next.presentIds,
+          ...(input.next.leadId && input.next.leadId !== fresh.characterId ? { leadId: input.next.leadId } : {}),
           storylineId: input.next.storylineId,
           newStorylineName: input.next.newStorylineName?.trim() || undefined,
         },
@@ -3520,14 +3543,18 @@ export function useChatSession(chatId: string | null) {
       // The card you play is never AI cast: matched by id, with the name check kept for stories
       // whose player predates cards and personas merging.
       const isPlayer = (c: { id: string; name: string }) => c.id === freshChat?.playerCharacterId || isPlayerCharacter(c.name, playerName)
-      const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayer(c))
-      const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayer(c))
-      const loadedRoster = available.filter((c) => loadedIds.includes(c.id))
       const upTo = branch.slice(0, branch.findIndex((m) => m.id === playerMsg.id) + 1)
+      const eventsDone = [...(freshChat?.setEventsDone ?? []), ...setEventsDoneFrom(upTo)]
+      // Characters the GM plays itself until their set event: not cast, not arrivals, not agents.
+      const held = gmHeld(freshChat?.gmPlayed, eventsDone)
+      const heldIds = new Set(held.map((p) => p.characterId))
+      const cast = fullRoster.filter((c) => presentIds.has(c.id) && !isPlayer(c) && !heldIds.has(c.id))
+      const available = fullRoster.filter((c) => !presentIds.has(c.id) && c.gmEligible !== false && !isPlayer(c) && !heldIds.has(c.id))
+      const loadedRoster = available.filter((c) => loadedIds.includes(c.id))
       const scenery = currentScenery(upTo, freshChat?.scene)
       const lastTagged = [...upTo].reverse().find((m) => m.role === 'char' && m.scene?.background)?.scene?.background
       const night = sceneryIsNight(scenery, isNightPhase(world.currentPhaseIndex))
-      const ctx: GmContext = {
+      const baseCtx: GmContext = {
         campaign: { ...world.campaign, mode: rulesMode },
         styleGuidance: promptOverride(world.promptOverrides, 'gm-style'),
         worldName: world.name,
@@ -3562,7 +3589,18 @@ export function useChatSession(chatId: string | null) {
         roster: cast,
         availableRoster: available,
         loadedRoster,
-        cardedNames: fullRoster.filter((c) => !isPlayerCharacter(c.name, playerName)).map((c) => c.name),
+        cardedNames: fullRoster.filter((c) => !isPlayerCharacter(c.name, playerName) && !heldIds.has(c.id)).map((c) => c.name),
+        gmPlayed: held.flatMap((p) => {
+          const name = fullRoster.find((c) => c.id === p.characterId)?.name
+          const until = p.until ? freshChat?.setEvents?.find((e) => e.id === p.until) : undefined
+          return name ? [{ id: p.characterId, name, as: p.as, ...(p.form ? { form: p.form } : {}), ...(until ? { until } : {}) }] : []
+        }),
+        // Whose cards it may read, if it decides a beat needs them: who it plays, who is here, who could arrive.
+        cardIndex: [...new Set([
+          ...held.map((p) => fullRoster.find((c) => c.id === p.characterId)?.name),
+          ...cast.map((c) => c.name),
+          ...available.map((c) => c.name),
+        ].filter((n): n is string => !!n))],
         canFork: !upTo.slice(-8).some((m) => !!m.gm?.fork),
         loreIndex: callableLore.map(({ id, title }) => ({ id, title })),
         playerName,
@@ -3587,16 +3625,14 @@ export function useChatSession(chatId: string | null) {
         // Only when this turn has no dice of its own: a fresh roll always governs its own beat.
         earlierRoll: playerMsg.campaignRoll ? undefined : earlierRollFrom(upTo.slice(0, -1)),
         pendingChoice: playerMsg.campaignRoll ? undefined : pendingChoiceFrom(upTo.slice(0, -1)),
-        setEvents: (() => {
-          const done = new Set([...(freshChat?.setEventsDone ?? []), ...setEventsDoneFrom(upTo)])
-          return (freshChat?.setEvents ?? []).filter((event) => !done.has(event.id))
-        })(),
+        setEvents: (freshChat?.setEvents ?? []).filter((event) => !eventsDone.includes(event.id)),
         maxSpeakers: 3,
       }
-      const { system, user } = buildGmPrompt(ctx)
+      let ctx = baseCtx
       try {
         const maxContext = await client.getEffectiveMaxContext(8192)
         const requestRuling = (extra = '') => {
+          const { system, user } = buildGmPrompt(ctx)
           const promptUser = extra ? `${user}\n\n${extra}` : user
           return generateWithTimeout(client, {
             max_length: 700,
@@ -3609,13 +3645,25 @@ export function useChatSession(chatId: string | null) {
             messages: [{ role: 'system', content: system }, { role: 'user', content: promptUser }],
           }, 'Game Master', abortRef.current?.signal, assistShaping)
         }
-        let turn = parseGmTurn(await requestRuling(), ctx)
+        let raw = await requestRuling()
+        // It decided this beat needs someone's card: read it, and rule again with it in hand.
+        const called = cardCallsFrom(raw, ctx)
+        if (called.length) {
+          const calledCards = (await Promise.all(called.map(async (name) => {
+            const id = fullRoster.find((c) => c.name === name)?.id
+            const card = id ? await charactersApi.get(id).catch(() => undefined) : undefined
+            return card ? { name, card: cardBrief(card, { userName: playerName }) } : undefined
+          }))).filter((c): c is { name: string; card: string } => !!c?.card)
+          ctx = { ...ctx, calledCards }
+          raw = await requestRuling()
+        }
+        let turn = parseGmTurn(raw, ctx)
         if (turn.fallback?.startsWith('The GM did not answer a question earned by')) {
           turn = parseGmTurn(await requestRuling(`Correction: ${playerName}'s question is already paid for by the recorded ${ctx.earlierRoll?.moveName} result. Answer it directly in adjudication.outcome, set followUp true, and do not request another roll.`), ctx)
         }
         return turn
       } catch (e) {
-        return fallbackGmTurn(ctx, `GM model call failed: ${errorMessage(e)}`)
+        return fallbackGmTurn(baseCtx, `GM model call failed: ${errorMessage(e)}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3658,6 +3706,12 @@ export function useChatSession(chatId: string | null) {
             ? { ...fresh.scene, presentCharacterIds: [...new Set([...fresh.scene.presentCharacterIds, ...turn.addCharacterIds])] }
             : fresh.scene
           await chatsApi.update(chatId, { participants, scene })
+        }
+        // Handed over in a new form: the stage shows them in it from now on.
+        const forms = Object.fromEntries((turn.handedOver ?? []).filter((h) => h.form).map((h) => [h.id, h.form!]))
+        if (Object.keys(forms).length) {
+          const latest = await chatsApi.get(chatId)
+          if (latest?.scene) await chatsApi.update(chatId, { scene: { ...latest.scene, appearanceOverrides: { ...latest.scene.appearanceOverrides, ...forms } } })
         }
         const arrivals = await Promise.all(turn.addCharacterIds.map((id) => charactersApi.get(id).catch(() => undefined)))
         arrivalsRef.current = [...arrivalsRef.current, ...arrivals.filter((c): c is Character => !!c)]
@@ -3725,7 +3779,7 @@ export function useChatSession(chatId: string | null) {
           extraStyleGuidance: [
             isRemote(agent.id)
               ? gmDirectionFor(turn, agent.card.name, playerName, [agent.card.name], false, true)
-              : gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id)),
+              : gmDirectionFor(turn, agent.card.name, playerName, beatOrder, !!turn.addCharacterIds?.includes(agent.id) && !turn.handedOver?.some((h) => h.id === agent.id)),
             !isRemote(agent.id) && remoteNames.length
               ? `${remoteNames.join(' and ')} answered ${playerName} from afar; only ${playerName} heard it. ${agent.card.name} knows only what ${playerName} says aloud about it.`
               : '',
@@ -4837,6 +4891,8 @@ export function useChatSession(chatId: string | null) {
     updateScene,
     updateGmNotes,
     updateSetEvents,
+    updateGmPlayed,
+    changeLead,
     editGameState,
     updateParticipants,
     switchPlayer,

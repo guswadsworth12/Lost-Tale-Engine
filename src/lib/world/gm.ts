@@ -48,8 +48,10 @@ export interface GmAdjudication {
   action: string
   /** Where the outcome came from — shown in the UI so a guided judgment never reads as a rules result. */
   source: 'recorded_roll' | 'guided_judgment' | 'roll_needed' | 'set_event'
-  /** The story's set event this beat carried out (`SetEvent`): canon, applied without a roll. */
+  /** The story's set event this beat carried out (`SetEvent`): canon, applied without a roll. The first, when there were several. */
   setEventId?: string
+  /** Every set event this beat carried out, when one action did more than one (both bindings in one ritual). */
+  setEventIds?: string[]
   moveId?: string
   moveName?: string
   tier?: PbtaRoll['tier']
@@ -88,14 +90,44 @@ export interface SetEvent {
   effects?: TrackEffect[]
 }
 
+/**
+ * A carded character the Game Master plays for now: it voices and narrates them itself and they have
+ * no agent of their own, until a set event hands them over (`until`). Set on the story's chat
+ * (`Chat.gmPlayed`) and carried into later scenes, like set events.
+ */
+export interface GmPlayedCharacter {
+  characterId: string
+  /** How the GM plays them meanwhile: "the Unbound, a formless hunger pressing at the seal". */
+  as: string
+  /** The set event that hands them over to their own agent. Unset: the GM plays them until this is removed. */
+  until?: string
+  /** One of their own outfit or form ids, worn from the moment they are handed over. */
+  form?: string
+}
+
+/** The ones the GM still plays: their handing-over set event hasn't happened. */
+export function gmHeld(played: readonly GmPlayedCharacter[] | undefined, doneEventIds: readonly string[]): GmPlayedCharacter[] {
+  return (played ?? []).filter((p) => !p.until || !doneEventIds.includes(p.until))
+}
+
 /** Set events already carried out in this branch. */
 export function setEventsDoneFrom(messages: readonly { gm?: GmTurn }[]): string[] {
-  return [...new Set(messages.map((m) => m.gm?.adjudication?.setEventId).filter((id): id is string => !!id))]
+  return [...new Set(messages.flatMap((m) => setEventIdsOf(m.gm?.adjudication)))]
+}
+
+/** The set events one beat carried out. */
+export function setEventIdsOf(adjudication: Pick<GmAdjudication, 'setEventId' | 'setEventIds'> | undefined): string[] {
+  return [...new Set([adjudication?.setEventId, ...(adjudication?.setEventIds ?? [])].filter((id): id is string => !!id))]
 }
 
 /** The first not-yet-done set event whose words all appear in the player's action. */
 export function matchSetEvent(action: string, events: readonly SetEvent[]): SetEvent | undefined {
-  return events.find((event) => !!event.match?.length && event.match.every((word) => {
+  return matchSetEvents(action, events)[0]
+}
+
+/** Every set event the action's words identify: one action can carry out more than one. */
+export function matchSetEvents(action: string, events: readonly SetEvent[]): SetEvent[] {
+  return events.filter((event) => !!event.match?.length && event.match.every((word) => {
     const options = word.split('|').map((w) => w.trim()).filter(Boolean)
     return options.some((option) => new RegExp(`\\b${escapeRe(option)}`, 'i').test(action))
   }))
@@ -235,6 +267,8 @@ export interface GmTurn {
   corrections?: string[]
   /** Tracked state this beat changed by rule: the player's pick for a roll, or a set event carried out. */
   stateChanges?: StateChange[]
+  /** Characters the GM was playing whose set event happened this beat: their own agents take over now (`GmPlayedCharacter`). */
+  handedOver?: { id: string; name: string; as: string; form?: string }[]
 }
 
 export interface GmRosterEntry {
@@ -299,6 +333,12 @@ export interface GmContext {
   pendingChoice?: PendingChoice
   /** The story's canon beats that have not happened yet in this branch. */
   setEvents?: SetEvent[]
+  /** Carded characters the GM plays itself for now (`gmHeld`). Left out of the cast, arrivals, and `cardedNames`. */
+  gmPlayed?: { id: string; name: string; as: string; form?: string; until?: SetEvent }[]
+  /** Characters whose cards the GM may read before ruling, if it decides it needs them (`cardCallsFrom`). */
+  cardIndex?: string[]
+  /** The cards it asked for, on the second pass (`cardBrief`). */
+  calledCards?: { name: string; card: string }[]
   maxSpeakers: number
 }
 
@@ -374,6 +414,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     `You are the GAME MASTER for a ${campaign.ruleset}${campaign.edition ? ` (${campaign.edition})` : ''} story in the setting "${ctx.worldName}".`,
     'You run the scene and NPCs without character cards. Every listed present or available character has a card and is played by a separate agent, even when you do not choose them to speak this beat.',
     'Never write a carded character’s dialogue, actions, gestures, thoughts, feelings, entrance, or reaction in narration or adjudication. Do not preview or paraphrase their reply. Put present carded characters who should respond in speakers; their agents will write their own turns. Narration is only for scenery, uncarded NPCs, and immediate observable effects of the player’s action. Keep carded character names out of narration. For example: "Rain strikes the windows. The barkeep says the bridge is closed."',
+    ...(ctx.gmPlayed?.length ? ['The one exception: characters listed as played by you. You voice and narrate them yourself until their own agent takes over. When the player\'s action calls for their answer or reaction, give it yourself in this beat\'s narration: never leave the scene waiting on them. The set event that hands one of them over is canon: when the player offers or attempts it, they accept, and it happens this beat. Their listed name is for you, not the story: in narration, call them only what the characters know them as, and describe what they become from the set event\'s outcome, nothing more.'] : []),
     `${ctx.playerName} is the player's character. Never write ${ctx.playerName}'s dialogue, voluntary actions, choices, thoughts, feelings, or discoveries, and never pick ${ctx.playerName} to act.`,
     ...modeLines,
     ...customLines,
@@ -387,7 +428,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
     'Established conditions are true when the player checks them, even if the outline expected their discovery later. On a successful investigation, give truthful, actionable evidence within the declared scope; never conceal it to preserve a planned reveal. If a recorded result grants questions, answer the player’s questions from that result without demanding another roll: set adjudication.followUp to true, name the earlier move, and put the answer in adjudication.outcome. A follow-up question never needs new dice. Describe what the character can observe, not their private interpretation or next choice.',
-    'Set events are canon beats of this story. When the player\'s action carries one out, it happens exactly as written: do not request a roll or name a move; set adjudication.setEvent to its id and narrate its outcome. Never trigger a set event the player has not attempted.',
+    'Set events are canon beats of this story. When the player\'s action carries one out, it happens exactly as written: do not request a roll or name a move; put its id in adjudication.setEvents and narrate its outcome. Recognize one by what the action accomplishes, not by its exact words, and list every set event a single action carries out. Never trigger a set event the player has not attempted.',
     'When a recorded result grants questions, the roll is not resolved until the player asks them: on the roll beat, narrate only what the result settles (including any complication it names), invite the question, do not answer anything yet, and list no speakers. While granted questions remain, answer each one and again list no speakers.',
     'When a recorded result asks the player to choose (a cost, a complication, an option), the roll is not resolved until they do. Narrate only what the result has already settled, never pick for them, end by asking them to choose, and list no speakers: nobody reacts until the choice is made. When the player then makes that choice, apply it from the earlier roll: set adjudication.followUp to true, adjudication.choice to their pick, name the earlier move, put what the choice costs in the fiction in adjudication.outcome, and do not request a roll.',
     'When the player\'s declared action or the fiction moves the group somewhere new, set "setting" to where the scene now is: a short place name, plus its atmosphere if that matters. A character arriving is not a move. Otherwise use null.',
@@ -398,7 +439,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ] : []),
     'Rumors and beliefs are not facts. A remembered line tagged "claim" is only what someone said, and "belief" only what someone thinks; "unverified" means nobody has ruled on it, "true" or "FALSE" is the player\'s ruling. Never narrate a claim or belief as true unless it is ruled true. Characters who heard a FALSE claim still believe it until they learn otherwise in play; let them act on it, but the world does not bend to it. Never put an unconfirmed claim or a belief in a "world" proposal.',
     'Reply with one JSON object and nothing else:',
-    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "remote": [at most one available character reached from afar], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "choice": string|null, "setEvent": string|null, "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string${campaign.tracks?.length ? ', "change": string|null' : ''}}]}`,
+    `{"narration": string, "pacing": "linger"|"advance"|"cut", "speakers": [present or arriving character names], "addCharacters": [up to ${maxArrivals} available character names], "remote": [at most one available character reached from afar], "fork": {"title": string, "reason": string}|null, "setting": {"location": string, "atmosphere": string|null}|null, "loreCalls": [up to two listed lore titles], "adjudication": {"action": string, "move": string|null, "target": number|null, "tier": "strong"|"mixed"|"miss"|null, "followUp": boolean, "choice": string|null, "setEvents": [set event ids this action carries out], "outcome": string} | null, "proposals": [{"scope": "branch"|"world", "text": string${campaign.tracks?.length ? ', "change": string|null' : ''}}]}`,
   ].join('\n')
 
   const describe = (r: GmRosterEntry) => `- ${r.name}${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).length ? ` (${[r.rank && `rank: ${r.rank}`, r.occupation].filter(Boolean).join('; ')})` : ''}`
@@ -438,6 +479,12 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.loadedRoster?.length ? `Loaded for this scene but still awaited: ${ctx.loadedRoster.map((r) => r.name).join(', ')}. They can enter together when the scene reaches them.` : '',
     `Characters available to enter (add at most ${maxArrivals}, only if the scene calls for it):\n${availableLine}`,
     ctx.cardedNames?.length ? `All carded characters (never portray them in GM prose): ${ctx.cardedNames.join(', ')}` : '',
+    ctx.gmPlayed?.length ? `Characters you play yourself for now. They have no agent yet: voice and narrate them in your narration, by name, and never list them in speakers, addCharacters, or remote.\n${ctx.gmPlayed.map((p) => `- ${p.name}, as ${p.as}${p.until ? `. Their own agent takes over when this set event happens: [${p.until.id}] ${p.until.trigger}` : ''}`).join('\n')}` : '',
+    ctx.calledCards?.length
+      ? `Character cards you asked for (names in them are for you; the story may not know them yet):\n${ctx.calledCards.map((c) => `- ${c.name}: ${c.card.replace(/\n+/g, ' ')}`).join('\n')}`
+      : ctx.cardIndex?.length
+        ? `Character cards you can read before ruling: ${ctx.cardIndex.join(', ')}. Only if this beat needs what a card says (how someone looks, what they become, what they know), reply with nothing but {"cardCalls": [up to two of those names]}; you will get them and rule again. Otherwise rule now.`
+        : '',
     `Fork allowed this beat: ${ctx.canFork === false ? 'no — a nearby beat already forked' : 'yes, if a distinct continuing branch is truly needed'}`,
     ctx.loreIndex?.length ? `Callable public lorebook entries:\n${ctx.loreIndex.map((l) => `- ${l.title}`).join('\n')}` : '',
     ctx.transcript.length ? `Recent scene:\n${ctx.transcript.map((t) => `${t.speaker}: ${t.text}`).join('\n')}` : '',
@@ -452,6 +499,24 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     'JSON:',
   ].filter(Boolean).join('\n\n')
   return { system, user }
+}
+
+/**
+ * The cards the GM asked to read before ruling (`{"cardCalls": [...]}`), matched to `ctx.cardIndex`,
+ * at most two. None on the second pass, when it already has them.
+ */
+export function cardCallsFrom(raw: string, ctx: Pick<GmContext, 'cardIndex' | 'calledCards'>): string[] {
+  if (ctx.calledCards || !ctx.cardIndex?.length) return []
+  const obj = extractJsonObject(raw)
+  const asked = Array.isArray(obj?.cardCalls) ? obj.cardCalls.filter((n): n is string => typeof n === 'string') : []
+  const names: string[] = []
+  for (const name of asked) {
+    const hit = ctx.cardIndex.find((n) => n.toLowerCase() === name.trim().toLowerCase())
+      ?? ctx.cardIndex.find((n) => firstName(n) === firstName(name))
+    if (hit && !names.includes(hit)) names.push(hit)
+    if (names.length === 2) break
+  }
+  return names
 }
 
 /** Everyone the GM can name in a tracked-state change: the cast, who could arrive, and the player. */
@@ -517,6 +582,12 @@ export function fallbackGmTurn(ctx: GmContext, reason: string): GmTurn {
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+/** The set events the GM named for this beat: `setEvents` (a list), or the older single `setEvent`. */
+function namedSetEvents(rawAdj: Record<string, unknown> | undefined, events: readonly SetEvent[]): SetEvent[] {
+  const ids = [...(Array.isArray(rawAdj?.setEvents) ? rawAdj.setEvents : []), rawAdj?.setEvent].map((id) => str(id, 100)).filter(Boolean)
+  return events.filter((e) => ids.includes(e.id))
+}
 
 /**
  * Drops only the sentences that name a carded character. Their agents own what they do, but the
@@ -686,14 +757,19 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       rollId: p.rollId,
       outcome,
     }
-  } else if (ctx.setEvents?.length && (
-    ctx.setEvents.find((e) => e.id === str(rawAdj?.setEvent, 100)) || matchSetEvent(ctx.playerAction, ctx.setEvents)
-  )) {
-    // A canon beat: it happens as written. A roll the GM asked for is overruled.
-    const event = ctx.setEvents.find((e) => e.id === str(rawAdj?.setEvent, 100)) ?? matchSetEvent(ctx.playerAction, ctx.setEvents)!
-    if (str(rawAdj?.setEvent, 100) !== event.id) corrections.push(`Carried out the story's set event "${event.trigger}" without a roll.`)
-    adjudication = { action: ctx.playerAction.trim().slice(0, 500), source: 'set_event', setEventId: event.id, outcome: event.outcome }
-    stateChanges.push(...effectsForSetEvent(event, ctx.campaign.tracks, gmPeople(ctx), ctx.playerId))
+  } else if (ctx.setEvents?.length && (namedSetEvents(rawAdj, ctx.setEvents).length || matchSetEvents(ctx.playerAction, ctx.setEvents).length)) {
+    // A canon beat: it happens as written. A roll the GM asked for is overruled. One action can carry out several.
+    const named = namedSetEvents(rawAdj, ctx.setEvents)
+    const events = [...named, ...matchSetEvents(ctx.playerAction, ctx.setEvents).filter((e) => !named.includes(e))]
+    for (const event of events) if (!named.includes(event)) corrections.push(`Carried out the story's set event "${event.trigger}" without a roll.`)
+    adjudication = {
+      action: ctx.playerAction.trim().slice(0, 500),
+      source: 'set_event',
+      setEventId: events[0].id,
+      ...(events.length > 1 ? { setEventIds: events.map((e) => e.id) } : {}),
+      outcome: events.map((e) => e.outcome).join(' '),
+    }
+    for (const event of events) stateChanges.push(...effectsForSetEvent(event, ctx.campaign.tracks, gmPeople(ctx), ctx.playerId))
   } else if (ctx.earlierRoll && (rawAdj?.followUp === true || looksLikeQuestion(ctx.playerAction) || (
     str(rawAdj?.move, 200).toLowerCase() === ctx.earlierRoll.moveName.toLowerCase() && !!claimedTier && claimedTier === ctx.earlierRoll.tier
   ))) {
@@ -794,9 +870,11 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
       // Tracked state belongs to this story branch, never to world canon.
       return { id: newId(), ...p, ...(changes ? { scope: 'branch' as const, changes } : {}), status: 'pending' as GmProposal['status'] }
     })
-  const setEvent = adjudication?.setEventId ? ctx.setEvents?.find((e) => e.id === adjudication!.setEventId) : undefined
   // A set event's consequence is canon for this branch the moment it happens; nobody needs to confirm it.
-  if (setEvent?.consequence) proposals.unshift({ id: newId(), scope: 'branch', text: setEvent.consequence, status: 'confirmed', decidedAt: Date.now() })
+  const carriedOut = setEventIdsOf(adjudication).map((id) => ctx.setEvents?.find((e) => e.id === id)).filter((e): e is SetEvent => !!e)
+  for (const event of [...carriedOut].reverse()) {
+    if (event.consequence) proposals.unshift({ id: newId(), scope: 'branch', text: event.consequence, status: 'confirmed', decidedAt: Date.now() })
+  }
 
   if (ctx.recordedMove && (claimedTier !== ctx.recordedMove.tier
     || str(rawAdj?.move, 200).toLowerCase() !== ctx.recordedMove.moveName.toLowerCase()
@@ -819,12 +897,24 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     }
   }
 
+  // A set event that hands a GM-played character over: they join the scene and answer for themselves.
+  const doneNow = setEventIdsOf(adjudication)
+  const handedOver = (ctx.gmPlayed ?? []).filter((p) => !!p.until && doneNow.includes(p.until.id))
+  for (const p of handedOver) {
+    if (!addCharacterIds.includes(p.id)) addCharacterIds.push(p.id)
+    if (!speakerIds.includes(p.id)) speakerIds.push(p.id)
+  }
+  for (let i = speakerIds.length - 1; speakerIds.length > ctx.maxSpeakers && i >= 0; i--) {
+    if (!addCharacterIds.includes(speakerIds[i]) && !remoteIds.includes(speakerIds[i])) speakerIds.splice(i, 1)
+  }
+
   return {
     mode: ctx.campaign.mode,
     ruleset: ctx.campaign.ruleset,
     narration,
     pacing,
     speakerIds,
+    ...(handedOver.length ? { handedOver: handedOver.map(({ id, name, as, form }) => ({ id, name, as, ...(form ? { form } : {}) })) } : {}),
     addCharacterIds: addCharacterIds.length ? addCharacterIds : undefined,
     remoteIds: remoteIds.length ? remoteIds : undefined,
     fork,
@@ -875,7 +965,11 @@ export function formatGmMessage(turn: GmTurn): string {
  */
 export function gmDirectionFor(turn: GmTurn, speakerName: string, playerName: string, beatOrder: string[] = [], entering = false, remote = false): string {
   const lines = [`The Game Master has ruled on this beat. Reply only as ${speakerName}.`]
-  if (remote) {
+  const handed = turn.handedOver?.find((h) => h.name === speakerName)
+  if (handed) {
+    // Until now the GM played them; this beat's set event gave them their own voice.
+    lines.push(`Until now the Game Master played ${speakerName}, as ${handed.as}. ${playerName}'s action has just changed that (the GM's ruling says how). From here ${speakerName} speaks and acts for themself, in the form that change gave them, starting from this moment.`)
+  } else if (remote) {
     // Reached from afar: they answer through that means and never step into the scene.
     lines.push(`${speakerName} is not in this scene. ${playerName} reached ${speakerName} from afar (a call, a message, telepathy, or whatever means the last action used). Answer only through that same means, from where ${speakerName} is, and only to ${playerName}. ${speakerName} does not see or hear the scene beyond what ${playerName} sent and does not join it. Do not describe anyone else there.`)
   } else if (entering) {

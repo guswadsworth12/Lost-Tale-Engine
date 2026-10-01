@@ -1,9 +1,11 @@
 import { useId, useState, type ReactNode } from 'react'
-import { GitBranch, Pencil } from 'lucide-react'
+import { GitBranch, Pencil, Trash2 } from 'lucide-react'
 import type { Chapter, Chat, Story } from '@/lib/types'
 import { sceneLabel } from '@/lib/story/recaps'
 import { sceneLocation, storyLanes } from '@/lib/story/library'
 import { chapterIdOf, chapterLabel, chaptersOf, scenesOfChapter } from '@/lib/story/chapters'
+import { confirmDialog } from '@/lib/store/useConfirmStore'
+import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { StorySequelLink } from './StorySequelLink'
 
 export interface ChapterEditInput {
@@ -19,14 +21,17 @@ export interface ChapterEditInput {
  * recap and open threads; inside each, its scenes, one lane per storyline (the main line first),
  * each scene with where it happened, whether it's over, and its recap. Opening a scene hands its
  * chat id back. `onEditChapter` lets the player name a chapter, set its goal, or correct its recap.
- * `showSequelLink` adds the story's "Continues from" setting underneath.
+ * `showSequelLink` adds the story's "Continues from" setting underneath. `onDeleteScene` adds a
+ * Delete to each scene while the story has more than one.
  */
-export function StoryScenes({ story, scenes, currentSceneId, onOpenScene, onEditChapter, showSequelLink = false }: {
+export function StoryScenes({ story, scenes, currentSceneId, onOpenScene, onEditChapter, onDeleteScene, showSequelLink = false }: {
   story?: Story
   scenes: Chat[]
   currentSceneId?: string
   onOpenScene?: (chatId: string) => void
   onEditChapter?: (edit: ChapterEditInput) => Promise<void>
+  /** Deletes one scene into the trash (`chatsApi.removeScene`). */
+  onDeleteScene?: (chatId: string) => Promise<void>
   showSequelLink?: boolean
 }) {
   const sequelLink = showSequelLink && story
@@ -49,7 +54,8 @@ export function StoryScenes({ story, scenes, currentSceneId, onOpenScene, onEdit
             {lanes.length
               ? lanes.map((lane) => (
                 <Lane key={lane.storylineId} name={lanes.length > 1 ? lane.name : undefined}
-                  splitFrom={lane.splitFrom} scenes={lane.scenes} currentSceneId={currentSceneId} onOpenScene={onOpenScene} />
+                  splitFrom={lane.splitFrom} scenes={lane.scenes} currentSceneId={currentSceneId} onOpenScene={onOpenScene}
+                  onDeleteScene={scenes.length > 1 ? onDeleteScene : undefined} />
               ))
               : <p className="text-xs text-text-muted">No scenes in this branch yet.</p>}
           </ChapterSection>
@@ -140,12 +146,13 @@ export function ChapterSection({ chapter, isCurrent, onEdit, children }: {
   )
 }
 
-function Lane({ name, splitFrom, scenes, currentSceneId, onOpenScene }: {
+function Lane({ name, splitFrom, scenes, currentSceneId, onOpenScene, onDeleteScene }: {
   name?: string
   splitFrom?: Chat
   scenes: Chat[]
   currentSceneId?: string
   onOpenScene?: (chatId: string) => void
+  onDeleteScene?: (chatId: string) => Promise<void>
 }) {
   const headingId = useId()
   return (
@@ -156,15 +163,16 @@ function Lane({ name, splitFrom, scenes, currentSceneId, onOpenScene }: {
       {splitFrom && <p className="mt-0.5 text-xs text-text-muted">Split from {sceneLabel(splitFrom)}</p>}
       <ol className={`space-y-2 border-l border-border pl-3 ${name ? 'mt-2' : ''}`}>
         {scenes.map((scene) => (
-          <SceneItem key={scene.id} scene={scene} isCurrent={scene.id === currentSceneId} onOpenScene={onOpenScene} />
+          <SceneItem key={scene.id} scene={scene} isCurrent={scene.id === currentSceneId} onOpenScene={onOpenScene} onDelete={onDeleteScene} />
         ))}
       </ol>
     </section>
   )
 }
 
-function SceneItem({ scene, isCurrent, onOpenScene }: { scene: Chat; isCurrent: boolean; onOpenScene?: (chatId: string) => void }) {
+function SceneItem({ scene, isCurrent, onOpenScene, onDelete }: { scene: Chat; isCurrent: boolean; onOpenScene?: (chatId: string) => void; onDelete?: (chatId: string) => Promise<void> }) {
   const [expanded, setExpanded] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const recapId = useId()
   const location = sceneLocation(scene)
   const recap = scene.recap?.text?.trim()
@@ -181,7 +189,22 @@ function SceneItem({ scene, isCurrent, onOpenScene }: { scene: Chat; isCurrent: 
             : <span className="text-sm font-medium text-text">{label}</span>}
           {location && <p className="truncate text-xs text-text-muted">{location}</p>}
         </div>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${isCurrent ? 'bg-accent/15 text-accent' : 'bg-bg-sunken text-text-muted'}`}>{status}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 text-[11px] ${isCurrent ? 'bg-accent/15 text-accent' : 'bg-bg-sunken text-text-muted'}`}>{status}</span>
+          {onDelete && <button disabled={deleting} aria-label={`Delete ${label}`} title={`Delete ${label}`}
+            className="rounded-lg p-1 text-text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: `Delete ${label}?`,
+                body: `Moves this scene to the trash, recoverable there for 30 days. The scenes after it continue from the one before it${scene.endedAt ? '' : ', and if it is where the story stands, the scene before it opens again'}. What happened only in this scene (its set events and consequences) is taken back.`,
+                confirmLabel: 'Delete scene',
+                tone: 'danger',
+              })
+              if (!ok) return
+              setDeleting(true)
+              try { await onDelete(scene.id) } catch (e) { toastError(errorMessage(e)) } finally { setDeleting(false) }
+            }}><Trash2 size={13} /></button>}
+        </div>
       </div>
       {recap
         ? <>

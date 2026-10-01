@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAIN_STORYLINE_ID, StoryPlanError, planChapterEdit, planNextScene } from './storyPlan.ts'
+import { MAIN_STORYLINE_ID, StoryPlanError, planChapterEdit, planNextScene, planSceneRemoval, planSceneRestore } from './storyPlan.ts'
 
 const ids = () => {
   let n = 0
@@ -153,5 +153,71 @@ describe('planChapterEdit', () => {
     expect((cleared.story.chapters as Record<string, unknown>[])[1]).not.toHaveProperty('title')
     expect(() => planChapterEdit(inTwo, [], story, { recap: { text: 'x' } }, 1000, ids())).toThrow(/when it ends/)
     expect(() => planChapterEdit(inTwo, [], story, { chapterId: 'nope', title: 'x' }, 1000, ids())).toThrow(/not part of this story/)
+  })
+})
+
+describe('planNextScene with a new lead', () => {
+  it('opens the next scene with the new lead, who takes over the lead\'s place and track', () => {
+    const plan = planNextScene({ ...source, participantRelationships: { ally: { affection: 30 } } }, [], undefined,
+      { recap, next: { presentIds: ['ally', 'rival'], leadId: 'ally' } }, 1000, ids())
+    expect(plan.newChat).toMatchObject({ characterId: 'ally', affection: 30, participants: ['rival'], participantRelationships: { lead: { affection: 12, relationshipStats: { trust: 3 } } } })
+    expect((plan.newChat.scene as { presentCharacterIds: string[] }).presentCharacterIds).toEqual(['ally', 'rival'])
+    expect(plan.sourcePatch).not.toHaveProperty('characterId')
+  })
+
+  it('keeps the old lead along when they are picked to be there', () => {
+    const plan = planNextScene(source, [], undefined, { recap, next: { presentIds: ['ally', 'lead'], leadId: 'ally' } }, 1000, ids())
+    expect(plan.newChat).toMatchObject({ characterId: 'ally', participants: ['rival', 'lead'] })
+  })
+
+  it('refuses the played card as the lead', () => {
+    expect(() => planNextScene(source, [], undefined, { recap, next: { leadId: 'hero' } }, 1000, ids())).toThrow(StoryPlanError)
+  })
+})
+
+describe('deleting one scene', () => {
+  const s1 = { id: 's1', storyId: 'st', sceneNumber: 1, chapterId: 'chapter-1', chapterSceneNumber: 1, endedAt: 10, recap: { text: 'One.' } }
+  const s2 = { id: 's2', storyId: 'st', sceneNumber: 2, chapterId: 'chapter-1', chapterSceneNumber: 2, previousSceneId: 's1', endedAt: 20, recap: { text: 'Two.' } }
+  const s3 = { id: 's3', storyId: 'st', sceneNumber: 3, chapterId: 'chapter-1', chapterSceneNumber: 3, previousSceneId: 's2', setEventsDone: ['bind-emily'], carriedConsequences: ['Rend is strained.', 'The gate is sealed.'] }
+  const scenes = [s1, s2, s3]
+  const s2Messages = [{ gm: { adjudication: { setEventId: 'bind-emily' }, proposals: [{ scope: 'branch', status: 'confirmed', text: 'Rend is strained.' }] } }]
+  /** The scenes as the server leaves them after a plan: patches merged, cleared fields gone. */
+  const apply = (all: Record<string, unknown>[], plan: { scenePatches: Record<string, Record<string, unknown>> }, id: string, sourcePatch: Record<string, unknown>) =>
+    all.map((s) => JSON.parse(JSON.stringify({ ...s, ...(plan.scenePatches[s.id as string] ?? {}), ...(s.id === id ? sourcePatch : {}) })))
+
+  it('closes the gap around a middle scene and takes back what happened only in it', () => {
+    const plan = planSceneRemoval(s2, scenes, undefined, s2Messages, 500)
+    expect(plan.scenePatches.s3).toEqual({ previousSceneId: 's1', sceneNumber: 2, chapterSceneNumber: 2, setEventsDone: undefined, carriedConsequences: ['The gate is sealed.'] })
+    expect(plan.scenePatches.s1).toBeUndefined()
+    expect(plan.openSceneId).toBe('s3')
+    expect(plan.sourcePatch).toMatchObject({ deletedAt: 500, sceneRemoval: { previousSceneId: 's1', relinked: ['s3'], events: ['bind-emily'], consequences: ['Rend is strained.'] } })
+
+    // Restoring puts it all back.
+    const after = apply(scenes, plan, 's2', plan.sourcePatch)
+    const back = planSceneRestore(after.find((s) => s.id === 's2'), after, undefined, 0, 600)
+    expect(back.scenePatches.s3).toEqual({ previousSceneId: 's2', sceneNumber: 3, chapterSceneNumber: 3, setEventsDone: ['bind-emily'], carriedConsequences: ['The gate is sealed.', 'Rend is strained.'] })
+    expect(back.sourcePatch).toEqual({ deletedAt: undefined, sceneRemoval: undefined, updatedAt: 600 })
+  })
+
+  it('opens the scene before again when the story stood at the deleted one, and its chapter goes with it', () => {
+    const chapters = [{ id: 'chapter-1', number: 1, endedAt: 15, recap: { text: 'The first chapter.', sceneIds: ['s1', 's2'], writtenAt: 15 } }, { id: 'chapter-2', number: 2, startedAt: 20 }]
+    const tip = { ...s3, chapterId: 'chapter-2', chapterSceneNumber: 1 }
+    const plan = planSceneRemoval(tip, [s1, s2, tip], { id: 'st', chapters }, [], 500)
+    expect(plan.openSceneId).toBe('s2')
+    expect(plan.scenePatches.s2).toEqual({ endedAt: undefined, recap: undefined })
+    expect(plan.storyPatch?.chapters).toEqual([{ id: 'chapter-1', number: 1 }])
+
+    const after = apply([s1, s2, tip], plan, 's3', plan.sourcePatch)
+    const story = { id: 'st', chapters: plan.storyPatch!.chapters }
+    // Played on since: it can't go back in its place.
+    expect(() => planSceneRestore(after.find((s) => s.id === 's3'), after, story, 1, 600)).toThrow(/moved on/)
+    const back = planSceneRestore(after.find((s) => s.id === 's3'), after, story, 0, 600)
+    expect(back.scenePatches.s2).toEqual({ endedAt: 20, recap: { text: 'Two.' } })
+    expect(back.storyPatch?.chapters).toEqual(chapters)
+  })
+
+  it('refuses to delete a story\'s only scene, or a chat outside a story', () => {
+    expect(() => planSceneRemoval(s1, [s1], undefined, [], 500)).toThrow(/only scene/)
+    expect(() => planSceneRemoval({ id: 'lone' }, [], undefined, [], 500)).toThrow(/not a scene/)
   })
 })

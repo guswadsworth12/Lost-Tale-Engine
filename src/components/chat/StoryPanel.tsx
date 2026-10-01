@@ -12,6 +12,7 @@ import { StoryScenes } from '@/components/story/StoryScenes'
 import { campaignStats, sheetForWorld } from '@/lib/world/campaign'
 import { setEventsDoneFrom } from '@/lib/world/gm'
 import { SetEventsEditor } from '@/components/story/SetEventsEditor'
+import { GmPlayedEditor } from '@/components/story/GmPlayedEditor'
 import { ClaimReview } from '@/components/story/ClaimReview'
 import { GameStatePanel } from '@/components/story/GameStatePanel'
 import { effectsText, gameStateFrom } from '@/lib/world/gameState'
@@ -33,7 +34,7 @@ export function StoryPanel({
   onSwitchPlayer, allCharacters, onOpenRelationship, onOpenObjective, onOpenScenery,
   onOpenCalendar, onOpenWorldFact, onOpenScene, datingToolsVisible,
   onOpenEvent, onOpenDayPlanner, onOpenBag,
-  story, scenes, currentSceneId, onOpenStoryScene, onEndScene, onReadStory,
+  story, scenes, currentSceneId, onOpenStoryScene, onEndScene, onReadStory, onDeleteScene,
 }: {
   session: ReturnType<typeof useChatSession>
   modules: WorldModules
@@ -70,6 +71,8 @@ export function StoryPanel({
   onEndScene?: () => void
   /** Opens the whole-story reader (`StoryTranscript`). Omitted hides the button. */
   onReadStory?: () => void
+  /** Deletes one scene of the story into the trash. Omitted hides Delete. */
+  onDeleteScene?: (chatId: string) => Promise<void>
 }) {
   const { chat, world, character, playerCharacter, participantCharacters, messages, activeObjective } = session
   const [location, setLocation] = useState(setting.location ?? '')
@@ -79,6 +82,8 @@ export function StoryPanel({
   const [note, setNote] = useState(chat?.authorNote?.text ?? '')
   const [gmNotes, setGmNotes] = useState(chat?.gmNotes ?? '')
   const [playAs, setPlayAs] = useState(chat?.playerCharacterId ?? '')
+  const [leadId, setLeadId] = useState(chat?.characterId ?? '')
+  const [keepLead, setKeepLead] = useState(true)
   const [busy, setBusy] = useState(false)
   if (!chat) return null
 
@@ -131,7 +136,7 @@ export function StoryPanel({
           {onReadStory && <button className={actionClass} onClick={onReadStory}>Read the whole story</button>}
         </div> : null}
         <StoryScenes story={story} scenes={scenes?.length ? scenes : [chat]} currentSceneId={currentSceneId ?? chat.id} onOpenScene={onOpenStoryScene} showSequelLink
-          onEditChapter={async (edit) => { await session.updateChapter(edit) }} />
+          onEditChapter={async (edit) => { await session.updateChapter(edit) }} onDeleteScene={onDeleteScene} />
       </>}
       {tab === 'goals' && <>
         {activeObjective ? <>
@@ -178,6 +183,15 @@ export function StoryPanel({
         <label className="block space-y-1 text-xs text-text-muted">Turn policy<select className={inputClass} value={chat.scene?.turnPolicy ?? 'manual'} onChange={(event) => run(() => session.updateScene({ turnPolicy: event.target.value as ScenePolicy }))}>{POLICIES.filter((policy) => policy.id !== 'gm' || !!modules.campaignRules).map((policy) => <option key={policy.id} value={policy.id}>{policy.label}</option>)}</select></label>
         {modules.campaignRules === 'mechanical' && chat.scene?.turnPolicy !== 'gm' && <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-text"><p>Only explicit rolls reach the Game Master in this older turn mode. Use the Game Master policy to have it identify checks before characters respond.</p><button className={`${actionClass} mt-2`} disabled={busy} onClick={() => run(() => session.updateScene({ turnPolicy: 'gm' }))}>Use Game Master</button></div>}
         {chat.scene?.turnPolicy === 'gm' && modules.campaignRules === 'guided' && <p className="text-xs text-text-muted">Guided outcomes follow the ruleset's spirit; they are not full rules enforcement.</p>}
+        {!chat.endedAt && <>
+          <h3 className="font-medium">Lead</h3>
+          <p className="text-xs text-text-muted">The lead is always in the scene. Changing it moves each character's relationship with you along with them, and later scenes start with the new lead.</p>
+          <select className={inputClass} value={leadId} onChange={(event) => setLeadId(event.target.value)}>
+            {allCharacters.filter((member) => !member.playerOnly && member.id !== chat.playerCharacterId).map((member) => <option key={member.id} value={member.id}>{member.card.name}{member.id === chat.characterId ? ' (lead now)' : ''}</option>)}
+          </select>
+          {leadId !== chat.characterId && <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={keepLead} onChange={(event) => setKeepLead(event.target.checked)} />Keep {character?.card.name ?? 'the current lead'} in the scene</label>}
+          <button className={actionClass} disabled={busy || !leadId || leadId === chat.characterId} onClick={() => run(() => session.changeLead(leadId, keepLead))}>Change lead</button>
+        </>}
         <h3 className="font-medium">Loaded characters</h3>
         {allCharacters.filter((member) => member.id !== character?.id && !member.playerOnly && member.id !== chat.playerCharacterId).map((member) => <label key={member.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={(chat.participants ?? []).includes(member.id)} onChange={() => run(() => session.updateParticipants((chat.participants ?? []).includes(member.id) ? (chat.participants ?? []).filter((id) => id !== member.id) : [...(chat.participants ?? []), member.id]))} />{member.card.name}</label>)}
         <label className="block space-y-1 text-xs text-text-muted">GM notes<textarea className={`${inputClass} min-h-24`} value={gmNotes} onChange={(event) => setGmNotes(event.target.value)} /></label>
@@ -186,6 +200,11 @@ export function StoryPanel({
           doneIds={[...(chat.setEventsDone ?? []), ...setEventsDoneFrom(messages)]}
           onSave={(events) => run(() => session.updateSetEvents(events))}
           tracks={tracks} characters={allCharacters.map((member) => ({ id: member.id, name: member.card.name }))} />}
+        {modules.campaignRules && <GmPlayedEditor played={chat.gmPlayed ?? []} events={chat.setEvents ?? []}
+          doneIds={[...(chat.setEventsDone ?? []), ...setEventsDoneFrom(messages)]}
+          characters={allCharacters.filter((member) => !member.playerOnly && member.id !== chat.playerCharacterId)
+            .map((member) => ({ id: member.id, name: member.card.name, forms: (member.outfits ?? []).map((outfit) => ({ id: outfit.id, label: outfit.label })) }))}
+          onSave={(played) => run(() => session.updateGmPlayed(played))} />}
         {onSwitchPlayer && <>
           <h3 className="font-medium">Play As</h3>
           <PlayAsSelect value={playAs} onChange={setPlayAs} characters={allCharacters} excludeIds={character ? [character.id] : []} allowNone={!chat.playerCharacterId} />

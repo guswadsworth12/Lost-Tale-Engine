@@ -1351,6 +1351,10 @@ export function ChatWindow({
           onOpenStoryScene={setActiveChatId}
           onEndScene={openEndScene}
           onReadStory={() => setShowTranscript(true)}
+          onDeleteScene={async (sceneId) => {
+            const { openSceneId } = await chatsApi.removeScene(sceneId)
+            if (sceneId === chat.id) setActiveChatId(openSceneId)
+          }}
           datingToolsVisible={showDateControls}
           onOpenEvent={() => setShowEvent(true)}
           onOpenDayPlanner={() => setShowDayPlanner(true)}

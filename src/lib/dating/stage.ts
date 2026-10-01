@@ -10,6 +10,7 @@ import type {
   SceneFlag,
   WorldCard,
 } from '@/lib/types'
+import { LEAD_TRACK_KEYS } from '@/lib/story/lead'
 import type { GalleryEntry } from '@/lib/characters/cardSpec'
 import type { IntimacyScene } from '@/lib/dating/intimacyScene'
 
@@ -215,35 +216,7 @@ type TrackHost = Pick<
 /** Which bag of fields a character's relationship state lives in: the primary reads `Chat`'s own top-level fields; anyone else reads their entry in `Chat.participantRelationships`. */
 export function getRelationshipTrack(chat: TrackHost, characterId: string): RelationshipTrack {
   if (characterId === chat.characterId) {
-    return {
-      affection: chat.affection,
-      relationshipStats: chat.relationshipStats,
-      relationshipStage: chat.relationshipStage,
-      commitmentStatus: chat.commitmentStatus,
-      commitmentStartedDay: chat.commitmentStartedDay,
-      relationshipWarning: chat.relationshipWarning,
-      breakupCount: chat.breakupCount,
-      unlockedGalleryIds: chat.unlockedGalleryIds,
-      giftsGiven: chat.giftsGiven,
-      mood: chat.mood,
-      currentNeed: chat.currentNeed,
-      characterIntent: chat.characterIntent,
-      momentum: chat.momentum,
-      plans: chat.plans,
-      firstIntimateSceneAt: chat.firstIntimateSceneAt,
-      afterglow: chat.afterglow,
-      initiativeBalance: chat.initiativeBalance,
-      recentRebuff: chat.recentRebuff,
-      intimacyScene: chat.intimacyScene,
-      giftLog: chat.giftLog,
-      intimacySceneShapeLog: chat.intimacySceneShapeLog,
-      discoveredRegions: chat.discoveredRegions,
-      beliefsAboutUser: chat.beliefsAboutUser,
-      expectationsOfUser: chat.expectationsOfUser,
-      currentFear: chat.currentFear,
-      currentDesire: chat.currentDesire,
-      reciprocityCue: chat.reciprocityCue,
-    }
+    return Object.fromEntries(LEAD_TRACK_KEYS.map((key) => [key, chat[key]])) as RelationshipTrack
   }
   return chat.participantRelationships?.[characterId] ?? {}
 }
