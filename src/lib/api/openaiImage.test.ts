@@ -20,7 +20,7 @@ describe('OpenAI images', () => {
     expect(result).toEqual({ base64: 'aGVsbG8=', mimeType: 'image/png' })
     expect(seen).toEqual({
       url: 'https://api.openai.com/v1/images/generations',
-      body: { model: 'gpt-image-1', prompt: 'a lighthouse', size: '1536x1024', quality: 'high', output_format: 'png', n: 1 },
+      body: { model: 'gpt-image-2', prompt: 'a lighthouse', size: '1536x1024', quality: 'high', output_format: 'png', n: 1 },
       relay: { secret: 'openaiApiKey', auth: 'bearer', username: null },
     })
   })
@@ -37,10 +37,13 @@ describe('OpenAI images', () => {
     const fetchMock = stubRelayedFetch((_url, init) => { body = JSON.parse(init.body as string); return image })
     await new OpenAIImageClient(true, 'gpt-image-1-mini').generateImage(params({ purpose: 'sprite', transparent: true }))
     expect(body).toMatchObject({ model: 'gpt-image-1-mini', background: 'transparent', output_format: 'png' })
+    // Blank model: gpt-image-2, which makes them too.
+    await new OpenAIImageClient(true, '').generateImage(params({ purpose: 'sprite', transparent: true }))
+    expect(body).toMatchObject({ model: 'gpt-image-2', size: '1024x1536', background: 'transparent', output_format: 'png' })
     const dalle = new OpenAIImageClient(true, 'dall-e-3')
     expect(dalle.capabilities()).toEqual({ transparency: false, references: false })
     await expect(dalle.generateImage(params({ transparent: true }))).rejects.toMatchObject({ kind: 'unsupported' })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('sends reference images to the edits endpoint as a form', async () => {

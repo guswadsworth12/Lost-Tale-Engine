@@ -3,8 +3,8 @@ import { ImageGenError, nearestShape, redactKeys } from './imageBackend'
 import { relayFetch } from './relay'
 
 /** OpenAI's image models, offered as suggestions; any model name can be typed. */
-export const OPENAI_IMAGE_MODELS = ['gpt-image-1', 'gpt-image-1-mini', 'dall-e-3']
-export const OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1'
+export const OPENAI_IMAGE_MODELS = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini', 'dall-e-3']
+export const OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2'
 const API = 'https://api.openai.com/v1/images'
 
 const isGptImage = (model: string) => /^gpt-image/i.test(model)
