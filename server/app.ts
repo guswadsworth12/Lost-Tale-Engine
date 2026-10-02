@@ -26,7 +26,7 @@ import {
 } from './db.ts'
 import { addVoiceSample, listVoiceSamples, luxttsSpeak, luxttsStatus } from './luxtts.ts'
 import { edgeSpeak, edgeVoices } from './edgeTts.ts'
-import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
+import { listVrmLibrary, listVrmaLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveCharacterMotions, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
@@ -123,6 +123,7 @@ function normalizeVrm(id: string, raw: unknown) {
     url,
     enabled: value.enabled !== false,
     label: typeof value.label === 'string' ? value.label.trim().slice(0, 200) || undefined : undefined,
+    motions: resolveCharacterMotions(id, value.motions),
   }
 }
 
@@ -638,6 +639,10 @@ app.post('/api/tts/edge', async (req, res) => {
 
 app.get('/api/vrm-library', (_req, res) => {
   res.json(listVrmLibrary())
+})
+
+app.get('/api/vrma-library', (_req, res) => {
+  res.json(listVrmaLibrary())
 })
 
 app.get('/api/characters', (req, res) => {

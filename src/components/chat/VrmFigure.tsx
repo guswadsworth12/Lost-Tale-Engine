@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation'
 import { VRM_EMOTIONS, speakingMouth, vrmEmotionWeights, type VrmEmotion } from '@/lib/vn/vrm'
+import { selectVrmMotion, VRM_MOTION_SLOTS, waveWeight, type VrmMotions, type VrmMotionSlot } from '@/lib/vn/vrmMotion'
 
 /**
  * One cast member rendered from a VRM model on its own transparent canvas, framed full-height so it
@@ -12,23 +14,32 @@ import { VRM_EMOTIONS, speakingMouth, vrmEmotionWeights, type VrmEmotion } from 
  */
 export default function VrmFigure({
   url,
+  motions,
   label,
   expression,
   speaking,
+  gesture,
+  gestureNonce = 0,
+  reducedMotion,
   onError,
 }: {
   url: string
+  motions?: VrmMotions
   label: string
   expression: string
   speaking: boolean
+  gesture?: 'wave' | 'smile'
+  gestureNonce?: number
+  reducedMotion: boolean
   onError: (error: unknown) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   // Read by the render loop every frame, so expression/speaking changes never rebuild the scene.
-  const liveRef = useRef({ expression, speaking })
-  liveRef.current = { expression, speaking }
+  const liveRef = useRef({ expression, speaking, gesture, gestureNonce, reducedMotion })
+  liveRef.current = { expression, speaking, gesture, gestureNonce, reducedMotion }
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
+  const motionKey = JSON.stringify(motions ?? {})
 
   useEffect(() => {
     const host = hostRef.current
@@ -54,12 +65,20 @@ export default function VrmFigure({
     scene.add(key)
 
     let vrm: VRM | undefined
+    let rightLowerArmRestZ = 0
+    let mixer: THREE.AnimationMixer | undefined
+    const clips: Partial<Record<VrmMotionSlot, THREE.AnimationClip>> = {}
+    let activeSlot: VrmMotionSlot | undefined
+    let activeAction: THREE.AnimationAction | undefined
     let disposed = false
     let raf = 0
     const timer = new THREE.Timer()
     const weights: Record<VrmEmotion, number> = { happy: 0, angry: 0, sad: 0, relaxed: 0, surprised: 0 }
     let nextBlink = 1.5 + Math.random() * 3
     let blinkStart = -1
+    let seenGestureNonce = gestureNonce
+    let gestureStart = -Infinity
+    let activeGesture: 'wave' | 'smile' | undefined
 
     // Fit the whole figure: height drives the distance, and a narrow slot pulls the camera back
     // further so the arms never clip.
@@ -88,6 +107,9 @@ export default function VrmFigure({
 
     const loader = new GLTFLoader()
     loader.register((parser) => new VRMLoaderPlugin(parser))
+    const motionLoader = new GLTFLoader()
+    motionLoader.register((parser) => new VRMAnimationLoaderPlugin(parser))
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     loader
       .loadAsync(url)
       .then((gltf) => {
@@ -102,12 +124,36 @@ export default function VrmFigure({
         // Out of the T-pose: arms rest at the sides.
         const leftArm = loaded.humanoid.getNormalizedBoneNode('leftUpperArm')
         const rightArm = loaded.humanoid.getNormalizedBoneNode('rightUpperArm')
-        if (leftArm) leftArm.rotation.z = -1.2
-        if (rightArm) rightArm.rotation.z = 1.2
+        rightLowerArmRestZ = loaded.humanoid.getNormalizedBoneNode('rightLowerArm')?.rotation.z ?? 0
+        if (leftArm) leftArm.rotation.z = 1.2
+        if (rightArm) rightArm.rotation.z = -1.2
         loaded.update(0)
         vrm = loaded
+        mixer = new THREE.AnimationMixer(loaded.scene)
         scene.add(loaded.scene)
         resize()
+        for (const slot of VRM_MOTION_SLOTS) {
+          const motionUrl = motions?.[slot]
+          if (!motionUrl) continue
+          motionLoader.loadAsync(motionUrl).then((motionGltf) => {
+            try {
+              if (disposed || !vrm) return
+              const animation = motionGltf.userData.vrmAnimations?.[0]
+              if (!animation) throw new Error('File has no VRM animation.')
+              // Face, blink, and mouth remain under the existing expression controls.
+              animation.expressionTracks.preset.clear()
+              animation.expressionTracks.custom.clear()
+              animation.lookAtTrack = null
+              const clip = createVRMAnimationClip(animation, vrm)
+              if (!clip.tracks.length) throw new Error('VRM animation has no humanoid tracks.')
+              clips[slot] = clip
+            } finally {
+              VRMUtils.deepDispose(motionGltf.scene)
+            }
+          }).catch((e) => {
+            if (!disposed) console.warn(`${label}: ${slot} VRMA motion could not load; using the default motion.`, e)
+          })
+        }
       })
       .catch((e) => {
         if (!disposed) onErrorRef.current(e)
@@ -119,24 +165,57 @@ export default function VrmFigure({
       const dt = Math.min(timer.getDelta(), 0.1)
       const t = timer.getElapsed()
       if (vrm) {
+        const motionDisabled = liveRef.current.reducedMotion || prefersReducedMotion.matches
+        if (liveRef.current.gestureNonce !== seenGestureNonce) {
+          seenGestureNonce = liveRef.current.gestureNonce
+          gestureStart = t
+          activeGesture = liveRef.current.gesture
+        }
+        const gestureElapsed = t - gestureStart
+        const waving = !motionDisabled && activeGesture === 'wave' ? waveWeight(gestureElapsed) : 0
+        const smiling = activeGesture === 'smile' && gestureElapsed < 2.6
+        const requested = selectVrmMotion(motions, liveRef.current.expression, liveRef.current.speaking)
+        const slot = clips[requested] ? requested : clips.idle ? 'idle' : undefined
+        if (slot !== activeSlot) {
+          activeAction?.fadeOut(0.25)
+          activeSlot = slot
+          activeAction = slot && mixer ? mixer.clipAction(clips[slot]!).reset().fadeIn(0.25).play() : undefined
+        }
+        if (!motionDisabled) mixer?.update(dt)
         const manager = vrm.expressionManager
-        const target = vrmEmotionWeights(liveRef.current.expression)
+        const target = vrmEmotionWeights(smiling ? 'happy' : liveRef.current.expression)
         for (const e of VRM_EMOTIONS) {
           weights[e] += (target[e] - weights[e]) * Math.min(1, dt * 8)
           manager?.setValue(e, weights[e])
         }
-        manager?.setValue('aa', speakingMouth(liveRef.current.speaking, t))
-        if (blinkStart < 0 && t > nextBlink) blinkStart = t
+        manager?.setValue('aa', motionDisabled ? 0 : speakingMouth(liveRef.current.speaking, t))
+        if (!motionDisabled && blinkStart < 0 && t > nextBlink) blinkStart = t
         const blinkPhase = blinkStart < 0 ? 1 : (t - blinkStart) / 0.16
-        manager?.setValue('blink', blinkPhase < 1 ? Math.sin(blinkPhase * Math.PI) : 0)
+        manager?.setValue('blink', !motionDisabled && blinkPhase < 1 ? Math.sin(blinkPhase * Math.PI) : 0)
         if (blinkPhase >= 1 && blinkStart >= 0) {
           blinkStart = -1
           nextBlink = t + 2 + Math.random() * 4
         }
-        const spine = vrm.humanoid.getNormalizedBoneNode('spine')
-        if (spine) spine.rotation.z = Math.sin(t * 0.9) * 0.015
-        const chest = vrm.humanoid.getNormalizedBoneNode('chest')
-        if (chest) chest.rotation.x = Math.sin(t * 1.6) * 0.01
+        if (!activeAction || !clips[requested]) {
+          const spine = vrm.humanoid.getNormalizedBoneNode('spine')
+          if (spine) spine.rotation.z = motionDisabled ? 0 : Math.sin(t * 0.9) * 0.015
+          const chest = vrm.humanoid.getNormalizedBoneNode('chest')
+          if (chest) chest.rotation.x = motionDisabled ? 0 : Math.sin(t * (liveRef.current.speaking ? 3 : 1.6)) * (liveRef.current.speaking ? 0.025 : 0.01)
+          const head = vrm.humanoid.getNormalizedBoneNode('head')
+          if (head) head.rotation.x = !motionDisabled && liveRef.current.speaking ? Math.sin(t * 3.2) * 0.02 : 0
+          const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm')
+          if (leftArm) leftArm.rotation.z = 1.2 + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4) * 0.05 : 0)
+          const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
+          if (rightArm) rightArm.rotation.z = -1.2 + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4 + 1.5) * 0.05 : 0)
+          const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm')
+          if (rightLowerArm) rightLowerArm.rotation.z = rightLowerArmRestZ
+        }
+        if (waving) {
+          const upperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
+          const lowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm')
+          if (upperArm) upperArm.rotation.z = THREE.MathUtils.lerp(upperArm.rotation.z, -0.8, waving)
+          if (lowerArm) lowerArm.rotation.z = THREE.MathUtils.lerp(lowerArm.rotation.z, 2.7 + Math.sin(gestureElapsed * 14) * 0.2, waving)
+        }
         vrm.update(dt)
       }
       renderer.render(scene, camera)
@@ -148,12 +227,16 @@ export default function VrmFigure({
       cancelAnimationFrame(raf)
       timer.dispose()
       observer.disconnect()
+      if (mixer && vrm) {
+        mixer.stopAllAction()
+        mixer.uncacheRoot(vrm.scene)
+      }
       if (vrm) VRMUtils.deepDispose(vrm.scene)
       renderer.dispose()
       renderer.forceContextLoss()
       renderer.domElement.remove()
     }
-  }, [url])
+  }, [url, motionKey])
 
   return <div ref={hostRef} role="img" aria-label={`${label} (3D model)`} className="h-full w-full" data-testid="vrm-figure" />
 }

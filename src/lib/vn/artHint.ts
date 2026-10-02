@@ -13,21 +13,21 @@ import type { WorldCard } from '@/lib/types'
  * character.
  */
 export function vnArtHint(
-  character: Pick<Character, 'id' | 'card' | 'sprites'> | undefined,
+  character: Pick<Character, 'id' | 'card' | 'sprites' | 'vrm'> | undefined,
   world: Pick<WorldCard, 'name' | 'backgrounds'> | undefined,
   dismissedCharacterIds: readonly string[],
 ): string | null {
   if (!character || dismissedCharacterIds.includes(character.id)) return null
 
   const name = character.card.name?.trim() || 'this character'
-  const hasSprites = !!character.sprites && Object.keys(character.sprites).length > 0
+  const hasSprites = (!!character.sprites && Object.keys(character.sprites).length > 0) || !!(character.vrm?.enabled && character.vrm.url)
   const worldHasBackgrounds = !!world?.backgrounds && Object.keys(world.backgrounds).length > 0
 
   if (!hasSprites) {
     return `No expression sprites for ${name} yet — add art in the character editor's Visual novel tab and it will show here.`
   }
   if (!world) {
-    return `${name} isn't bound to a world, so scenes have no background. Assign one from the character editor's Identity tab.`
+    return `${name} isn't bound to a world, so scenes have no background. Assign one from the character editor's Character tab.`
   }
   if (!worldHasBackgrounds) {
     return `${world.name?.trim() || 'This world'} has no scene backgrounds — add them in the world editor to replace this placeholder.`
@@ -39,7 +39,7 @@ export function vnArtHint(
  *  boolean — backs `visualNovelMode: 'auto'` (`ChatWindow.tsx`): VN mode only turns itself on once
  *  this is true, so it's never a blank gradient plus a floating sprite. */
 export function isVnReady(
-  character: Pick<Character, 'id' | 'card' | 'sprites'> | undefined,
+  character: Pick<Character, 'id' | 'card' | 'sprites' | 'vrm'> | undefined,
   world: Pick<WorldCard, 'name' | 'backgrounds'> | undefined,
 ): boolean {
   // `vnArtHint` itself returns null for "no character yet" too (nothing to hint about) — 'auto'

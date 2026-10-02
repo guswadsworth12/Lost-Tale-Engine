@@ -325,6 +325,9 @@ export const vrmLibraryApi = {
   list(): Promise<{ name: string; url: string; bytes: number }[]> {
     return request('GET', '/vrm-library')
   },
+  motions(): Promise<{ name: string; url: string; bytes: number }[]> {
+    return request('GET', '/vrma-library')
+  },
 }
 
 export const worldsApi = {

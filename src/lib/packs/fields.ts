@@ -145,7 +145,7 @@ export const LOREBOOK_FIELDS: Record<keyof WorldInfoBook, LorebookFieldClass> = 
 
 /** The character fields the single-character pack (`characters/pack.ts`) carries. Never a `local` one. */
 export const CHARACTER_PACK_FIELDS = [
-  'card', 'playerOnly', 'worldId', 'sheet', 'sheets', 'avatarDataUrl', 'sprites', 'spriteUnlocks', 'outfits',
+  'card', 'playerOnly', 'worldId', 'sheet', 'sheets', 'avatarDataUrl', 'sprites', 'spriteUnlocks', 'vrm', 'outfits',
   'customExpressions', 'giftPreferences', 'giftLikes', 'giftDislikes', 'loveLanguage', 'weatherPreferences', 'schedule',
   'gallery', 'relationshipStarters', 'voice', 'sfxWords', 'replyLength', 'occupation', 'workplace', 'homeLocation',
   'frequentedLocations', 'likes', 'goals', 'boundaries', 'touchProfile', 'kinkProfile', 'socialConnections', 'dateModeOptOut',

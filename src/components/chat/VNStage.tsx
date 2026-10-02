@@ -11,6 +11,7 @@ import {
   ChevronsRight,
   EyeOff,
   GitFork,
+  Hand,
   Heart,
   History,
   Loader2,
@@ -19,6 +20,7 @@ import {
   RotateCcw,
   Save,
   SlidersHorizontal,
+  Smile,
   Star,
   Sunrise,
   Trash2,
@@ -164,16 +166,24 @@ function VNCharacterSprite({
   onClick,
   phase,
   vrmUrl,
+  vrmMotions,
   expression,
   speaking,
+  gesture,
+  gestureNonce,
+  reducedMotion,
   transition = 'rise',
 }: {
   /** Optional 3D model; the sprite below stays the fallback while it loads or if it fails. */
   vrmUrl?: string
+  vrmMotions?: import('@/lib/vn/vrmMotion').VrmMotions
   /** Expression id the model shows (the sprite already resolved its own art from it). */
   expression?: string
   /** True while this member's reply is streaming, for the model's mouth. */
   speaking?: boolean
+  gesture?: 'wave' | 'smile'
+  gestureNonce?: number
+  reducedMotion?: boolean
   spriteUrl: string | undefined
   name: string
   /** Identity hue matching this speaker's nameplate. */
@@ -222,9 +232,13 @@ function VNCharacterSprite({
     <Suspense fallback={spriteInner}>
       <VrmFigure
         url={vrmUrl!}
+        motions={vrmMotions}
         label={name}
         expression={expression ?? 'neutral'}
         speaking={!!speaking}
+        gesture={gesture}
+        gestureNonce={gestureNonce}
+        reducedMotion={!!reducedMotion}
         onError={(e) => {
           console.warn(`VRM for ${name} failed to load; showing the 2D sprite instead.`, e)
           setVrmFailed(vrmUrl!)
@@ -394,6 +408,7 @@ export function VNStage({
   const sideRailRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ id: string; pointerId: number; clientX: number; clientY: number; point: StagePoint; width: number; height: number; moved: boolean } | null>(null)
   const [sideExpanded, setSideExpanded] = useState(false)
+  const [vrmGesture, setVrmGesture] = useState<{ kind: 'wave' | 'smile'; nonce: number }>({ kind: 'wave', nonce: 0 })
   const [arrangingStage, setArrangingStage] = useState(false)
   // Scene direction (`vn/stageDirection.ts`) is saved with the chat, saved layouts with the world.
   // An edit shows at once and is saved when it settles: a drag ends, a slider is let go.
@@ -577,6 +592,7 @@ export function VNStage({
       hue: nameplateHue(member.id || member.card.name),
       spriteUrl,
       vrmUrl: member.vrm?.enabled && appearanceId === BASE_OUTFIT_ID ? member.vrm.url : undefined,
+      vrmMotions: member.vrm?.motions,
       expression: memberExpression,
       speaking: member.id === stageSpeakerId && isStreamingThis,
       isActive,
@@ -1157,6 +1173,10 @@ export function VNStage({
     active: !!scenery?.backgroundId,
   }] : []
   const playbackActions: ChatToolbarAction[] = [
+    ...(castMembers.some((member) => member.id === visualFocusId && member.vrmUrl) ? [
+      { key: 'vrm-wave', icon: Hand, label: 'Wave', disabled: reducedMotion, onClick: () => setVrmGesture((prev) => ({ kind: 'wave', nonce: prev.nonce + 1 })) },
+      { key: 'vrm-smile', icon: Smile, label: 'Smile', onClick: () => setVrmGesture((prev) => ({ kind: 'smile', nonce: prev.nonce + 1 })) },
+    ] : []),
     ...(onToggleAutoAdvance ? [{ key: 'auto', icon: Play, label: 'Auto-advance', onClick: onToggleAutoAdvance, active: autoAdvance }] : []),
     { key: 'skip', icon: ChevronsRight, label: 'Skip typewriter reveal', disabled: !typewriterActive || dialogueRevealDone,
       onClick: () => { if (typewriterActive && !dialogueRevealDone) skipTypewriter() } },
@@ -1576,8 +1596,12 @@ export function VNStage({
                     onClick={draggable || phase === 'exiting' ? undefined : member.onClick}
                     phase={phase}
                     vrmUrl={phase === 'exiting' ? undefined : member.vrmUrl}
+                    vrmMotions={member.vrmMotions}
                     expression={member.expression}
                     speaking={member.speaking}
+                    gesture={member.id === visualFocusId ? vrmGesture.kind : undefined}
+                    gestureNonce={member.id === visualFocusId ? vrmGesture.nonce : 0}
+                    reducedMotion={reducedMotion}
                     transition={phase === 'exiting' ? figure.exit : figure.enter}
                   />
                 </div>

@@ -164,7 +164,7 @@ export interface Character {
   /** Content hash per sprite key, written by the sprite-library importer so a re-run skips unchanged art. */
   spriteSources?: Record<string, string>
   /** Optional 3D model for Visual Novel mode (`vn/vrm.ts`). The 2D sprites stay the fallback. */
-  vrm?: { url: string; enabled: boolean; label?: string }
+  vrm?: { url: string; enabled: boolean; label?: string; motions?: Partial<Record<'idle' | 'speaking' | 'happy' | 'angry' | 'sad' | 'relaxed' | 'surprised', string>> }
   /** Wardrobe states beyond the base look (vn/outfits.ts); the base outfit is implicit. */
   outfits?: Outfit[]
   /** Expression slots beyond the built-in default set (vn/expressions.ts). */
