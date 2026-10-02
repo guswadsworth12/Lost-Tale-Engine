@@ -1,6 +1,6 @@
 # Campaign engine
 
-Lost Tales Engine combines ordered prompts, character agents, a Game Master, and optional recorded checks. The world chooses which modules are enabled; dating and relationship systems are optional. This page describes the current `campaign-engine` branch, including the limits of its rules support.
+Lost Tales Engine combines ordered prompts, character agents, a Game Master, and optional recorded checks. The world chooses which modules are enabled; dating and relationship systems are optional. This page describes the current implementation and the limits of its rules support.
 
 ## Set up a campaign
 
@@ -49,7 +49,7 @@ Worlds and characters store ordered, enabled prompt items. The TavernAI 2 card i
 
 For the engine's prompts, only their guidance can be changed. The data they are given, the reply format the engine reads, and the guardrails stay in place, and the editor shows the guardrails locked: player agency, characters with cards played only by their own agents, binding recorded rolls, and knowledge boundaries. An edit can be typed or proposed by the assistant with its reasoning, reviewed as a diff, and previewed on a sample turn from the world's latest scene before it is applied. Every applied change is kept in a history and reverts in one click. Tuning is per world, and travels in world packs as its own option.
 
-In a group scene, each speaking character receives its own card prompts, private lore, and private memory. Other participants contribute their names and public transcript only. A character can override the configured hosted model on the same provider. The GM uses the configured global model.
+In a group scene, each speaking character receives its own card prompts, private lore, and private memory. Other participants contribute their names and public transcript only. A character can override the configured hosted model on the same provider. The GM uses the **Game Master** model assignment in Settings → Models and services, falling back to the default Text model when no separate assignment is set.
 
 ## Related play features
 
@@ -66,7 +66,7 @@ The separate **Writer's Room** can search saved worlds, cast, lore, stories, goa
 - The mechanical presets cover core checks. A world can track its own resources, conditions, and clocks, but hit points, spell slots, combat turns, and other system-specific rules are not built in.
 - Guided mode is narrative guidance, including when a named ruleset has no mechanical adapter.
 - Player confirmation is required for new shared world canon. Branch consequences remain on their branch.
-- The GM uses the global model; separate GM provider credentials are not available.
+- Model assignments can route Game Master work separately, but their availability still depends on the services and credentials configured for the account.
 - Structured character beliefs separate from campaign facts remain future work. Hearing a rumor should not automatically make it world truth.
 - Conversational updates to existing worlds and lore remain future work.
 

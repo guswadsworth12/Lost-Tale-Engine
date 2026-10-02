@@ -1,0 +1,38 @@
+name: Wiki
+
+on:
+  pull_request:
+    paths:
+      - 'docs/wiki/**'
+      - 'tools/wiki.mjs'
+      - '.github/workflows/wiki.yml'
+      - 'screenshots/**'
+  push:
+    branches: [master]
+    paths:
+      - 'docs/wiki/**'
+      - 'tools/wiki.mjs'
+      - '.github/workflows/wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/wiki.mjs check
+
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/wiki.mjs publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

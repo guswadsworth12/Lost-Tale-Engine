@@ -14,7 +14,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.server.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:check": "node tools/wiki.mjs check",
+    "docs:publish": "node tools/wiki.mjs publish"
   },
   "dependencies": {
     "@agnai/sentencepiece-js": "^1.1.1",

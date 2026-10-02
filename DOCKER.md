@@ -2,8 +2,8 @@
 
 The image runs the whole app from one Node process — the Express API and the built client on a
 single port (3001 by default). Your text/image model backend (KoboldCpp, LM Studio, an API
-provider…) stays wherever you already run it: the browser talks to it directly, so the container
-never needs to reach it.
+provider…) stays wherever you already run it. Local model URLs must be reachable from the
+browser; configured hosted services may use the server's credential relay.
 
 ## Quick start
 
@@ -11,8 +11,7 @@ never needs to reach it.
 docker compose up -d --build
 ```
 
-Then open <http://localhost:3001>, and in Settings → Connection point it at your model backend.
-The first run seeds a starter world and character into `./data`.
+Then open <http://localhost:3001>, create the owner account on the host, and in **Settings → Models and services** connect your model backend. The first run seeds starter content, including Hollowmere Station, into `./data`.
 
 Without compose:
 
@@ -33,11 +32,11 @@ back that directory up, or point the mount somewhere else. Delete it to start ov
 | --- | --- | --- |
 | `API_PORT` | `3001` | Port the server listens on. |
 | `API_HOST` | `0.0.0.0` | Bind address. The image sets `0.0.0.0` so Docker's published port works; the app's own default outside Docker is `127.0.0.1`. |
-| `RP_ALLOWED_ORIGINS` | *(unset)* | Extra browser origins the API accepts, beyond loopback. Needed if you reach the UI from another device or through a reverse proxy — e.g. `http://192.168.1.9:3001,https://rp.example.com`. A lone `*` disables the origin check (only sane behind your own auth). |
+| `RP_ALLOWED_ORIGINS` | *(unset)* | Extra browser origins the API accepts, beyond loopback. Needed if you reach the UI from another device or through a reverse proxy — e.g. `http://192.168.1.9:3001,https://rp.example.com`. Avoid `*`, which disables the origin check. |
 
-The API has no authentication — same threat model as running it locally. If you expose it beyond
-`localhost`, put it behind something that does auth (a reverse proxy, a VPN, an SSH tunnel) and set
-`RP_ALLOWED_ORIGINS` to match.
+The API requires an account session. If you expose it beyond `localhost`, use HTTPS and set
+`RP_ALLOWED_ORIGINS` to the browser origins you use. A reverse proxy, VPN, or SSH tunnel adds
+another access boundary. First-run owner creation must happen locally on the host.
 
 ## Reaching a model backend
 

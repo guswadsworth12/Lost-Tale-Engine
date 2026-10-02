@@ -4,6 +4,8 @@
 
 Lost Tales Engine is a local-first roleplay and story engine. Create a setting and characters, play through scenes with an AI Game Master, and choose between freeform storytelling and recorded mechanical checks. It began as a fork of [RP Suite](https://github.com/pnotisdev/rp).
 
+**New here?** Follow the [Quick Start](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Quick-Start). The [full wiki](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki) covers play, world building, hosting, and contribution.
+
 [![Illustrative Hollowmere Station Visual Novel scene](screenshots/hollowmere-visual-novel-mock.jpg)](screenshots/hollowmere-visual-novel-mock.jpg)
 
 *Illustrative product mockup using the bundled Hollowmere Station story and art. The stage, dialogue, and collapsible controls show the intended play experience; this is a composed image, not a live screenshot. No personal story data is included.*
@@ -65,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` and configure a model in **Settings → Connection**. The development command starts Vite and the local Express/SQLite API (port 3001 by default). To keep data outside the checkout, copy `.env.example` to the git-ignored `.env` and set `LOST_TALES_DATA_DIR` to an absolute path before starting the app.
+Open `http://localhost:5173`. On a fresh data directory, create the owner account locally, then configure a model in **Settings → Models and services**. The development command starts Vite and the local Express/SQLite API (port 3001 by default). To keep data outside the checkout, copy `.env.example` to the git-ignored `.env` and set `LOST_TALES_DATA_DIR` to an absolute path before starting the app.
 
 ```bash
 npm run typecheck   # check client, tooling, and server types
@@ -78,7 +80,7 @@ For Docker, run `docker compose up -d --build`; see [DOCKER.md](DOCKER.md) for d
 
 ## Data, providers, and limits
 
-Worlds, characters, stories, and media live in the git-ignored `data/` folder or the folder set by `LOST_TALES_DATA_DIR`. Back up that folder or use the app's backup and restore feature. The app requires no account. A local model can keep inference on your machine; a hosted provider receives the prompts you send to it.
+Worlds, characters, stories, and media live in the git-ignored `data/` folder or the folder set by `LOST_TALES_DATA_DIR`. Back up that folder or use the app's backup and restore feature. The app uses accounts, beginning with a locally created owner; hosts can add other users and control content sharing. A local model can keep inference on your machine; a hosted provider receives the prompts you send to it. See [backup and privacy](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Backup-Restore-and-Privacy).
 
 Text connections support KoboldCpp, OpenAI-compatible endpoints (including OpenMayhem), and NovelAI. Optional image generation supports AUTOMATIC1111, ComfyUI, SwarmUI, NovelAI, OpenMayhem, OpenAI, and Google Gemini. Hosted image keys are stored encrypted per account, and every generated image is previewed before it is saved. Voice settings include KoboldCpp, OpenAI-compatible speech, LuxTTS, ElevenLabs, Azure Speech, Alibaba, and OpenMayhem. These features depend on the providers you configure; their availability and costs vary.
 

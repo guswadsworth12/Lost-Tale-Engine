@@ -102,7 +102,7 @@ function HelpCenterDialog({ onClose, initialTopic, onStartTour }: Omit<HelpCente
     }
   }, [topicId, pendingSection, searching])
 
-  // Modal focuses its first control (the Tour button); start in the search box instead. Not on a
+  // Modal focuses its first control; start in the search box instead. Not on a
   // phone, where focusing a text field throws the keyboard over the content: the topic gets focus.
   useEffect(() => {
     const phone = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 639px)').matches
@@ -125,7 +125,26 @@ function HelpCenterDialog({ onClose, initialTopic, onStartTour }: Omit<HelpCente
   ) : undefined
 
   return (
-    <Modal onClose={onClose} title="Help & tutorial" size="3xl" scrollable compact headerExtra={tourButton}>
+    <Modal
+      onClose={onClose}
+      title="Help & tutorial"
+      size="3xl"
+      scrollable
+      compact
+      headerExtra={
+        <div className="flex items-center gap-2">
+          <a
+            href="https://github.com/guswadsworth12/Lost-Tale-Engine/wiki"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg px-2 py-1.5 text-sm text-accent hover:underline"
+          >
+            Full wiki
+          </a>
+          {tourButton}
+        </div>
+      }
+    >
       <div className="flex h-[74vh] min-h-0 flex-col gap-3 sm:h-[68vh]">
         <div className="relative shrink-0">
           <Search size={15} strokeWidth={1.75} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />

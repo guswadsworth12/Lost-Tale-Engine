@@ -973,7 +973,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     title: 'Settings',
     group: 'Tools',
     icon: 'settings',
-    summary: 'Connection, Appearance, Generation, Voice, Images and Data.',
+    summary: 'Model connections, appearance, generation, voice, images, data and account.',
     keywords: ['preferences', 'options', 'model', 'backend', 'theme', 'sampler', 'tts', 'image generation', 'backup', 'restore', 'music volume'],
     related: ['getting-started', 'visual-novel'],
     sections: [
@@ -984,12 +984,14 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'list',
             items: [
-              '**Connection**: which backend writes replies (a local server or a hosted provider) and its model.',
+              '**Get set up**: reopen the first-run checklist.',
+              '**Models and services**: which backend writes replies (a local server or a hosted provider), its model, and other connected services.',
               '**Appearance**: theme presets and colors, chat style, layout (including **VN text speed**), behavior toggles (**Reduced motion**, **Click message to edit**, **Visual Novel mode**, **VN choice style**, **VN input**), sound effects, **Background music** (**Music volume**), custom CSS, and saving or sharing a theme.',
               '**Generation**: story systems and background assists, context and memory, objectives, relationship tracking, roleplay choices, quick replies, writing style, advanced prompt controls, and the sampler.',
               '**Voice**: text-to-speech for Read this line aloud and Auto-voice.',
               '**Images**: the image generator used by the Generate with AI buttons.',
-              '**Data**: **Download backup** of everything, and **Restore from backup…** (this replaces all current data).',
+              '**Data**: **Download backup** of app content, and **Restore from backup…** (this replaces current content; accounts are kept).',
+              '**Account**: your sign-in and account controls.',
             ],
           },
           { kind: 'text', text: 'On a phone the tabs are a drop-down at the top of Settings.' },
