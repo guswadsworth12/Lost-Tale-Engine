@@ -99,7 +99,7 @@ export function SetupScreen() {
   return (
     <AuthCard
       title="Create the owner account"
-      description="This is the first account. The owner can add other people later, each with their own sign-in and settings. Worlds, characters and stories are shared by everyone."
+      description="This is the first account. The owner can add other people later, each with their own sign-in and settings. Everyone's worlds, characters and stories are their own, unless they choose to share a world or character."
     >
       <form onSubmit={submit}>
         <TextField label="Username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}

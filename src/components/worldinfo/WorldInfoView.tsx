@@ -76,7 +76,7 @@ export function WorldInfoView() {
             scope={active}
             onChange={(patch) => worldInfoBooksApi.update(active.id, patch)}
           />
-          <VisibilityField value={active.visibility ?? 'shared'} row={active} onChange={(visibility) => worldInfoBooksApi.update(active.id, { visibility })} />
+          <VisibilityField value={active.visibility ?? 'private'} row={active} onChange={(visibility) => worldInfoBooksApi.update(active.id, { visibility })} />
         </Section>
 
         <Section title="Entries" surface="bare">

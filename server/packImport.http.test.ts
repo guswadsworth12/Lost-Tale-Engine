@@ -102,12 +102,12 @@ describe('importing a world pack', () => {
     const member = await t!.addMember(owner, 'bea_member', 'bea-member-password')
     const { zip } = await exportWorld(t!, owner)
     const seen = await preview(t!, member, { 'pack.zip': zip })
-    // Bea sees the owner's shared original and her own library, and the pack's world meets both names.
-    expect(seen.body.conflicts.map((c: { kind: string; name: string }) => `${c.kind}:${c.name}`)).toEqual(['world:Salt Coast', 'character:Cole Marsh'])
+    // The owner's original is private to them, so Bea's library has nothing it could clash with.
+    expect(seen.body.conflicts).toEqual([])
     const applied = await t!.call('/api/packs/apply', 'POST', { cookie: member, body: { previewId: seen.body.previewId } })
     expect(applied.status).toBe(201)
     const mine = (await t!.call(`/api/worlds/${applied.body.worldId}`, 'GET', { cookie: member })).body
-    expect(mine).toMatchObject({ name: 'Salt Coast (imported)', visibility: 'private' })
+    expect(mine).toMatchObject({ name: 'Salt Coast', visibility: 'private' })
     expect((await t!.call(`/api/worlds/${applied.body.worldId}`, 'GET', { cookie: owner })).status).toBe(404)
     expect((await t!.call(`/api/characters/${applied.body.characterIds[0]}`, 'GET', { cookie: owner })).status).toBe(404)
     // Someone else can't see or finish her upload.

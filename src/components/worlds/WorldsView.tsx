@@ -397,7 +397,7 @@ function WorldEditor({
   const [artStyle, setArtStyle] = useState(base.artStyle ?? '')
   const [rules, setRules] = useState(base.rules ?? '')
   const [gmNotes, setGmNotes] = useState(base.gmNotes ?? '')
-  const [visibility, setVisibility] = useState<Visibility>(base.visibility ?? 'shared')
+  const [visibility, setVisibility] = useState<Visibility>(base.visibility ?? 'private')
   const [showExport, setShowExport] = useState(false)
   const initialModules = initialWorldEditorModules(base)
   const [campaign, setCampaign] = useState<CampaignConfig>(initialModules.campaign)
