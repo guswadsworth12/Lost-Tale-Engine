@@ -4,6 +4,7 @@
  * intimacy scenes, gifts, objectives, world triggers, summarization, choice suggestions).
  */
 import { appearanceNote, cardBrief } from '@/lib/characters/cardBrief'
+import { stillStrangers, strangerNote, strangersFor } from '@/lib/story/acquaintance'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { promptOverride } from '@/lib/prompt/promptOverrides'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
@@ -1097,6 +1098,12 @@ export function useChatSession(chatId: string | null) {
         speaker.id === character.id
           ? buildRelationshipDescription(freshChat, world, character, romanceEmphasis)
           : undefined
+      // Someone new to the story doesn't know the names of people they haven't been introduced to.
+      const strangerLine = strangerNote(speaker.card.name, stillStrangers(speaker.id, freshChat.strangers?.[speaker.id], messages, (id) =>
+        allCharactersById.get(id)?.card.name ?? (id === playerCharacter?.id ? playerCharacter.card.name : undefined)).flatMap((id) => {
+        const name = allCharactersById.get(id)?.card.name ?? (id === playerCharacter?.id ? playerCharacter.card.name : undefined)
+        return name ? [name] : []
+      }))
       // The non-primary counterpart to the line above, so another speaking participant doesn't borrow the primary's own romantic warmth.
       const participantGuidance =
         modules.relationships && !impersonating && speaker.id !== character.id
@@ -1217,6 +1224,7 @@ export function useChatSession(chatId: string | null) {
             ...guidance(triggerStyleLine, true),
             ...guidance(ambientLine, true),
             ...guidance(participantGuidance ?? '', true),
+            ...guidance(strangerLine, true),
             ...guidance(replyLengthInstruction, true),
             ...guidance(styleGuidanceNote.trim(), true),
             ...guidance(slopAvoidance ?? '', true),
@@ -1319,6 +1327,7 @@ export function useChatSession(chatId: string | null) {
     [
       activeFacts,
       activeObjective,
+      allCharactersById,
       autoTrackRelationship,
       avoidEmDashes,
       character,
@@ -1331,6 +1340,7 @@ export function useChatSession(chatId: string | null) {
       messages,
       participantCharacters,
       persona,
+      playerCharacter,
       promptSections,
       regexScripts,
       resolveSpeaker,
@@ -2806,6 +2816,15 @@ export function useChatSession(chatId: string | null) {
           canonFacts: [...(current?.canonFacts ?? []), ...facts.map((text) => ({ id: newId(), text, createdAt: Date.now(), sourceChatId: chatId }))],
         })
       }
+      // Names learned in this scene stay learned in the next: only those still unheard carry over.
+      if (fresh.strangers) {
+        const nameOf = (id: string) => allCharactersById.get(id)?.card.name ?? (id === playerCharacter?.id ? playerCharacter.card.name : undefined)
+        const strangers = Object.fromEntries(Object.entries(fresh.strangers).flatMap(([id, record]) => {
+          const left = stillStrangers(id, record, branch, nameOf)
+          return left.length ? [[id, { ...record, ids: left }]] : []
+        }))
+        await chatsApi.update(chatId, { strangers: Object.keys(strangers).length ? strangers : null } as Partial<Chat>)
+      }
       const location = input.next.location?.trim()
       const nextScene = await chatsApi.nextScene(chatId, {
         recap: {
@@ -2832,7 +2851,7 @@ export function useChatSession(chatId: string | null) {
       runAssist('memory', 'Writing journals', () => writeJournals(chatId, presentIds))
       return nextScene
     },
-    [chatId, runAssist, scribeMemories, world, writeJournals],
+    [allCharactersById, chatId, playerCharacter, runAssist, scribeMemories, world, writeJournals],
   )
 
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
@@ -3742,6 +3761,17 @@ export function useChatSession(chatId: string | null) {
             ? { ...fresh.scene, presentCharacterIds: [...new Set([...fresh.scene.presentCharacterIds, ...turn.addCharacterIds])] }
             : fresh.scene
           await chatsApi.update(chatId, { participants, scene })
+        }
+        // Someone new to the story meets everyone present now, and learns names as they hear them.
+        const newcomers = (turn.handedOver ?? []).map((h) => h.id)
+        if (newcomers.length) {
+          const latest = await chatsApi.get(chatId)
+          if (latest) {
+            const present = latest.scene?.presentCharacterIds ?? [latest.characterId, ...(latest.participants ?? [])]
+            const strangers = { ...latest.strangers }
+            for (const id of newcomers) strangers[id] ??= strangersFor(id, present, latest.playerCharacterId, gmMsg.createdAt)
+            await chatsApi.update(chatId, { strangers } as Partial<Chat>)
+          }
         }
         // Handed over in a new form: the stage shows them in it from now on.
         const forms = Object.fromEntries((turn.handedOver ?? []).filter((h) => h.form).map((h) => [h.id, h.form!]))

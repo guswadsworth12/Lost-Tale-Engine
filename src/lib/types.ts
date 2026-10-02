@@ -557,6 +557,8 @@ export interface Chat {
   setEventsDone?: string[]
   /** Carded characters the Game Master plays itself until a set event hands them over (`world/gm.ts` `GmPlayedCharacter`). Carried into later scenes. */
   gmPlayed?: import('@/lib/world/gm').GmPlayedCharacter[]
+  /** Who a character new to the story hasn't been introduced to yet (`story/acquaintance.ts`). Carried into later scenes. */
+  strangers?: import('@/lib/story/acquaintance').Strangers
   /** Tracked state (`world/gameState.ts`) when this scene opened: carried from the scene before it.
    *  What happens in the scene rides on its messages and is replayed over this. */
   gameState?: import('@/lib/world/gameState').GameState
