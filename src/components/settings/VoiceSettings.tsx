@@ -3,12 +3,12 @@ import { OpenMayhemVoiceField } from './OpenMayhemVoiceField'
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { chosen, modelLabel } from '@/lib/api/services'
-import { listKoboldSpeakers, synthesizeSpeech } from '@/lib/voice/ttsProviders'
-import { TextField } from '@/components/ui/Field'
+import { chosen, modelLabel, voiceTarget } from '@/lib/api/services'
+import { synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { Button } from '@/components/ui/Button'
 import { Section } from '@/components/ui/Section'
 import { VoiceSampleField } from './VoiceSampleField'
+import { VoicePicker } from './VoicePicker'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { errorMessage } from '@/lib/store/useToastStore'
 import { changeVoiceConfig, useSecretStatus } from '@/lib/accounts/secrets'
@@ -30,8 +30,6 @@ export function VoiceSettings() {
   const openMayhemKeySaved = secrets.openMayhemApiKey
   const { models } = useOpenMayhemModels('AUDIO_SPEECH', ttsProvider === 'openmayhem')
   const setVoiceConfig = changeVoiceConfig
-  const [speakers, setSpeakers] = useState<string[]>([])
-  const [loadingSpeakers, setLoadingSpeakers] = useState(false)
   const [testState, setTestState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [testError, setTestError] = useState('')
   const testAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -55,12 +53,6 @@ export function VoiceSettings() {
     setTestState('idle')
     return stopTest
   }, [ttsProvider, ttsModel, ttsVoice, ttsKeySaved, ttsBaseUrl, ttsRegion, openMayhemKeySaved])
-
-  const loadSpeakers = async () => {
-    setLoadingSpeakers(true)
-    setSpeakers(await listKoboldSpeakers(baseUrl))
-    setLoadingSpeakers(false)
-  }
 
   // Round-trips a short line through whichever provider is configured right now and plays the
   // result back — a real synthesis + playback, not just a ping, so a wrong voice ID or a key with
@@ -141,62 +133,12 @@ export function VoiceSettings() {
             </>
           )}
 
-          {voice && ttsProvider === 'koboldcpp' && (
+          {voice && ttsProvider !== 'openmayhem' && ttsProvider !== 'luxtts' && ttsProvider !== 'alibaba' && (
             <>
-              <p className="mb-2 text-xs text-text-muted">
-                Needs a TTS-capable model (e.g. OuteTTS, Kokoro) loaded in KoboldCpp.
-              </p>
-              <div className="mb-3 flex items-end gap-2">
-                <TextField
-                  label="Voice"
-                  value={ttsVoice}
-                  onChange={(e) => setVoiceConfig({ ttsVoice: e.target.value })}
-                  placeholder="e.g. a voice name from the list below"
-                  className="flex-1"
-                  list="kobold-speakers"
-                />
-                <datalist id="kobold-speakers">
-                  {speakers.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-                <Button onClick={loadSpeakers} disabled={loadingSpeakers}>
-                  {loadingSpeakers ? 'Loading…' : 'List voices'}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {voice && ttsProvider === 'openai-compatible' && (
-            <>
-              <TextField
-                label="Voice"
-                value={ttsVoice}
-                onChange={(e) => setVoiceConfig({ ttsVoice: e.target.value })}
-                placeholder="e.g. alloy, or a Kokoro voice id"
-              />
-            </>
-          )}
-
-          {voice && ttsProvider === 'elevenlabs' && (
-            <>
-              <TextField
-                label="Voice ID"
-                value={ttsVoice}
-                onChange={(e) => setVoiceConfig({ ttsVoice: e.target.value })}
-                placeholder="from your ElevenLabs voice library"
-              />
-            </>
-          )}
-
-          {voice && ttsProvider === 'azure' && (
-            <>
-              <TextField
-                label="Voice name"
-                value={ttsVoice}
-                onChange={(e) => setVoiceConfig({ ttsVoice: e.target.value })}
-                placeholder="e.g. en-US-JennyNeural"
-              />
+              {ttsProvider === 'koboldcpp' && <p className="mb-2 text-xs text-text-muted">Needs a TTS-capable model (e.g. OuteTTS, Kokoro) loaded in KoboldCpp.</p>}
+              {ttsProvider === 'edge' && <p className="mb-2 text-xs text-text-muted">Free, with no account: spoken by Microsoft's Read Aloud service through this app's server.</p>}
+              {ttsProvider === 'novelai' && <p className="mb-2 text-xs text-text-muted">A named voice, or type any seed (a word, or two joined like <code>Aini+Ogma</code>) for a voice of its own. Up to 1000 characters a line.</p>}
+              <VoicePicker target={voiceTarget(voice.service)} value={ttsVoice} onChange={(id) => setVoiceConfig({ ttsVoice: id })} label="Narrator and default voice" blankLabel="Its default voice" />
             </>
           )}
 
@@ -225,7 +167,7 @@ export function VoiceSettings() {
           {ttsProvider === 'alibaba' && (
             <p className="text-xs text-danger">
               Not wired up yet. Model Studio's request format hasn't been confirmed against a live
-              account, so this was left honest rather than guessed at. The other four providers work now.
+              account, so this was left honest rather than guessed at. The other providers work now.
             </p>
           )}
       </Section>

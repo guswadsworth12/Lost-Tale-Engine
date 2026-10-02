@@ -6,6 +6,7 @@ import { KoboldClient } from './kobold'
 import { NovelAIClient } from './novelai'
 import { OPENMAYHEM_BASE_URL } from './openMayhem'
 import { OpenAICompatibleClient } from './openaiCompatible'
+import { FISH_MODELS, GEMINI_TTS_MODELS, MINIMAX_MODELS } from '@/lib/voice/moreVoices'
 
 /**
  * Services and models. A **service** is one account or server (OpenAI, a local KoboldCpp, an
@@ -21,6 +22,7 @@ import { OpenAICompatibleClient } from './openaiCompatible'
 export type ServiceKind =
   | 'openai' | 'gemini' | 'openmayhem' | 'openai-compatible' | 'koboldcpp' | 'novelai'
   | 'a1111' | 'comfyui' | 'swarmui' | 'elevenlabs' | 'azure' | 'luxtts'
+  | 'fishaudio' | 'minimax' | 'edge' | 'alltalk'
 
 export type Capability = 'text' | 'images' | 'voice'
 
@@ -36,6 +38,8 @@ export interface ServiceKindInfo {
   username?: boolean
   /** Azure speech's region. */
   region?: boolean
+  /** Nothing to choose between: it speaks with whatever it has (the model picker says so instead of offering to type one). */
+  noModels?: boolean
   /** Suggested models, until the service's own list is loaded. */
   models?: Partial<Record<Capability, string[]>>
   hint?: string
@@ -47,8 +51,8 @@ export const SERVICE_KINDS: Record<ServiceKind, ServiceKindInfo> = {
     models: { text: ['gpt-4o', 'gpt-5'], images: ['gpt-image-2', 'gpt-image-1'], voice: ['tts-1', 'gpt-4o-mini-tts'] },
   },
   gemini: {
-    label: 'Google Gemini', offers: ['text', 'images'], key: 'required', sharedSecret: 'geminiApiKey',
-    models: { text: ['gemini-2.5-pro', 'gemini-2.5-flash'], images: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'] },
+    label: 'Google Gemini', offers: ['text', 'images', 'voice'], key: 'required', sharedSecret: 'geminiApiKey',
+    models: { text: ['gemini-2.5-pro', 'gemini-2.5-flash'], images: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'], voice: GEMINI_TTS_MODELS },
   },
   openmayhem: { label: 'OpenMayhem', offers: ['text', 'images', 'voice'], key: 'required', sharedSecret: 'openMayhemApiKey' },
   'openai-compatible': {
@@ -56,13 +60,23 @@ export const SERVICE_KINDS: Record<ServiceKind, ServiceKindInfo> = {
     hint: 'OpenRouter, Groq, Mistral, DeepSeek, LM Studio, Ollama, a local Kokoro voice server, and anything else that speaks the OpenAI API.',
   },
   koboldcpp: { label: 'KoboldCpp', offers: ['text', 'voice'], key: 'none', address: { default: 'http://localhost:5001', required: true } },
-  novelai: { label: 'NovelAI', offers: ['text', 'images'], key: 'required', models: { text: ['kayra-v1', 'clio-v1'], images: ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated'] } },
+  novelai: {
+    label: 'NovelAI', offers: ['text', 'images', 'voice'], key: 'required',
+    models: { text: ['kayra-v1', 'clio-v1'], images: ['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated'], voice: ['v2'] },
+  },
   a1111: { label: 'Automatic1111 / Forge', offers: ['images'], key: 'optional', username: true, address: { default: 'http://127.0.0.1:7860', required: true } },
   comfyui: { label: 'ComfyUI', offers: ['images'], key: 'none', address: { default: 'http://127.0.0.1:8188', required: true } },
   swarmui: { label: 'SwarmUI', offers: ['images'], key: 'none', address: { default: 'http://127.0.0.1:7801', required: true } },
   elevenlabs: { label: 'ElevenLabs', offers: ['voice'], key: 'required' },
   azure: { label: 'Microsoft / Azure Speech', offers: ['voice'], key: 'required', region: true },
   luxtts: { label: 'LuxTTS (your voice server)', offers: ['voice'], key: 'none', hint: 'Its address and token are set on the server.' },
+  fishaudio: { label: 'Fish Audio', offers: ['voice'], key: 'required', models: { voice: FISH_MODELS }, hint: 'Your own cloned voices and the community\'s, from fish.audio.' },
+  minimax: { label: 'MiniMax', offers: ['voice'], key: 'required', models: { voice: MINIMAX_MODELS }, hint: 'A key from minimax.io (the international platform).' },
+  edge: { label: 'Edge TTS (free)', offers: ['voice'], key: 'none', noModels: true, hint: 'Microsoft\'s free neural voices, as Edge\'s Read Aloud uses. No account needed.' },
+  alltalk: {
+    label: 'AllTalk', offers: ['voice'], key: 'none', noModels: true, address: { default: 'http://127.0.0.1:7851', required: true },
+    hint: 'AllTalk TTS v2 on your machine. Its engine and model are chosen in AllTalk itself.',
+  },
 }
 
 /** OpenAI-compatible services people commonly add, so their address fills in by itself. */
@@ -77,6 +91,7 @@ export const KNOWN_COMPATIBLE: { label: string; baseUrl: string }[] = [
   { label: 'xAI (Grok)', baseUrl: 'https://api.x.ai/v1' },
   { label: 'LM Studio (local)', baseUrl: 'http://localhost:1234/v1' },
   { label: 'Ollama (local)', baseUrl: 'http://localhost:11434/v1' },
+  { label: 'Kokoro (local)', baseUrl: 'http://localhost:8880/v1' },
 ]
 
 export interface Service {
@@ -240,24 +255,61 @@ export function legacyFieldsFor(s: ServiceSettings): LegacyFields {
   const voice = chosen(s, s.voiceModel, 'voice')
   if (voice) {
     const { service, model } = voice
+    const target = voiceTarget(service)
     out.ttsModel = model
-    out.ttsSecret = serviceSecret(service)
-    out.ttsRegion = service.region ?? ''
-    if (service.kind === 'openai') {
-      out.ttsProvider = 'openai-compatible'
-      out.ttsBaseUrl = 'https://api.openai.com'
-    } else if (service.kind === 'openai-compatible') {
-      out.ttsProvider = 'openai-compatible'
-      out.ttsBaseUrl = service.baseUrl ?? ''
-    } else if (service.kind === 'koboldcpp') {
-      out.ttsProvider = 'koboldcpp'
+    out.ttsSecret = target.secret
+    out.ttsRegion = target.region ?? ''
+    out.ttsProvider = target.provider
+    if (target.provider === 'koboldcpp') {
       // KoboldCpp's voice is spoken from the app's KoboldCpp address.
       out.baseUrl ??= service.baseUrl ?? ''
-    } else {
-      out.ttsProvider = service.kind as TtsProviderId
+    } else if (target.baseUrl !== undefined) {
+      out.ttsBaseUrl = target.baseUrl
     }
   }
   return out
+}
+
+// ---- Voices -----------------------------------------------------------------------------------
+
+/** Where a voice service's speech goes: the provider that speaks it, and its address, region and key. */
+export interface VoiceTarget {
+  provider: TtsProviderId
+  baseUrl?: string
+  region?: string
+  secret?: SecretName
+}
+
+export function voiceTarget(service: Service): VoiceTarget {
+  const secret = serviceSecret(service)
+  switch (service.kind) {
+    case 'openai': return { provider: 'openai-compatible', baseUrl: 'https://api.openai.com', secret }
+    case 'openai-compatible': return { provider: 'openai-compatible', baseUrl: service.baseUrl ?? '', secret }
+    case 'koboldcpp':
+    case 'alltalk': return { provider: service.kind, baseUrl: service.baseUrl ?? '' }
+    case 'azure': return { provider: 'azure', region: service.region ?? '', secret }
+    default: return { provider: service.kind as TtsProviderId, secret }
+  }
+}
+
+/** A service's first voice model: its loaded list's, else the suggested one. Blank: it has none to choose. */
+export function defaultVoiceModel(service: Service): string {
+  return service.models?.voice?.[0] ?? SERVICE_KINDS[service.kind].models?.voice?.[0] ?? ''
+}
+
+/**
+ * The voice service a character speaks with, when they have their own: that service, with the
+ * Voice model's model if it is the same service, else the service's first. Undefined: they use the
+ * Voice model. Throws when their service has been removed, rather than speaking in someone else's voice.
+ */
+export function resolveCharacterVoice(voice: { serviceId?: string } | undefined, s: ServiceSettings): { service: Service; model: string } | undefined {
+  if (!voice?.serviceId) return undefined
+  const own = findService(s, voice.serviceId)
+  if (!own || !offers(own, 'voice')) {
+    throw new Error('This character\'s voice service has been removed. Pick another on their Voice tab.')
+  }
+  const global = chosen(s, s.voiceModel, 'voice')
+  return { service: own, model: global?.service.id === own.id ? global.model : defaultVoiceModel(own) }
 }
 
 // ---- Fallback ---------------------------------------------------------------------------------

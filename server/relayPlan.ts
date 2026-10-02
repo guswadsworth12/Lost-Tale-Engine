@@ -99,6 +99,8 @@ export const FORWARDED_REQUEST_HEADERS = [
   'anthropic-beta',
   'openai-organization',
   'openai-project',
+  // Fish Audio names the voice engine in a `model` header.
+  'model',
   'x-stainless-helper-method',
 ] as const
 

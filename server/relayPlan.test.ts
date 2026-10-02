@@ -82,8 +82,10 @@ describe('relay headers', () => {
     const forwarded = forwardedRequestHeaders({
       'content-type': 'application/json', accept: 'text/event-stream', cookie: 'session=1', authorization: 'Bearer client',
       'x-relay-target': 'https://x', 'x-relay-secret': 'ttsApiKey', origin: 'http://localhost:5173', host: 'localhost:3001',
+      // Fish Audio names its voice engine in a `model` header.
+      model: 's2-pro',
     })
-    expect(forwarded).toEqual({ 'content-type': 'application/json', accept: 'text/event-stream' })
+    expect(forwarded).toEqual({ 'content-type': 'application/json', accept: 'text/event-stream', model: 's2-pro' })
   })
 
   it('passes back only the allowed response headers', () => {

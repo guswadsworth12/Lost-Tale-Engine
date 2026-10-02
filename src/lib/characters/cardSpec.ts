@@ -183,8 +183,12 @@ export interface Character {
   gallery?: GalleryEntry[]
   /** Optional narrative starting points offered when creating a new chat with this character. */
   relationshipStarters?: RelationshipStarter[]
-  /** Per-character TTS override; unset falls back to the global Settings → Voice config. */
-  voice?: { provider?: TtsProviderId; voiceId?: string; /** 0.5–2; LuxTTS only. */ speed?: number }
+  /**
+   * Per-character TTS override; unset falls back to the global Settings → Voice config. `serviceId`
+   * is one of the user's voice services (Settings → Models and services); `provider` says what it
+   * is, for a card read on an account without that service.
+   */
+  voice?: { serviceId?: string; provider?: TtsProviderId; voiceId?: string; /** 0.5–2: LuxTTS, Edge, Fish Audio, MiniMax, AllTalk. */ speed?: number }
   /** Structured speech patterns, folded into the prompt by `buildCharacterProfileNote` (profile.ts). */
   voiceFingerprint?: VoiceFingerprint
   /** Extra sound-effect words that get the manga-style "burst" styling, beyond the built-in list. Display-only. */

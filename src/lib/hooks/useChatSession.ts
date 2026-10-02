@@ -3,7 +3,7 @@
  * prompts, streams generation, and runs the post-reply "assist" passes (relationship judging,
  * intimacy scenes, gifts, objectives, world triggers, summarization, choice suggestions).
  */
-import { cardBrief } from '@/lib/characters/cardBrief'
+import { appearanceNote, cardBrief } from '@/lib/characters/cardBrief'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { promptOverride } from '@/lib/prompt/promptOverrides'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
@@ -1012,9 +1012,15 @@ export function useChatSession(chatId: string | null) {
       // — the VN stage, or the reactive portrait a live date puts beside the log. See the note on
       // `sceneOptions` below for why this gates what the model is asked for.
       const wantsFullSceneTag = isVisualNovel || isLiveScene(freshChat.activeEvent)
-      const appearanceHistory = wantsFullSceneTag && speaker.outfits?.length
+      // A described form or outfit is told to the model in every mode, so it needs the full history too.
+      const describedAppearance = !!speaker.outfits?.some((outfit) => outfit.description?.trim())
+      const appearanceHistory = (wantsFullSceneTag || describedAppearance) && speaker.outfits?.length
         ? await messagesApi.listByChat(freshChat.id)
         : messages
+      // A manual stage correction is what the story shows, so the model is told it too.
+      const speakerOutfitId = appearanceForCharacter(appearanceHistory, {
+        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
+      }, character.id, getRelationshipTrack(freshChat, speaker.id).affection ?? 0, new Set(freshChat.sceneFlags ?? []), freshChat.scene?.appearanceOverrides?.[speaker.id])
 
       // Where and when, resolved once: the state block asserts these as fact and `continuityGuard.ts`
       // checks the reply against them afterwards, so both halves have to be reading the same values.
@@ -1232,7 +1238,7 @@ export function useChatSession(chatId: string | null) {
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
-        characterProfile: [buildCharacterProfileNote(speaker), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
+        characterProfile: [buildCharacterProfileNote(speaker), appearanceNote(speaker.card.name, speaker.outfits, speakerOutfitId), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
         personaName: persona?.name || 'You',
         personaDescription: persona?.description || '',
         globalSystemPrompt,
@@ -1286,10 +1292,7 @@ export function useChatSession(chatId: string | null) {
               .filter((outfit) => selectableOutfitIds(speaker.outfits, speaker.sprites, speakerTrack.affection ?? 0, new Set(freshChat.sceneFlags ?? [])).includes(outfit.id))
               .map((outfit) => outfit.id)
             : [],
-          currentOutfitId: appearanceForCharacter(appearanceHistory, {
-            id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
-          // A manual stage correction is what the story shows, so the model is told it too.
-          }, character.id, getRelationshipTrack(freshChat, speaker.id).affection ?? 0, new Set(freshChat.sceneFlags ?? []), freshChat.scene?.appearanceOverrides?.[speaker.id]),
+          currentOutfitId: speakerOutfitId,
         },
         affection,
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  FallbackBackend, createTextClient, legacyFieldsFor, newServiceId, resolveCharacter, resolveJob, serviceSecret, servedByLabel,
+  FallbackBackend, createTextClient, legacyFieldsFor, newServiceId, resolveCharacter, resolveCharacterVoice, resolveJob, serviceSecret, servedByLabel, voiceTarget,
   type Service, type ServiceSettings,
 } from './services'
 import { KoboldClient } from './kobold'
@@ -63,6 +63,34 @@ describe('services', () => {
     expect(legacyFieldsFor({ services: [openai], voiceModel: { serviceId: 'openai', model: 'tts-1' } })).toMatchObject({ ttsProvider: 'openai-compatible', ttsBaseUrl: 'https://api.openai.com', ttsSecret: 'openaiApiKey' })
     // Nothing chosen: the long-standing fields are left as they are.
     expect(legacyFieldsFor({ services: [openai] })).toEqual({})
+  })
+
+  it('speaks through each new voice service with its own key, address or none', () => {
+    const fish: Service = { id: 'fish', name: 'Fish Audio', kind: 'fishaudio' }
+    const alltalk: Service = { id: 'alltalk', name: 'AllTalk', kind: 'alltalk', baseUrl: 'http://127.0.0.1:7851' }
+    const edge: Service = { id: 'edge', name: 'Edge', kind: 'edge' }
+    expect(voiceTarget(gemini)).toEqual({ provider: 'gemini', secret: 'geminiApiKey' })
+    expect(voiceTarget(fish)).toEqual({ provider: 'fishaudio', secret: 'service:fish' })
+    expect(voiceTarget({ id: 'mm', name: 'MiniMax', kind: 'minimax' })).toEqual({ provider: 'minimax', secret: 'service:mm' })
+    expect(voiceTarget({ id: 'nai', name: 'NovelAI', kind: 'novelai' })).toEqual({ provider: 'novelai', secret: 'service:nai' })
+    expect(voiceTarget(alltalk)).toEqual({ provider: 'alltalk', baseUrl: 'http://127.0.0.1:7851' })
+    expect(voiceTarget(edge)).toEqual({ provider: 'edge', secret: undefined })
+    expect(legacyFieldsFor({ services: [alltalk], voiceModel: { serviceId: 'alltalk', model: '' } })).toMatchObject({ ttsProvider: 'alltalk', ttsBaseUrl: 'http://127.0.0.1:7851' })
+    expect(legacyFieldsFor({ services: [gemini], voiceModel: { serviceId: 'gemini', model: 'gemini-3.8-flash-tts' } })).toMatchObject({ ttsProvider: 'gemini', ttsModel: 'gemini-3.8-flash-tts', ttsSecret: 'geminiApiKey' })
+  })
+
+  it('gives a character their own voice service, and refuses a removed one rather than using another voice', () => {
+    const fish: Service = { id: 'fish', name: 'Fish Audio', kind: 'fishaudio' }
+    const comfy: Service = { id: 'comfy', name: 'ComfyUI', kind: 'comfyui', baseUrl: 'http://127.0.0.1:8188' }
+    const s: ServiceSettings = { services: [gemini, fish, comfy], voiceModel: { serviceId: 'gemini', model: 'gemini-2.5-pro-preview-tts' } }
+    expect(resolveCharacterVoice(undefined, s)).toBeUndefined()
+    expect(resolveCharacterVoice({}, s)).toBeUndefined()
+    // The Voice model's own service keeps its chosen model; another starts on its first.
+    expect(resolveCharacterVoice({ serviceId: 'gemini' }, s)).toEqual({ service: gemini, model: 'gemini-2.5-pro-preview-tts' })
+    expect(resolveCharacterVoice({ serviceId: 'fish' }, s)).toEqual({ service: fish, model: 's2.1-pro' })
+    expect(() => resolveCharacterVoice({ serviceId: 'gone' }, s)).toThrow('voice service has been removed')
+    // An image-only service can't speak.
+    expect(() => resolveCharacterVoice({ serviceId: 'comfy' }, s)).toThrow('voice service has been removed')
   })
 
   it('makes short, unique ids', () => {

@@ -38,9 +38,13 @@ const ADD_GROUPS: { label: string; choices: { id: string; label: string; kind: S
     { id: 'comfyui', label: 'ComfyUI', kind: 'comfyui' },
     { id: 'swarmui', label: 'SwarmUI', kind: 'swarmui' },
     { id: 'luxtts', label: 'LuxTTS (your voice server)', kind: 'luxtts' },
+    { id: 'alltalk', label: 'AllTalk', kind: 'alltalk' },
   ] },
   { label: 'Voice', choices: [
+    { id: 'edge', label: 'Edge TTS (free)', kind: 'edge' },
     { id: 'elevenlabs', label: 'ElevenLabs', kind: 'elevenlabs' },
+    { id: 'fishaudio', label: 'Fish Audio', kind: 'fishaudio' },
+    { id: 'minimax', label: 'MiniMax', kind: 'minimax' },
     { id: 'azure', label: 'Microsoft / Azure Speech', kind: 'azure' },
   ] },
   { label: 'Other', choices: [{ id: 'compatible', label: 'Another OpenAI-compatible service', kind: 'openai-compatible' }] },

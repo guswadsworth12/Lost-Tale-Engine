@@ -64,6 +64,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
+import { resolveCharacterVoice, voiceTarget } from '@/lib/api/services'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
@@ -760,6 +761,7 @@ export function VNStage({
   const ttsModel = useSettingsStore((s) => s.ttsModel)
   const openMayhemKeySaved = secrets.openMayhemApiKey
   const ttsVoice = useSettingsStore((s) => s.ttsVoice)
+  const voiceModelServiceId = useSettingsStore((s) => s.voiceModel?.serviceId)
   const [speakState, setSpeakState] = useState<'idle' | 'loading' | 'playing'>('idle')
   const speakAudioRef = useRef<HTMLAudioElement | null>(null)
   const speakControllerRef = useRef<AbortController | null>(null)
@@ -792,9 +794,11 @@ export function VNStage({
       // Whoever is actually speaking this line; GM narration and the player's own line use the narrator/default voice.
       const voiceOwner = showUserAsCurrent || gmNarration ? undefined : activeCgSource
       const override = voiceOwner?.voice
-      const provider = override?.provider ?? ttsProvider
-      if (override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
-        throw new Error('This character overrides the voice provider. Pick that service as the Voice model in Settings → Models and services first, or use the global default for this character.')
+      // Their own voice service, if they have one (throws if it was removed, rather than using someone else's voice).
+      const own = resolveCharacterVoice(override, useSettingsStore.getState())
+      const provider = own ? voiceTarget(own.service).provider : override?.provider ?? ttsProvider
+      if (!own && override?.provider && override.provider !== ttsProvider && !SERVER_SIDE_TTS.includes(override.provider)) {
+        throw new Error('This character speaks with a voice service you haven\'t added. Add it in Settings → Models and services, then pick it on their Voice tab.')
       }
       const narratorConfig = {
         provider: ttsProvider,
@@ -805,16 +809,27 @@ export function VNStage({
         region: ttsRegion,
         voice: ttsVoice,
       }
-      const characterConfig = {
-        ...narratorConfig,
-        provider,
-        // A character's own voice id only means something on the provider it was chosen for.
-        voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
-        speed: override?.speed,
-      }
+      const ownTarget = own && voiceTarget(own.service)
+      const characterConfig = ownTarget
+        ? {
+          ...ownTarget,
+          keySaved: !!ownTarget.secret && !!secrets[ownTarget.secret],
+          model: own.model,
+          // Blank: the service's own default voice, never the narrator's on a different service.
+          voice: override?.voiceId || (own.service.id === voiceModelServiceId ? ttsVoice : ''),
+          speed: override?.speed,
+        }
+        : {
+          ...narratorConfig,
+          provider,
+          // A character's own voice id only means something on the provider it was chosen for.
+          voice: (override?.voiceId && (override.provider ?? ttsProvider) === provider ? override.voiceId : '') || (provider === ttsProvider ? ttsVoice : ''),
+          speed: override?.speed,
+        }
       const clips = segments.flatMap((segment) => {
         const config = segment.role === 'narrator' ? narratorConfig : characterConfig
-        const parts = config.provider === 'luxtts' ? splitSpeechText(segment.text) : [segment.text]
+        // LuxTTS speaks best in short clips; NovelAI takes at most 1000 characters a request.
+        const parts = config.provider === 'luxtts' ? splitSpeechText(segment.text) : config.provider === 'novelai' ? splitSpeechText(segment.text, 600) : [segment.text]
         return parts.map((text) => ({ text, config }))
       })
       // Prepare one clip ahead while the current one plays, so sentence boundaries do not
@@ -881,7 +896,7 @@ export function VNStage({
   }
   // Swiping to a different line, or leaving the message entirely, cuts off whatever was playing —
   // it no longer matches what's on screen.
-  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemKeySaved, ttsKeySaved, ttsBaseUrl, ttsRegion, activeCgSource?.voice?.provider, activeCgSource?.voice?.voiceId])
+  useEffect(() => stopSpeaking, [lastCharMsg?.id, activeSwipe, ttsProvider, ttsModel, ttsVoice, openMayhemKeySaved, ttsKeySaved, ttsBaseUrl, ttsRegion, activeCgSource?.voice?.provider, activeCgSource?.voice?.serviceId, activeCgSource?.voice?.voiceId])
   const [autoVoice, setAutoVoice] = useState(false)
 
   // Every message id this component instance has watched stream in live — its text already

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardBrief } from './cardBrief'
+import { appearanceNote, cardBrief } from './cardBrief'
 import type { Character } from './cardSpec'
 
 const item = (name: string, content: string, extra: Record<string, unknown> = {}) => ({ id: name, name, content, role: 'system' as const, enabled: true, ...extra })
@@ -25,5 +25,30 @@ describe('a card, briefly, for the GM', () => {
     const bea = { card: { name: 'Bea', description: 'A tall lamplighter.', personality: 'Dry.' }, promptItems: [item('Notes', 'x'.repeat(50))] } as unknown as Character
     expect(cardBrief(bea, { userName: 'Wren' })).toBe(`A tall lamplighter.\n\nPersonality: Dry.\n\n${'x'.repeat(50)}`)
     expect(cardBrief(bea, { userName: 'Wren', maxChars: 10 })).toBe('A tall lam…')
+  })
+
+  it('tells the GM each described form apart from outfits, before the rest of the card', () => {
+    const outfits = [
+      { id: 'construct', label: 'construct', kind: 'form' as const, description: 'A jade-and-brass construct body, heavy and slow.' },
+      { id: 'wisp', label: 'wisp', kind: 'form' as const, description: 'A drifting mote of green light. Cannot hold things.' },
+      { id: 'gown', label: 'gown', description: 'A dark green dinner gown.' },
+      { id: 'plain', label: 'plain' },
+    ]
+    const brief = cardBrief({ card: { name: 'Wren', description: 'A guide for travellers.' } as never, outfits, promptItems: [] }, { userName: 'Sam' })
+    expect(brief).toContain('Forms (besides their usual one): construct: A jade-and-brass construct body, heavy and slow. | wisp: A drifting mote of green light. Cannot hold things.')
+    expect(brief).toContain('Outfits: gown: A dark green dinner gown.')
+    expect(brief).not.toContain('plain')
+    expect(brief.indexOf('A guide')).toBeLessThan(brief.indexOf('Forms'))
+  })
+})
+
+describe('the form a character is in now', () => {
+  const outfits = [{ id: 'wisp', label: 'wisp', kind: 'form' as const, description: 'A drifting mote of green light.' }, { id: 'gown', label: 'gown', description: 'A dark green gown.' }, { id: 'plain', label: 'plain' }]
+  it('says what their current form or outfit is, only when it is described', () => {
+    expect(appearanceNote('Wren', outfits, 'wisp')).toBe('Right now Wren is in their wisp form: A drifting mote of green light.')
+    expect(appearanceNote('Wren', outfits, 'gown')).toBe('Right now Wren is wearing gown: A dark green gown.')
+    expect(appearanceNote('Wren', outfits, 'plain')).toBe('')
+    expect(appearanceNote('Wren', outfits, 'base')).toBe('')
+    expect(appearanceNote('Wren', outfits, undefined)).toBe('')
   })
 })
