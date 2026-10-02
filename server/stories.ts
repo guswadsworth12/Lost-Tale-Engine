@@ -1,7 +1,8 @@
 import express from 'express'
 import { characterStore, chatFactStore, chatStore, messageStore, newId, objectiveStore, relationshipEventStore, storyStore, worldStore } from './db.ts'
 import { StoryPlanError, planChapterEdit, planNextScene, planSceneRemoval, planSceneRestore, type ChapterEdit, type NextSceneRequest } from './storyPlan.ts'
-import { canSeeChat, hiddenIds, lookups, storyVisible } from './access.ts'
+import { canSeeChat, hiddenIds, lookups, siteOwnerId, storyVisible } from './access.ts'
+import { ownerOf } from './ownership.ts'
 import { planLeadChange } from '../src/lib/story/lead.ts'
 import { carryGameState, gameStateFrom, type CampaignTrack, type GameState } from '../src/lib/world/gameState.ts'
 
@@ -91,10 +92,12 @@ storiesRouter.post('/chats/:id/next-scene', (req, res) => {
     throw error
   }
 
-  if (plan.storyIsNew) storyStore.insert(plan.story)
+  // A story and its scenes are their starter's alone (ownership.ts).
+  const owner = ownerOf(source, siteOwnerId())
+  if (plan.storyIsNew) storyStore.insert({ ...plan.story, ownerUserId: owner })
   else storyStore.update(str(plan.story.id), plan.story)
   chatStore.update(str(source.id), plan.sourcePatch)
-  const created = chatStore.insert(plan.newChat)
+  const created = chatStore.insert({ ...plan.newChat, ownerUserId: owner })
   const newChatId = str(created.id)
 
   const activeObjective = objectiveStore.list({ where: 'chatId = ? AND status = ?', params: [source.id, 'active'] })[0]
@@ -136,7 +139,7 @@ storiesRouter.put('/chats/:id/chapter', (req, res) => {
     if (error instanceof StoryPlanError) return res.status(error.status).json({ error: error.message })
     throw error
   }
-  if (plan.storyIsNew) storyStore.insert(plan.story)
+  if (plan.storyIsNew) storyStore.insert({ ...plan.story, ownerUserId: ownerOf(source, siteOwnerId()) })
   else storyStore.update(str(plan.story.id), plan.story)
   if (Object.keys(plan.sourcePatch).length) chatStore.update(str(source.id), plan.sourcePatch)
   res.json(plan.story)

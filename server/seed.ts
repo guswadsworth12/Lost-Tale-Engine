@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { avatarsDir, characterStore, personaStore, worldInfoBookStore, worldStore } from './db.ts'
 import {
+  SEED_WORLD_INFO_ID,
   SEED_BACKGROUND_KEYS,
   SEED_BACKGROUND_NIGHT_KEYS,
   SEED_CHARACTER_ID,
@@ -18,6 +19,12 @@ import {
   seedWorld2,
   seedWorldInfoBook,
 } from './seedContent.ts'
+
+/** The starter content bundled with the app: shared with every account on purpose (ownership.ts). */
+export const SHARED_SEED_IDS: ReadonlySet<string> = new Set([
+  SEED_WORLD_ID, SEED_CHARACTER_ID, SEED_WORLD_INFO_ID, SEED_PERSONA_ID, SEED_WORLD_2_ID, SEED_CHARACTER_2_ID,
+])
+const shared = (row: object) => ({ ...row, visibility: 'shared' }) as unknown as Record<string, unknown>
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Committed at the repo root (not under data/, which is gitignored) — these ship with the app.
@@ -37,12 +44,12 @@ export function runSeedIfNeeded(): void {
   // they existed, guarded by their own ids so this stays a one-time no-op per piece.
   if (worldStore.get(SEED_WORLD_ID)) {
     if (!personaStore.get(SEED_PERSONA_ID)) {
-      personaStore.insert(seedPersona as unknown as Record<string, unknown>)
+      personaStore.insert(shared(seedPersona))
       console.log('[rp-server] back-filled the starter persona')
     }
     if (!worldStore.get(SEED_WORLD_2_ID)) {
-      worldStore.insert(seedWorld2 as unknown as Record<string, unknown>)
-      characterStore.insert(seedCharacter2 as unknown as Record<string, unknown>)
+      worldStore.insert(shared(seedWorld2))
+      characterStore.insert(shared(seedCharacter2))
       console.log('[rp-server] back-filled the second seed world/character (Freeform)')
     }
     return
@@ -88,13 +95,13 @@ export function runSeedIfNeeded(): void {
   // The stores are intentionally typed loosely (Record<string, unknown> in, out) since they're a
   // thin JSON-blob layer over SQLite shared by every entity kind — seedContent.ts's exports carry
   // the real, precise types for everything written by hand above.
-  worldStore.insert(seedWorld as unknown as Record<string, unknown>)
-  worldInfoBookStore.insert(seedWorldInfoBook as unknown as Record<string, unknown>)
-  characterStore.insert(seedCharacter as unknown as Record<string, unknown>)
-  personaStore.insert(seedPersona as unknown as Record<string, unknown>)
+  worldStore.insert(shared(seedWorld))
+  worldInfoBookStore.insert(shared(seedWorldInfoBook))
+  characterStore.insert(shared(seedCharacter))
+  personaStore.insert(shared(seedPersona))
   // The second seed: a Freeform-template world + text-only NPC, no art assets to copy for either.
-  worldStore.insert(seedWorld2 as unknown as Record<string, unknown>)
-  characterStore.insert(seedCharacter2 as unknown as Record<string, unknown>)
+  worldStore.insert(shared(seedWorld2))
+  characterStore.insert(shared(seedCharacter2))
 
   console.log(
     `[rp-server] seeded starter content: 2 worlds, 1 World Info book, 2 characters, 1 persona ` +
