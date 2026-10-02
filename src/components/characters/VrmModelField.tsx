@@ -23,6 +23,7 @@ export function VrmModelField({ value, onChange }: { value: Character['vrm']; on
   const library = useApiQuery('vrm-library', () => vrmLibraryApi.list(), []) ?? []
   const motionLibrary = useApiQuery('vrma-library', () => vrmLibraryApi.motions(), []) ?? []
   const [previewSlot, setPreviewSlot] = useState<VrmMotionSlot | null>(null)
+  const [previewGesture, setPreviewGesture] = useState<{ kind: 'wave' | 'smile'; nonce: number }>({ kind: 'wave', nonce: 0 })
   const [previewError, setPreviewError] = useState(false)
   const fromLibrary = library.find((f) => value?.url.split('?')[0] === f.url)
   const setMotion = (slot: VrmMotionSlot, url?: string) => {
@@ -112,9 +113,13 @@ export function VrmModelField({ value, onChange }: { value: Character['vrm']; on
             {previewSlot && (
               <div className="rounded-xl bg-bg-sunken p-3">
                 <div className="mb-2 flex items-center justify-between text-sm"><span>Preview: {previewSlot}</span><Button variant="ghost" onClick={() => setPreviewSlot(null)}>Close</Button></div>
+                <div className="mb-2 flex gap-2">
+                  <Button variant="ghost" onClick={() => setPreviewGesture((prev) => ({ kind: 'wave', nonce: prev.nonce + 1 }))}>Wave</Button>
+                  <Button variant="ghost" onClick={() => setPreviewGesture((prev) => ({ kind: 'smile', nonce: prev.nonce + 1 }))}>Smile</Button>
+                </div>
                 {previewError ? <p className="text-xs text-text-muted">Model or clip could not load. The 2D sprite remains the stage fallback.</p> : (
                   <div className="mx-auto h-64 w-48"><Suspense fallback={<p className="text-xs text-text-muted">Loading preview…</p>}>
-                    <VrmFigure key={`${value.url}:${previewSlot}:${value.motions?.[previewSlot] ?? ''}`} url={value.url} motions={value.motions} label="Character preview" expression={previewSlot} speaking={previewSlot === 'speaking'} reducedMotion={false} onError={() => setPreviewError(true)} />
+                    <VrmFigure key={`${value.url}:${previewSlot}:${value.motions?.[previewSlot] ?? ''}`} url={value.url} motions={value.motions} label="Character preview" expression={previewSlot} speaking={previewSlot === 'speaking'} gesture={previewGesture.kind} gestureNonce={previewGesture.nonce} reducedMotion={false} onError={() => setPreviewError(true)} />
                   </Suspense></div>
                 )}
               </div>
