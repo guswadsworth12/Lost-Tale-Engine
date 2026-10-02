@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm'
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation'
 import { VRM_EMOTIONS, speakingMouth, vrmEmotionWeights, type VrmEmotion } from '@/lib/vn/vrm'
-import { selectVrmMotion, VRM_MOTION_SLOTS, waveWeight, type VrmMotions, type VrmMotionSlot } from '@/lib/vn/vrmMotion'
+import { restingArms, selectVrmMotion, VRM_MOTION_SLOTS, vrmArmSign, waveWeight, wavingRightArm, type VrmMotions, type VrmMotionSlot } from '@/lib/vn/vrmMotion'
 
 /**
  * One cast member rendered from a VRM model on its own transparent canvas, framed full-height so it
@@ -66,6 +66,8 @@ export default function VrmFigure({
 
     let vrm: VRM | undefined
     let rightLowerArmRestZ = 0
+    // VRM 0.x and 1.0 turn the arm bones opposite ways (`vrmArmSign`).
+    let armSign: 1 | -1 = -1
     let mixer: THREE.AnimationMixer | undefined
     const clips: Partial<Record<VrmMotionSlot, THREE.AnimationClip>> = {}
     let activeSlot: VrmMotionSlot | undefined
@@ -125,8 +127,10 @@ export default function VrmFigure({
         const leftArm = loaded.humanoid.getNormalizedBoneNode('leftUpperArm')
         const rightArm = loaded.humanoid.getNormalizedBoneNode('rightUpperArm')
         rightLowerArmRestZ = loaded.humanoid.getNormalizedBoneNode('rightLowerArm')?.rotation.z ?? 0
-        if (leftArm) leftArm.rotation.z = 1.2
-        if (rightArm) rightArm.rotation.z = -1.2
+        armSign = vrmArmSign(loaded.meta?.metaVersion)
+        const rest = restingArms(armSign)
+        if (leftArm) leftArm.rotation.z = rest.left
+        if (rightArm) rightArm.rotation.z = rest.right
         loaded.update(0)
         vrm = loaded
         mixer = new THREE.AnimationMixer(loaded.scene)
@@ -204,17 +208,18 @@ export default function VrmFigure({
           const head = vrm.humanoid.getNormalizedBoneNode('head')
           if (head) head.rotation.x = !motionDisabled && liveRef.current.speaking ? Math.sin(t * 3.2) * 0.02 : 0
           const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm')
-          if (leftArm) leftArm.rotation.z = 1.2 + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4) * 0.05 : 0)
+          if (leftArm) leftArm.rotation.z = restingArms(armSign).left + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4) * 0.05 : 0)
           const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
-          if (rightArm) rightArm.rotation.z = -1.2 + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4 + 1.5) * 0.05 : 0)
+          if (rightArm) rightArm.rotation.z = restingArms(armSign).right + (!motionDisabled && liveRef.current.speaking ? Math.sin(t * 2.4 + 1.5) * 0.05 : 0)
           const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm')
           if (rightLowerArm) rightLowerArm.rotation.z = rightLowerArmRestZ
         }
         if (waving) {
           const upperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
           const lowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm')
-          if (upperArm) upperArm.rotation.z = THREE.MathUtils.lerp(upperArm.rotation.z, -0.8, waving)
-          if (lowerArm) lowerArm.rotation.z = THREE.MathUtils.lerp(lowerArm.rotation.z, 2.7 + Math.sin(gestureElapsed * 14) * 0.2, waving)
+          const pose = wavingRightArm(armSign, Math.sin(gestureElapsed * 14) * 0.2)
+          if (upperArm) upperArm.rotation.z = THREE.MathUtils.lerp(upperArm.rotation.z, pose.upper, waving)
+          if (lowerArm) lowerArm.rotation.z = THREE.MathUtils.lerp(lowerArm.rotation.z, pose.lower, waving)
         }
         vrm.update(dt)
       }
