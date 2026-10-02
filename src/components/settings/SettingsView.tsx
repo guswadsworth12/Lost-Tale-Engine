@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { SetupChecklist } from '@/components/setup/SetupChecklist'
+import { Section } from '@/components/ui/Section'
+import type { ViewId } from '@/components/layout/Sidebar'
 import { CircleHelp } from 'lucide-react'
 import { TutorialSettingsSection } from '@/components/help'
 import { openHelp } from '@/lib/help/helpStore'
@@ -10,12 +13,13 @@ import { ImageGenSettings } from './ImageGenSettings'
 import { DataSettings } from './DataSettings'
 import { AccountSettings } from './AccountSettings'
 
-type Tab = 'models' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
+type Tab = 'setup' | 'models' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
 
-export function SettingsView() {
+export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: string) => void; onNavigate: (view: ViewId) => void }) {
   const [tab, setTab] = useState<Tab>('models')
 
   const TABS: [Tab, string][] = [
+    ['setup', 'Get set up'],
     ['models', 'Models and services'],
     ['appearance', 'Appearance'],
     ['generation', 'Generation'],
@@ -74,6 +78,11 @@ export function SettingsView() {
         </div>
       </div>
       <div className="pt-6">
+        {tab === 'setup' && (
+          <Section title="Get set up" description="Each step ticks itself once it's done. Reopen any of them here." surface="bare">
+            <SetupChecklist onStarted={onStarted} onNavigate={onNavigate} />
+          </Section>
+        )}
         {tab === 'models' && <ModelsAndServicesSettings />}
         {tab === 'appearance' && <ThemeEditor />}
         {tab === 'generation' && <SamplingControls />}

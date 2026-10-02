@@ -4,6 +4,7 @@
  * image, TTS). Persisted to localStorage as `rp-settings`, with a deep `merge` for a few nested keys.
  */
 import { create } from 'zustand'
+import { NEW_SETUP, type SetupProgress } from '@/lib/setup/setup'
 import { isOpenMayhem } from '@/lib/api/openMayhem'
 import { persist } from 'zustand/middleware'
 import type { ChatCompletionSamplerParams, GenerationParams } from '@/lib/api/types'
@@ -360,6 +361,9 @@ interface SettingsState {
   applyServices: (settings: ServiceSettings) => void
   /** Set once this install's providers have become services. */
   servicesMigrated: boolean
+  /** The setup wizard's progress (`setup/setup.ts`): finished or put off, and skipped steps. Synced with the account. */
+  setupProgress: SetupProgress
+  setSetupProgress: (progress: SetupProgress) => void
   /** Which saved key the chat, image and voice code attaches: the chosen service's. Unset: the long-standing names. */
   chatBackendSecret?: SecretName
   imageBackendSecret?: SecretName
@@ -632,6 +636,8 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       applyServices: (settings) => set((s) => withLegacy(s, { ...settings, servicesMigrated: true })),
       servicesMigrated: false,
+      setupProgress: NEW_SETUP,
+      setSetupProgress: (progress) => set({ setupProgress: progress }),
 
       imageBackend: 'a1111',
       imageBackendBaseUrl: '',
