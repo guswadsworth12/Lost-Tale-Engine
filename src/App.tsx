@@ -6,7 +6,9 @@ import { KeyboardShortcutsSheet } from '@/components/layout/KeyboardShortcutsShe
 import { ChatsPanel } from '@/components/chat/ChatsPanel'
 import { ChatWindow } from '@/components/chat/ChatWindow'
 import { GlobalBgm } from '@/components/chat/GlobalBgm'
-import { WelcomeView } from '@/components/chat/WelcomeView'
+import { SetupWizard } from '@/components/setup/SetupWizard'
+import { GetStartedHome } from '@/components/setup/SetupChecklist'
+import { shouldShowWizard } from '@/lib/setup/setup'
 import { AssistantView } from '@/components/assistant/AssistantView'
 import { CastView } from '@/components/cast/CastView'
 import { WorldsView } from '@/components/worlds/WorldsView'
@@ -46,9 +48,13 @@ function ChatSurface({
   onOpenMenu: () => void
 }) {
   const chats = useApiQuery('chats', () => chatsApi.list(), [])
+  const setupProgress = useSettingsStore((s) => s.setupProgress)
   if (chats === undefined) return <div className="flex-1" />
   if (chats.length === 0) {
-    return <WelcomeView onStarted={onPlay} onNavigate={onNavigate} />
+    // First run: the setup wizard (#40). Put off or finished: start a story, or carry on from the checklist.
+    return shouldShowWizard(setupProgress, 0)
+      ? <SetupWizard variant="page" onClose={() => {}} onStarted={onPlay} onNavigate={onNavigate} />
+      : <GetStartedHome onStarted={onPlay} onNavigate={onNavigate} />
   }
 
   if (!playing || !activeChatId) return <ChatsPanel activeChatId={activeChatId} onSelect={onPlay} />
@@ -108,6 +114,10 @@ function SignedInApp() {
     else setPlayMenuOpen(true)
   }
   const inPlay = view === 'stories' && playing && !!activeChatId
+  // The tour's first-run offer waits until the setup wizard is out of the way.
+  const storyList = useApiQuery('chats', () => chatsApi.list(), [])
+  const setupProgress = useSettingsStore((s) => s.setupProgress)
+  const setupShowing = view === 'stories' && storyList !== undefined && shouldShowWizard(setupProgress, storyList.length)
   // The Relationship panel's "Customize in World editor" link — same deep-link shape as the
   // command palette's `onSelectWorld` below, just also landing on a specific tab (e.g. 'dating'
   // for the gift/intimacy catalogs) instead of always the world's overview.
@@ -198,14 +208,14 @@ function SignedInApp() {
             }}
           />
         )}
-        {view === 'settings' && <SettingsView />}
+        {view === 'settings' && <SettingsView onStarted={play} onNavigate={navigate} />}
       </div>
       {/* App-level so a world's music keeps playing across view switches. Mounted in every view:
           the one exclusion that used to exist was for a competing player in a view since removed. */}
       <GlobalBgm />
       <ToastViewport />
       {/* Help & tutorial, the guided tour, and the first-run offer (held back mid-story). */}
-      <TutorialLauncher suppressPrompt={inPlay} />
+      <TutorialLauncher suppressPrompt={inPlay || setupShowing} />
       <ConfirmDialog />
       {showPalette && (
         <CommandPalette
