@@ -3,6 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { avatarsDir, characterStore, personaStore, worldInfoBookStore, worldStore } from './db.ts'
 import {
+  HOLLOWMERE_BACKGROUND_KEYS,
+  HOLLOWMERE_EXPRESSIONS,
+  HOLLOWMERE_FOX_EXPRESSIONS,
+  HOLLOWMERE_WORLD_ID,
+  hollowmereCharacters,
+  hollowmereWorld,
   SEED_WORLD_INFO_ID,
   SEED_BACKGROUND_KEYS,
   SEED_BACKGROUND_NIGHT_KEYS,
@@ -23,6 +29,7 @@ import {
 /** The starter content bundled with the app: shared with every account on purpose (ownership.ts). */
 export const SHARED_SEED_IDS: ReadonlySet<string> = new Set([
   SEED_WORLD_ID, SEED_CHARACTER_ID, SEED_WORLD_INFO_ID, SEED_PERSONA_ID, SEED_WORLD_2_ID, SEED_CHARACTER_2_ID,
+  HOLLOWMERE_WORLD_ID, ...hollowmereCharacters.map((character) => character.id),
 ])
 const shared = (row: object) => ({ ...row, visibility: 'shared' }) as unknown as Record<string, unknown>
 
@@ -31,14 +38,49 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const seedAssetsDir = path.resolve(__dirname, '..', 'seed', 'backgrounds')
 const seedNightAssetsDir = path.resolve(__dirname, '..', 'seed', 'backgrounds-night')
 const seedSpritesDir = path.resolve(__dirname, '..', 'seed', 'sprites', 'sumire')
+const hollowmereAssetsDir = path.resolve(__dirname, '..', 'seed', 'hollowmere')
+
+function copySeedArt(source: string, destination: string): boolean {
+  if (!fs.existsSync(source)) return false
+  fs.mkdirSync(path.dirname(destination), { recursive: true })
+  fs.copyFileSync(source, destination)
+  return true
+}
+
+function seedHollowmereIfNeeded(): void {
+  if (worldStore.get(HOLLOWMERE_WORLD_ID)) return
+  let copied = 0
+  for (const folder of ['backgrounds', 'backgrounds-night']) {
+    for (const key of HOLLOWMERE_BACKGROUND_KEYS) {
+      copied += Number(copySeedArt(
+        path.join(hollowmereAssetsDir, folder, `${key}.png`),
+        path.join(avatarsDir, 'worlds', HOLLOWMERE_WORLD_ID, folder, `${key}.png`),
+      ))
+    }
+  }
+  const slugs = ['mara', 'tavi', 'passenger', 'rowan'] as const
+  hollowmereCharacters.forEach((character, index) => {
+    const source = path.join(hollowmereAssetsDir, 'sprites', slugs[index])
+    const destination = path.join(avatarsDir, 'characters', character.id)
+    copied += Number(copySeedArt(path.join(source, 'avatar.png'), path.join(destination, 'avatar.png')))
+    const expressions = character.id === hollowmereCharacters[1].id
+      ? [...HOLLOWMERE_EXPRESSIONS, ...HOLLOWMERE_FOX_EXPRESSIONS]
+      : HOLLOWMERE_EXPRESSIONS
+    for (const key of expressions) {
+      copied += Number(copySeedArt(path.join(source, `${key}.png`), path.join(destination, 'sprites', `${key}.png`)))
+    }
+  })
+  worldStore.insert(shared(hollowmereWorld))
+  for (const character of hollowmereCharacters) characterStore.insert(shared(character))
+  console.log(`[rp-server] seeded Hollowmere Station: 1 world, 4 characters, ${copied} art files copied`)
+}
 
 /**
- * Populates the one bundled world/character/World Info book on first run only. Idempotent by
- * construction: it checks for the seed world's own fixed id rather than "is the database empty",
- * so deleting other data never re-triggers it, and re-running it (e.g. after `npm install`) is a
- * harmless no-op once it's already been applied once.
+ * Populates bundled worlds on first run and back-fills new ones on existing installs. Each world
+ * uses its fixed id as a guard, so re-running this does not overwrite a user's edits.
  */
 export function runSeedIfNeeded(): void {
+  seedHollowmereIfNeeded()
   // The starter persona, and later the second (Freeform) seed world/character, were both added
   // after the original seed shipped — back-fill each for installs that already ran the seed before
   // they existed, guarded by their own ids so this stays a one-time no-op per piece.
@@ -104,7 +146,7 @@ export function runSeedIfNeeded(): void {
   characterStore.insert(shared(seedCharacter2))
 
   console.log(
-    `[rp-server] seeded starter content: 2 worlds, 1 World Info book, 2 characters, 1 persona ` +
+    `[rp-server] seeded original starter content: 2 worlds, 1 World Info book, 2 characters, 1 persona ` +
       `(${copied}/${SEED_BACKGROUND_KEYS.length} backgrounds, ${spritesCopied}/${SEED_SPRITE_KEYS.length} sprites copied)`,
   )
 }
