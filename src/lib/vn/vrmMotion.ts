@@ -18,3 +18,22 @@ export function selectVrmMotion(motions: VrmMotions | undefined, expression: str
     .sort((a, b) => weights[b] - weights[a])[0]
   return emotion ?? 'idle'
 }
+
+/**
+ * Which way the arm bones turn for a model's VRM version. VRM 0.x and 1.0 face opposite ways, so
+ * the same arm pose needs the opposite rotation: arms at the sides are +1.2 / -1.2 on a 0.x model
+ * and -1.2 / +1.2 on a 1.0 model.
+ */
+export function vrmArmSign(metaVersion: string | undefined): 1 | -1 {
+  return metaVersion === '0' ? 1 : -1
+}
+
+/** Upper-arm rotations (z) that rest the arms at the sides. */
+export function restingArms(sign: 1 | -1): { left: number; right: number } {
+  return { left: 1.2 * sign, right: -1.2 * sign }
+}
+
+/** The right arm's raised wave pose (z), `swing` being the forearm's back-and-forth. */
+export function wavingRightArm(sign: 1 | -1, swing: number): { upper: number; lower: number } {
+  return { upper: -0.8 * sign, lower: (2.7 + swing) * sign }
+}
