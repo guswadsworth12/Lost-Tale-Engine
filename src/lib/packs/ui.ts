@@ -93,5 +93,6 @@ export function mayChangeVisibility(row: { ownerUserId?: string } | undefined, u
 }
 
 export function visibilityLabel(visibility: Visibility | undefined): string {
-  return visibility === 'private' ? 'Only me' : 'Everyone signed in'
+  // Private unless shared on purpose (server/ownership.ts).
+  return visibility === 'shared' ? 'Everyone signed in' : 'Only me'
 }

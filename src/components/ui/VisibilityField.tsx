@@ -4,8 +4,8 @@ import type { Visibility } from '@/lib/packs/contract'
 import { mayChangeVisibility } from '@/lib/packs/ui'
 
 /**
- * Who can see a world, character, or world-info book. Something new is its maker's to decide; an
- * existing one only its owner's (the server enforces the same rule, `server/ownership.ts`).
+ * Who can see a world, character, or world-info book. Private unless its owner shares it: something
+ * new is its maker's to decide, an existing one only its owner's (`server/ownership.ts`).
  */
 export function VisibilityField({ value, row, onChange }: {
   value: Visibility
@@ -16,9 +16,9 @@ export function VisibilityField({ value, row, onChange }: {
   const user = useAuthStore((s) => s.user)
   const editable = !row || mayChangeVisibility(row, user)
   return <SelectField label="Who can see this" value={value} disabled={!editable}
-    hint={editable ? 'Only me keeps it, and any story using it, out of everyone else’s library.' : 'Only its owner can change this.'}
+    hint={editable ? 'Your stories are always yours alone. Sharing lets everyone signed in to this server use it in their own stories.' : 'Only its owner can change this.'}
     onChange={(e) => onChange(e.target.value as Visibility)}>
-    <option value="shared">Everyone signed in</option>
     <option value="private">Only me</option>
+    <option value="shared">Everyone signed in</option>
   </SelectField>
 }

@@ -41,7 +41,7 @@ import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText,
 import { searchLocalLibrary } from './assistantSearch.ts'
 import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTracks } from '../src/lib/world/gameState.ts'
 import { normalizeSceneStage, normalizeStageLayouts } from '../src/lib/vn/stageDirection.ts'
-import { accessGuards, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, userOf } from './access.ts'
+import { accessGuards, avatarGuard, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, owns, siteOwnerId, userOf } from './access.ts'
 import { ownershipPatch } from './ownership.ts'
 import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
@@ -75,7 +75,7 @@ app.use(relayRouter)
 app.use(express.json({ limit: '150mb' }))
 // Pack imports build rows with the same builders as the create routes below.
 usePackRowBuilders({ world: worldRow, character: characterRow })
-// Private worlds, characters, and world-info books, and the chats using them, are their owner's alone (ownership.ts).
+// Everything is its owner's alone unless shared on purpose; stories and personal records are never shared (ownership.ts).
 app.use(accessGuards)
 app.use(meRouter)
 app.use(packsRouter)
@@ -83,10 +83,17 @@ app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
-app.use('/avatars', express.static(avatarsDir))
+// Files follow what they belong to: a private character's sprites are its owner's alone (access.ts).
+app.use('/avatars', avatarGuard, express.static(avatarsDir))
 
 function notFound(res: express.Response) {
   res.status(404).json({ error: 'Not found' })
+}
+
+/** The install's own account only: what runs on the site owner's own hardware (their LuxTTS server). */
+function requireSiteOwner(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (userOf(req)?.id !== siteOwnerId()) return res.status(403).json({ error: 'Only the site owner can use this.' })
+  next()
 }
 
 function normalizePromptItems(raw: unknown) {
@@ -584,19 +591,20 @@ function normalizeRelationshipThresholds(raw: unknown) {
 
 // ---- LuxTTS voice relay (server/luxtts.ts) ----
 
-app.get('/api/voice-samples', (_req, res) => {
-  res.json(listVoiceSamples())
+// LuxTTS is the site owner's own voice server, and its samples are recordings of real voices: theirs alone.
+app.get('/api/voice-samples', (req, res) => {
+  res.json(userOf(req)?.id === siteOwnerId() ? listVoiceSamples() : [])
 })
 
-app.post('/api/voice-samples', (req, res) => {
+app.post('/api/voice-samples', requireSiteOwner, (req, res) => {
   res.status(201).json(addVoiceSample(req.body.label, req.body.dataUrl))
 })
 
-app.get('/api/tts/luxtts/status', async (_req, res) => {
+app.get('/api/tts/luxtts/status', requireSiteOwner, async (_req, res) => {
   res.json(await luxttsStatus())
 })
 
-app.post('/api/tts/luxtts', async (req, res) => {
+app.post('/api/tts/luxtts', requireSiteOwner, async (req, res) => {
   const controller = new AbortController()
   const disconnect = () => { if (!res.writableEnded) controller.abort() }
   res.on('close', disconnect)
@@ -690,7 +698,7 @@ function refuseHiddenReferences(req: express.Request, res: express.Response, ref
 
 /** The ownership part of a create or update; answers 403 itself when a visibility change isn't this user's to make. */
 function ownershipFor(req: express.Request, res: express.Response, existing: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  const { patch, refused } = ownershipPatch(req.body ?? {}, existing, userOf(req))
+  const { patch, refused } = ownershipPatch(req.body ?? {}, existing, userOf(req), siteOwnerId())
   if (refused) {
     res.status(403).json({ error: refused })
     return undefined
@@ -882,8 +890,8 @@ function linkedCharacterId(raw: unknown): string | undefined {
   return typeof raw === 'string' && characterStore.get(raw) ? raw : undefined
 }
 
-app.get('/api/personas', (_req, res) => {
-  res.json(personaStore.list({ orderBy: 'createdAt' }).map(resolvePersona))
+app.get('/api/personas', (req, res) => {
+  res.json(personaStore.list({ orderBy: 'createdAt' }).filter((p) => canSee(req, p)).map(resolvePersona))
 })
 
 app.get('/api/personas/:id', (req, res) => {
@@ -900,6 +908,8 @@ app.post('/api/personas', (req, res) => {
   const linkedName = characterId ? ((characterStore.get(characterId)?.card as Record<string, unknown> | undefined)?.name as string | undefined) : undefined
   const created = personaStore.insert({
     id,
+    ownerUserId: userOf(req)?.id,
+    visibility: 'private',
     name: req.body.name || linkedName || 'You',
     description: req.body.description,
     avatarDataUrl,
@@ -994,6 +1004,8 @@ app.post('/api/chats', (req, res) => {
   const now = Date.now()
   const created = chatStore.insert({
     id: newId(),
+    // A story is its starter's alone (ownership.ts).
+    ownerUserId: userOf(req)?.id,
     characterId: req.body.characterId,
     participants: Array.isArray(req.body.participants) && req.body.participants.length ? req.body.participants : undefined,
     playerCharacterId: typeof req.body.playerCharacterId === 'string' && req.body.playerCharacterId ? req.body.playerCharacterId : undefined,
@@ -1022,7 +1034,8 @@ app.put('/api/chats/:id', (req, res) => {
   // skipTouch: 10f's outreach tick writes lastOutreachCheckedAt on every chat it evaluates,
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
-  const { characterId: _c, id: _id, createdAt: _ca, skipTouch, ...patch } = req.body
+  // Who a story belongs to is never the client's to say (ownership.ts).
+  const { characterId: _c, id: _id, createdAt: _ca, ownerUserId: _owner, skipTouch, ...patch } = req.body
   if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
@@ -1061,6 +1074,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
   const { id: _id, createdAt: _ca, updatedAt: _ua, title, worldInfoState: _wis, rapport: _rap, endedAt: _end, recap: _rec, ...rest } = source
   const forkedChat = chatStore.insert({
     ...rest,
+    ownerUserId: userOf(req)?.id,
     id: newChatId,
     title: `${title} (fork)`,
     parentChatId: sourceChatId,
@@ -1348,12 +1362,12 @@ app.delete('/api/world-info-books/:id', (req, res) => {
 
 // ---- Sampler presets ----
 
-app.get('/api/presets', (_req, res) => {
-  res.json(presetStore.list({ orderBy: 'createdAt' }))
+app.get('/api/presets', (req, res) => {
+  res.json(presetStore.list({ orderBy: 'createdAt' }).filter((row) => owns(req, row)))
 })
 
 app.post('/api/presets', (req, res) => {
-  const created = presetStore.insert({ id: newId(), name: req.body.name, params: req.body.params, createdAt: Date.now() })
+  const created = presetStore.insert({ id: newId(), ownerUserId: userOf(req)?.id, name: req.body.name, params: req.body.params, createdAt: Date.now() })
   res.status(201).json(created)
 })
 
@@ -1364,12 +1378,12 @@ app.delete('/api/presets/:id', (req, res) => {
 
 // ---- Themes ----
 
-app.get('/api/themes', (_req, res) => {
-  res.json(themeStore.list({ orderBy: 'createdAt' }))
+app.get('/api/themes', (req, res) => {
+  res.json(themeStore.list({ orderBy: 'createdAt' }).filter((row) => owns(req, row)))
 })
 
 app.post('/api/themes', (req, res) => {
-  const created = themeStore.insert({ id: newId(), name: req.body.name, tokens: req.body.tokens, createdAt: Date.now() })
+  const created = themeStore.insert({ id: newId(), ownerUserId: userOf(req)?.id, name: req.body.name, tokens: req.body.tokens, createdAt: Date.now() })
   res.status(201).json(created)
 })
 
@@ -1411,9 +1425,9 @@ app.get('/api/assistant-library/search', (req, res) => {
   }))
 })
 
-app.get('/api/assistant-threads', (_req, res) => {
+app.get('/api/assistant-threads', (req, res) => {
   // Newest first: the list is a recency list, and a thread is picked up where it was left.
-  res.json(assistantThreadStore.list({ orderBy: 'updatedAt DESC' }))
+  res.json(assistantThreadStore.list({ orderBy: 'updatedAt DESC' }).filter((row) => owns(req, row)))
 })
 
 app.get('/api/assistant-threads/:id', (req, res) => {
@@ -1426,6 +1440,7 @@ app.post('/api/assistant-threads', (req, res) => {
   const now = Date.now()
   const created = assistantThreadStore.insert({
     id: newId(),
+    ownerUserId: userOf(req)?.id,
     title: req.body.title ?? 'New conversation',
     messages: req.body.messages ?? [],
     createdAt: now,
@@ -1435,7 +1450,8 @@ app.post('/api/assistant-threads', (req, res) => {
 })
 
 app.put('/api/assistant-threads/:id', (req, res) => {
-  const updated = assistantThreadStore.update(req.params.id, { ...req.body, updatedAt: Date.now() })
+  const { ownerUserId: _o, ...body } = req.body ?? {}
+  const updated = assistantThreadStore.update(req.params.id, { ...body, updatedAt: Date.now() })
   if (!updated) return notFound(res)
   res.json(updated)
 })
@@ -1447,13 +1463,14 @@ app.delete('/api/assistant-threads/:id', (req, res) => {
 
 // ---- Custom instruct templates ----
 
-app.get('/api/instruct-templates', (_req, res) => {
-  res.json(instructTemplateStore.list({ orderBy: 'createdAt' }))
+app.get('/api/instruct-templates', (req, res) => {
+  res.json(instructTemplateStore.list({ orderBy: 'createdAt' }).filter((row) => owns(req, row)))
 })
 
 app.post('/api/instruct-templates', (req, res) => {
   const created = instructTemplateStore.insert({
     id: newId(),
+    ownerUserId: userOf(req)?.id,
     name: req.body.name,
     systemPrefix: req.body.systemPrefix ?? '',
     systemSuffix: req.body.systemSuffix ?? '',

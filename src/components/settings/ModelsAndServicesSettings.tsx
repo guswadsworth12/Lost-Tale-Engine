@@ -23,7 +23,7 @@ const BADGE: Record<Capability, string> = { text: 'bg-accent/10 text-accent', im
 const selectClass = 'w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-base text-text outline-none ring-1 ring-transparent focus:ring-accent/40 sm:py-2 sm:text-sm'
 
 /** What "Add a service" offers, grouped; an OpenAI-compatible pick fills in its address. */
-const ADD_GROUPS: { label: string; choices: { id: string; label: string; kind: ServiceKind; baseUrl?: string }[] }[] = [
+export const ADD_GROUPS: { label: string; choices: { id: string; label: string; kind: ServiceKind; baseUrl?: string }[] }[] = [
   { label: 'Hosted', choices: [
     { id: 'openai', label: 'OpenAI', kind: 'openai' },
     { id: 'gemini', label: 'Google Gemini', kind: 'gemini' },
@@ -50,6 +50,20 @@ const ADD_GROUPS: { label: string; choices: { id: string; label: string; kind: S
   { label: 'Other', choices: [{ id: 'compatible', label: 'Another OpenAI-compatible service', kind: 'openai-compatible' }] },
 ]
 
+/** Adds the service an `ADD_GROUPS` choice names, with its default address. Returns the new service's id. */
+export function useAddService(): (choiceId: string) => string | undefined {
+  const services = useSettingsStore((s) => s.services)
+  const addService = useSettingsStore((s) => s.addService)
+  return (choiceId) => {
+    const choice = ADD_GROUPS.flatMap((g) => g.choices).find((c) => c.id === choiceId)
+    if (!choice) return undefined
+    const info = SERVICE_KINDS[choice.kind]
+    const id = newServiceId(choice.label, services.map((s) => s.id))
+    addService({ id, name: choice.label, kind: choice.kind, ...(info.address ? { baseUrl: choice.baseUrl ?? info.address.default } : {}) })
+    return id
+  }
+}
+
 /**
  * Settings → Models and services. Each account or server is added once (its key and address live
  * here and nowhere else); models for text, images and voice are then picked from what they offer,
@@ -57,16 +71,13 @@ const ADD_GROUPS: { label: string; choices: { id: string; label: string; kind: S
  */
 export function ModelsAndServicesSettings() {
   const services = useSettingsStore((s) => s.services)
-  const addService = useSettingsStore((s) => s.addService)
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState('')
 
+  const addChoice = useAddService()
   const add = (choiceId: string) => {
-    const choice = ADD_GROUPS.flatMap((g) => g.choices).find((c) => c.id === choiceId)
-    if (!choice) return
-    const info = SERVICE_KINDS[choice.kind]
-    const id = newServiceId(choice.label, services.map((s) => s.id))
-    addService({ id, name: choice.label, kind: choice.kind, ...(info.address ? { baseUrl: choice.baseUrl ?? info.address.default } : {}) })
+    const id = addChoice(choiceId)
+    if (!id) return
     setOpen(id)
     setAdding('')
   }
@@ -95,7 +106,7 @@ export function ModelsAndServicesSettings() {
 }
 
 /** One service: a summary line, and its fields when opened. */
-function ServiceRow({ service, open, onToggle }: { service: Service; open: boolean; onToggle: () => void }) {
+export function ServiceRow({ service, open, onToggle }: { service: Service; open: boolean; onToggle: () => void }) {
   const { saved: secrets } = useSecretStatus()
   const updateService = useSettingsStore((s) => s.updateService)
   const removeService = useSettingsStore((s) => s.removeService)
