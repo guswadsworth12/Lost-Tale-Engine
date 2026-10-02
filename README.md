@@ -4,9 +4,19 @@
 
 Lost Tales Engine is a local-first roleplay and story engine. Create a setting and characters, play through scenes with an AI Game Master, and choose between freeform storytelling and recorded mechanical checks. It began as a fork of [RP Suite](https://github.com/pnotisdev/rp).
 
-[![A Visual Novel scene in Lost Tales Engine](screenshots/lost-tales-visual-novel.jpg)](screenshots/lost-tales-visual-novel.jpg)
+[![Illustrative Hollowmere Station Visual Novel scene](screenshots/hollowmere-visual-novel-mock.jpg)](screenshots/hollowmere-visual-novel-mock.jpg)
 
-*Visual Novel play with a scene background, a character sprite, dialogue, and a collapsible control rail. Screenshots use bundled demo content and a temporary example world; no personal story data is included.*
+*Illustrative product mockup using the bundled Hollowmere Station story and art. The stage, dialogue, and collapsible controls show the intended play experience; this is a composed image, not a live screenshot. No personal story data is included.*
+
+### Try the Hollowmere story
+
+Hollowmere Station is the bundled Visual Novel starter world. Rowan arrives on the last train, meets stationmaster Mara Vale and courier Tavi Rook, and helps a passenger whose name has vanished in the marsh fog. The short story spans the platform, signal box, and marsh edge. Tavi has both human and fox forms.
+
+| Story and chapters | World and cast |
+| :--- | :--- |
+| [![Illustrative Hollowmere story and chapter view](screenshots/hollowmere-story-mock.jpg)](screenshots/hollowmere-story-mock.jpg) | [![Illustrative Hollowmere world and cast view](screenshots/hollowmere-world-mock.jpg)](screenshots/hollowmere-world-mock.jpg) |
+
+*These two views are also illustrative mockups composed from the bundled art. See the [Hollowmere wiki](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Hollowmere-Station) for the story outline and image gallery.*
 
 ## Explore the app
 
@@ -49,7 +59,7 @@ In **mechanical** mode, the server records the dice, modifier or sheet value, ta
 You need **Node.js 22.5 or newer** (development uses Node 24) and a text-generation backend such as [KoboldCpp](https://github.com/LostRuins/koboldcpp) or an OpenAI-compatible API.
 
 ```bash
-git clone -b campaign-engine https://github.com/guswadsworth12/Lost-Tale-Engine.git
+git clone https://github.com/guswadsworth12/Lost-Tale-Engine.git
 cd Lost-Tale-Engine
 npm install
 npm run dev
