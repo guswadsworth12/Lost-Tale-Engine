@@ -104,6 +104,7 @@ describe('media checks', () => {
     expect(sniffMatches('mp3', Buffer.from('ID3\u0004\u0000'))).toBe(true)
     expect(sniffMatches('mp3', Buffer.from('<script>alert(1)</script>'))).toBe(false)
     expect(sniffMatches('vrm', Buffer.from('glTF\u0002\u0000\u0000\u0000'))).toBe(true)
+    expect(sniffMatches('vrma', Buffer.from('glTF\u0002\u0000\u0000\u0000'))).toBe(true)
     expect(sniffMatches('svg', Buffer.from('<svg>'))).toBe(false)
   })
 

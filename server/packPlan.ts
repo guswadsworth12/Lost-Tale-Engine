@@ -43,6 +43,7 @@ export const PACK_MEDIA_TYPES: Record<string, string> = {
   aac: 'audio/aac',
   m4a: 'audio/mp4',
   vrm: 'model/gltf-binary',
+  vrma: 'model/gltf-binary',
 }
 
 export const PACK_MEDIA_FILE_RE = new RegExp(`^[0-9a-f]{64}\\.(${Object.keys(PACK_MEDIA_TYPES).join('|')})$`)
@@ -105,7 +106,7 @@ export function mapMedia(kind: 'world' | 'character', row: Row, fn: MediaMapper)
   const vrm = row.vrm as Row | undefined
   if (vrm && typeof vrm.url === 'string') {
     const url = fn(vrm.url, 'models', 'vrm')
-    if (url) out.vrm = { ...vrm, url }
+    if (url) out.vrm = { ...vrm, url, motions: mapStringMap(vrm.motions, 'models', 'vrm.motions', fn) }
     else delete out.vrm
   }
   if (Array.isArray(row.gallery)) {

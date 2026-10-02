@@ -141,7 +141,8 @@ export function sniffMatches(ext: string, head: Buffer): boolean {
     case 'wav': return at(0, 'RIFF') && at(8, 'WAVE')
     case 'webm': return head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3
     case 'm4a': return at(4, 'ftyp')
-    case 'vrm': return at(0, 'glTF')
+    case 'vrm':
+    case 'vrma': return at(0, 'glTF')
     default: return false
   }
 }

@@ -260,6 +260,12 @@ describe('field lists', () => {
     mapMedia('character', bea, (value, kind) => { seen.push(`${kind}:${value.split('/').pop()}`); return value })
     expect(seen).toEqual(['portraits:avatar.png', 'sprites:neutral.png', 'sprites:dock.png', 'sprites:neutral-alt0.png', 'models:model.vrm', 'gallery:cg-1.png', 'gallery:cg-1-alt0.png'])
   })
+
+  it('carries VRMA slots with the model and drops missing motion files', () => {
+    const row = { ...bea, vrm: { url: '/avatars/vrm-library/cast.vrm', enabled: true, motions: { idle: '/avatars/vrma-library/idle.vrma', speaking: '/avatars/vrma-library/speak.vrma' } } }
+    const mapped = mapMedia('character', row, (url) => url.endsWith('speak.vrma') ? undefined : url)
+    expect(mapped.vrm).toMatchObject({ motions: { idle: '/avatars/vrma-library/idle.vrma' } })
+  })
 })
 
 describe('stage layouts in a pack', () => {

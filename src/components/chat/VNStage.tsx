@@ -164,16 +164,20 @@ function VNCharacterSprite({
   onClick,
   phase,
   vrmUrl,
+  vrmMotions,
   expression,
   speaking,
+  reducedMotion,
   transition = 'rise',
 }: {
   /** Optional 3D model; the sprite below stays the fallback while it loads or if it fails. */
   vrmUrl?: string
+  vrmMotions?: import('@/lib/vn/vrmMotion').VrmMotions
   /** Expression id the model shows (the sprite already resolved its own art from it). */
   expression?: string
   /** True while this member's reply is streaming, for the model's mouth. */
   speaking?: boolean
+  reducedMotion?: boolean
   spriteUrl: string | undefined
   name: string
   /** Identity hue matching this speaker's nameplate. */
@@ -222,9 +226,11 @@ function VNCharacterSprite({
     <Suspense fallback={spriteInner}>
       <VrmFigure
         url={vrmUrl!}
+        motions={vrmMotions}
         label={name}
         expression={expression ?? 'neutral'}
         speaking={!!speaking}
+        reducedMotion={!!reducedMotion}
         onError={(e) => {
           console.warn(`VRM for ${name} failed to load; showing the 2D sprite instead.`, e)
           setVrmFailed(vrmUrl!)
@@ -577,6 +583,7 @@ export function VNStage({
       hue: nameplateHue(member.id || member.card.name),
       spriteUrl,
       vrmUrl: member.vrm?.enabled && appearanceId === BASE_OUTFIT_ID ? member.vrm.url : undefined,
+      vrmMotions: member.vrm?.motions,
       expression: memberExpression,
       speaking: member.id === stageSpeakerId && isStreamingThis,
       isActive,
@@ -1576,8 +1583,10 @@ export function VNStage({
                     onClick={draggable || phase === 'exiting' ? undefined : member.onClick}
                     phase={phase}
                     vrmUrl={phase === 'exiting' ? undefined : member.vrmUrl}
+                    vrmMotions={member.vrmMotions}
                     expression={member.expression}
                     speaking={member.speaking}
+                    reducedMotion={reducedMotion}
                     transition={phase === 'exiting' ? figure.exit : figure.enter}
                   />
                 </div>

@@ -23,6 +23,7 @@ export interface CharacterPackV1 {
     sheets?: Character['sheets']
     avatarDataUrl?: string
     sprites?: Record<string, string>
+    vrm?: Character['vrm']
     spriteUnlocks?: Record<string, number>
     /** Wardrobe states (`src/lib/vn/outfits.ts`). Without these the composite sprite keys above would survive an export but have no outfit left to belong to. */
     outfits?: Outfit[]
@@ -82,7 +83,7 @@ export async function urlToDataUrl(url: string | undefined): Promise<string | un
   return fileToDataUrl(await res.blob())
 }
 
-async function mapToDataUrls(map: Record<string, string> | undefined): Promise<Record<string, string> | undefined> {
+async function mapToDataUrls(map: Record<string, string | undefined> | undefined): Promise<Record<string, string> | undefined> {
   if (!map || Object.keys(map).length === 0) return undefined
   const entries = await Promise.all(Object.entries(map).map(async ([k, v]) => [k, await urlToDataUrl(v)] as const))
   const result: Record<string, string> = {}
@@ -96,12 +97,14 @@ async function mapToDataUrls(map: Record<string, string> | undefined): Promise<R
  * data URL. Unlike the bare card export, nothing that makes this a VN character gets dropped.
  */
 export async function buildCharacterPack(character: Character, world?: WorldCard): Promise<CharacterPackV1> {
-  const [avatarDataUrl, sprites, gallery] = await Promise.all([
+  const [avatarDataUrl, sprites, gallery, vrmUrl, vrmMotions] = await Promise.all([
     urlToDataUrl(character.avatarDataUrl),
     mapToDataUrls(character.sprites),
     Promise.all(
       (character.gallery ?? []).map(async (g) => ({ ...g, imageUrl: (await urlToDataUrl(g.imageUrl)) ?? g.imageUrl })),
     ),
+    urlToDataUrl(character.vrm?.url),
+    mapToDataUrls(character.vrm?.motions),
   ])
 
   const pack: CharacterPackV1 = {
@@ -113,6 +116,7 @@ export async function buildCharacterPack(character: Character, world?: WorldCard
       avatarDataUrl,
       sprites,
       gallery: gallery.length ? gallery : undefined,
+      vrm: character.vrm && vrmUrl ? { ...character.vrm, url: vrmUrl, motions: vrmMotions } : undefined,
     },
   }
 

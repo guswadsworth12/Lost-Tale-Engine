@@ -239,9 +239,61 @@ function resolveMediaMap(
 // JSON body limit once base64-encoded.
 const MAX_MODEL_BYTES = 100 * 1024 * 1024
 const OWN_MODEL_URL_RE = /^\/avatars\/(characters\/[0-9a-f-]{36}\/model\.vrm|vrm-library\/[A-Za-z0-9 _.()-]+\.vrm|pack-media\/[0-9a-f]{64}\.vrm)(\?t=\d+)?$/i
+const MOTION_SLOTS = ['idle', 'speaking', 'happy', 'angry', 'sad', 'relaxed', 'surprised'] as const
+const OWN_MOTION_URL_RE = /^\/avatars\/(characters\/[0-9a-f-]{36}\/motions\/(idle|speaking|happy|angry|sad|relaxed|surprised)\.vrma|vrma-library\/[A-Za-z0-9 _.()-]+\.vrma|pack-media\/[0-9a-f]{64}\.vrma)(\?t=\d+)?$/i
+const MAX_MOTION_BYTES = 25 * 1024 * 1024
 
 /** Where dropped-in .vrm files are picked up from and listed for any character to use. */
 export const vrmLibraryDir = path.join(avatarsDir, 'vrm-library')
+export const vrmaLibraryDir = path.join(avatarsDir, 'vrma-library')
+
+export function listVrmaLibrary(): { name: string; url: string; bytes: number }[] {
+  if (!fs.existsSync(vrmaLibraryDir)) return []
+  return fs.readdirSync(vrmaLibraryDir)
+    .filter((f) => f.toLowerCase().endsWith('.vrma') && OWN_MOTION_URL_RE.test(`/avatars/vrma-library/${f}`))
+    .map((f) => ({ name: f, url: `/avatars/vrma-library/${encodeURIComponent(f)}`, bytes: fs.statSync(path.join(vrmaLibraryDir, f)).size }))
+}
+
+/** Resolve the fixed motion slots without accepting arbitrary paths or unbounded uploads. */
+export function resolveCharacterMotions(id: string, value: unknown): Record<string, string> | undefined {
+  if (!UUID_RE.test(id)) throw new Error('Invalid id')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const result: Record<string, string> = {}
+  const dir = path.join(entityDir('characters', id), 'motions')
+  const uploads = new Map<string, Buffer>()
+  for (const slot of MOTION_SLOTS) {
+    const url = (value as Record<string, unknown>)[slot]
+    if (typeof url !== 'string' || !url) continue
+    if (!url.startsWith('data:')) {
+      const decoded = decodeURIComponent(url)
+      if (!OWN_MOTION_URL_RE.test(decoded) || (decoded.startsWith('/avatars/characters/') && !decoded.startsWith(`/avatars/characters/${id}/`))) throw new Error(`Invalid ${slot} VRMA motion path.`)
+      result[slot] = url
+      continue
+    }
+    const match = /^data:[^;,]*;base64,(.+)$/s.exec(url)
+    if (!match) throw new Error(`Malformed ${slot} VRMA data URL.`)
+    if (Math.floor(match[1].length * 3 / 4) > MAX_MOTION_BYTES) throw new Error(`${slot} VRMA motion is too large (max 25MB).`)
+    const buffer = Buffer.from(match[1], 'base64')
+    if (buffer.length < 20 || buffer.length > MAX_MOTION_BYTES || buffer.toString('latin1', 0, 4) !== 'glTF' || buffer.readUInt32LE(4) !== 2 || buffer.readUInt32LE(8) !== buffer.length || buffer.toString('latin1', 16, 20) !== 'JSON') {
+      throw new Error(`${slot} is not a VRMA glTF binary.`)
+    }
+    const jsonEnd = 20 + buffer.readUInt32LE(12)
+    let document: { extensionsUsed?: string[]; extensions?: Record<string, unknown> }
+    try {
+      if (jsonEnd > buffer.length) throw new Error('Invalid JSON chunk')
+      document = JSON.parse(buffer.toString('utf8', 20, jsonEnd))
+    } catch {
+      throw new Error(`${slot} has an invalid VRMA document.`)
+    }
+    if (!document || !Array.isArray(document.extensionsUsed) || !document.extensionsUsed.includes('VRMC_vrm_animation') || !document.extensions?.VRMC_vrm_animation) throw new Error(`${slot} does not contain a VRM animation.`)
+    uploads.set(slot, buffer)
+    result[slot] = `/avatars/characters/${id}/motions/${slot}.vrma?t=${Date.now()}`
+  }
+  if (uploads.size) fs.mkdirSync(dir, { recursive: true })
+  for (const [slot, buffer] of uploads) fs.writeFileSync(path.join(dir, `${slot}.vrma`), buffer)
+  pruneUnreferencedFiles(dir, new Set(Object.values(result).filter((url) => url.startsWith(`/avatars/characters/${id}/motions/`)).map((url) => url.split('/').pop()!.split('?')[0])))
+  return Object.keys(result).length ? result : undefined
+}
 
 /** Every .vrm in the shared library, for the character editor's model picker. */
 export function listVrmLibrary(): { name: string; url: string; bytes: number }[] {

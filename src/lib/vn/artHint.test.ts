@@ -28,6 +28,13 @@ describe('vnArtHint', () => {
     expect(vnArtHint(c, undefined, [])).toMatch(/isn't bound to a world/i)
   })
 
+  it('counts an enabled VRM as character art', () => {
+    const c = char({ vrm: { url: '/avatars/vrm-library/will.vrm', enabled: true } })
+    expect(vnArtHint(c, undefined, [])).toMatch(/isn't bound to a world/i)
+    expect(vnArtHint(c, world({ backgrounds: { park: 'x' } }), [])).toBeNull()
+    expect(vnArtHint(char({ vrm: { ...c.vrm!, enabled: false } }), undefined, [])).toMatch(/no expression sprites/i)
+  })
+
   it('once a world is bound, flags that world having no backgrounds', () => {
     const c = char({ sprites: { neutral: 'x' } })
     expect(vnArtHint(c, world({ backgrounds: {} }), [])).toMatch(/sakura hill has no scene backgrounds/i)
