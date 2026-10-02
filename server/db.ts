@@ -209,6 +209,14 @@ db.exec(`
     createdAt INTEGER NOT NULL,
     data TEXT NOT NULL
   );
+
+  -- An account that was removed: who it was, so what it left behind can be named (admin.ts). id is
+  -- the old user id; createdAt is when it was removed.
+  CREATE TABLE IF NOT EXISTS removed_users (
+    id TEXT PRIMARY KEY,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
 `)
 
 // Accounts tables made before sign-in by email existed lack users.emailKey.
@@ -342,6 +350,7 @@ export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 
 export const sessionStore = createStore('sessions', [{ name: 'userId' }, { name: 'createdAt' }, { name: 'expiresAt' }])
 export const userSecretStore = createStore('user_secrets', [{ name: 'userId' }, { name: 'name' }, { name: 'createdAt' }])
 export const userSettingsStore = createStore('user_settings', [{ name: 'createdAt' }])
+export const removedUserStore = createStore('removed_users', [{ name: 'createdAt' }])
 
 export function newId(): string {
   return crypto.randomUUID()

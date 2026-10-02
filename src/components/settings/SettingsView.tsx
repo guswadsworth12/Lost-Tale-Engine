@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { SetupChecklist } from '@/components/setup/SetupChecklist'
 import { Section } from '@/components/ui/Section'
 import type { ViewId } from '@/components/layout/Sidebar'
@@ -12,11 +12,28 @@ import { VoiceSettings } from './VoiceSettings'
 import { ImageGenSettings } from './ImageGenSettings'
 import { DataSettings } from './DataSettings'
 import { AccountSettings } from './AccountSettings'
+import { AdminSettings } from './AdminSettings'
+import { useAuthStore } from '@/lib/accounts/useAuthStore'
+import { AccountMenu } from '@/components/layout/AccountMenu'
 
-type Tab = 'setup' | 'models' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account'
+export type SettingsTab = 'setup' | 'models' | 'appearance' | 'generation' | 'voice' | 'images' | 'data' | 'account' | 'admin'
 
-export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: string) => void; onNavigate: (view: ViewId) => void }) {
-  const [tab, setTab] = useState<Tab>('models')
+type Tab = SettingsTab
+
+export function SettingsView({ onStarted, onNavigate, requestedTab, onConsumedTab }: {
+  onStarted: (chatId: string) => void
+  onNavigate: (view: ViewId) => void
+  /** A tab to open on, e.g. Account from the account menu; cleared through `onConsumedTab` once shown. */
+  requestedTab?: SettingsTab | null
+  onConsumedTab?: () => void
+}) {
+  const [tab, setTab] = useState<Tab>(requestedTab ?? 'models')
+  const isOwner = useAuthStore((s) => s.user?.role === 'owner')
+  useEffect(() => {
+    if (!requestedTab) return
+    setTab(requestedTab)
+    onConsumedTab?.()
+  }, [requestedTab, onConsumedTab])
 
   const TABS: [Tab, string][] = [
     ['setup', 'Get set up'],
@@ -27,6 +44,7 @@ export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: st
     ['images', 'Images'],
     ['data', 'Data'],
     ['account', 'Account'],
+    ...(isOwner ? [['admin', 'Admin'] as [Tab, string]] : []),
   ]
 
   return (
@@ -45,6 +63,8 @@ export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: st
           <CircleHelp size={14} strokeWidth={1.75} />
           Help &amp; tutorial
         </button>
+        {/* The account menu's phone door: wider screens have it in the top-right corner. */}
+        <AccountMenu className="md:hidden" onOpen={setTab} />
       </div>
       {/* Only the tab strip sticks — the heading scrolls away. `bg-bg` + the `pb` shelf keep it
           opaque top-to-bottom so switching tabs from deep in a long tab (Generation is ~16
@@ -68,6 +88,8 @@ export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: st
             <button
               key={id}
               onClick={() => setTab(id)}
+              // Opened from elsewhere (the account menu's Admin), the chosen tab may sit past the strip's edge.
+              ref={tab === id ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
               className={`shrink-0 border-b-2 px-3 py-2.5 text-sm transition-colors ${
                 tab === id ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text'
               }`}
@@ -90,6 +112,7 @@ export function SettingsView({ onStarted, onNavigate }: { onStarted: (chatId: st
         {tab === 'images' && <ImageGenSettings />}
         {tab === 'data' && <><DataSettings /><div className="mt-8"><TutorialSettingsSection /></div></>}
         {tab === 'account' && <AccountSettings />}
+        {tab === 'admin' && <AdminSettings />}
       </div>
     </div>
   )

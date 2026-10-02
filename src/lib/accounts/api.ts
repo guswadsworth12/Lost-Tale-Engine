@@ -3,7 +3,7 @@
  * preferences. Same shape as `request()` in `lib/api/client.ts` (same-origin `/api` + JSON, with a
  * timeout), but errors carry the server's own `{error}` text and status so forms can show them.
  */
-import type { AccountRole, AccountUser, AuthStatus, SetupCodeIssued } from '@/lib/accounts/contract'
+import type { AccountRole, AccountUser, AuthStatus, LeftoverAccount, SetupCodeIssued } from '@/lib/accounts/contract'
 import { useAuthStore } from '@/lib/accounts/useAuthStore'
 
 const TIMEOUT_MS = 15000
@@ -74,6 +74,14 @@ export const usersApi = {
   remove: (id: string) => call<unknown>('DELETE', `/users/${encodeURIComponent(id)}`),
   resetPassword: (id: string, password: string) =>
     call<unknown>('POST', `/users/${encodeURIComponent(id)}/password`, { password }),
+}
+
+/** Owner-only housekeeping (server/admin.ts). */
+export const adminApi = {
+  leftovers: () => call<LeftoverAccount[]>('GET', '/admin/leftovers'),
+  /** `adopt`: it all passes to you as it is. `delete`: what only they had is deleted; what others share or use passes to you. */
+  cleanUp: (formerOwnerId: string, action: 'adopt' | 'delete') =>
+    call<{ adopted: number; deleted: number }>('POST', `/admin/leftovers/${encodeURIComponent(formerOwnerId)}`, { action }),
 }
 
 export function isSetupCodeIssued(x: unknown): x is SetupCodeIssued {
