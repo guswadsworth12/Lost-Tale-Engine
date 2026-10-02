@@ -7,6 +7,7 @@ import { serviceSecret, textBaseUrl, type Capability, type Service } from './ser
 /** OpenAI's and Gemini's single model lists, sorted by what each model is for. */
 const IMAGE_MODEL = /image|dall-e|imagen/i
 const VOICE_MODEL = /tts/i
+const SPEECH_SERVER_MODEL = /tts|kokoro|speech/i
 const NOT_A_CHAT_MODEL = /image|dall-e|imagen|tts|whisper|embedding|moderation|transcribe|audio|realtime|aqa|search/i
 
 /**
@@ -21,7 +22,8 @@ export async function loadServiceModels(service: Service, secrets: Partial<Recor
     case 'gemini':
     case 'openai-compatible': {
       const all = await new OpenAICompatibleClient(textBaseUrl(service), keySaved, '', secret).listModels()
-      if (service.kind === 'openai-compatible') return { text: all }
+      // A voice server (Kokoro) lists its speech models with the rest.
+      if (service.kind === 'openai-compatible') return { text: all, ...(all.some((m) => SPEECH_SERVER_MODEL.test(m)) ? { voice: all.filter((m) => SPEECH_SERVER_MODEL.test(m)) } : {}) }
       return {
         text: all.filter((m) => !NOT_A_CHAT_MODEL.test(m)),
         images: all.filter((m) => IMAGE_MODEL.test(m)),

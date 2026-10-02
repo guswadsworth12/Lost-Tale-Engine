@@ -678,7 +678,8 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**Knowledge**: **Private memory** only this character sees, and **Character lore** that travels with the card.',
               "**Relationships**: social connections. When the character's world has dating tools, a Dating section adds the CG gallery, gift preferences, relationship starters, touch & limits, and an opt-out from date / event mode.",
               '**World Life**: weather preferences, a daily **Schedule**, and **Outreach** (how often they text you first; off by default).',
-              '**Presentation**: expressions, outfits, sound effects and voice.',
+              '**Presentation**: expressions, outfits and sound effects.',
+              '**Voice**: **Read aloud** (which of your voice services and voice reads their lines, and how fast) and **Speech patterns** (tics, catchphrases, dialect and rhythm the model keeps to).',
               '**Advanced**: character prompts, prompt overrides and metadata.',
             ],
           },
@@ -695,7 +696,6 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               "**Expressions** holds art per expression. Visual Novel mode shows the one matching each reply's mood; a blank slot falls back to the avatar. The small number is the warmth needed to unlock it.",
               '**Outfit** chips switch which outfit the grid is editing. **Base** is the default art; type a **New outfit** name and press + to add another. Each outfit has a name and **Unlocks at warmth**, and any expression it lacks falls back to Base.',
               '**Generate expression set with AI** fills the grid using the Images model from Settings → Models and services.',
-              '**Voice** and **Voice fingerprint** shape how the character sounds and speaks.',
             ],
           },
           {

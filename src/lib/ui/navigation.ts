@@ -36,5 +36,4 @@ export const CHARACTER_TAB_ALIASES = {
   vn: 'presentation',
   dating: 'relationships',
   worldsim: 'world-life',
-  voice: 'presentation',
 } as const

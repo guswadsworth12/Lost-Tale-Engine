@@ -6,5 +6,7 @@ describe('navigation aliases', () => {
     for (const id of Object.values(LEGACY_VIEW_ALIASES)) expect(VIEW_IDS).toContain(id)
     expect(WORLD_TAB_ALIASES.dating).toBe('relationships')
     expect(CHARACTER_TAB_ALIASES.dating).toBe('relationships')
+    // Voice is a tab of its own now, not an alias for Presentation.
+    expect('voice' in CHARACTER_TAB_ALIASES).toBe(false)
   })
 })

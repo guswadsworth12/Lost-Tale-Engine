@@ -20,6 +20,11 @@ export interface Outfit {
   label: string
   /** Physical alternate form; existing named human/dragon variants are recognized automatically. */
   kind?: 'outfit' | 'form'
+  /**
+   * What they look like, and what changes, in this outfit or form. The model is told it while they're
+   * in it (`appearanceNote`), and the Game Master reads every form's when it looks at their card.
+   */
+  description?: string
   /** Affection gate, same convention/default as `Character.spriteUnlocks`. */
   unlockAffection?: number
   /** Every one of these scene flags must be set before the outfit unlocks. */

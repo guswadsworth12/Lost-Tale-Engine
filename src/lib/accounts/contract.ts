@@ -37,6 +37,8 @@ export const FIXED_RELAY_ORIGINS = [
   'https://api.elevenlabs.io',
   'https://api.openai.com',
   'https://generativelanguage.googleapis.com',
+  'https://api.fish.audio',
+  'https://api.minimax.io',
 ] as const
 /** Host suffixes the relay may reach (Azure speech is per region: eastus.tts.speech.microsoft.com). */
 export const FIXED_RELAY_HOST_SUFFIXES = ['.tts.speech.microsoft.com'] as const

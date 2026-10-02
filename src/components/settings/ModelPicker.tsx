@@ -65,7 +65,7 @@ export function ModelPicker({ capability, value, onChange, emptyLabel, label, id
   // The chosen service's models, plus the chosen model if its list doesn't have it.
   const listed = service ? modelsOf(service, capability) : []
   const models = current?.model && !listed.includes(current.model) ? [current.model, ...listed] : listed
-  const canType = !!service && !service.models?.[capability]?.length && !LISTABLE.has(service.kind)
+  const canType = !!service && !service.models?.[capability]?.length && !LISTABLE.has(service.kind) && !SERVICE_KINDS[service.kind].noModels
   const modelValue = typing ? '__type' : current?.model && models.includes(current.model) ? current.model : ''
 
   return (

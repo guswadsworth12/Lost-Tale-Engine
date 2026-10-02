@@ -44,7 +44,7 @@ import { GenerateExpressionSetDialog } from './GenerateExpressionSetDialog'
 import { AvatarCropDialog } from './AvatarCropDialog'
 import { errorMessage, toastError, toastInfo, toastSuccess } from '@/lib/store/useToastStore'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
-import { TTS_PROVIDER_LABELS, type TtsProviderId } from '@/lib/voice/ttsProviders'
+import { SPEED_TTS, TTS_PROVIDER_LABELS, type TtsProviderId } from '@/lib/voice/ttsProviders'
 import { BUILTIN_INSTRUCT_TEMPLATES } from '@/lib/prompt/instructTemplates'
 import { GenerateCharacterDialog } from './GenerateCharacterDialog'
 import { TemplateGallery } from './TemplateGallery'
@@ -52,8 +52,9 @@ import { RegenerateFieldButton } from './RegenerateFieldButton'
 import { LorebookEditor } from '@/components/worldinfo/LorebookEditor'
 import { getGiftCatalog } from '@/lib/dating/gifts'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { resolveJob } from '@/lib/api/services'
+import { chosen, offers, resolveJob, voiceTarget, type Service } from '@/lib/api/services'
 import { ModelPicker } from '@/components/settings/ModelPicker'
+import { VoicePicker } from '@/components/settings/VoicePicker'
 import { useOpenMayhemModels } from '@/lib/hooks/useOpenMayhemModels'
 import type { PromptItem } from '@/lib/prompt/items'
 import { parseTavernAi2Card } from '@/lib/characters/tavernAi2Import'
@@ -95,15 +96,16 @@ function fixedFieldHint(base: ReactNode, value: string): ReactNode {
 }
 
 const TABS: EditorTab[] = [
-  { id: 'character', label: 'Character' },
-  { id: 'sheet', label: 'Sheet' },
-  { id: 'background', label: 'Background' },
-  { id: 'behavior', label: 'Behavior' },
-  { id: 'knowledge', label: 'Knowledge' },
-  { id: 'relationships', label: 'Relationships' },
-  { id: 'world-life', label: 'World Life' },
-  { id: 'presentation', label: 'Presentation' },
-  { id: 'advanced', label: 'Advanced' },
+  { id: 'character', label: 'Character', group: 'Who they are' },
+  { id: 'background', label: 'Background', group: 'Who they are' },
+  { id: 'sheet', label: 'Sheet', group: 'Who they are' },
+  { id: 'behavior', label: 'Behavior', group: 'How they act' },
+  { id: 'voice', label: 'Voice', group: 'How they act' },
+  { id: 'knowledge', label: 'Knowledge', group: 'How they act' },
+  { id: 'relationships', label: 'Relationships', group: 'Their world' },
+  { id: 'world-life', label: 'World Life', group: 'Their world' },
+  { id: 'presentation', label: 'Presentation', group: 'Look and setup' },
+  { id: 'advanced', label: 'Advanced', group: 'Look and setup' },
 ]
 
 function savedSheets(character: Character | null | undefined): Record<string, CharacterSheet> {
@@ -202,6 +204,14 @@ function composeKinkProfile(
  * The service a character's own model comes from. One saved before services kept only a model name
  * on the text service; it shows as that model there, rather than as an override nobody can see.
  */
+/** The voice service a character speaks with: theirs, or for an older card, the service that is their provider. Blank: the Voice model's. */
+function characterVoiceServiceId(character: Pick<Character, 'voice'> | null | undefined, services: Service[]): string {
+  const voice = character?.voice
+  if (voice?.serviceId) return voice.serviceId
+  if (!voice?.provider) return ''
+  return services.find((service) => offers(service, 'voice') && voiceTarget(service).provider === voice.provider)?.id ?? ''
+}
+
 function characterServiceId(character: Pick<Character, 'modelServiceId' | 'modelOverride'> | null | undefined): string {
   if (character?.modelServiceId) return character.modelServiceId
   if (!character?.modelOverride) return ''
@@ -255,11 +265,19 @@ export function CharacterEditor({
   const [weatherHates, setWeatherHates] = useState<WeatherKind[]>(character?.weatherPreferences?.hates ?? [])
   const [schedule, setSchedule] = useState<ScheduleEntry[]>(character?.schedule ?? [])
   const [voiceProvider, setVoiceProvider] = useState<TtsProviderId | ''>(character?.voice?.provider ?? '')
+  const services = useSettingsStore((s) => s.services)
+  const voiceServices = services.filter((service) => offers(service, 'voice'))
+  const [voiceServiceId, setVoiceServiceId] = useState(() => characterVoiceServiceId(character, services))
+  const globalVoice = chosen({ services }, useSettingsStore((s) => s.voiceModel), 'voice')
   const globalTtsProvider = useSettingsStore((s) => s.ttsProvider)
   const globalTtsModel = useSettingsStore((s) => s.ttsModel)
-  const usesOpenMayhemVoice = (voiceProvider || globalTtsProvider) === 'openmayhem'
-  const usesLuxttsVoice = (voiceProvider || globalTtsProvider) === 'luxtts'
-  const { models: speechModels } = useOpenMayhemModels('AUDIO_SPEECH', tab === 'presentation' && usesOpenMayhemVoice)
+  // What this character's voice is chosen from: their own service, else the Voice model's.
+  const ownVoiceService = voiceServices.find((service) => service.id === voiceServiceId)
+  const voiceSource = ownVoiceService ?? (voiceProvider ? undefined : globalVoice?.service)
+  const effectiveVoiceProvider = voiceSource ? voiceTarget(voiceSource).provider : voiceProvider || globalTtsProvider
+  const usesOpenMayhemVoice = effectiveVoiceProvider === 'openmayhem'
+  const usesLuxttsVoice = effectiveVoiceProvider === 'luxtts'
+  const { models: speechModels } = useOpenMayhemModels('AUDIO_SPEECH', tab === 'voice' && usesOpenMayhemVoice)
   const [voiceId, setVoiceId] = useState(character?.voice?.voiceId ?? '')
   const [voiceSpeed, setVoiceSpeed] = useState<number | undefined>(character?.voice?.speed)
   const [verbalTics, setVerbalTics] = useState<string[]>(character?.voiceFingerprint?.verbalTics ?? [])
@@ -335,6 +353,7 @@ export function CharacterEditor({
     setGallery(character?.gallery ?? [])
     setRelationshipStarters(character?.relationshipStarters ?? [])
     setVoiceProvider(character?.voice?.provider ?? '')
+    setVoiceServiceId(characterVoiceServiceId(character, services))
     setVoiceId(character?.voice?.voiceId ?? '')
     setVoiceSpeed(character?.voice?.speed)
     setVerbalTics(character?.voiceFingerprint?.verbalTics ?? [])
@@ -380,7 +399,9 @@ export function CharacterEditor({
   // Sent as `null`, not `undefined`, when empty: JSON.stringify drops `undefined`-valued keys
   // entirely, so an `undefined` here would make the update request omit the field altogether and
   // silently leave the character's previous value in place instead of actually clearing it.
-  const voice = voiceProvider || voiceId.trim() || voiceSpeed ? { provider: voiceProvider || undefined, voiceId: voiceId.trim() || undefined, speed: voiceSpeed } : null
+  const voice = voiceServiceId || voiceProvider || voiceId.trim() || voiceSpeed
+    ? { serviceId: ownVoiceService?.id, provider: ownVoiceService ? voiceTarget(ownVoiceService).provider : voiceProvider || undefined, voiceId: voiceId.trim() || undefined, speed: voiceSpeed }
+    : null
   const voiceFingerprint =
     verbalTics.length || catchphrases.length || dialectNotes.trim() || sentenceRhythm.trim()
       ? {
@@ -790,7 +811,7 @@ export function CharacterEditor({
     if (t.id === 'knowledge') {
       const knowledge = { ...t, badge: form.character_book?.entries.length ?? 0 }
       // Memories belong to a saved character (they are keyed by its id), so a new card has no tab.
-      return character ? [knowledge, { id: 'memories', label: 'Memories' }] : [knowledge]
+      return character ? [knowledge, { id: 'memories', label: 'Memories', group: t.group }] : [knowledge]
     }
     return [t]
   })
@@ -1267,14 +1288,24 @@ export function CharacterEditor({
 
             {activeOutfit === BASE_OUTFIT_ID ? (
               <p className="text-[11px] text-text-muted">
-                The character's default art. Add an outfit to give them a second look the model can switch to mid-scene. Any expression you don't draw for it falls back to this one.
+                The character's default art, described by their Description on the Character tab. Add an outfit or form to give them a second look the model can switch to mid-scene, with its own description. Any expression you don't draw for it falls back to this one.
               </p>
             ) : (
               (() => {
                 const outfit = outfits.find((o) => o.id === activeOutfit)
                 if (!outfit) return null
                 const knownFlags = combinedSceneFlags(editingWorld?.customSceneFlags)
+                const isForm = (outfit.kind ?? (/^(human|dragon|wolf|fox|cat|beast|animal|true-form|humanoid)$/i.test(outfit.id) ? 'form' : 'outfit')) === 'form'
                 return (
+                  <div className="space-y-2">
+                  <TextAreaField
+                    label={isForm ? `Description in ${outfit.label || 'this'} form` : `Description in ${outfit.label || 'this outfit'}`}
+                    rows={2}
+                    value={outfit.description ?? ''}
+                    onChange={(e) => updateOutfit(outfit.id, { description: e.target.value || undefined })}
+                    placeholder={isForm ? 'How they look in this form, what they can and can\'t do, how they move and sound.' : 'What they\'re wearing, and anything it changes.'}
+                    hint={isForm ? 'The model is told this while they\'re in this form; the Game Master reads every form\'s.' : 'The model is told this while they\'re wearing it.'}
+                  />
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
                       Name
@@ -1369,8 +1400,9 @@ export function CharacterEditor({
                       className="ml-auto flex items-center gap-1 text-[11px] text-text-muted hover:text-danger"
                     >
                       <X size={11} strokeWidth={2.5} />
-                      Delete outfit
+                      Delete {isForm ? 'form' : 'outfit'}
                     </button>
+                  </div>
                   </div>
                 )
               })()
@@ -1935,29 +1967,35 @@ export function CharacterEditor({
         </div>
       )}
 
-      {tab === 'presentation' && (
-        <div className="mt-10 space-y-10">
+      {tab === 'voice' && (
+        <div className="space-y-10">
           <Section
-            title="Voice"
-          description="Leave blank to use the global voice. A provider override must match the Voice model's service in Settings → Models and services. OpenMayhem voices use that speech model."
+            title="Read aloud"
+          description="Who reads their lines aloud in Visual Novel mode: the Voice model's service (Settings → Models and services) unless you pick another of your voice services for them."
           surface="bare"
         >
-          <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-            <SelectField label="Provider override" value={voiceProvider} onChange={(e) => setVoiceProvider(e.target.value as TtsProviderId | '')}>
-              <option value="">Use global default</option>
-              {Object.entries(TTS_PROVIDER_LABELS).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
+          <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">
+            <SelectField
+              label="Voice service"
+              value={ownVoiceService ? ownVoiceService.id : voiceProvider ? `provider:${voiceProvider}` : ''}
+              onChange={(e) => {
+                const next = voiceServices.find((service) => service.id === e.target.value)
+                if (e.target.value.startsWith('provider:')) return
+                setVoiceServiceId(next?.id ?? '')
+                setVoiceProvider(next ? voiceTarget(next).provider : '')
+                // A voice id only means something to the service it was picked from.
+                setVoiceId('')
+              }}
+            >
+              <option value="">{globalVoice ? `The Voice model's (${globalVoice.service.name})` : 'The Voice model\'s'}</option>
+              {voiceServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+              {!ownVoiceService && voiceProvider && <option value={`provider:${voiceProvider}`}>{TTS_PROVIDER_LABELS[voiceProvider]} (not one of your services)</option>}
             </SelectField>
-            {usesLuxttsVoice ? <VoiceSampleField label="Voice sample" value={voiceId} onChange={setVoiceId} blankLabel="Use the narrator/default voice" uploadLabel={form.name} previewText={`This is ${form.name || 'me'}. Shall we begin?`} /> : usesOpenMayhemVoice ? <OpenMayhemVoiceField model={speechModels?.find((m) => m.id === globalTtsModel)} value={voiceId} onChange={setVoiceId} label="Voice / speaker ID override" placeholder="Use global voice" /> : <TextField
-              label="Voice / speaker ID override"
-              value={voiceId}
-              onChange={(e) => setVoiceId(e.target.value)}
-              placeholder="Leave blank to use the global voice"
-            />}
-            {usesLuxttsVoice && (
+            {usesLuxttsVoice ? <VoiceSampleField label="Voice sample" value={voiceId} onChange={setVoiceId} blankLabel="Use the narrator/default voice" uploadLabel={form.name} previewText={`This is ${form.name || 'me'}. Shall we begin?`} />
+              : usesOpenMayhemVoice ? <OpenMayhemVoiceField model={speechModels?.find((m) => m.id === globalTtsModel)} value={voiceId} onChange={setVoiceId} label="Voice / speaker ID override" placeholder="Use global voice" />
+              : voiceSource ? <VoicePicker target={voiceTarget(voiceSource)} value={voiceId} onChange={setVoiceId} blankLabel={ownVoiceService ? 'Its default voice' : 'The narrator\'s voice'} />
+              : <TextField label="Voice / speaker ID override" value={voiceId} onChange={(e) => setVoiceId(e.target.value)} placeholder="Leave blank to use the global voice" />}
+            {SPEED_TTS.includes(effectiveVoiceProvider) && (
               <NumberField
                 label="Speaking speed"
                 min={0.5}
@@ -1968,13 +2006,13 @@ export function CharacterEditor({
                   const v = Number(e.target.value)
                   setVoiceSpeed(Number.isFinite(v) && v !== 1 ? Math.max(0.5, Math.min(2, v)) : undefined)
                 }}
-                hint="1 is normal. LuxTTS only."
+                hint="1 is normal."
               />
             )}
           </div>
         </Section>
         <Section
-          title="Voice fingerprint"
+          title="Speech patterns"
           description="Concrete, recurring speech patterns. Not a general impression like personality, but the actual repeatable tells that make a line unmistakably theirs. Reaches the model every turn alongside their description and personality, plus a short standalone reminder of the single most important catchphrase/tic/register so it doesn't get diluted once a chat runs long."
           surface="bare"
           action={

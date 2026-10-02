@@ -25,6 +25,7 @@ import {
   avatarsDir,
 } from './db.ts'
 import { addVoiceSample, listVoiceSamples, luxttsSpeak, luxttsStatus } from './luxtts.ts'
+import { edgeSpeak, edgeVoices } from './edgeTts.ts'
 import { listVrmLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
@@ -603,6 +604,30 @@ app.post('/api/tts/luxtts', async (req, res) => {
       const status = (e as { status?: number }).status ?? 502
       res.status(status).json({ error: e instanceof Error ? e.message : 'LuxTTS request failed' })
     }
+  } finally {
+    res.off('close', disconnect)
+  }
+})
+
+// ---- Edge TTS (server/edgeTts.ts): Microsoft's free voices, which only answer a server ----
+
+app.get('/api/tts/edge/voices', async (_req, res) => {
+  try {
+    res.json(await edgeVoices())
+  } catch (e) {
+    res.status((e as { status?: number }).status ?? 502).json({ error: e instanceof Error ? e.message : 'Edge TTS voices failed' })
+  }
+})
+
+app.post('/api/tts/edge', async (req, res) => {
+  const controller = new AbortController()
+  const disconnect = () => { if (!res.writableEnded) controller.abort() }
+  res.on('close', disconnect)
+  try {
+    const { audio, contentType } = await edgeSpeak(req.body ?? {}, controller.signal)
+    if (!controller.signal.aborted) res.type(contentType).send(audio)
+  } catch (e) {
+    if (!controller.signal.aborted) res.status((e as { status?: number }).status ?? 502).json({ error: e instanceof Error ? e.message : 'Edge TTS failed' })
   } finally {
     res.off('close', disconnect)
   }
