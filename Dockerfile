@@ -1,6 +1,4 @@
-# Runs the whole app from one Node process: the Express API and the built client on one port.
-# See DOCKER.md for usage. Model backends (KoboldCpp etc.) still run wherever you already run them —
-# the browser talks to those directly, so this image never needs to reach them.
+# Runs the API and built client on one port. See DOCKER.md for setup and data backups.
 
 # --- build the client -------------------------------------------------------
 FROM node:24-slim AS build
@@ -28,6 +26,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Server source, committed seed assets, and the client build from the stage above.
 COPY --chown=node:node server ./server
+# The server imports shared rules and account types from src at runtime.
+COPY --chown=node:node src ./src
 COPY --chown=node:node seed ./seed
 COPY --from=build --chown=node:node /app/dist ./dist
 
@@ -35,4 +35,9 @@ COPY --from=build --chown=node:node /app/dist ./dist
 RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 EXPOSE 3001
-CMD ["node", "--experimental-sqlite", "server/index.ts"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD node -e "fetch('http://127.0.0.1:'+(process.env.API_PORT||3001)+'/api/auth/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# Docker creates a missing bind-mount directory as root. Change only the mount point's owner,
+# then drop privileges before the server opens any user data.
+USER root
+CMD ["sh", "-ec", "chown node:node /app/data; exec setpriv --reuid=node --regid=node --init-groups -- node --experimental-sqlite server/index.ts"]
