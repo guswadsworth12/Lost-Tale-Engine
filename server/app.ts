@@ -221,6 +221,9 @@ function normalizeOutfits(raw: unknown) {
       price: Number.isFinite(Number(e.price)) ? Math.max(0, Math.min(999, Math.round(Number(e.price)))) : undefined,
       manualOnly: e.manualOnly === true,
       intimate: e.intimate === true,
+      // Unset `kind` lets the client recognise an old human/dragon pair as forms by id.
+      kind: e.kind === 'form' || e.kind === 'outfit' ? e.kind : undefined,
+      description: typeof e.description === 'string' && e.description.trim() ? e.description.trim().slice(0, 2000) : undefined,
     }))
     .filter((e) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(e.id) && e.id !== 'base' && !e.id.includes('--'))
   // A duplicate id would make two outfits fight over the same sprite keys.
