@@ -364,6 +364,9 @@ interface SettingsState {
   /** The setup wizard's progress (`setup/setup.ts`): finished or put off, and skipped steps. Synced with the account. */
   setupProgress: SetupProgress
   setSetupProgress: (progress: SetupProgress) => void
+  /** Owners: what happens to a removed account's things (Settings → Admin). `adopt`: they pass to you. `delete`: what only they had is deleted. */
+  removedAccountPolicy: 'adopt' | 'delete'
+  setRemovedAccountPolicy: (policy: 'adopt' | 'delete') => void
   /** Which saved key the chat, image and voice code attaches: the chosen service's. Unset: the long-standing names. */
   chatBackendSecret?: SecretName
   imageBackendSecret?: SecretName
@@ -638,6 +641,8 @@ export const useSettingsStore = create<SettingsState>()(
       servicesMigrated: false,
       setupProgress: NEW_SETUP,
       setSetupProgress: (progress) => set({ setupProgress: progress }),
+      removedAccountPolicy: 'adopt',
+      setRemovedAccountPolicy: (policy) => set({ removedAccountPolicy: policy }),
 
       imageBackend: 'a1111',
       imageBackendBaseUrl: '',

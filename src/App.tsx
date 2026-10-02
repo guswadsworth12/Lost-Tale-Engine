@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import type { ViewId } from '@/lib/ui/navigation'
 import { CommandPalette } from '@/components/layout/CommandPalette'
@@ -15,7 +15,8 @@ import { WorldsView } from '@/components/worlds/WorldsView'
 import { WorldInfoView } from '@/components/worldinfo/WorldInfoView'
 import { requestMessageJump } from '@/lib/scrollToMessage'
 import { GalleryView } from '@/components/gallery/GalleryView'
-import { SettingsView } from '@/components/settings/SettingsView'
+import { SettingsView, type SettingsTab } from '@/components/settings/SettingsView'
+import { AccountMenu } from '@/components/layout/AccountMenu'
 import { ToastViewport } from '@/components/ui/ToastViewport'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { TutorialLauncher } from '@/components/help'
@@ -89,6 +90,8 @@ function SignedInApp() {
   const [pendingCharacterTab, setPendingCharacterTab] = useState<string | null>(null)
   const [pendingWorldId, setPendingWorldId] = useState<string | null>(null)
   const [pendingWorldTab, setPendingWorldTab] = useState<string | null>(null)
+  const [pendingSettingsTab, setPendingSettingsTab] = useState<SettingsTab | null>(null)
+  const clearSettingsTab = useCallback(() => setPendingSettingsTab(null), [])
   // Play keeps the menu. It opens on the compact rail each time a story starts (a per-session
   // width, so the saved Studio preference is untouched); on a phone the Menu button opens a drawer.
   const [playRailExpanded, setPlayRailExpanded] = useState(false)
@@ -208,8 +211,19 @@ function SignedInApp() {
             }}
           />
         )}
-        {view === 'settings' && <SettingsView onStarted={play} onNavigate={navigate} />}
+        {view === 'settings' && (
+          <SettingsView onStarted={play} onNavigate={navigate} requestedTab={pendingSettingsTab} onConsumedTab={clearSettingsTab} />
+        )}
       </div>
+      {/* The account menu's corner: its own narrow column, so it never sits on a view's header actions. A story has its own top bar. */}
+      {!inPlay && (
+        <div className="hidden w-14 shrink-0 items-start justify-center pt-3 md:flex">
+          <AccountMenu onOpen={(tab) => {
+            setPendingSettingsTab(tab)
+            setView('settings')
+          }} />
+        </div>
+      )}
       {/* App-level so a world's music keeps playing across view switches. Mounted in every view:
           the one exclusion that used to exist was for a competing player in a view since removed. */}
       <GlobalBgm />

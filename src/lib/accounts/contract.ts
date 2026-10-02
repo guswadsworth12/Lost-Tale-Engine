@@ -99,3 +99,15 @@ export interface SecretStatus {
   set: boolean
   updatedAt?: number
 }
+
+/** What a removed account left behind (server/leftovers.ts), for the owner's Admin tab. */
+export interface LeftoverAccount {
+  formerOwnerId: string
+  /** Unknown for accounts removed before removals were recorded. */
+  username?: string
+  removedAt?: number
+  counts: Partial<Record<'worlds' | 'characters' | 'world_info_books' | 'personas' | 'chats' | 'stories' | 'presets' | 'themes' | 'instruct_templates' | 'assistant_threads', number>>
+  total: number
+  /** How many were shared with everyone. */
+  shared: number
+}

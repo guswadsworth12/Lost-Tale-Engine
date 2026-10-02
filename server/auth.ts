@@ -1,5 +1,5 @@
 import express, { type Request, type RequestHandler, type Response } from 'express'
-import { db, newId, sessionStore, userSecretStore, userSettingsStore, userStore } from './db.ts'
+import { db, newId, removedUserStore, sessionStore, userSecretStore, userSettingsStore, userStore } from './db.ts'
 import {
   LoginRateLimiter,
   SESSION_COOKIE,
@@ -421,8 +421,12 @@ authRouter.delete('/api/users/:id', requireOwner, (req, res) => {
   const id = String(req.params.id)
   if (id === currentUser(req)!.id) return res.status(400).json({ error: 'You cannot delete your own account.' })
   if (!userStore.get(id)) return res.status(404).json({ error: 'Not found' })
+  const removed = userStore.get(id)!
   db.exec('BEGIN')
   try {
+    // Kept so what they leave behind can still be named in Admin (admin.ts).
+    removedUserStore.remove(id)
+    removedUserStore.insert({ id, username: removed.username, ...(removed.email ? { email: removed.email } : {}), createdAt: Date.now() })
     revokeSessions(id)
     for (const s of userSecretStore.list({ where: 'userId = ?', params: [id] })) userSecretStore.remove(String(s.id))
     userSettingsStore.remove(id)

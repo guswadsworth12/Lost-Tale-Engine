@@ -26,7 +26,7 @@ import {
 } from './db.ts'
 import { addVoiceSample, listVoiceSamples, luxttsSpeak, luxttsStatus } from './luxtts.ts'
 import { edgeSpeak, edgeVoices } from './edgeTts.ts'
-import { listVrmLibrary, listVrmaLibrary, removeAvatar, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveCharacterMotions, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
+import { listVrmLibrary, listVrmaLibrary, resolveAvatar, resolveAvatarMap, resolveAvatarMapVariants, resolveCharacterModel, resolveCharacterMotions, resolveWorldBackgroundsNightMap, resolveWorldMusicMap } from './avatars.ts'
 import { encodeTokens, tokenizerForModel } from './novelaiTokenizer.ts'
 import { originGuard } from './originCheck.ts'
 import { openMayhemRouter } from './openMayhem.ts'
@@ -34,8 +34,8 @@ import { authGate, authRouter, requireOwner } from './auth.ts'
 import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
 import { restoreScene, storiesRouter } from './stories.ts'
-import { momentsRouter, purgeChatMoments } from './moments.ts'
-import { forkChatMemories, memoriesRouter, purgeChatMemories, retractMessageMemories } from './memories.ts'
+import { momentsRouter } from './moments.ts'
+import { forkChatMemories, memoriesRouter, retractMessageMemories } from './memories.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
@@ -43,6 +43,8 @@ import { effectsForRoll, normalizeGameState, normalizeMoveEffects, normalizeTrac
 import { normalizeSceneStage, normalizeStageLayouts } from '../src/lib/vn/stageDirection.ts'
 import { accessGuards, avatarGuard, canSee, canSeeCharacter, canSeeChat, hiddenIds, lookups, owns, siteOwnerId, userOf } from './access.ts'
 import { ownershipPatch } from './ownership.ts'
+import { deleteCharacter, deletePersona, deleteWorld, purgeChat } from './deletion.ts'
+import { adminRouter } from './admin.ts'
 import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { validateCustomResolver } from '../src/lib/world/customRules.ts'
@@ -78,6 +80,8 @@ usePackRowBuilders({ world: worldRow, character: characterRow })
 // Everything is its owner's alone unless shared on purpose; stories and personal records are never shared (ownership.ts).
 app.use(accessGuards)
 app.use(meRouter)
+// Owner-only housekeeping: what removed accounts left behind (admin.ts).
+app.use(adminRouter)
 app.use(packsRouter)
 app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
@@ -838,26 +842,7 @@ app.put('/api/characters/:id', (req, res) => {
 })
 
 app.delete('/api/characters/:id', (req, res) => {
-  const characterId = req.params.id
-  // The character is gone for good, so there's no useful "trash" state — purge its chats directly.
-  const chats = chatStore.list({ where: 'characterId = ?', params: [characterId] })
-  for (const chat of chats) purgeChat(chat.id as string)
-  // A character can also appear as a group-chat participant (a full scan — `participants` isn't an
-  // indexed column); drop the dangling id and any tracked relationship for it instead of deleting the chat.
-  for (const chat of chatStore.list()) {
-    const participants = chat.participants as string[] | undefined
-    const participantRelationships = chat.participantRelationships as Record<string, unknown> | undefined
-    const patch: Record<string, unknown> = {}
-    if (participants?.includes(characterId)) patch.participants = participants.filter((id) => id !== characterId)
-    if (participantRelationships && characterId in participantRelationships) {
-      const { [characterId]: _dropped, ...rest } = participantRelationships
-      patch.participantRelationships = rest
-    }
-    if (Object.keys(patch).length > 0) chatStore.update(chat.id as string, patch)
-  }
-  // Removes the whole per-character folder in one shot (avatar, sprites, gallery — see avatars.ts).
-  removeAvatar('characters', characterId)
-  characterStore.remove(characterId)
+  deleteCharacter(req.params.id)
   res.status(204).end()
 })
 
@@ -935,14 +920,7 @@ app.put('/api/personas/:id', (req, res) => {
 })
 
 app.delete('/api/personas/:id', (req, res) => {
-  const personaId = req.params.id
-  // `Chat.personaId` isn't indexed, so a full scan; clear dangling refs to avoid a silent 404 on load.
-  for (const chat of chatStore.list()) {
-    // Cleared to '' (not null/undefined) to stay a valid value of its required-string type.
-    if (chat.personaId === personaId) chatStore.update(chat.id as string, { personaId: '' })
-  }
-  removeAvatar('personas', personaId)
-  personaStore.remove(personaId)
+  deletePersona(req.params.id)
   res.status(204).end()
 })
 
@@ -952,21 +930,6 @@ app.delete('/api/personas/:id', (req, res) => {
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 /** Permanent cascading delete: messages/objectives/relationship events/facts/memories/moments, un-parents any fork, then the chat row. */
-function purgeChat(chatId: string): void {
-  for (const msg of messageStore.list({ where: 'chatId = ?', params: [chatId] })) messageStore.remove(msg.id as string)
-  for (const o of objectiveStore.list({ where: 'chatId = ?', params: [chatId] })) objectiveStore.remove(o.id as string)
-  for (const e of relationshipEventStore.list({ where: 'chatId = ?', params: [chatId] })) relationshipEventStore.remove(e.id as string)
-  for (const f of chatFactStore.list({ where: 'chatId = ?', params: [chatId] })) chatFactStore.remove(f.id as string)
-  purgeChatMemories(chatId)
-  purgeChatMoments(chatId)
-  // Un-parent any chat forked from this one (parentChatId isn't indexed, so a full scan).
-  for (const chat of chatStore.list()) {
-    if (chat.parentChatId !== chatId) continue
-    chatStore.update(chat.id as string, { parentChatId: undefined, forkedFromMessageId: undefined })
-  }
-  chatStore.remove(chatId)
-}
-
 /** Called once at server startup — purges anything that's been sitting in the trash past `TRASH_RETENTION_MS`. */
 export function purgeExpiredTrash(): void {
   const cutoff = Date.now() - TRASH_RETENTION_MS
@@ -1622,13 +1585,7 @@ app.put('/api/worlds/:id', (req, res) => {
 })
 
 app.delete('/api/worlds/:id', (req, res) => {
-  const worldId = req.params.id
-  // Un-assign rather than cascade-delete: characters living here lose their world, not their existence.
-  for (const c of characterStore.list({ where: 'worldId = ?', params: [worldId] })) {
-    characterStore.update(c.id as string, { worldId: undefined })
-  }
-  removeAvatar('worlds', worldId)
-  worldStore.remove(worldId)
+  deleteWorld(req.params.id)
   res.status(204).end()
 })
 
