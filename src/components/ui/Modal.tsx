@@ -70,8 +70,10 @@ export function Modal({
   const vnChrome = useVnChromeClass()
 
   return (
+    // z-[60]: above the side panels and drawers a dialog can be opened from (the Story panel and
+    // the phone menu are z-50), below the confirm step (150), the guided tour (70) and toasts (200).
     <div
-      className="animate-overlay-in fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm sm:p-4"
+      className="animate-overlay-in fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div

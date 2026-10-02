@@ -1019,7 +1019,7 @@ function WorldEditor({
             the warmth needed before that background can appear. The <Star size={11} strokeWidth={2} className="mb-0.5 inline text-accent" />{' '}
             marks the opening scene. Where a new chat starts before the model (or nothing, if
             there's no model connected) has tagged one of its own. The small moon toggle on each
-            tile switches it to a night variant, shown automatically once the world clock (Clock tab)
+            tile switches it to a night variant, shown automatically once the world clock (Simulation tab)
             reaches evening or night. Leave it unset to always show the day art.
           </p>
           <div className="mb-4">

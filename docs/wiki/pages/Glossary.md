@@ -15,6 +15,9 @@
 | Tracked state | Resources, conditions, clocks, or items updated by recorded events. |
 | Canon | Confirmed shared fact; different from a character's belief or rumor. |
 | Lorebook | Reusable entries included when their scope and triggers match. |
+| Owner | An account that can add and remove users and back up the whole install. The first owner is the site owner. |
+| Account menu | The button with your initial in the top-right corner: password, account, Admin, sign out. |
+| Stranger | A cast member a newly arrived character hasn't been introduced to; it learns their name only by hearing it. |
 | World pack | Portable world setup without account or story history. |
 | Visual Novel | Staged presentation of background, cast, and dialogue. |
 | VRM | A 3D humanoid avatar format supported for character presentation. |

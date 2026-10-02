@@ -2,11 +2,15 @@
 
 Writer's Room is a planning assistant connected to your configured model. It can search saved worlds, cast, lore, stories, goals, and facts locally and send relevant excerpts as context. Open **Local sources used** under a reply to inspect what it relied on. Name a world or story when asking so the search is narrower.
 
-![Writer's Room guided roleplay builder](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/lost-tales-writers-room.jpg)
+![Writer's Room answering a question about Hollowmere with three ideas, and the Local sources used it searched](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-writers-room.jpg)
 
 ## Build a roleplay
 
-Choose **Build a roleplay** for a guided draft of a world, lore, cast, rules, and opening scene. Review every step before applying it. Put secrets in **GM only notes**, select a check preset if you want a starting player sheet, and set an optional first goal. After creation, tune moves and stats in Worlds and Cast. Run a short trial scene to catch missing names, inconsistent relationships, and rules that do not fit the setting.
+Choose **Build a roleplay** for a guided draft in six steps: **Idea**, **World**, **Lore**, **Cast**, **Rules & opening**, and **Review**. **Suggest world, lore, cast & opening** drafts the later steps from your idea; nothing is saved to your library until Review.
+
+![Build a roleplay, step 1: describe your idea and choose a story style](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-writers-room-build.jpg)
+
+Review every step before applying it. Put secrets in **GM only notes**, select a check preset if you want a starting player sheet, and set an optional first goal. After creation, tune moves and stats in Worlds and Cast. Run a short trial scene to catch missing names, inconsistent relationships, and rules that do not fit the setting.
 
 ## Edit and tune
 

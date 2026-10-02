@@ -6,19 +6,19 @@ Lost Tales Engine is a local-first roleplay and story engine. Create a setting a
 
 **New here?** Follow the [Quick Start](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Quick-Start). The [full wiki](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki) covers play, world building, hosting, and contribution.
 
-[![Illustrative Hollowmere Station Visual Novel scene](screenshots/hollowmere-visual-novel-mock.jpg)](screenshots/hollowmere-visual-novel-mock.jpg)
+[![Hollowmere Station in Visual Novel mode: Mara, Tavi, and the hooded passenger on the night platform](screenshots/wiki-hollowmere-visual-novel.jpg)](screenshots/wiki-hollowmere-visual-novel.jpg)
 
-*Illustrative product mockup using the bundled Hollowmere Station story and art. The stage, dialogue, and collapsible controls show the intended play experience; this is a composed image, not a live screenshot. No personal story data is included.*
+*Screenshot of the bundled Hollowmere Station story on a fresh install, played with a local model (Gemma 4 E4B through Ollama). The reply is the model's own.*
 
 ### Try the Hollowmere story
 
 Hollowmere Station is the bundled Visual Novel starter world. Rowan arrives on the last train, meets stationmaster Mara Vale and courier Tavi Rook, and helps a passenger whose name has vanished in the marsh fog. The short story spans the platform, signal box, and marsh edge. Tavi has both human and fox forms.
 
-| Story and chapters | World and cast |
+| Ending a scene | The world's locations |
 | :--- | :--- |
-| [![Illustrative Hollowmere story and chapter view](screenshots/hollowmere-story-mock.jpg)](screenshots/hollowmere-story-mock.jpg) | [![Illustrative Hollowmere world and cast view](screenshots/hollowmere-world-mock.jpg)](screenshots/hollowmere-world-mock.jpg) |
+| [![The End Scene dialog with a model-written recap and open threads](screenshots/wiki-end-scene.jpg)](screenshots/wiki-end-scene.jpg) | [![Hollowmere's four location backgrounds in the world editor](screenshots/wiki-world-locations.jpg)](screenshots/wiki-world-locations.jpg) |
 
-*These two views are also illustrative mockups composed from the bundled art. See the [Hollowmere wiki](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Hollowmere-Station) for the story outline and image gallery.*
+*Screenshots from the same fresh install. See the [Hollowmere wiki](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Hollowmere-Station) for the story outline.*
 
 ## Explore the app
 
@@ -34,7 +34,7 @@ Choose **Classic** for a transcript or **Visual Novel** for a staged scene. On d
 
 | World modules | Story rules and move outcomes |
 | :--- | :--- |
-| [![World template and module controls](screenshots/lost-tales-world-modules.jpg)](screenshots/lost-tales-world-modules.jpg) | [![A move with success, mixed success, and failure outcomes](screenshots/lost-tales-story-rules.jpg)](screenshots/lost-tales-story-rules.jpg) |
+| [![World template and module controls](screenshots/wiki-world-modules.jpg)](screenshots/wiki-world-modules.jpg) | [![A move with success, mixed success, and failure outcomes](screenshots/wiki-ruleset-moves.jpg)](screenshots/wiki-ruleset-moves.jpg) |
 
 In **Story Rules**, build character-sheet fields, moves, targets, and a rank ladder. **Cast → Sheet** stores a separate sheet for each world, so a character can have different stats across settings. Starter presets cover 2d6 moves, D&D 5e SRD core checks, Starfinder 2e core checks, Fate Core skill checks, and a generic 3d6 roll-under check. These provide editable fields and check resolvers, not full implementations of those games.
 
@@ -46,19 +46,19 @@ In **mechanical** mode, the server records the dice, modifier or sheet value, ta
 
 **Cast** covers character background, behavior, knowledge, relationships, voice, presentation, and world-specific sheets. Import or export SillyTavern V2/V3 cards. Add portraits, Visual Novel expressions and outfits, and optional VRM models to individual characters; scene backgrounds stay with their worlds.
 
-[![The Cast editor showing a character's Visual Novel expressions](screenshots/lost-tales-cast-sprites.jpg)](screenshots/lost-tales-cast-sprites.jpg)
+[![The Cast editor showing Tavi Rook's Base and Fox appearances and expression sprites](screenshots/wiki-cast-presentation.jpg)](screenshots/wiki-cast-presentation.jpg)
 
 ### Build with Writer's Room
 
 **Writer's Room** can brainstorm with your configured model and search the worlds, cast, lore, stories, goals, and facts saved on this device. Its replies identify the local sources they used. The guided **Build a roleplay** flow drafts a world, lore, cast, rules, and an opening scene for review before creating them. It can also prepare an editable update to an existing character and world-specific sheet, draft a game system the presets don't cover from a description (test-roll it, then apply it to a world), and tune the prompts that drive the GM, memory, recaps, and journals for a world, with previews, history, and revert.
 
-[![The first step of the Writer's Room guided roleplay builder](screenshots/lost-tales-writers-room.jpg)](screenshots/lost-tales-writers-room.jpg)
+[![Writer's Room answering a question about Hollowmere, with the local sources it used](screenshots/wiki-writers-room.jpg)](screenshots/wiki-writers-room.jpg)
 
 **Lore** manages world information and lorebooks. **Media** browses story CG unlocks and world soundtracks; character sprites remain in Cast. Dating-focused worlds can track relationships, commitment, dates, gifts, inventory, and CG unlocks. The app also includes a guided tour and **Help & tutorial** reference.
 
 ## Get started
 
-You need **Node.js 22.5 or newer** (development uses Node 24) and a text-generation backend such as [KoboldCpp](https://github.com/LostRuins/koboldcpp) or an OpenAI-compatible API.
+You need **Node.js 22.18 or newer** (Node 24 recommended; development and Docker use it) and a text-generation backend such as [KoboldCpp](https://github.com/LostRuins/koboldcpp) or an OpenAI-compatible API.
 
 ```bash
 git clone https://github.com/guswadsworth12/Lost-Tale-Engine.git
