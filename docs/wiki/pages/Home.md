@@ -2,6 +2,10 @@
 
 Build a world, bring a cast to life, and play a story whose choices and rolls matter. This guide covers the current app for players, people hosting it, and contributors.
 
+![Hollowmere Station in Visual Novel mode: Mara, Tavi, and the hooded passenger on the night platform while Tavi answers Rowan](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-hollowmere-visual-novel.jpg)
+
+*Screenshot of the bundled Hollowmere Station story, played on a fresh install with a local model (Gemma 4 E4B through Ollama). The reply is the model's own.*
+
 ## Choose a starting point
 
 - **New player:** [Quick Start](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Quick-Start) takes you from first sign-in to the bundled Hollowmere story.
@@ -11,6 +15,4 @@ Build a world, bring a cast to life, and play a story whose choices and rolls ma
 
 The sidebar lists every guide. **Help & tutorial** inside the app is a searchable quick reference and guided tour; this wiki adds full workflows and troubleshooting. [Known Limits and Roadmap](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Known-Limits-and-Roadmap) separates shipped behavior from future work.
 
-![Illustrative Hollowmere Visual Novel opening](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/hollowmere-visual-novel-mock.jpg)
-
-*Illustrative product mockup made from bundled Hollowmere art. It is not a live screenshot or a model-generated playthrough.*
+Every image in this wiki is a browser capture of the real app at 1280×800 (phone shots at 390×844), taken on a disposable install with only the bundled demo content.

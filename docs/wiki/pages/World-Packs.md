@@ -1,6 +1,8 @@
 # World packs
 
-A `.ltpack` carries a reusable world to another install or account without taking anyone's play history. Choose **Export pack…** in a world editor; choose **Import pack…** from the Worlds list.
+A `.ltpack` carries a reusable world to another install or account without taking anyone's play history. Choose **Export pack…** at the bottom of a world's editor (a character's editor has one too); choose **Import pack…** from the Worlds list.
+
+![Export world pack for Hollowmere: what's included with sizes, the off-by-default items, and what's left out](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-pack-export.jpg)
 
 ## Export
 

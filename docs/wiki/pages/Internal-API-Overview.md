@@ -8,6 +8,9 @@ The Express API serves saved content, media, authentication, backups, roll/state
 | --- | --- |
 | HTTP composition and route registration | `server/app.ts`, `server/index.ts` |
 | Session and account access | `server/auth.ts`, `server/me.ts`, `server/access.ts`, `server/ownership.ts` |
+| Owner housekeeping (removed accounts) | `server/admin.ts`, `server/leftovers.ts`, `server/admin.http.test.ts` |
+| Permanent deletes and their cascades | `server/deletion.ts` |
+| One-time data migrations | `server/migrations/` |
 | Database and persistence | `server/db.ts`, `server/stories.ts`, `server/memories.ts` |
 | Rolls and game state | `server/campaignRoll.ts`, related HTTP tests |
 | Pack preview, export, import | `server/packPlan.ts`, `server/packExport.http.test.ts`, `server/packImport.http.test.ts` |

@@ -160,7 +160,7 @@ export class OpenAICompatibleClient implements ChatBackend {
 
   private reasoningExhaustedError(reasoningChars: number): KoboldApiError {
     return new KoboldApiError(
-      `The model spent its whole reply budget on hidden reasoning and never wrote an actual reply (${reasoningChars} reasoning characters, 0 in the reply). Try a larger Reply length, or a model without a "thinking" step.`,
+      `The model spent its whole reply budget on hidden reasoning and never wrote an actual reply (${reasoningChars} reasoning characters, 0 in the reply). Raise Settings → Generation → Reasoning token reserve (a character's reply-length band caps the reply length itself), or use a model without a "thinking" step.`,
     )
   }
 

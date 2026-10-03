@@ -2,13 +2,13 @@
 
 **Worlds → Story Rules** defines a campaign's check resolver, sheet fields, moves, target rules, rank ladder, and tracked state. Start with a preset or a custom ruleset; import and export campaign files when you need to move the rules between worlds.
 
-![Story rules editor showing move outcomes](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/lost-tales-story-rules.jpg)
+![A move from the Starter 2d6 preset: Take a Risk, rolled with Nerve, with its 10+, 7–9, and 6-or-less results](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-ruleset-moves.jpg)
 
 ## Start from a preset
 
 Available starter presets cover PbtA-style 2d6 moves, D&D 5e SRD 5.2.1 core checks, Starfinder 2e core checks, Fate Core skill checks, and generic 3d6 roll-under checks. They are editable check foundations. Full combat, class, spell, and published resource systems are not bundled.
 
-1. Select **Guided outcomes** or **Roll for outcomes** in the world's Story rules module.
+1. In **Story Rules**, choose a **Ruleset preset** and **Load preset** (it replaces the current rules and sheet fields), then pick **Guided outcomes** or **Roll for outcomes**. **Import campaign file** and **Export campaign file** move rules between worlds.
 2. Define each sheet field in **Character sheet builder** and link a field to each move that uses it.
 3. Give a move its outcome text and optional effects on resources, conditions, clocks, or items.
 4. Set a fixed target when the world always uses one. Otherwise the GM sets the target before asking for a roll, or the player enters it for a self-started move.
