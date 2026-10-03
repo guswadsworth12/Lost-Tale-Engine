@@ -386,7 +386,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             items: [
               'An ended scene is read-only history: a banner says so, and **Continue in Scene N** takes you on to carry on playing.',
               "Story panel → **Scenes** lists the story's scenes by storyline (the story's timeline). Open any of them from there.",
-              '**Read the whole story** shows every scene in order, each with its recap.',
+              '**Read the whole story** shows every scene in order, each with its recap. Its **Export** bar saves the story as **Text**, **Markdown** (for Reddit, Discord and forums), a **Word** document, or a **PDF** (choose Save as PDF in the print dialog); untick **Include recaps** to share just the story.',
             ],
           },
         ],
@@ -482,7 +482,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             kind: 'list',
             items: [
               '**Search story** in the play header or Visual Novel side rail searches messages and can jump to matches in other stories too.',
-              '**Export as HTML transcript** in Classic **Tools** or Visual Novel side controls saves the story as a web page.',
+              '**Export story (text, Markdown, Word, PDF)…** in Classic **Tools** or the Visual Novel side controls opens the whole story ready to save in the format you want to share. **Export scene as HTML** saves just this scene as a web page.',
             ],
           },
         ],
@@ -625,7 +625,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**Quick tuning: sampler & system prompt** for this session, with a link to the full Settings.',
               '**Inspect prompt & memory**: the prompt the model receives, the story\'s memory summary, and the last reply before and after processing.',
               "**Director: adjust world & relationship state**: time, relationship values, scene flags, memories and plans, for when the story's bookkeeping needs a hand.",
-              '**Export as HTML transcript**.',
+              '**Export story (text, Markdown, Word, PDF)…** and **Export scene as HTML**.',
             ],
           },
         ],
