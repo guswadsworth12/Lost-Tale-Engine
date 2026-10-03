@@ -290,6 +290,9 @@ function interpret(obj: Record<string, unknown>, input: ScribeInput): ScribeResu
     if (!text) return
 
     const witnessIds = narrow(message.witnessIds, resolveIds(item.witnesses, resolve))
+    // Nobody was there to remember it (a message with no one recorded as present): the server
+    // refuses a memory without a witness, and would refuse the whole batch with it.
+    if (!witnessIds.length) return
     let feelings: Record<string, number> | undefined
     if (isObject(item.feelings)) {
       for (const [name, value] of Object.entries(item.feelings)) {

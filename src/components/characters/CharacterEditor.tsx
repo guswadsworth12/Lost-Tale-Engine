@@ -131,6 +131,30 @@ function kinksAt(valence: Partial<Record<string, number>> | undefined, value: nu
     .join(', ')
 }
 
+/** Comma-separated words, as typed: trimmed, case kept, blanks dropped. */
+function aliasList(raw: string): string[] {
+  return raw.split(',').map((v) => v.trim()).filter(Boolean)
+}
+
+/**
+ * Other words for something, comma-separated. Keeps its own text while typing (so a trailing comma
+ * survives) and reports the parsed list on every change.
+ */
+function AliasField({ label, value, onChange, placeholder, hint, className }: {
+  label: string
+  value: string[] | undefined
+  onChange: (aliases: string[]) => void
+  placeholder?: string
+  hint?: ReactNode
+  className?: string
+}) {
+  const [text, setText] = useState((value ?? []).join(', '))
+  return (
+    <TextField label={label} value={text} placeholder={placeholder} hint={hint} className={className}
+      onChange={(e) => { setText(e.target.value); onChange(aliasList(e.target.value)) }} />
+  )
+}
+
 function parseList(raw: string): string[] {
   return raw
     .split(',')
@@ -247,6 +271,8 @@ export function CharacterEditor({
   const [customExpressions, setCustomExpressions] = useState<CustomExpression[]>(character?.customExpressions ?? [])
   const [newExpressionLabel, setNewExpressionLabel] = useState('')
   const [outfits, setOutfits] = useState<Outfit[]>(character?.outfits ?? [])
+  const [baseForm, setBaseForm] = useState<NonNullable<Character['baseForm']>>(character?.baseForm ?? {})
+  const [aliases, setAliases] = useState<string[]>(character?.aliases ?? [])
   const [vrm, setVrm] = useState<Character['vrm']>(character?.vrm)
   /** Which wardrobe state the sprite grid below is currently editing. Purely editor-local — never saved. */
   const [activeOutfit, setActiveOutfit] = useState<string>(BASE_OUTFIT_ID)
@@ -343,6 +369,8 @@ export function CharacterEditor({
     setCustomExpressions(character?.customExpressions ?? [])
     setNewExpressionLabel('')
     setOutfits(character?.outfits ?? [])
+    setBaseForm(character?.baseForm ?? {})
+    setAliases(character?.aliases ?? [])
     setActiveOutfit(BASE_OUTFIT_ID)
     setNewOutfitLabel('')
     setGiftPreferences(character?.giftPreferences ?? {})
@@ -517,6 +545,8 @@ export function CharacterEditor({
       spriteUnlocks,
       spriteVariants,
       outfits,
+      baseForm: baseForm.label?.trim() || baseForm.aliases?.length ? baseForm : null,
+      aliases,
       customExpressions: customExpressions.length ? customExpressions : null,
       giftPreferences,
       giftLikes: giftLikes.length ? giftLikes : null,
@@ -933,6 +963,9 @@ export function CharacterEditor({
             </div>
             <div className="flex-1 space-y-0">
               <TextField label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} />
+              <AliasField key={`aliases-${character?.id ?? 'new'}`} label="Also known as" value={aliases} onChange={setAliases}
+                placeholder="e.g. the courier, the fox"
+                hint="Other names the story uses for them, comma-separated, so a line like &quot;the fox curls up&quot; is recognised as them. Hearing one doesn't tell anyone their name." />
               <SelectField label="World" value={worldId} onChange={(e) => { setWorldId(e.target.value); if (!sheetWorldId) setSheetWorldId(e.target.value) }}>
                 <option value="">No world (standalone)</option>
                 {worlds.map((w) => (
@@ -1254,7 +1287,7 @@ export function CharacterEditor({
           <div className="mb-4 rounded-xl bg-bg-sunken/60 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-[11px] font-medium text-text-muted">Appearance</span>
-              {[{ id: BASE_OUTFIT_ID, label: 'Base' }, ...outfits].map((o) => {
+              {[{ id: BASE_OUTFIT_ID, label: baseForm.label?.trim() || 'Base' }, ...outfits].map((o) => {
                 const cov = outfitCoverage(sprites, o.id, allExpressions.map((e) => e.id))
                 const active = activeOutfit === o.id
                 return (
@@ -1287,9 +1320,21 @@ export function CharacterEditor({
             </div>
 
             {activeOutfit === BASE_OUTFIT_ID ? (
-              <p className="text-[11px] text-text-muted">
-                The character's default art, described by their Description on the Character tab. Add an outfit or form to give them a second look the model can switch to mid-scene, with its own description. Any expression you don't draw for it falls back to this one.
-              </p>
+              <div className="space-y-2">
+                <p className="text-[11px] text-text-muted">
+                  The character's default art, described by their Description on the Character tab. Add an outfit or form to give them a second look the model can switch to mid-scene, with its own description. Any expression you don't draw for it falls back to this one.
+                </p>
+                {outfits.some((o) => (o.kind ?? (/^(human|dragon|wolf|fox|cat|beast|animal|true-form|humanoid)$/i.test(o.id) ? 'form' : 'outfit')) === 'form') && (
+                  <div className="grid gap-x-3 sm:grid-cols-2">
+                    <TextField label="Name of this form" value={baseForm.label ?? ''} placeholder="e.g. Human"
+                      onChange={(e) => setBaseForm((b) => ({ ...b, label: e.target.value || undefined }))}
+                      hint="What the story calls their usual look, so &quot;she takes her human form&quot; switches back to it." />
+                    <AliasField key={`base-aliases-${character?.id ?? 'new'}`} label="Also called" value={baseForm.aliases}
+                      onChange={(list) => setBaseForm((b) => ({ ...b, aliases: list.length ? list : undefined }))}
+                      placeholder="e.g. mortal, two-legged" hint="Other words for it, comma-separated." />
+                  </div>
+                )}
+              </div>
             ) : (
               (() => {
                 const outfit = outfits.find((o) => o.id === activeOutfit)
@@ -1306,6 +1351,12 @@ export function CharacterEditor({
                     placeholder={isForm ? 'How they look in this form, what they can and can\'t do, how they move and sound.' : 'What they\'re wearing, and anything it changes.'}
                     hint={isForm ? 'The model is told this while they\'re in this form; the Game Master reads every form\'s.' : 'The model is told this while they\'re wearing it.'}
                   />
+                  {isForm && (
+                    <AliasField key={`form-aliases-${outfit.id}`} label="Also called" value={outfit.aliases}
+                      onChange={(list) => updateOutfit(outfit.id, { aliases: list.length ? list : undefined })}
+                      placeholder={`e.g. ${outfit.label || 'this form'}, spirit, true form`}
+                      hint="Other words the story might use for this form, comma-separated. Its name always counts." />
+                  )}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
                       Name
@@ -2073,6 +2124,13 @@ export function CharacterEditor({
 
       {tab === 'advanced' && (
         <div className="space-y-10">
+          {/* First on the tab: which model voices them is the setting people come here for, and the prompt list below can run long. */}
+          <Section title="Model" description="A model of their own for their replies, say OpenAI for one character and Gemini for another. Each character keeps its own prompt and context. Everyone else, the Game Master, and memory keep the models chosen in Settings." surface="bare">
+            <ModelPicker capability="text" label="This character's model" emptyLabel="Same as Story replies"
+              value={modelServiceId ? { serviceId: modelServiceId, model: modelOverride } : null}
+              onChange={(choice) => { setModelServiceId(choice?.serviceId ?? ''); setModelOverride(choice?.model ?? '') }} />
+          </Section>
+
           <Section
             title="Maximum Immersion"
             description="One-click bundle for an author who wants the deepest, most immersive setup this app can offer, curated from settings that already exist rather than new mechanics."
@@ -2145,13 +2203,6 @@ export function CharacterEditor({
                 </optgroup>
               )}
             </SelectField>
-            <div className="mb-3">
-              <span className="mb-1 block text-xs font-medium text-text-muted">Model</span>
-              <ModelPicker capability="text" label="This character's model" emptyLabel="Same as Story replies"
-                value={modelServiceId ? { serviceId: modelServiceId, model: modelOverride } : null}
-                onChange={(choice) => { setModelServiceId(choice?.serviceId ?? ''); setModelOverride(choice?.model ?? '') }} />
-              <span className="mt-1 block text-[11px] text-text-muted">A model of their own for their replies. Each character keeps its own prompt and context.</span>
-            </div>
             <SelectField
               label="Reply length"
               hint={

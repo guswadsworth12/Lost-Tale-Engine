@@ -103,6 +103,15 @@ relayRouter.all(RELAY_PATH, rawBody, async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no')
     for (const [name, value] of Object.entries(passedResponseHeaders(upstream.headers))) res.setHeader(name, value)
     if (!upstream.body || req.method === 'HEAD') { await upstream.body?.cancel().catch(() => {}); res.end(); return }
+    if (upstream.status >= 400) {
+      // A service's refusal (a bad key, a field it won't take, a quota) otherwise reaches only the
+      // browser; the start of it goes in the server log too, so a host can see why without devtools.
+      // Error bodies are short, so it is read whole rather than piped. Never the request or its key.
+      const text = await upstream.text()
+      console.warn(`[relay] ${target.host}${target.pathname} answered ${upstream.status}: ${text.replace(/\s+/g, ' ').slice(0, 500)}`)
+      res.end(text)
+      return
+    }
     res.flushHeaders()
     await pipeline(Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]), res)
   } catch (error) {

@@ -58,6 +58,15 @@ describe('buildScribePrompt', () => {
 })
 
 describe('parseScribeResponse', () => {
+  it('drops a memory nobody was present to witness, instead of sinking the whole batch', () => {
+    const lonely = input({ messages: [
+      { n: 1, id: 'msg-1', name: 'Ash Vale', text: 'The lamp gutters out.', witnessIds: [] },
+      { n: 2, id: 'msg-2', name: 'Bea', text: 'Bea whispers her real name to Ash.', witnessIds: ['ash', 'bea'] },
+    ] })
+    const result = parseScribeResponse(json({ add: [{ from: 1, text: 'The lamp went out.' }, { from: 2, text: 'Bea told Ash her real name.' }] }), lonely)
+    expect(result.add.map((a) => a.messageId)).toEqual(['msg-2'])
+  })
+
   it('reads fenced JSON and maps names to ids', () => {
     const raw =
       '```json\n' +

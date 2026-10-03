@@ -13,6 +13,8 @@ import { charactersApi } from '@/lib/api/client'
 import { SERVICE_KINDS, chosen, createTextClient, newServiceId, offers, type Capability } from '@/lib/api/services'
 import { synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { errorMessage } from '@/lib/store/useToastStore'
+import { startTour } from '@/lib/help/helpStore'
+import { shouldOfferIntro, tutorialStore } from '@/lib/help/tutorialState'
 import {
   SETUP_STEPS, nextStep, previousStep, resumeStep, stepState, verifiedKey, withSkipped,
   type SetupStepId,
@@ -68,6 +70,11 @@ export function SetupWizard({
     setProgress({ ...progress, status: 'done', at: Date.now() })
     if (chatId) onStarted(chatId)
     else onClose()
+    // Straight on into the tour: its first-run offer stays hidden during play, which is exactly where
+    // finishing with a story lands them. First-run setup happens once per account, but whether the
+    // tour was seen is remembered per browser, so a skip by someone else on this device (or an old
+    // "Not now") doesn't stop a new account's tour. Reopened from the checklist, it only starts unseen.
+    if (variant === 'page' || shouldOfferIntro(tutorialStore.getSnapshot())) startTour()
   }
 
   const shell = variant === 'overlay'

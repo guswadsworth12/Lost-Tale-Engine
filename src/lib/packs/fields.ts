@@ -43,6 +43,8 @@ export const CHARACTER_FIELDS: Record<keyof Character, CharacterFieldClass> = {
   spriteSources: 'local',
   vrm: 'media:models',
   outfits: 'template',
+  baseForm: 'template',
+  aliases: 'template',
   customExpressions: 'template',
   giftPreferences: 'template',
   giftLikes: 'template',

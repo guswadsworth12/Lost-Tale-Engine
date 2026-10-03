@@ -137,6 +137,24 @@ describe('OpenAICompatibleClient — request building', () => {
     expect(body).not.toHaveProperty('verbosity')
   })
 
+  it('sends Gemini only fields it accepts: no frequency_penalty (it refuses the whole request), and no zero penalties anywhere', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
+    stubRelayedFetch(fetchMock)
+    const gemini = new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', false, 'gemini-3.8-flash')
+    await gemini.generate({ ...BASE_REQUEST, frequency_penalty: 0.5, presence_penalty: 0.3 })
+    let body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).not.toHaveProperty('frequency_penalty')
+    expect(body.presence_penalty).toBe(0.3)
+
+    // Quick tuning's defaults are 0: not sent to anyone.
+    fetchMock.mockClear()
+    const other = new OpenAICompatibleClient('https://api.example.com/v1', false, 'gpt-4o-mini')
+    await other.generate({ ...BASE_REQUEST, frequency_penalty: 0, presence_penalty: 0 })
+    body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).not.toHaveProperty('frequency_penalty')
+    expect(body).not.toHaveProperty('presence_penalty')
+  })
+
   // Live-verified against a real key: OpenRouter's free tier increasingly routes to reasoning
   // models, and one (`nex-agi/nex-n2.5-mini:free`) reproduced exactly this — reasoning tokens
   // filled the whole `max_tokens` budget and `content` came back empty every time, with no error at

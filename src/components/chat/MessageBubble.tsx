@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { AlertCircle, Brain, ChevronLeft, ChevronRight, Compass, GitFork, Heart, History, ImagePlus, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
+import { AlertCircle, Brain, Check, ChevronLeft, ChevronRight, Compass, Copy, GitFork, Heart, History, ImagePlus, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
 import type { StoryMoment } from '@/lib/story/moments'
 import { useSettingsStore, type AvatarShape } from '@/lib/store/useSettingsStore'
@@ -8,6 +8,8 @@ import { renderMessageText } from '@/lib/text/messageText'
 import { CampaignRollBadge, GmTurnCard } from './GmTurnCard'
 import type { SfxConfig } from '@/lib/text/messageSegments'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
+import { copyText } from '@/lib/text/copyText'
+import { toastError } from '@/lib/store/useToastStore'
 import { intentSpec } from '@/lib/dating/intent'
 
 function avatarClass(shape: AvatarShape): string {
@@ -39,6 +41,26 @@ export interface MemoryNote {
 }
 
 /** The quiet line under a message that produced memories; opens to show what was remembered. */
+/** Copies one message's text as written (the shown swipe, *actions* and all), with a tick for a moment after. */
+export function CopyMessageButton({ text, className = '' }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={async () => {
+        if (await copyText(text)) {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        } else toastError("Couldn't copy. Select the text and copy it by hand.")
+      }}
+      className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-bg-sunken hover:text-text ${copied ? 'text-accent' : ''} ${className}`}
+      title={copied ? 'Copied' : 'Copy message'}
+      aria-label={copied ? 'Copied' : 'Copy message'}
+    >
+      {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={2} />}
+    </button>
+  )
+}
+
 function MemoryMarker({ note }: { note: MemoryNote }) {
   const [open, setOpen] = useState(false)
   return (
@@ -311,6 +333,7 @@ export const MessageBubble = memo(function MessageBubble({
       )}
       {!isStreaming && (
         <>
+          {message.text.trim() && <CopyMessageButton text={message.text} />}
           {onPicture && (
             <button
               onClick={() => onPicture(message.id)}

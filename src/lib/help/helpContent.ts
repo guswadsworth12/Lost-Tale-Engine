@@ -680,7 +680,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**World Life**: weather preferences, a daily **Schedule**, and **Outreach** (how often they text you first; off by default).',
               '**Presentation**: expressions, outfits and sound effects.',
               '**Voice**: **Read aloud** (which of your voice services and voice reads their lines, and how fast) and **Speech patterns** (tics, catchphrases, dialect and rhythm the model keeps to).',
-              '**Advanced**: character prompts, prompt overrides and metadata.',
+              '**Advanced**: **Model** (a model of their own for their replies, say OpenAI for one character and Gemini for another), character prompts, prompt overrides and metadata.',
             ],
           },
           { kind: 'text', text: 'Finish with **Save changes** (or **Create character**).' },

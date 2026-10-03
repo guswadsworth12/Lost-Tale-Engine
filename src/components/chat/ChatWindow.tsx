@@ -146,6 +146,7 @@ export function ChatWindow({
     setReplyAsCharacterId,
     messages,
     isGenerating,
+    isGmRuling,
     streamingText,
     generatingMessageId,
     genStats,
@@ -437,7 +438,7 @@ export function ChatWindow({
     reactivePortraitExpression,
     chat.affection ?? 0,
     character ? appearanceForCharacter(messages, {
-      id: character.id, name: character.card.name, outfits: character.outfits, sprites: character.sprites,
+      id: character.id, name: character.card.name, outfits: character.outfits, sprites: character.sprites, baseForm: character.baseForm, aliases: character.aliases,
     }, character.id, chat.affection ?? 0, new Set(chat.sceneFlags ?? []), chat.scene?.appearanceOverrides?.[character.id]) : undefined,
     { variants: character?.spriteVariants, seed: lastChar?.id ?? 'no-message' },
   )
@@ -812,7 +813,7 @@ export function ChatWindow({
         if (!v.trim()) setArmedIntimacyOptionId(null)
       }}
       disabled={!character || !!pendingGmMessageId || !!pendingRollMessageId || !!pendingRulingMessageId}
-      isGenerating={isGenerating}
+      isGenerating={isGenerating || isGmRuling}
       canContinue={canContinue}
       onSend={sendWithIntent}
       onAbort={abortGeneration}

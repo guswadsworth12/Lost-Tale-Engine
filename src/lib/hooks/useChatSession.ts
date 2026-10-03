@@ -204,7 +204,7 @@ import {
 } from '@/lib/text/slop'
 import { substituteMacros } from '@/lib/characters/macros'
 import { normalizeRpMarkup } from '@/lib/text/messageSegments'
-import { replyMaxTokens, resolveReplyLength, usesActionMarkup } from '@/lib/characters/voice'
+import { replyMaxTokens, resolveReplyLength } from '@/lib/characters/voice'
 import { SCENE_MOOD_IDS } from '@/lib/vn/moods'
 import { DEFAULT_EXPRESSIONS, expressionCandidatesFor } from '@/lib/vn/expressions'
 import { getUnlockedBackgroundIds, getUnlockedExpressionIds } from '@/lib/vn/unlocks'
@@ -252,7 +252,7 @@ import {
   detectExpressionTextMismatch,
   shortlistExpressions,
 } from '@/lib/vn/sceneVision'
-import { appearanceForCharacter, isPhysicalForm } from '@/lib/vn/appearances'
+import { appearanceForCharacter, formChoices, isPhysicalForm } from '@/lib/vn/appearances'
 import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
@@ -570,6 +570,8 @@ export function useChatSession(chatId: string | null) {
   )
 
   const [isGenerating, setIsGenerating] = useState(false)
+  // True while the Game Master decides a turn, before any reply streams, so Stop is offered then too.
+  const [isGmRuling, setIsGmRuling] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [generatingMessageId, setGeneratingMessageId] = useState<string | null>(null)
   const [genStats, setGenStats] = useState<GenerationStats | null>(null)
@@ -1020,7 +1022,7 @@ export function useChatSession(chatId: string | null) {
         : messages
       // A manual stage correction is what the story shows, so the model is told it too.
       const speakerOutfitId = appearanceForCharacter(appearanceHistory, {
-        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
+        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites, baseForm: speaker.baseForm, aliases: speaker.aliases,
       }, character.id, getRelationshipTrack(freshChat, speaker.id).affection ?? 0, new Set(freshChat.sceneFlags ?? []), freshChat.scene?.appearanceOverrides?.[speaker.id])
 
       // Where and when, resolved once: the state block asserts these as fact and `continuityGuard.ts`
@@ -1155,11 +1157,11 @@ export function useChatSession(chatId: string | null) {
         avoidEmDashes && !builtinSystemPrompt
           ? 'Never use em dashes (the — character) in your writing. Use a comma, period, or parentheses instead.'
           : ''
-      // VN voice playback needs quoted speech. Imported multi-prompt cards often keep their
-      // examples in prompt items, leaving the standard card fields empty, so enforce the same
-      // format for every VN speaker even when card-field detection finds no examples.
-      const markupRule = isVisualNovel || usesActionMarkup(speaker.card)
-        ? 'Put every action and piece of narration in *asterisks* and every line of spoken dialogue in "quotes". Close every mark you open: no half-quoted sentence, no narration sentence left bare between two quoted lines.'
+      // Narration in *asterisks* (drawn in italics) and speech in "quotes" is how every reply is
+      // shown, voiced, and exported, so every speaker is asked for it, whatever their card's examples
+      // look like. Only the Companion chat style, deliberately plain texting, is left out of it.
+      const markupRule = isVisualNovel || builtinSystemPrompt?.id !== 'companion'
+        ? 'Format with Markdown: put every action and piece of narration in *asterisks* (it is shown in italics) and every line of spoken dialogue in "quotes". Close every mark you open: no half-quoted sentence, no narration sentence left bare between two quoted lines.'
         : ''
       // One line, tagged essential or not — replaces what used to be a flat `.filter(Boolean).join`
       // of every guidance line, unconditionally, regardless of how small `sampler.max_context_length`
@@ -1246,7 +1248,7 @@ export function useChatSession(chatId: string | null) {
         character: speaker.card,
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
-        characterProfile: [buildCharacterProfileNote(speaker), appearanceNote(speaker.card.name, speaker.outfits, speakerOutfitId), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
+        characterProfile: [buildCharacterProfileNote(speaker), appearanceNote(speaker.card.name, speaker.outfits, speakerOutfitId, speaker.baseForm), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
         personaName: persona?.name || 'You',
         personaDescription: persona?.description || '',
         globalSystemPrompt,
@@ -2907,7 +2909,7 @@ export function useChatSession(chatId: string | null) {
       const selectableOutfits = selectableOutfitIds(speaker.outfits, spriteMap, affection, new Set(chat?.sceneFlags ?? []))
       const appearanceHistory = await messagesApi.listByChat(chatId)
       const currentOutfit = appearanceForCharacter(appearanceHistory, {
-        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites,
+        id: speaker.id, name: speaker.card.name, outfits: speaker.outfits, sprites: speaker.sprites, baseForm: speaker.baseForm, aliases: speaker.aliases,
       }, character.id, affection, new Set(chat.sceneFlags ?? []), chat.scene?.appearanceOverrides?.[speaker.id])
 
       const spriteExpressionIds = Object.keys(spriteMap).filter((id) => unlockedExpressions.includes(id))
@@ -3025,8 +3027,12 @@ export function useChatSession(chatId: string | null) {
     [chat, visionClient, world],
   )
 
-  /** Best-effort form read for the whole cast. The GM or another character can describe an arrival. */
-  const refineCharacterForms = useCallback(async (messageId: string, replyText: string) => {
+  /**
+   * Best-effort form read for the whole cast. The GM or another character can describe an arrival,
+   * and the player can narrate or {instruct} a change (`fromPlayer`). Their usual look counts as a
+   * form too, so "she takes her human form again" can switch back.
+   */
+  const refineCharacterForms = useCallback(async (messageId: string, replyText: string, opts?: { fromPlayer?: boolean }) => {
     if (!chatId || !chat || !character || !replyText.trim()) return
     const branch = await messagesApi.listByChat(chatId)
     const index = branch.findIndex((message) => message.id === messageId)
@@ -3036,20 +3042,21 @@ export function useChatSession(chatId: string | null) {
       .filter((member, index, all) => all.findIndex((other) => other.id === member.id) === index)
     const candidates = roster.map((member) => {
       const affection = getRelationshipTrack(chat, member.id).affection ?? 0
-      const forms = (member.outfits ?? [])
-        .filter((outfit) => isPhysicalForm(outfit) && selectableOutfitIds(member.outfits, member.sprites, affection, flags).includes(outfit.id))
-        .map(({ id, label }) => ({ id, label }))
+      // Forms the story may pick (manual-only ones stay manual), their usual look included.
+      const selectable = new Set(selectableOutfitIds(member.outfits, member.sprites, affection, flags))
+      const forms = formChoices(member, affection, flags).filter((form) => selectable.has(form.id))
       return {
         id: member.id,
         name: member.card.name,
+        aliases: member.aliases,
         current: appearanceForCharacter(branch.slice(0, index), {
-          id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+          id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites, baseForm: member.baseForm, aliases: member.aliases,
         }, character.id, affection, flags),
         forms,
       }
     }).filter((candidate) => candidate.forms.length >= 2)
     if (!candidates.length) return
-    const picked = await detectCharacterForms(visionClient, { text: replyText, candidates }, jobShaping.vision)
+    const picked = await detectCharacterForms(visionClient, { text: replyText, candidates, fromPlayer: opts?.fromPlayer }, jobShaping.vision)
     if (!Object.keys(picked).length) return
     const fresh = await messagesApi.get(messageId)
     if (!fresh) return
@@ -3581,6 +3588,10 @@ export function useChatSession(chatId: string | null) {
       if (!world?.campaign || !character || !chatId) return null
       const rulesMode = modulesForWorld(world).campaignRules
       if (!rulesMode) return null
+      // Its own Stop switch. It used to borrow the last reply's, so once a reply had been stopped
+      // every ruling after it was cancelled the moment it started, until the page was reloaded.
+      const gmAbort = new AbortController()
+      abortRef.current = gmAbort
       const freshChat = (await chatsApi.get(chatId)) ?? chat
       const playerName = persona?.name || 'You'
       // The Game Master narrates the whole story, so it hears every earlier scene's recap.
@@ -3695,7 +3706,7 @@ export function useChatSession(chatId: string | null) {
             jsonOutput: true,
             prompt: `${system}\n\n${promptUser}`,
             messages: [{ role: 'system', content: system }, { role: 'user', content: promptUser }],
-          }, 'Game Master', abortRef.current?.signal, jobShaping.gm)
+          }, 'Game Master', gmAbort.signal, jobShaping.gm)
         }
         let raw = await requestRuling()
         // It decided this beat needs someone's card: read it, and rule again with it in hand.
@@ -3730,13 +3741,16 @@ export function useChatSession(chatId: string | null) {
     async (playerMsg: StoredMessage, startAt: number) => {
       if (!chatId || !character) return
       setAssistTasks((t) => ({ ...t, gm: 'Game Master is ruling' }))
+      setIsGmRuling(true)
       let turn: GmTurn | null
       try {
         turn = await decideGmTurn(await messagesApi.listByChat(chatId), playerMsg)
       } finally {
         setAssistTasks(({ gm: _gm, ...rest }) => rest)
+        setIsGmRuling(false)
       }
-      if (!turn) return
+      // Stopped while the GM was ruling: the beat ends there, with no fallback ruling posted.
+      if (!turn || abortRef.current?.signal.aborted) return
       const gmMsg: StoredMessage = {
         id: newId(),
         chatId,
@@ -4157,9 +4171,14 @@ export function useChatSession(chatId: string | null) {
         // Withdrawal cancels an unresolved declaration without asking the GM to adjudicate it.
         if (opts?.withdrawCheck) return
         if (world?.campaign && modulesForWorld(world).campaignRules && turnPolicy === 'gm') {
+          // The Game Master rules on what the player attempts, so a form change waits for its result
+          // (read from the GM's own message), not the player's proposal.
           await runGmBeat(userMsg, now + 1)
           return
         }
+        // With no Game Master to rule on it, a form the player narrates or asks for ("{change her to
+        // human form}") is settled before anyone replies, so the reply, and the stage, already show it.
+        await refineCharacterForms(userMsg.id, composedText, { fromPlayer: true }).catch(() => {})
         if (turnPolicy !== 'manual' && character && participantCharacters.length > 0) {
           const roster = rosterFrom(character, participantCharacters)
           if (turnPolicy === 'round_robin') {
@@ -4219,7 +4238,7 @@ export function useChatSession(chatId: string | null) {
         endGeneration()
       }
     },
-    [beginGeneration, character, chatId, gmClient, endGeneration, messages, participantCharacters, persona, reducedAudio, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
+    [beginGeneration, character, chatId, gmClient, endGeneration, messages, participantCharacters, persona, reducedAudio, refineCharacterForms, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
   )
 
   const regenerate = useCallback(
@@ -4240,8 +4259,15 @@ export function useChatSession(chatId: string | null) {
             return
           }
           const playerMsg = [...priorMessages].reverse().find((m) => m.role === 'user')
-          const turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
-          if (turn) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
+          setIsGmRuling(true)
+          let turn: GmTurn | null = null
+          try {
+            turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
+          } finally {
+            setIsGmRuling(false)
+          }
+          // A stopped re-ruling keeps the ruling that was there rather than a fallback.
+          if (turn && !abortRef.current?.signal.aborted) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
           return
         }
         const historyForPrompt: ChatMessage[] = priorMessages.map((m) => ({
@@ -4935,6 +4961,7 @@ export function useChatSession(chatId: string | null) {
     setReplyAsCharacterId,
     messages,
     isGenerating,
+    isGmRuling,
     streamingText,
     generatingMessageId,
     genStats,

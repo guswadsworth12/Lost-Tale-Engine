@@ -167,6 +167,13 @@ export interface Character {
   vrm?: { url: string; enabled: boolean; label?: string; motions?: Partial<Record<'idle' | 'speaking' | 'happy' | 'angry' | 'sad' | 'relaxed' | 'surprised', string>> }
   /** Wardrobe states beyond the base look (vn/outfits.ts); the base outfit is implicit. */
   outfits?: Outfit[]
+  /**
+   * What their usual look (the base art) is called when they have other forms, e.g. "Human", and
+   * other words for it, so "she takes her human form again" can switch back to it (`appearances.ts`).
+   */
+  baseForm?: { label?: string; aliases?: string[] }
+  /** Other names narration uses for them ("the courier", "the fox"), for spotting them in a passage. Not their name: hearing one doesn't introduce them (`acquaintance.ts`). */
+  aliases?: string[]
   /** Expression slots beyond the built-in default set (vn/expressions.ts). */
   customExpressions?: CustomExpression[]
   /** Gift preference score per gift id (-2..3), used by the gift economy. */

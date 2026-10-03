@@ -25,6 +25,11 @@ export interface Outfit {
    * in it (`appearanceNote`), and the Game Master reads every form's when it looks at their card.
    */
   description?: string
+  /**
+   * Other words for this look, so narration that says "the fox", "her wisp shape" or "true form"
+   * is recognised as it (`appearances.ts`); the label and id always count.
+   */
+  aliases?: string[]
   /** Affection gate, same convention/default as `Character.spriteUnlocks`. */
   unlockAffection?: number
   /** Every one of these scene flags must be set before the outfit unlocks. */
