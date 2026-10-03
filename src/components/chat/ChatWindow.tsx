@@ -146,6 +146,7 @@ export function ChatWindow({
     setReplyAsCharacterId,
     messages,
     isGenerating,
+    isGmRuling,
     streamingText,
     generatingMessageId,
     genStats,
@@ -812,7 +813,7 @@ export function ChatWindow({
         if (!v.trim()) setArmedIntimacyOptionId(null)
       }}
       disabled={!character || !!pendingGmMessageId || !!pendingRollMessageId || !!pendingRulingMessageId}
-      isGenerating={isGenerating}
+      isGenerating={isGenerating || isGmRuling}
       canContinue={canContinue}
       onSend={sendWithIntent}
       onAbort={abortGeneration}

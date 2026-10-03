@@ -570,6 +570,8 @@ export function useChatSession(chatId: string | null) {
   )
 
   const [isGenerating, setIsGenerating] = useState(false)
+  // True while the Game Master decides a turn, before any reply streams, so Stop is offered then too.
+  const [isGmRuling, setIsGmRuling] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [generatingMessageId, setGeneratingMessageId] = useState<string | null>(null)
   const [genStats, setGenStats] = useState<GenerationStats | null>(null)
@@ -3586,6 +3588,10 @@ export function useChatSession(chatId: string | null) {
       if (!world?.campaign || !character || !chatId) return null
       const rulesMode = modulesForWorld(world).campaignRules
       if (!rulesMode) return null
+      // Its own Stop switch. It used to borrow the last reply's, so once a reply had been stopped
+      // every ruling after it was cancelled the moment it started, until the page was reloaded.
+      const gmAbort = new AbortController()
+      abortRef.current = gmAbort
       const freshChat = (await chatsApi.get(chatId)) ?? chat
       const playerName = persona?.name || 'You'
       // The Game Master narrates the whole story, so it hears every earlier scene's recap.
@@ -3700,7 +3706,7 @@ export function useChatSession(chatId: string | null) {
             jsonOutput: true,
             prompt: `${system}\n\n${promptUser}`,
             messages: [{ role: 'system', content: system }, { role: 'user', content: promptUser }],
-          }, 'Game Master', abortRef.current?.signal, jobShaping.gm)
+          }, 'Game Master', gmAbort.signal, jobShaping.gm)
         }
         let raw = await requestRuling()
         // It decided this beat needs someone's card: read it, and rule again with it in hand.
@@ -3735,13 +3741,16 @@ export function useChatSession(chatId: string | null) {
     async (playerMsg: StoredMessage, startAt: number) => {
       if (!chatId || !character) return
       setAssistTasks((t) => ({ ...t, gm: 'Game Master is ruling' }))
+      setIsGmRuling(true)
       let turn: GmTurn | null
       try {
         turn = await decideGmTurn(await messagesApi.listByChat(chatId), playerMsg)
       } finally {
         setAssistTasks(({ gm: _gm, ...rest }) => rest)
+        setIsGmRuling(false)
       }
-      if (!turn) return
+      // Stopped while the GM was ruling: the beat ends there, with no fallback ruling posted.
+      if (!turn || abortRef.current?.signal.aborted) return
       const gmMsg: StoredMessage = {
         id: newId(),
         chatId,
@@ -4250,8 +4259,15 @@ export function useChatSession(chatId: string | null) {
             return
           }
           const playerMsg = [...priorMessages].reverse().find((m) => m.role === 'user')
-          const turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
-          if (turn) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
+          setIsGmRuling(true)
+          let turn: GmTurn | null = null
+          try {
+            turn = playerMsg ? await decideGmTurn(messages, playerMsg) : null
+          } finally {
+            setIsGmRuling(false)
+          }
+          // A stopped re-ruling keeps the ruling that was there rather than a fallback.
+          if (turn && !abortRef.current?.signal.aborted) await messagesApi.update(messageId, { text: formatGmMessage(turn), gm: turn })
           return
         }
         const historyForPrompt: ChatMessage[] = priorMessages.map((m) => ({
@@ -4945,6 +4961,7 @@ export function useChatSession(chatId: string | null) {
     setReplyAsCharacterId,
     messages,
     isGenerating,
+    isGmRuling,
     streamingText,
     generatingMessageId,
     genStats,
