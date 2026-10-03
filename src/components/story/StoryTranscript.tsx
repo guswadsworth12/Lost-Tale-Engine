@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Copy } from 'lucide-react'
+import { Copy, FileDown, Printer } from 'lucide-react'
 import type { Chat, StoredMessage, Story } from '@/lib/types'
 import { messagesApi } from '@/lib/api/client'
 import { sceneLabel } from '@/lib/story/recaps'
@@ -8,6 +8,7 @@ import { messageDisplayText, sceneLocation, transcriptAsText, transcriptScenes }
 import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { downloadBlob, printStory, storyBlocks, storyFile, storyFilename, type StoryExportFormat } from '@/lib/export/storyDocument'
 
 type Loaded = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; messages: StoredMessage[] }
 
@@ -26,6 +27,7 @@ export function StoryTranscript({ open, onClose, story, scenes, fromSceneId }: {
   const path = useMemo(() => transcriptScenes(scenes, fromSceneId), [scenes, fromSceneId])
   const pathKey = path.map((s) => s.id).join(',')
   const [loaded, setLoaded] = useState<Record<string, Loaded>>({})
+  const [includeRecaps, setIncludeRecaps] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -43,6 +45,20 @@ export function StoryTranscript({ open, onClose, story, scenes, fromSceneId }: {
   if (!open) return null
   const title = story?.title?.trim() || path[path.length - 1]?.title || 'Story'
   const allReady = path.length > 0 && path.every((s) => loaded[s.id]?.status === 'ready')
+
+  const parts = () => path.map((scene) => {
+    const entry = loaded[scene.id]
+    return { scene, messages: entry?.status === 'ready' ? entry.messages : [] }
+  })
+  const blocks = () => storyBlocks(title, parts(), story, { includeRecaps })
+  const save = (format: StoryExportFormat) => {
+    try {
+      downloadBlob(storyFile(blocks(), format), storyFilename(title, format))
+    } catch (e) { toastError(errorMessage(e)) }
+  }
+  const print = () => {
+    try { printStory(blocks()) } catch (e) { toastError(errorMessage(e)) }
+  }
 
   const copy = async () => {
     const parts = path.map((scene) => {
@@ -88,6 +104,18 @@ export function StoryTranscript({ open, onClose, story, scenes, fromSceneId }: {
             </article>
           )
         })}
+      </div>
+      {/* Sharing: files people can open anywhere, unlike the per-scene HTML transcript. */}
+      <div className="mt-4 flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border pt-3">
+        <span className="mr-1 text-xs text-text-muted">Export</span>
+        <Button variant="ghost" onClick={() => save('txt')} disabled={!allReady} className="flex items-center gap-1.5" title="Plain text (.txt)"><FileDown size={14} aria-hidden="true" />Text</Button>
+        <Button variant="ghost" onClick={() => save('md')} disabled={!allReady} className="flex items-center gap-1.5" title="Markdown (.md) for Reddit, Discord and forums"><FileDown size={14} aria-hidden="true" />Markdown</Button>
+        <Button variant="ghost" onClick={() => save('docx')} disabled={!allReady} className="flex items-center gap-1.5" title="Word document (.docx); opens in Word, Google Docs and LibreOffice"><FileDown size={14} aria-hidden="true" />Word</Button>
+        <Button variant="ghost" onClick={print} disabled={!allReady} className="flex items-center gap-1.5" title="Opens the print dialog: choose Save as PDF"><Printer size={14} aria-hidden="true" />PDF</Button>
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-xs text-text-muted">
+          <input type="checkbox" checked={includeRecaps} onChange={(e) => setIncludeRecaps(e.target.checked)} className="accent-[rgb(var(--c-accent))]" />
+          Include recaps
+        </label>
       </div>
     </Modal>
   )

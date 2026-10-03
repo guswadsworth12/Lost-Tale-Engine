@@ -642,15 +642,21 @@ export function ChatWindow({
       onClick: () => setShowDirector(true),
     },
     {
+      key: 'exportStory',
+      icon: Download,
+      label: 'Export story (text, Markdown, Word, PDF)…',
+      onClick: () => setShowTranscript(true),
+    },
+    {
       key: 'export',
       icon: Download,
-      label: exporting ? 'Exporting…' : 'Export as HTML transcript',
+      label: exporting ? 'Exporting…' : 'Export scene as HTML',
       disabled: exporting,
       onClick: exportTranscript,
     },
   ]
   const toolbar = <ChatToolbar tone={toolbarTone} actions={toolbarActions
-    .filter((action) => ['tuning', 'inspector', 'director', 'export'].includes(action.key))
+    .filter((action) => ['tuning', 'inspector', 'director', 'exportStory', 'export'].includes(action.key))
     .map((action) => ({ ...action, priority: 'secondary' as const }))} />
 
   const parentChatLink = chat.parentChatId ? (
@@ -1271,7 +1277,7 @@ export function ChatWindow({
             { key: 'story', icon: BookOpen, label: 'Story panel', onClick: () => openStoryTab('scene') },
             { key: 'transcript', icon: Drama, label: 'Switch to transcript view', onClick: toggleVnForChat },
             { key: 'search', icon: Search, label: 'Search story', onClick: () => setShowSearch(true) },
-            ...toolbarActions.filter((action) => ['picture', 'tuning', 'inspector', 'director', 'export'].includes(action.key)),
+            ...toolbarActions.filter((action) => ['picture', 'tuning', 'inspector', 'director', 'exportStory', 'export'].includes(action.key)),
           ],
           contextMeter,
           onBack,

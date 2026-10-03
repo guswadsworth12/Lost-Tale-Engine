@@ -20,6 +20,17 @@ Open **Story panel → Scenes** to revisit earlier scenes or **Read the whole st
 
 ![The End Scene dialog with a model-written recap, two open threads, and the next-scene options](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-end-scene.jpg)
 
+## Share a story
+
+**Read the whole story** (in **Story panel → Scenes**, or **Tools → Export story (text, Markdown, Word, PDF)…** while playing) shows every scene in order. Its **Export** bar saves the story to share:
+
+- **Text** (.txt): plain text, actions in \*asterisks\*.
+- **Markdown** (.md): bold speakers and italic actions, for Reddit, Discord, and forums.
+- **Word** (.docx): opens in Word, Google Docs, and LibreOffice; each chapter starts a new page.
+- **PDF**: opens the print dialog with a book-style page; choose **Save as PDF**.
+
+Untick **Include recaps** to share just the story. Failed replies are left out, and each message exports the reply you kept. **Export scene as HTML** in Tools still saves a single scene as a web page with portraits.
+
 To explore a different branch, use **Fork chat from here** on a message; **Rewind to here** deletes that message and everything after it. Later branch state does not travel backward. The current story remains available from the main menu while you play.
 
 ## Related
