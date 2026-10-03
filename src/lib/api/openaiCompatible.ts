@@ -20,6 +20,18 @@ import { relayFetch, type RelayInit } from './relay'
  * against another provider's endpoint, but there's no upside to sending a directive that only one
  * provider defined.
  */
+/**
+ * Google's OpenAI-compatible endpoint. It refuses the whole request over a field it doesn't know
+ * ("Unknown name \"frequency_penalty\": Cannot find field"), so only what it takes is sent.
+ */
+export function isGemini(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl.trim()).hostname === 'generativelanguage.googleapis.com'
+  } catch {
+    return false
+  }
+}
+
 function isOpenRouter(baseUrl: string): boolean {
   try {
     return /(^|\.)openrouter\.ai$/.test(new URL(baseUrl.trim()).hostname)
@@ -101,8 +113,10 @@ export class OpenAICompatibleClient implements ChatBackend {
     // KoboldCpp-specific sampler fields with no equivalent are silently dropped.
     if (typeof params.temperature === 'number') body.temperature = params.temperature
     if (typeof params.top_p === 'number') body.top_p = params.top_p
-    if (typeof params.presence_penalty === 'number') body.presence_penalty = params.presence_penalty
-    if (typeof params.frequency_penalty === 'number') body.frequency_penalty = params.frequency_penalty
+    // 0 is every provider's default, so it isn't sent: one less field for a strict endpoint to refuse.
+    if (typeof params.presence_penalty === 'number' && params.presence_penalty !== 0) body.presence_penalty = params.presence_penalty
+    // Gemini has no frequency penalty at all and rejects the request outright if it's present.
+    if (typeof params.frequency_penalty === 'number' && params.frequency_penalty !== 0 && !isGemini(this.baseUrl)) body.frequency_penalty = params.frequency_penalty
     if (params.reasoning_effort) body.reasoning_effort = params.reasoning_effort
     if (params.verbosity) body.verbosity = params.verbosity
     // See `isOpenRouter`'s doc comment. An explicit effort still wins (translated into OpenRouter's

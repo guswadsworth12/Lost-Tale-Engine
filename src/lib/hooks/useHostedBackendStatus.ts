@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { OpenAICompatibleClient } from '@/lib/api/openaiCompatible'
+import type { SecretName } from '@/lib/accounts/contract'
 import { NovelAIClient } from '@/lib/api/novelai'
 import type { ConnectionStatus } from './useConnectionStatus'
 
@@ -23,6 +24,8 @@ export function useHostedBackendStatus(
   /** Whether this provider's key is saved (the browser never holds it). */
   keySaved: boolean,
   model: string,
+  /** Which saved key the relay attaches: the same one the chat client uses (`createChatBackend`). */
+  secretName?: SecretName,
 ): { status: ConnectionStatus; detail: string | null; recheck: () => void } {
   const [status, setStatus] = useState<ConnectionStatus>('checking')
   const [detail, setDetail] = useState<string | null>(null)
@@ -41,7 +44,7 @@ export function useHostedBackendStatus(
     let cancelled = false
     setStatus('checking')
     setDetail(null)
-    const client = backend === 'novelai' ? new NovelAIClient(keySaved, model) : new OpenAICompatibleClient(baseUrl, keySaved, model)
+    const client = backend === 'novelai' ? new NovelAIClient(keySaved, model, secretName) : new OpenAICompatibleClient(baseUrl, keySaved, model, secretName)
     client.checkConnection().then((result) => {
       if (cancelled) return
       setStatus(result.ok ? 'online' : 'offline')
@@ -51,7 +54,7 @@ export function useHostedBackendStatus(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, backend, baseUrl, keySaved, model, nonce])
+  }, [enabled, backend, baseUrl, keySaved, model, secretName, nonce])
 
   return { status, detail, recheck: () => setNonce((n) => n + 1) }
 }

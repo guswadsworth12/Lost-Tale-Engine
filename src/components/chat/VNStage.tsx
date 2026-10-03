@@ -68,6 +68,7 @@ import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStor
 import { SERVER_SIDE_TTS, synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { resolveCharacterVoice, voiceTarget } from '@/lib/api/services'
 import { GM_SPEAKER_ID } from '@/lib/world/gm'
+import { CopyMessageButton } from './MessageBubble'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { splitSpeechText, splitVoiceSegments } from '@/lib/voice/speakableText'
 import { parseSfxWordList } from '@/lib/text/messageSegments'
@@ -504,6 +505,8 @@ export function VNStage({
         : lastCharMsg?.text || (messages.length === 0 ? 'Say hello to begin the scene…' : '')
   const silentGmNote = !!lastCharMsg && (lastCharMsg.speakerId === GM_SPEAKER_ID || !!lastCharMsg.gm)
     && splitVoiceSegments(displayText, true).length === 0
+  // The line in the box, as written, for its Copy button: never a stream in progress or the failure notice.
+  const copyableText = isStreamingThis ? '' : showUserAsCurrent ? lastUserMsg!.text.trim() : lastCharMsg?.failed ? '' : lastCharMsg?.text?.trim() ?? ''
 
   const activeSwipe = lastCharMsg?.activeSwipe ?? 0
   const scene = lastCharMsg?.swipeScenes?.[activeSwipe] ?? lastCharMsg?.scene
@@ -580,7 +583,7 @@ export function VNStage({
     const variantOptions = { variants: member.spriteVariants, seed: spriteVariantSeed }
     const memberExpression = member.id === stageSpeakerId ? expression : 'neutral'
     const appearanceId = appearanceForCharacter(messages, {
-      id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+      id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites, baseForm: member.baseForm, aliases: member.aliases,
     }, character?.id ?? member.id, memberAffection, appearanceFlags, chat.scene?.appearanceOverrides?.[member.id])
     const spriteUrl = isActive
       ? resolveExpressionSprite(member.sprites, member.spriteUnlocks, member.avatarDataUrl, memberExpression, memberAffection, appearanceId, variantOptions)
@@ -1098,6 +1101,9 @@ export function VNStage({
             </button>
           </>
         )}
+        {copyableText && (
+          <CopyMessageButton text={copyableText} className="!h-7 !w-7 !rounded-full text-white/70 hover:!bg-white/10 hover:!text-white" />
+        )}
         {lastCharMsg && !isStreamingThis && !showUserAsCurrent && (
           <>
             {canSwipe && <span className="mx-1 h-4 w-px bg-white/15" />}
@@ -1450,10 +1456,10 @@ export function VNStage({
               <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Character appearance</p>
               {cast.map((member) => {
                 const memberAffection = getRelationshipTrack(chat, member.id).affection ?? 0
-                const options = availableAppearances(member.outfits, member.sprites, memberAffection, appearanceFlags)
+                const options = availableAppearances(member.outfits, member.sprites, memberAffection, appearanceFlags, member.baseForm)
                 if (options.length < 2) return null
                 const automatic = appearanceForCharacter(messages, {
-                  id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites,
+                  id: member.id, name: member.card.name, outfits: member.outfits, sprites: member.sprites, baseForm: member.baseForm, aliases: member.aliases,
                 }, character?.id ?? member.id, memberAffection, appearanceFlags)
                 return <label key={member.id} className="block text-xs text-white/80">
                   <span className="mb-1 block truncate">{member.card.name}</span>

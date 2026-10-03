@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appearanceForCharacter, formMentionedInText, mentionsCharacter } from './appearances'
+import { appearanceForCharacter, formChoices, formMentionedInText, mentionsCharacter } from './appearances'
 
 const lira = {
   id: 'lira', name: 'Lira',
@@ -54,5 +54,52 @@ describe('names in narration', () => {
   it('matches whole names only', () => {
     expect(mentionsCharacter('Wren arrives.', 'Wren Talley')).toBe(true)
     expect(mentionsCharacter('Wrenfield is quiet.', 'Wren Talley')).toBe(false)
+  })
+})
+
+describe('a usual look that has a name, and other words for forms', () => {
+  // Zinnia-shaped: her human look is the base art; construct and wisp are forms.
+  const zin = {
+    id: 'zin', name: 'Wren Talley',
+    baseForm: { label: 'Human', aliases: ['mortal'] },
+    aliases: ['the archivist'],
+    outfits: [
+      { id: 'construct', label: 'construct', kind: 'form' as const, aliases: ['golem'] },
+      { id: 'wisp', label: 'wisp', kind: 'form' as const, aliases: ['will-o\'-wisp', 'spirit'] },
+    ],
+    sprites: { neutral: 'base-art', 'construct--neutral': 'c', 'wisp--neutral': 'w' },
+  }
+  const tavi = { id: 'tavi', name: 'Tavi Rook', outfits: [{ id: 'fox', label: 'Fox', kind: 'form' as const }], sprites: { 'fox--neutral': 'f' } }
+
+  it('offers the usual look as a form, so a character with one other form can change both ways', () => {
+    expect(formChoices(zin, 0, noFlags).map((f) => f.id)).toEqual(['base', 'construct', 'wisp'])
+    expect(formChoices(tavi, 0, noFlags).map((f) => f.id)).toEqual(['base', 'fox'])
+    // Only outfits, no forms: nothing to tell apart.
+    expect(formChoices(cole, 0, noFlags)).toEqual([])
+  })
+
+  it('switches back to a named usual look, and recognises forms by their other words', () => {
+    const forms = formChoices(zin, 0, noFlags)
+    expect(formMentionedInText('Wren is stabilized in her new human form.', 'Wren Talley', forms)).toBe('base')
+    expect(formMentionedInText('Wren becomes a mortal again, as she shifts into the mortal.', 'Wren Talley', forms)).toBe('base')
+    expect(formMentionedInText('Wren unravels into a will-o\'-wisp.', 'Wren Talley', forms)).toBe('wisp')
+    expect(formMentionedInText('The archivist shifts into her golem shape.', 'Wren Talley', forms, zin.aliases)).toBe('construct')
+  })
+
+  it('reads "usual" and its like only as "<word> form", never alone', () => {
+    const forms = formChoices(tavi, 0, noFlags)
+    expect(formMentionedInText('Tavi takes their usual seat by the stove.', 'Tavi Rook', forms)).toBeUndefined()
+    expect(formMentionedInText('Tavi shakes off the fur and returns to their usual form.', 'Tavi Rook', forms)).toBe('base')
+    expect(formMentionedInText('Tavi shifts into the fox.', 'Tavi Rook', forms)).toBe('fox')
+  })
+
+  it('finds a character by an alias, and puts a saved base decision on stage', () => {
+    expect(mentionsCharacter('The archivist sighs.', 'Wren Talley', zin.aliases)).toBe(true)
+    const messages = [
+      { role: 'char', speakerId: 'gm', scene: { appearances: { zin: 'wisp' } } },
+      { role: 'char', speakerId: 'gm', scene: { appearances: { zin: 'base' } } },
+    ]
+    expect(appearanceForCharacter(messages, zin, 'other', 0, noFlags)).toBe('base')
+    expect(appearanceForCharacter(messages.slice(0, 1), zin, 'other', 0, noFlags)).toBe('wisp')
   })
 })

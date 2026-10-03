@@ -48,7 +48,10 @@ describe('the form a character is in now', () => {
     expect(appearanceNote('Wren', outfits, 'wisp')).toBe('Right now Wren is in their wisp form: A drifting mote of green light.')
     expect(appearanceNote('Wren', outfits, 'gown')).toBe('Right now Wren is wearing gown: A dark green gown.')
     expect(appearanceNote('Wren', outfits, 'plain')).toBe('')
-    expect(appearanceNote('Wren', outfits, 'base')).toBe('')
-    expect(appearanceNote('Wren', outfits, undefined)).toBe('')
+    // Someone with other forms is told when they're back in their usual one, by its name if it has one.
+    expect(appearanceNote('Wren', outfits, 'base')).toBe('Right now Wren is in their usual form (their Description), not any of their other forms.')
+    expect(appearanceNote('Wren', outfits, undefined, { label: 'Human' })).toBe('Right now Wren is in their Human form, their usual look (their Description).')
+    // With no other form there's nothing to say.
+    expect(appearanceNote('Wren', outfits.filter((o) => o.kind !== 'form'), 'base')).toBe('')
   })
 })

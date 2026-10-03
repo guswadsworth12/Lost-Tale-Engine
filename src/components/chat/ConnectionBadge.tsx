@@ -2,7 +2,8 @@ import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { useHostedBackendStatus } from '@/lib/hooks/useHostedBackendStatus'
 import { CHAT_BACKEND_LABELS } from '@/lib/api/chatBackend'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
-import { chatSecretName, useSecretStatus } from '@/lib/accounts/secrets'
+import { useSecretStatus } from '@/lib/accounts/secrets'
+import { isOpenMayhem } from '@/lib/api/openMayhem'
 
 export function ConnectionBadge() {
   const chatBackend = useSettingsStore((s) => s.chatBackend)
@@ -10,6 +11,7 @@ export function ConnectionBadge() {
   const chatBackendBaseUrl = useSettingsStore((s) => s.chatBackendBaseUrl)
   const { saved: secrets } = useSecretStatus()
   const chatBackendModel = useSettingsStore((s) => s.chatBackendModel)
+  const chatBackendSecret = useSettingsStore((s) => s.chatBackendSecret)
 
   // Both hooks are always called (hook rules), but only one's result is ever shown — the
   // KoboldCpp poll already ran unconditionally before this fix, so leaving it running costs
@@ -18,8 +20,10 @@ export function ConnectionBadge() {
   // spending calls against a metered external API for a result nobody sees.
   const kobold = useConnectionStatus(baseUrl)
   const hostedBackend = chatBackend === 'novelai' ? 'novelai' : 'openai-compatible'
-  const chatKeySaved = secrets[chatBackend === 'openai-compatible' ? chatSecretName(chatBackendBaseUrl) : 'chatBackendApiKey']
-  const hosted = useHostedBackendStatus(chatBackend !== 'koboldcpp', hostedBackend, chatBackendBaseUrl, chatKeySaved, chatBackendModel)
+  // The same key the chat client sends (`createChatBackend`): the Text service's own, else the long-standing chat key.
+  // Checking with a different one asked the provider for its models with no key at all, every time a story opened.
+  const chatSecret = chatBackendSecret ?? (chatBackend === 'openai-compatible' && isOpenMayhem(chatBackendBaseUrl) ? 'openMayhemApiKey' : 'chatBackendApiKey')
+  const hosted = useHostedBackendStatus(chatBackend !== 'koboldcpp', hostedBackend, chatBackendBaseUrl, !!secrets[chatSecret], chatBackendModel, chatSecret)
 
   const status = chatBackend === 'koboldcpp' ? kobold.status : hosted.status
   const backendLabel = CHAT_BACKEND_LABELS[chatBackend]

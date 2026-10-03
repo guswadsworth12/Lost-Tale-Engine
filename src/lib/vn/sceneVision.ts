@@ -11,24 +11,55 @@ import type { ChatBackend } from '@/lib/api/chatBackend'
 import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithTimeout'
 import { parseLenientJson } from '@/lib/jsonRepair'
 import type { SceneTag } from '@/lib/vn/sceneTag'
-import { mentionsCharacter } from '@/lib/vn/appearances'
+import { formTerms, mentionsCharacter } from '@/lib/vn/appearances'
 
-/** Read a completed beat for physical form changes across the cast, including characters who did not speak. */
+export interface FormCandidate {
+  id: string
+  name: string
+  /** Other names narration uses for them (`Character.aliases`). */
+  aliases?: string[]
+  current: string
+  /** `formChoices`: their usual look ("base") first, then each form, with every word for it. */
+  forms: { id: string; label: string; aliases?: string[] }[]
+}
+
+/** Words that suggest a form is changing, for deciding whether a player's line is worth a model call. */
+const CHANGE_CUE = /\b(?:form|forms|shape|shapes|shift(?:s|ed|ing)?|transform(?:s|ed|ing)?|chang(?:e|es|ed|ing)|turn(?:s|ed)? into|becom(?:e|es|ing)|became|revert(?:s|ed)?|return(?:s|ed)? to)\b/i
+
+/** Whether `text` might put a candidate in another form: it names one of their forms, uses a change word, or carries a {direct instruction}. */
+export function mightChangeForm(text: string, candidates: FormCandidate[]): boolean {
+  if (/\{[^}]+\}/.test(text) || CHANGE_CUE.test(text)) return true
+  const lower = text.toLowerCase()
+  return candidates.some((c) => c.forms.some((form) => formTerms({ ...form, aliases: form.aliases ?? [] }).some((term) => new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(lower))))
+}
+
+/**
+ * Read a beat for physical form changes across the cast, including characters who did not speak.
+ * `fromPlayer`: the player's own message, where a {braced} line is their instruction to the story;
+ * only worth a model call when it hints at a change (`mightChangeForm`).
+ */
 export async function detectCharacterForms(
   client: ChatBackend,
   params: {
     text: string
-    candidates: { id: string; name: string; current: string; forms: { id: string; label: string }[] }[]
+    candidates: FormCandidate[]
+    fromPlayer?: boolean
   },
   assist?: AssistShaping,
 ): Promise<Record<string, string>> {
   const mentioned = params.candidates.filter((candidate) =>
-    candidate.forms.length >= 2 && mentionsCharacter(params.text, candidate.name),
+    candidate.forms.length >= 2 && mentionsCharacter(params.text, candidate.name, candidate.aliases),
   )
   if (!mentioned.length || !params.text.trim()) return {}
-  const roster = mentioned.map((c) => `${c.name} [${c.id}]: currently ${c.current}; forms ${c.forms.map((f) => `${f.id} (${f.label})`).join(', ')}`).join('\n')
+  if (params.fromPlayer && !mightChangeForm(params.text, mentioned)) return {}
+  const formLine = (f: FormCandidate['forms'][number]) => {
+    const also = (f.aliases ?? []).filter((alias) => alias.trim())
+    return `${f.id} (${f.id === 'base' ? `their usual look${f.label && f.label !== 'Usual' ? `, called ${f.label}` : ''}` : f.label}${also.length ? `; also called ${also.join(', ')}` : ''})`
+  }
+  const roster = mentioned.map((c) => `${c.name}${c.aliases?.length ? ` (also called ${c.aliases.join(', ')})` : ''} [${c.id}]: currently ${c.current}; forms ${c.forms.map(formLine).join(', ')}`).join('\n')
   const prompt = [
-    'Identify physical forms explicitly shown or strongly implied in this scene beat. A different speaker may narrate the character. Clothing, nicknames, metaphors and personality descriptions are not form changes. Actions requiring human hands, hair and face can show human form even without the word "human". Return only characters whose visible form is clear; otherwise omit them.',
+    'Identify physical forms explicitly shown or strongly implied in this scene beat. A different speaker may narrate the character. Clothing, nicknames, metaphors and personality descriptions are not form changes. Actions requiring human hands, hair and face can show human form even without the word "human". "base" is their usual look; pick it when they return to it. Return only characters whose visible form is clear; otherwise omit them.',
+    ...(params.fromPlayer ? ["This beat is the player's own message. Text inside {curly braces} is the player's direct instruction to the story: when it says to change, give, or unlock a character's form, apply it."] : []),
     `Characters:\n${roster}`,
     `Scene beat:\n"""\n${params.text.slice(0, 2200)}\n"""`,
     'Return only a JSON object mapping character IDs to form IDs, for example {"character-id":"human"}. Use {} when the beat does not establish a form.',

@@ -3,6 +3,7 @@ import type { KoboldClient } from '@/lib/api/kobold'
 import {
   classifyAttachedImageScene,
   detectCharacterForms,
+  mightChangeForm,
   detectExpressionFromSprites,
   detectExpressionTextMismatch,
   detectGreetingScene,
@@ -496,5 +497,40 @@ describe('when the backend never responds', () => {
     const assertion = expect(pending).resolves.toBeNull()
     await vi.advanceTimersByTimeAsync(45_000)
     await assertion
+  })
+})
+
+describe('form changes named by other words, and from the player', () => {
+  const zin = [{
+    id: 'zin', name: 'Wren Talley', aliases: ['the archivist'], current: 'construct',
+    forms: [{ id: 'base', label: 'Human', aliases: ['mortal'] }, { id: 'construct', label: 'construct' }, { id: 'wisp', label: 'wisp', aliases: ['spirit'] }],
+  }]
+
+  it('offers the usual look and every alias to the model, and accepts "base"', async () => {
+    let prompt = ''
+    const result = await detectCharacterForms(stubClient('{"zin":"base"}', (p) => { prompt = String(p.prompt) }), { text: 'The archivist is stabilized in a new human form.', candidates: zin })
+    expect(result).toEqual({ zin: 'base' })
+    expect(prompt).toContain('base (their usual look, called Human; also called mortal)')
+    expect(prompt).toContain('wisp (wisp; also called spirit)')
+    expect(prompt).toContain('Wren Talley (also called the archivist)')
+    expect(prompt).not.toContain('curly braces')
+  })
+
+  it('treats a player\'s {instruction} as direct, and only spends a call when the line hints at a change', async () => {
+    let calls = 0
+    let prompt = ''
+    const client = stubClient('{"zin":"base"}', (p) => { calls++; prompt = String(p.prompt) })
+    expect(await detectCharacterForms(client, { text: 'Wren, are you hungry?', candidates: zin, fromPlayer: true })).toEqual({})
+    expect(calls).toBe(0)
+    expect(await detectCharacterForms(client, { text: 'I steady Wren. {Change her to human form.}', candidates: zin, fromPlayer: true })).toEqual({ zin: 'base' })
+    expect(calls).toBe(1)
+    expect(prompt).toContain('Text inside {curly braces} is the player\'s direct instruction')
+  })
+
+  it('knows a hint when it sees one', () => {
+    expect(mightChangeForm('She takes her spirit shape.', zin)).toBe(true)
+    expect(mightChangeForm('{make it night}', zin)).toBe(true)
+    expect(mightChangeForm('I hand her the mortal coil of rope.', zin)).toBe(true)
+    expect(mightChangeForm('Good morning, Wren.', zin)).toBe(false)
   })
 })

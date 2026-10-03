@@ -61,6 +61,12 @@ describe('Game Master prompt', () => {
     expect(user).toContain('The east bridge collapsed last winter.')
   })
 
+  it('asks for narration in italics (*asterisks*) with spoken lines in quotes, as replies are drawn', () => {
+    const { system } = buildGmPrompt(ctx())
+    expect(system).toContain('wrap it in *asterisks* so it shows in italics')
+    expect(system).toContain('"quotes" outside the asterisks')
+  })
+
   it('tells a guided GM it cannot claim dice', () => {
     const { system } = buildGmPrompt(ctx({ campaign: { ...STARTER_PBTA_CAMPAIGN, mode: 'guided' } }))
     expect(system).toContain('GUIDED')

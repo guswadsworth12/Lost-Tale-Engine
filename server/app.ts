@@ -217,6 +217,31 @@ function normalizeCustomExpressions(raw: unknown) {
 }
 
 /** A character's wardrobe states (`src/lib/vn/outfits.ts`); `id` is slug-validated since it becomes half of a sprite filename, and `base` is reserved. */
+/** Other words for a character or one of their forms: trimmed, unique ignoring case, at most 12 of up to 40 characters. */
+function normalizeAliases(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue
+    const alias = entry.trim().replace(/\s+/g, ' ').slice(0, 40)
+    if (alias.length < 2 || seen.has(alias.toLowerCase())) continue
+    seen.add(alias.toLowerCase())
+    out.push(alias)
+    if (out.length >= 12) break
+  }
+  return out.length ? out : undefined
+}
+
+/** What a character's usual look is called, and other words for it (`Character.baseForm`). */
+function normalizeBaseForm(raw: unknown): { label?: string; aliases?: string[] } | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  const label = typeof r.label === 'string' ? r.label.trim().slice(0, 40) || undefined : undefined
+  const aliases = normalizeAliases(r.aliases)
+  return label || aliases ? { ...(label ? { label } : {}), ...(aliases ? { aliases } : {}) } : undefined
+}
+
 function normalizeOutfits(raw: unknown) {
   if (!Array.isArray(raw)) return undefined
   const entries = raw
@@ -236,6 +261,7 @@ function normalizeOutfits(raw: unknown) {
       // Unset `kind` lets the client recognise an old human/dragon pair as forms by id.
       kind: e.kind === 'form' || e.kind === 'outfit' ? e.kind : undefined,
       description: typeof e.description === 'string' && e.description.trim() ? e.description.trim().slice(0, 2000) : undefined,
+      aliases: normalizeAliases(e.aliases),
     }))
     .filter((e) => /^[a-z0-9][a-z0-9-]{0,39}$/.test(e.id) && e.id !== 'base' && !e.id.includes('--'))
   // A duplicate id would make two outfits fight over the same sprite keys.
@@ -733,6 +759,8 @@ export function characterRow(id: string, body: Record<string, any>): Record<stri
     spriteVariants,
     spriteUnlocks: body.spriteUnlocks ?? {},
     outfits: normalizeOutfits(body.outfits),
+    baseForm: normalizeBaseForm(body.baseForm),
+    aliases: normalizeAliases(body.aliases),
     customExpressions: normalizeCustomExpressions(body.customExpressions),
     giftPreferences: body.giftPreferences ?? {},
     giftLikes: normalizeStringArray(body.giftLikes),
@@ -808,6 +836,8 @@ app.put('/api/characters/:id', (req, res) => {
   if ('spriteSources' in req.body) patch.spriteSources = normalizeSpriteSources(req.body.spriteSources)
   if ('vrm' in req.body) patch.vrm = normalizeVrm(id, req.body.vrm)
   if ('outfits' in req.body) patch.outfits = normalizeOutfits(req.body.outfits)
+  if ('baseForm' in req.body) patch.baseForm = normalizeBaseForm(req.body.baseForm)
+  if ('aliases' in req.body) patch.aliases = normalizeAliases(req.body.aliases)
   if ('customExpressions' in req.body) patch.customExpressions = normalizeCustomExpressions(req.body.customExpressions)
   if ('giftPreferences' in req.body) patch.giftPreferences = req.body.giftPreferences ?? {}
   if ('giftLikes' in req.body) patch.giftLikes = normalizeStringArray(req.body.giftLikes)
