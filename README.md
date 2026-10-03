@@ -76,7 +76,7 @@ npm run build       # type-check the client and build for production
 npm start           # serve the built app and API together
 ```
 
-For Docker, run `docker compose up -d --build`; see [DOCKER.md](DOCKER.md) for data storage and network settings.
+For Docker, run `docker compose up -d --build`; the first owner is created with a container-shell command. See [DOCKER.md](DOCKER.md) for setup, optional Ollama, data storage, and network settings.
 
 ## Data, providers, and limits
 
