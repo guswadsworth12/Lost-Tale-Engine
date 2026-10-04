@@ -19,6 +19,22 @@ export interface DetectedBackend {
 
 const strip = (u: string) => u.trim().replace(/\/+$/, '')
 
+/**
+ * Where an OpenAI-compatible service's API lives. A bare address (`http://host:1234`) means `/v1`,
+ * the path local servers use; LM Studio answers anything else with an error dressed as a success.
+ * An address with a path of its own (`…/v1beta/openai`, a proxy's) is used as typed.
+ */
+export function openAiRoot(url: string): string {
+  const base = strip(url)
+  try {
+    const { pathname } = new URL(base)
+    if (pathname === '' || pathname === '/') return `${base}/v1`
+  } catch {
+    // Not a full address: used as typed.
+  }
+  return base
+}
+
 /** `keySaved`: attach the saved chat key (bearer) through the relay. The browser never holds it. */
 async function getJson(url: string, keySaved?: boolean): Promise<unknown | null> {
   const ctrl = new AbortController()
@@ -82,7 +98,7 @@ export async function listOpenAiModels(baseUrl: string, keySaved?: boolean): Pro
   if (isOpenMayhem(baseUrl)) {
     try { return (await loadOpenMayhemModels(true)).filter(hasAvailableOpenMayhemProvider).map((m) => m.id) } catch { return null }
   }
-  const root = strip(baseUrl)
+  const root = openAiRoot(baseUrl)
   if (!root) return null
   return modelIdsFrom(await getJson(`${root}/models`, keySaved))
 }
@@ -96,7 +112,7 @@ export async function fetchOpenAiModelContext(baseUrl: string, model: string, ke
   if (isOpenMayhem(baseUrl)) {
     try { return (await loadOpenMayhemModels()).find((m) => m.id === model)?.context_length ?? null } catch { return null }
   }
-  const root = strip(baseUrl)
+  const root = openAiRoot(baseUrl)
   if (!root || !model) return null
   const body = await getJson(`${root}/models`, keySaved)
   const data = (body as { data?: unknown })?.data

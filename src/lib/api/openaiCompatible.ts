@@ -4,6 +4,7 @@ import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
 import { isOpenMayhem, loadOpenMayhemModels, OPENMAYHEM_PROXY, openMayhemRequestBody } from './openMayhem'
+import { openAiRoot } from './detectBackend'
 import { relayFetch, type RelayInit } from './relay'
 
 /**
@@ -98,7 +99,7 @@ export class OpenAICompatibleClient implements ChatBackend {
 
   private url(): string {
     if (isOpenMayhem(this.baseUrl)) return `${OPENMAYHEM_PROXY}/chat/completions`
-    return this.baseUrl.replace(/\/+$/, '') + '/chat/completions'
+    return openAiRoot(this.baseUrl) + '/chat/completions'
   }
 
   /** Uses `params.messages` when the caller built one, else wraps `params.prompt` as a single user turn. */
@@ -172,6 +173,13 @@ export class OpenAICompatibleClient implements ChatBackend {
     return new KoboldApiError('The provider\'s safety filter blocked this reply. Rephrase, or give this job a different model in Settings → Models and services.')
   }
 
+  /** An error the service sent back as an ordinary success (`200 {"error": …}`), said instead of read as an empty reply. */
+  private errorInSuccess(error: unknown): KoboldApiError {
+    const detail = typeof error === 'string' ? error : (error as { message?: unknown })?.message
+    const text = typeof detail === 'string' && detail.trim() ? detail.trim().slice(0, 300) : 'an error with no message'
+    return new KoboldApiError(`${this.baseUrl} answered with ${text}. Check the service's address; local servers usually end in /v1.`)
+  }
+
   private reasoningExhaustedError(reasoningChars: number): KoboldApiError {
     return new KoboldApiError(
       `The model spent its whole reply budget on hidden reasoning and never wrote an actual reply (${reasoningChars} reasoning characters, 0 in the reply). Raise Settings → Generation → Reasoning token reserve (a character's reply-length band caps the reply length itself), or use a model without a "thinking" step.`,
@@ -215,8 +223,10 @@ export class OpenAICompatibleClient implements ChatBackend {
   async generate(params: GenerateRequest, signal?: AbortSignal): Promise<string> {
     const res = await this.postChatCompletion(params, false, signal)
     const data = (await res.json()) as {
+      error?: unknown
       choices?: { finish_reason?: string; message?: { content?: string; reasoning?: string; reasoning_content?: string } }[]
     }
+    if (!data.choices && data.error) throw this.errorInSuccess(data.error)
     const message = data.choices?.[0]?.message
     if (!(message?.content ?? '').trim() && BLOCKED_FINISH.test(data.choices?.[0]?.finish_reason ?? '')) throw this.safetyBlockedError()
     const content = message?.content ?? ''
@@ -294,6 +304,12 @@ export class OpenAICompatibleClient implements ChatBackend {
       if (signal?.aborted) return full
       throw e
     }
+    // Not a stream at all: an error sent back as a plain JSON success (LM Studio does this).
+    if (!full) {
+      let leftover: { error?: unknown } | null = null
+      try { leftover = JSON.parse(buffer) } catch { /* Not JSON: an ordinary empty stream. */ }
+      if (leftover && typeof leftover === 'object' && leftover.error) throw this.errorInSuccess(leftover.error)
+    }
     if (isOpenMayhem(this.baseUrl) && !full.trim()) {
       throw new KoboldApiError('OpenMayhem returned no reply text. Check the model and response token limit; generation may still have used credit.')
     }
@@ -328,7 +344,7 @@ export class OpenAICompatibleClient implements ChatBackend {
 
   /** The service's models (`GET /models`), for picking one. Empty when it can't say. Gemini's come back as `models/…`; the prefix is dropped. */
   async listModels(): Promise<string[]> {
-    const trimmed = this.baseUrl.replace(/\/+$/, '')
+    const trimmed = openAiRoot(this.baseUrl)
     if (!trimmed || isOpenMayhem(this.baseUrl)) return []
     try {
       const res = await relayFetch(`${trimmed}/models`, { headers: this.headers(), ...this.credential() })
@@ -354,7 +370,7 @@ export class OpenAICompatibleClient implements ChatBackend {
         return { ok: false, detail: 'Could not load the OpenMayhem catalog through the Lost Tales Engine server.' }
       }
     }
-    const trimmed = this.baseUrl.replace(/\/+$/, '')
+    const trimmed = openAiRoot(this.baseUrl)
     if (!trimmed) return { ok: false, detail: 'No base URL set.' }
     if (trimmed.includes('nano-gpt.com')) return this.checkNanoGptBalance(trimmed)
     const isOpenRouter = trimmed.includes('openrouter.ai')
