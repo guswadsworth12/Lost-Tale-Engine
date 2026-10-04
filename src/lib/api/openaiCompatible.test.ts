@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { OpenAICompatibleClient } from './openaiCompatible'
+import { OpenAICompatibleClient, refusedParamFrom } from './openaiCompatible'
 import { KoboldApiError } from './types'
 import type { GenerateRequest } from './types'
 import type { ChatBackend } from './chatBackend'
@@ -732,5 +732,76 @@ describe('OpenAICompatibleClient — as a model connection', () => {
     expect(await new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', true, '').listModels()).toEqual(['gemini-2.5-flash', 'gemini-2.5-pro'])
     stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(401, {})))
     expect(await new OpenAICompatibleClient('https://api.example.com/v1', false, '').listModels()).toEqual([])
+  })
+})
+
+// Real refusals from live play: chatgpt-5.5 refusing `max_tokens` and then `stop`, and Gemini refusing
+// fields it doesn't know. Each is learned once and the request redone without it.
+describe('OpenAICompatibleClient — fields a model refuses by name', () => {
+  const refusal = (message: string) => jsonResponse(400, { error: { message, type: 'invalid_request_error' } })
+  const STOP_REQUEST: GenerateRequest = { ...BASE_REQUEST, stop_sequence: ['\nRend:'], temperature: 0.7 }
+
+  it('reads the refused field from OpenAI and Google wording', () => {
+    expect(refusedParamFrom("Unsupported parameter: 'stop' is not supported with this model.")).toBe('stop')
+    expect(refusedParamFrom("Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.")).toBe('temperature')
+    expect(refusedParamFrom('Invalid JSON payload received. Unknown name "verbosity": Cannot find field.')).toBe('verbosity')
+    expect(refusedParamFrom('Rate limit reached')).toBeUndefined()
+  })
+
+  it('learns max_tokens, then stop, then temperature in one turn, and ends the reply at the stop sequence itself', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(refusal("Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."))
+      .mockResolvedValueOnce(refusal("Unsupported parameter: 'stop' is not supported with this model."))
+      .mockResolvedValueOnce(refusal("Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported."))
+      .mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'She nods.\nRend: I nod back.' } }] }))
+    stubRelayedFetch(fetchMock)
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'chatgpt-5.5')
+
+    expect(await client.generate(STOP_REQUEST)).toBe('She nods.')
+    const last = JSON.parse(fetchMock.mock.calls[3][1].body as string)
+    expect(last).toMatchObject({ max_completion_tokens: 200 })
+    expect(last).not.toHaveProperty('stop')
+    expect(last).not.toHaveProperty('temperature')
+
+    // Remembered: the next turn goes straight through.
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'Fine.' } }] }))
+    expect(await client.generate(STOP_REQUEST)).toBe('Fine.')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops a stream at the stop sequence when the model refused stop', async () => {
+    const events = ['She waits.', '\nRe', 'nd: I speak for Rend.'].map((content) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`).join('') + 'data: [DONE]\n\n'
+    stubRelayedFetch(vi.fn()
+      .mockResolvedValueOnce(refusal("Unsupported parameter: 'stop' is not supported with this model."))
+      .mockResolvedValueOnce({ ...sseResponse(events), body: { getReader: () => {
+        let sent = false
+        return { read: async () => (sent ? { done: true, value: undefined } : (sent = true, { done: false, value: new TextEncoder().encode(events) })), cancel: async () => {} }
+      } } } as unknown as Response))
+    const shown: string[] = []
+    const client = new OpenAICompatibleClient('https://api.openai.com/v1', false, 'chatgpt-5.5')
+    expect(await client.generateStream(STOP_REQUEST, (_t, full) => shown.push(full))).toBe('She waits.')
+    expect(shown[shown.length - 1]).toBe('She waits.')
+  })
+
+  it("drops a field Gemini doesn't know, never sends it verbosity, and explains Interactions-only models", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(400, [{ error: { code: 400, message: 'Invalid JSON payload received. Unknown name "presence_penalty": Cannot find field.' } }]))
+      .mockResolvedValueOnce(jsonResponse(200, { choices: [{ message: { content: 'ok' } }] }))
+    stubRelayedFetch(fetchMock)
+    const gemini = new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', false, 'gemini-x')
+    expect(await gemini.generate({ ...BASE_REQUEST, presence_penalty: 0.3, verbosity: 'low' })).toBe('ok')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).not.toHaveProperty('verbosity')
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).not.toHaveProperty('presence_penalty')
+
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(400, [{ error: { code: 400, message: 'This model only supports Interactions API.' } }])))
+    await expect(gemini.generate(BASE_REQUEST)).rejects.toThrow(/Interactions API, which Lost Tales Engine doesn't support yet/)
+  })
+
+  it('never drops a field the request needs, and leaves an unnamed 400 alone', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(refusal("Unsupported parameter: 'messages' is not supported with this model."))
+    stubRelayedFetch(fetchMock)
+    await expect(new OpenAICompatibleClient('https://api.openai.com/v1', false, 'odd').generate(BASE_REQUEST)).rejects.toThrow(/messages/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
