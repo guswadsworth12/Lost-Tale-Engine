@@ -12,7 +12,7 @@
 /** Bump when the steps change enough that someone who finished should see what's new. */
 export const SETUP_VERSION = 1
 
-export type SetupStepId = 'welcome' | 'text' | 'voice' | 'images' | 'story'
+export type SetupStepId = 'welcome' | 'text' | 'voice' | 'images' | 'invite' | 'story'
 
 export interface SetupProgress {
   version: number
@@ -41,6 +41,12 @@ export interface SetupFacts {
   imagesReady: boolean
   /** Any story exists. */
   hasStory: boolean
+  /** An owner, who also gets the Invite players step. */
+  isOwner?: boolean
+  /** Anyone else has an account here. */
+  hasOtherUsers?: boolean
+  /** Still reading saved keys or stories: nothing is known to be missing yet. */
+  loading?: boolean
 }
 
 export interface SetupStep {
@@ -52,6 +58,8 @@ export interface SetupStep {
   optional: boolean
   /** Shown in the checklist (the welcome isn't something to do). */
   listed: boolean
+  /** Only owners can add accounts, so only they see this step. */
+  ownerOnly?: boolean
   done: (facts: SetupFacts) => boolean
 }
 
@@ -60,10 +68,16 @@ export const SETUP_STEPS: SetupStep[] = [
   { id: 'text', title: 'Text model', summary: 'The model that writes every reply.', optional: false, listed: true, done: (f) => f.textReady },
   { id: 'voice', title: 'Voice', summary: 'Read lines aloud. Free voices work with no account.', optional: true, listed: true, done: (f) => f.voiceReady },
   { id: 'images', title: 'Images', summary: 'Picture this, and character art.', optional: true, listed: true, done: (f) => f.imagesReady },
+  { id: 'invite', title: 'Invite players', summary: 'Accounts for the people you play with.', optional: true, listed: true, ownerOnly: true, done: (f) => !!f.hasOtherUsers },
   { id: 'story', title: 'First story', summary: 'Start playing.', optional: false, listed: true, done: (f) => f.hasStory },
 ]
 
 export type StepState = 'done' | 'skipped' | 'todo'
+
+/** The steps this account gets: everything, less the owner-only ones for a member. */
+export function stepsFor(facts?: Pick<SetupFacts, 'isOwner'>): SetupStep[] {
+  return SETUP_STEPS.filter((step) => !step.ownerOnly || !!facts?.isOwner)
+}
 
 export function stepState(step: SetupStep, facts: SetupFacts, progress: SetupProgress): StepState {
   if (step.done(facts)) return 'done'
@@ -72,7 +86,7 @@ export function stepState(step: SetupStep, facts: SetupFacts, progress: SetupPro
 
 /** The checklist: every listed step and its state. */
 export function checklist(facts: SetupFacts, progress: SetupProgress): { step: SetupStep; state: StepState }[] {
-  return SETUP_STEPS.filter((step) => step.listed).map((step) => ({ step, state: stepState(step, facts, progress) }))
+  return stepsFor(facts).filter((step) => step.listed).map((step) => ({ step, state: stepState(step, facts, progress) }))
 }
 
 /** How many listed steps are still to do. */
@@ -89,15 +103,17 @@ export function shouldShowWizard(progress: SetupProgress | undefined, storyCount
   return storyCount === 0 && (status === 'new' || status === 'active')
 }
 
-/** The step after `id`, or undefined at the end. */
-export function nextStep(id: SetupStepId): SetupStepId | undefined {
-  const index = SETUP_STEPS.findIndex((step) => step.id === id)
-  return SETUP_STEPS[index + 1]?.id
+/** The step after `id` for this account, or undefined at the end. */
+export function nextStep(id: SetupStepId, facts?: Pick<SetupFacts, 'isOwner'>): SetupStepId | undefined {
+  const steps = stepsFor(facts)
+  const index = steps.findIndex((step) => step.id === id)
+  return index < 0 ? undefined : steps[index + 1]?.id
 }
 
-export function previousStep(id: SetupStepId): SetupStepId | undefined {
-  const index = SETUP_STEPS.findIndex((step) => step.id === id)
-  return index > 0 ? SETUP_STEPS[index - 1].id : undefined
+export function previousStep(id: SetupStepId, facts?: Pick<SetupFacts, 'isOwner'>): SetupStepId | undefined {
+  const steps = stepsFor(facts)
+  const index = steps.findIndex((step) => step.id === id)
+  return index > 0 ? steps[index - 1].id : undefined
 }
 
 /** Where to pick up: the first listed step still to do, else the last. */

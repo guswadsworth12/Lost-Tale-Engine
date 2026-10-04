@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, Loader2, Play, Volume2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Loader2, Play, Sparkles, Volume2 } from 'lucide-react'
 import { BrandWordmark } from '@/components/ui/BrandMark'
 import { Button } from '@/components/ui/Button'
+import { TextAreaField, TextField } from '@/components/ui/Field'
+import { InvitePlayers } from '@/components/settings/AdminSettings'
 import { ADD_GROUPS, ServiceRow, useAddService } from '@/components/settings/ModelsAndServicesSettings'
 import { ModelPicker } from '@/components/settings/ModelPicker'
 import { NewChatDialog } from '@/components/chat/NewChatDialog'
@@ -9,14 +11,18 @@ import type { ViewId } from '@/components/layout/Sidebar'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi } from '@/lib/api/client'
+import { charactersApi, worldsApi } from '@/lib/api/client'
+import { blankCharacterData, type Character } from '@/lib/characters/cardSpec'
+import type { WorldCard } from '@/lib/types'
+import { STARTER_STORY } from '@/lib/setup/starterStory'
+import { startStarterStory, type StarterPlayer } from '@/lib/setup/startStarterStory'
 import { SERVICE_KINDS, chosen, createTextClient, newServiceId, offers, type Capability } from '@/lib/api/services'
 import { synthesizeSpeech } from '@/lib/voice/ttsProviders'
 import { errorMessage } from '@/lib/store/useToastStore'
 import { startTour } from '@/lib/help/helpStore'
 import { shouldOfferIntro, tutorialStore } from '@/lib/help/tutorialState'
 import {
-  SETUP_STEPS, nextStep, previousStep, resumeStep, stepState, verifiedKey, withSkipped,
+  SETUP_STEPS, nextStep, previousStep, resumeStep, stepState, stepsFor, verifiedKey, withSkipped,
   type SetupStepId,
 } from '@/lib/setup/setup'
 import { useSetupFacts } from './useSetupFacts'
@@ -51,7 +57,7 @@ export function SetupWizard({
   const [stepId, setStepId] = useState<SetupStepId>(() => initialStep ?? resumeStep(facts, progress))
   const step = SETUP_STEPS.find((s) => s.id === stepId)!
   const state = stepState(step, facts, progress)
-  const listed = SETUP_STEPS.filter((s) => s.listed)
+  const listed = stepsFor(facts).filter((s) => s.listed)
 
   const go = (id: SetupStepId | undefined) => {
     if (!id) return
@@ -64,7 +70,7 @@ export function SetupWizard({
   }
   const skip = () => {
     setProgress(withSkipped({ ...progress, status: progress.status === 'new' ? 'active' : progress.status }, stepId, true))
-    go(nextStep(stepId))
+    go(nextStep(stepId, facts))
   }
   const finish = (chatId?: string) => {
     setProgress({ ...progress, status: 'done', at: Date.now() })
@@ -113,21 +119,22 @@ export function SetupWizard({
           {stepId === 'text' && <ModelStep capability="text" />}
           {stepId === 'voice' && <VoiceStep />}
           {stepId === 'images' && <ModelStep capability="images" />}
+          {stepId === 'invite' && <InviteStep />}
           {stepId === 'story' && <StoryStep onStarted={(id) => finish(id)} onOwn={() => { finish(); onNavigate('cast') }} />}
         </div>
       </div>
 
       <footer className="shrink-0 border-t border-border bg-bg-elevated">
         <div className="mx-auto flex w-full max-w-2xl items-center gap-2 px-4 py-3 sm:px-6">
-          {previousStep(stepId) && (
-            <Button variant="ghost" onClick={() => go(previousStep(stepId))} className="flex items-center gap-1"><ArrowLeft size={14} /> Back</Button>
+          {previousStep(stepId, facts) && (
+            <Button variant="ghost" onClick={() => go(previousStep(stepId, facts))} className="flex items-center gap-1"><ArrowLeft size={14} /> Back</Button>
           )}
           <span className="flex-1" />
           {step.optional && state !== 'done' && <Button variant="ghost" onClick={skip}>Skip for now</Button>}
           {stepId === 'story'
             ? <Button onClick={() => finish()}>{state === 'done' ? 'Finish' : 'Finish without a story'}</Button>
             : (
-              <Button variant="primary" onClick={() => go(nextStep(stepId))} disabled={stepId === 'text' && state !== 'done'} className="flex items-center gap-1">
+              <Button variant="primary" onClick={() => go(nextStep(stepId, facts))} disabled={stepId === 'text' && state !== 'done'} className="flex items-center gap-1">
                 {stepId === 'welcome' ? 'Get started' : 'Continue'} <ArrowRight size={14} />
               </Button>
             )}
@@ -352,34 +359,67 @@ function VoiceTest() {
   )
 }
 
-/** Pick a character and start; or leave to make your own. */
+/** Owner only: accounts for the people they play with. */
+function InviteStep() {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-display text-xl text-text">Invite players</h1>
+        <p className="mt-1 text-sm text-text-muted">
+          Optional. Give the people you play with their own accounts. Each sets up their own models, and their stories are their own.
+          Worlds and characters stay private until their maker shares them. You can add more any time in Settings → Admin.
+        </p>
+      </div>
+      <InvitePlayers />
+    </div>
+  )
+}
+
+/** The starter world first, then anyone to start with; or leave to make your own. */
 function StoryStep({ onStarted, onOwn }: { onStarted: (chatId: string) => void; onOwn: () => void }) {
   const characters = useApiQuery('characters', () => charactersApi.list(), [])
+  const worlds = useApiQuery('worlds', () => worldsApi.list(), [])
   const [startWith, setStartWith] = useState<string | null>(null)
+  const [choosingPlayer, setChoosingPlayer] = useState(false)
+  const starterWorld = worlds?.find((w) => w.id === STARTER_STORY.worldId)
+  // Offered only while its world and lead are still here (an owner can delete them).
+  const starterReady = !!starterWorld && !!characters?.some((c) => c.id === STARTER_STORY.leadCharacterId)
   // The bundled characters first (they're the oldest), and never a card only the player plays.
-  const picks = (characters ?? []).filter((c) => !c.playerOnly).sort((a, b) => a.createdAt - b.createdAt).slice(0, 4)
+  const picks = (characters ?? []).filter((c) => !c.playerOnly).sort((a, b) => a.createdAt - b.createdAt)
+  const worldName = (id?: string) => (id ? worlds?.find((w) => w.id === id)?.name : undefined)
+
+  if (choosingPlayer && starterWorld && characters) {
+    return <StarterPlayerStep world={starterWorld} characters={characters} onBack={() => setChoosingPlayer(false)} onStarted={onStarted} />
+  }
   return (
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-xl text-text">Your first story</h1>
-        <p className="mt-1 text-sm text-text-muted">Pick who to start with. The next screen lets you choose the world and who you play.</p>
+        <p className="mt-1 text-sm text-text-muted">
+          {starterReady ? 'Play the starter world, made to show what the engine does, or start with anyone.' : 'Pick who to start with. The next screen lets you choose the world and who you play.'}
+        </p>
       </div>
+      {starterReady && starterWorld && <StarterCard world={starterWorld} onPlay={() => setChoosingPlayer(true)} />}
       {characters === undefined
         ? <div className="h-24 animate-pulse rounded-xl bg-bg-sunken" />
         : picks.length
           ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {picks.map((c) => (
-                <button key={c.id} onClick={() => setStartWith(c.id)} className="flex items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:bg-bg-sunken">
-                  {c.avatarDataUrl
-                    ? <img src={c.avatarDataUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
-                    : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-bg-sunken text-lg text-text-muted">{c.card.name.slice(0, 1).toUpperCase()}</div>}
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-text">{c.card.name}</div>
-                    <p className="line-clamp-2 text-xs text-text-muted">{c.card.description || c.card.personality || 'Ready to play.'}</p>
-                  </div>
-                </button>
-              ))}
+            <div>
+              {starterReady && <h2 className="mb-2 text-sm font-medium text-text">Or start with a character</h2>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {picks.map((c) => (
+                  <button key={c.id} onClick={() => setStartWith(c.id)} className="flex items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:bg-bg-sunken">
+                    {c.avatarDataUrl
+                      ? <img src={c.avatarDataUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                      : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-bg-sunken text-lg text-text-muted">{c.card.name.slice(0, 1).toUpperCase()}</div>}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-text">{c.card.name}</div>
+                      {worldName(c.worldId) && <div className="text-[11px] text-text-muted">{worldName(c.worldId)}</div>}
+                      <p className="line-clamp-2 text-xs text-text-muted">{c.card.description || c.card.personality || 'Ready to play.'}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )
           : <p className="text-sm text-text-muted">There are no characters yet. Make one, or import a card, from Cast.</p>}
@@ -391,6 +431,115 @@ function StoryStep({ onStarted, onOwn }: { onStarted: (chatId: string) => void; 
       {startWith && (
         <NewChatDialog initialCharacterId={startWith} onClose={() => setStartWith(null)} onCreated={(id) => { setStartWith(null); onStarted(id) }} />
       )}
+    </div>
+  )
+}
+
+/** The recommended path: the starter world, one click from here. */
+function StarterCard({ world, onPlay }: { world: WorldCard; onPlay: () => void }) {
+  const art = world.backgroundsNight?.[STARTER_STORY.openingBackgroundId] ?? world.backgrounds?.[STARTER_STORY.openingBackgroundId]
+  return (
+    <div className="overflow-hidden rounded-2xl border border-accent/40 bg-bg-elevated">
+      {art && <img src={art} alt="" className="h-36 w-full object-cover sm:h-44" />}
+      <div className="space-y-3 p-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-lg text-text">{world.name}</h2>
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent"><Sparkles size={11} aria-hidden="true" /> Recommended</span>
+          </div>
+          <p className="mt-1 text-sm text-text-muted">
+            A lantern-lit rail stop at the edge of a fog marsh. The last train brings a passenger nobody can name.
+            The Game Master runs the scene in Visual Novel mode, and every voice works with no key.
+          </p>
+        </div>
+        <Button variant="primary" onClick={onPlay} className="flex items-center gap-1.5"><Play size={14} /> Play the starter world</Button>
+      </div>
+    </div>
+  )
+}
+
+/** Who you play in the starter story: its own traveller, or someone of your own. Then it starts. */
+function StarterPlayerStep({ world, characters, onBack, onStarted }: {
+  world: WorldCard
+  characters: Character[]
+  onBack: () => void
+  onStarted: (chatId: string) => void
+}) {
+  const starterCard = characters.find((c) => c.id === STARTER_STORY.playerCharacterId)
+  const [who, setWho] = useState<'starter' | 'own'>(starterCard ? 'starter' : 'own')
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const setActivePlayerCharacterId = useSettingsStore((s) => s.setActivePlayerCharacterId)
+  const ready = who === 'starter' ? !!starterCard : !!name.trim()
+
+  const start = async () => {
+    if (!ready || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      let cast = characters
+      let player: StarterPlayer
+      if (who === 'starter' && starterCard) {
+        player = { id: starterCard.id, name: starterCard.card.name, isStarterCard: true }
+      } else {
+        // A "you only" card, like Start a story's Create: flesh it out later in Cast.
+        const card = await charactersApi.create({ card: { ...blankCharacterData(name.trim()), description: description.trim() }, playerOnly: true })
+        cast = [...characters, card]
+        player = { id: card.id, name: card.card.name, isStarterCard: false }
+      }
+      const chat = await startStarterStory({ world, characters: cast, player })
+      setActivePlayerCharacterId(player.id)
+      onStarted(chat.id)
+    } catch (e) {
+      setError(errorMessage(e))
+      setBusy(false)
+    }
+  }
+
+  const option = (selected: boolean) =>
+    `w-full rounded-xl border p-3 text-left transition-colors ${selected ? 'border-accent bg-accent/10' : 'border-border hover:bg-bg-sunken'}`
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-display text-xl text-text">Who you play</h1>
+        <p className="mt-1 text-sm text-text-muted">You arrive at {world.name} on the last train. Only you decide what your character says and does.</p>
+      </div>
+      <div className="space-y-2" role="radiogroup" aria-label="Who you play">
+        {starterCard && (
+          <button role="radio" aria-checked={who === 'starter'} onClick={() => setWho('starter')} className={`${option(who === 'starter')} flex items-center gap-3`}>
+            {starterCard.avatarDataUrl
+              ? <img src={starterCard.avatarDataUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+              : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-bg-sunken text-lg text-text-muted">{starterCard.card.name.slice(0, 1)}</div>}
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-text">{starterCard.card.name}</div>
+              <p className="line-clamp-3 text-xs text-text-muted">{starterCard.card.description}</p>
+            </div>
+          </button>
+        )}
+        <div className={option(who === 'own')}>
+          <button role="radio" aria-checked={who === 'own'} onClick={() => setWho('own')} className="w-full text-left">
+            <div className="text-sm font-medium text-text">Someone of your own</div>
+            <p className="text-xs text-text-muted">A name and a few words. You can add a portrait and more in Cast later.</p>
+          </button>
+          {who === 'own' && (
+            <div className="mt-3">
+              <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus maxLength={60} />
+              <TextAreaField label="Short description (optional)" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
+                placeholder="What others see when they meet you." />
+            </div>
+          )}
+        </div>
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" onClick={onBack} disabled={busy} className="flex items-center gap-1"><ArrowLeft size={14} /> Back</Button>
+        <span className="flex-1" />
+        <Button variant="primary" onClick={() => void start()} disabled={!ready || busy} className="flex items-center gap-1.5">
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Start the story
+        </Button>
+      </div>
     </div>
   )
 }
