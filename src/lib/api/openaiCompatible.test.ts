@@ -243,6 +243,19 @@ describe('OpenAICompatibleClient — request building', () => {
     const [url] = fetchMock.mock.calls[0]
     expect(url).toBe('https://api.example.com/v1/chat/completions')
   })
+
+  it('adds /v1 to a bare address (a local server typed without it), and leaves any other path alone', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'hi' } }] }))
+    stubRelayedFetch(fetchMock)
+
+    await new OpenAICompatibleClient('http://172.16.69.113:1234/', false, '').generate(BASE_REQUEST)
+    await new OpenAICompatibleClient('https://generativelanguage.googleapis.com/v1beta/openai', false, 'gemini').generate(BASE_REQUEST)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'http://172.16.69.113:1234/v1/chat/completions',
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    ])
+  })
 })
 
 // A real user hit this against real OpenAI: "Unsupported parameter: 'max_tokens' is not supported
@@ -519,6 +532,15 @@ describe('OpenAICompatibleClient — generateStream()', () => {
     const full = await client.generateStream(BASE_REQUEST, (t) => tokens.push(t))
     expect(tokens).toEqual(['Hi'])
     expect(full).toBe('Hi')
+  })
+
+  it("reports an error sent back as a plain JSON success (LM Studio's wrong-path answer) instead of an empty reply", async () => {
+    stubRelayedFetch(vi.fn().mockResolvedValue(sseResponse('{"error":"Unexpected endpoint or method. (POST /chat/completions)"}')))
+    const client = new OpenAICompatibleClient('http://localhost:1234/api', false, '')
+    await expect(client.generateStream(BASE_REQUEST, () => {})).rejects.toThrow(/answered with Unexpected endpoint or method/)
+
+    stubRelayedFetch(vi.fn().mockResolvedValue(jsonResponse(200, { error: { message: 'Model unloaded' } })))
+    await expect(client.generate(BASE_REQUEST)).rejects.toThrow(/answered with Model unloaded/)
   })
 
   it('leaves a genuinely empty stream (no reasoning either) returning an empty string, same as always', async () => {
