@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 
 // `text-base sm:text-sm`: 16px on mobile keeps iOS Safari from auto-zooming the page on focus;
 // desktop stays at the denser 14px. `py-2.5 sm:py-2` gives a slightly taller touch target on phones.
@@ -43,6 +43,46 @@ export function TextField({
     <FieldFrame label={label} hint={hint} className={className}>
       <input {...props} className={CONTROL_CLASS} />
     </FieldFrame>
+  )
+}
+
+/** A comma-separated list as typed: items trimmed, empty ones dropped. */
+export function parseCommaList(text: string): string[] {
+  return text.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((item, i) => item === b[i])
+
+/**
+ * A list edited as comma-separated text. It keeps the text as typed and reports the parsed list on
+ * every change. Rebuilding the text from the list each keystroke would swallow a comma just typed
+ * (its empty item is dropped) and a space at the end of an item (it is trimmed), so neither could
+ * ever be typed. A list changed from outside (a reset, a loaded card) replaces the text.
+ */
+export function CommaListField({
+  value,
+  onChange,
+  ...props
+}: {
+  label: string
+  hint?: ReactNode
+  className?: string
+  value: readonly string[]
+  onChange: (list: string[]) => void
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
+  const [text, setText] = useState(() => value.join(', '))
+  useEffect(() => {
+    setText((typed) => (sameList(parseCommaList(typed), value) ? typed : value.join(', ')))
+  }, [value])
+  return (
+    <TextField
+      {...props}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value)
+        onChange(parseCommaList(e.target.value))
+      }}
+    />
   )
 }
 
