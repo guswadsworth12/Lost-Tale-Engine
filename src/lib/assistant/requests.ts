@@ -88,7 +88,7 @@ export function detectProducer(text: string, knownNames: readonly string[] = [])
   // A saved character named with something to change ("make Ash's character sheet", "give Ash
   // stats") is an update to them, not a request for a new character. "Make a new character who is
   // Ash's sister" names no part to change, so it still reads as a new character.
-  if (namedCharacter(trimmed, knownNames) && (UPDATE_OBJECT.test(trimmed) || (EDIT_VERB.test(trimmed) && !/new/i.test(trimmed)))) return 'update'
+  if (namedCharacter(trimmed, knownNames) && (UPDATE_OBJECT.test(trimmed) || (EDIT_VERB.test(trimmed) && !/\bnew\b/i.test(trimmed)))) return 'update'
   if (CHARACTER_PATTERNS.some((re) => re.test(trimmed))) return 'character'
   return undefined
 }

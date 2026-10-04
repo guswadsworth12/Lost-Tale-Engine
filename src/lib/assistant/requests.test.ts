@@ -106,6 +106,13 @@ describe('detectProducer — updating a saved character', () => {
     expect(detectProducer('Write a story about Mira Voss and the harbor', names)).toBe('story')
   })
 
+  it('does not read an edit verb as an update when the request is for someone new', () => {
+    expect(detectProducer('Create a new companion for Mira and add her to the party', names)).toBe('character')
+    expect(detectProducer("New character: Ash Vale's twin, give her a sword", names)).not.toBe('update')
+    // "new" has to be a word of its own: "renew" is still an edit to Oren.
+    expect(detectProducer("Renew Oren's oath and give him a title", names)).toBe('update')
+  })
+
   it('leaves questions and mentions alone, and needs the names to match', () => {
     expect(detectProducer("What are Ash's stats?", names)).toBeUndefined()
     expect(detectProducer('Ash said something funny today', names)).toBeUndefined()
