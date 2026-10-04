@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { DateEventCard, WorldCard } from '@/lib/types'
 import { buildDayPlannerActivities, type DayPlannerActivity } from '@/lib/world/dayPlanner'
-import { PHASES, describeWeather, getCalendarInfo, getEnergyRemaining, getMaxEnergyForDay, getWeather } from '@/lib/world/calendar'
+import { PHASES, describeWeather, formatShortDate, getCalendarInfo, getEnergyRemaining, getMaxEnergyForDay, getWeather } from '@/lib/world/calendar'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -24,8 +24,8 @@ export function DayPlannerPanel({ character, world, activeEvent, onOpenActiveEve
   const [busy, setBusy] = useState<string | null>(null)
   const day = world.currentDay ?? 0
   const phaseIndex = world.currentPhaseIndex ?? 0
-  const calendar = getCalendarInfo(day)
-  const weather = getWeather(world.id, day)
+  const calendar = getCalendarInfo(day, world.calendar)
+  const weather = getWeather(world.id, day, world.calendar)
 
   if (activeEvent?.startedAt) {
     const isHangout = activeEvent.kind === 'hangout'
@@ -62,9 +62,9 @@ export function DayPlannerPanel({ character, world, activeEvent, onOpenActiveEve
       <Section title="Right now" surface="sunken">
         <div className="mb-1.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-text-muted sm:grid-cols-4">
           <div>
-            <span className="capitalize text-text">{calendar.season}</span> day {calendar.dayOfSeason}
+            <span className="capitalize text-text">{formatShortDate(calendar)}</span>
           </div>
-          <div className="capitalize text-text">{calendar.weekday}</div>
+          <div className="capitalize text-text">{calendar.weekdayName}</div>
           <div className="capitalize text-text">
             {PHASES[phaseIndex]}
             {calendar.holiday ? ` · ${calendar.holiday}` : ''}

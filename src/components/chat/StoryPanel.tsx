@@ -5,7 +5,7 @@ import type { useChatSession } from '@/lib/hooks/useChatSession'
 import type { Chat, ScenePolicy, Story } from '@/lib/types'
 import type { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { computeWarmth, getRelationshipStats, getRelationshipTrack } from '@/lib/dating/stage'
-import { PHASES } from '@/lib/world/calendar'
+import { PHASES, formatCalendarDate, getCalendarInfo } from '@/lib/world/calendar'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { PlayAsSelect } from '@/components/personas/PlayAsSelect'
 import { StoryScenes } from '@/components/story/StoryScenes'
@@ -124,7 +124,7 @@ export function StoryPanel({
         <label className="block space-y-1 text-xs text-text-muted">Location<input className={inputClass} value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Current location" /></label>
         <label className="block space-y-1 text-xs text-text-muted">Atmosphere<input className={inputClass} value={atmosphere} onChange={(event) => setAtmosphere(event.target.value)} placeholder="Mood or weather in this scene" /></label>
         <button className={actionClass} disabled={busy} onClick={() => run(() => session.updateScene({ location: location.trim() || null, atmosphere: atmosphere.trim() || null }))}>Save scene</button>
-        {world && modules.worldSimulation && <p className="text-xs text-text-muted">Day {(world.currentDay ?? 0) + 1} · {chat.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0]}</p>}
+        {world && modules.worldSimulation && <p className="text-xs text-text-muted">{world.calendar ? formatCalendarDate(getCalendarInfo(world.currentDay ?? 0, world.calendar)) : `Day ${(world.currentDay ?? 0) + 1}`} · {chat.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0]}</p>}
         <div><h3 className="font-medium">Here now</h3><p className="mt-1 text-xs text-text-muted">{loaded.filter((member) => present.includes(member.id)).map((member) => member.card.name).join(', ') || 'No cast selected'}</p></div>
         <div className="flex flex-wrap gap-2">{world && <button className={actionClass} onClick={onOpenScenery}>Choose scenery</button>}{world && modules.worldSimulation && <button className={actionClass} onClick={onOpenCalendar}>Key dates</button>}</div>
         {datingToolsVisible && <div className="flex flex-wrap gap-2"><button className={actionClass} onClick={onOpenEvent}>Date or event</button>{world && modules.worldSimulation && <button className={actionClass} onClick={onOpenDayPlanner}>Day planner</button>}</div>}

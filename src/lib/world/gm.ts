@@ -308,6 +308,8 @@ export interface GmContext {
   location?: string
   atmosphere?: string
   timeOfDay?: string
+  /** The world clock follows narrated time (`WorldCard.advanceClockInPlay`), so passing time should be said plainly. */
+  clockFollowsNarration?: boolean
   /** Character agents present — player-controlled characters already removed. */
   roster: GmRosterEntry[]
   /** World characters available to enter, excluding the player's character and current cast. */
@@ -477,6 +479,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     campaign.tracks?.length ? `Tracked state now (kept by the engine):\n${ctx.stateLines?.length ? ctx.stateLines.map((line) => `- ${line}`).join('\n') : '- (nothing tracked has changed yet)'}` : '',
     ctx.location ? `Current location: ${ctx.location}${ctx.atmosphere ? ` (${ctx.atmosphere})` : ''}` : '',
     `Current scenery: ${ctx.scenery}${ctx.timeOfDay ? ` · ${ctx.timeOfDay}` : ''}`,
+    ctx.clockFollowsNarration ? 'The world clock follows your narration. When time passes, say so plainly in narration ("That evening…", "The next morning…", "Two days later…"); otherwise keep the scene in the present moment.' : '',
     `Characters present (at most ${ctx.maxSpeakers} may act this beat):\n${rosterLine}`,
     ctx.loadedRoster?.length ? `Loaded for this scene but still awaited: ${ctx.loadedRoster.map((r) => r.name).join(', ')}. They can enter together when the scene reaches them.` : '',
     `Characters available to enter (add at most ${maxArrivals}, only if the scene calls for it):\n${availableLine}`,

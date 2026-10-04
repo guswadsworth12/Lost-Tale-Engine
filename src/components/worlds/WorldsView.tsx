@@ -10,7 +10,8 @@ import { combinedSceneFlags, COMMITMENT_ORDER, formatCommitmentStatus, formatRel
 import { intimacyArousalWeight, type IntimacyCategory, type IntimacyUnlockable } from '@/lib/dating/intimacyCatalog'
 import { BODY_REGIONS } from '@/lib/dating/arousal'
 import { BUILT_IN_KINKS } from '@/lib/dating/kinks'
-import { advancePhase, getCalendarInfo, getEnergyRemaining, getMaxEnergyForDay, getWeather, describeWeather, PHASES } from '@/lib/world/calendar'
+import { advancePhase, calendarMonths, dayForDate, formatCalendarDate, getCalendarInfo, getEnergyRemaining, getMaxEnergyForDay, getWeather, describeWeather, PHASES, yearLength, type WorldCalendar } from '@/lib/world/calendar'
+import { CalendarEditor } from './CalendarEditor'
 import { WORLD_TEMPLATES, getWorldTemplate, modulesForWorld, normalizeWorldTemplateId, type WorldModuleChoices, type WorldModules, type WorldTemplateId } from '@/lib/world/worldTemplates'
 import { WORLD_TAB_ALIASES } from '@/lib/ui/navigation'
 import { newId } from '@/lib/id'
@@ -432,6 +433,10 @@ function WorldEditor({
   const [currentDay, setCurrentDay] = useState(base.currentDay ?? 0)
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(base.currentPhaseIndex ?? 0)
   const [advancing, setAdvancing] = useState(false)
+  const [calendar, setCalendar] = useState<WorldCalendar | undefined>(base.calendar)
+  const [advanceClockInPlay, setAdvanceClockInPlay] = useState(base.advanceClockInPlay ?? false)
+  // "Set today's date": a year, month and day on the calendar being edited.
+  const [dateDraft, setDateDraft] = useState<{ year: number; monthIndex: number; dayOfMonth: number } | null>(null)
   const [saving, setSaving] = useState(false)
 
   const addTrigger = () => {
@@ -492,6 +497,9 @@ function WorldEditor({
       // would survive being cleared. Same reason `Chat.activeEvent`/`authorNote` use null.
       intimacyLevel: intimacyLevel ?? null,
       triggers,
+      // `null` clears a calendar the world no longer uses (an omitted key would keep it).
+      calendar: calendar ?? null,
+      advanceClockInPlay,
       visibility,
     }
     try {
@@ -675,6 +683,22 @@ function WorldEditor({
     }
     setCurrentDay(next.day)
     setCurrentPhaseIndex(next.phaseIndex)
+  }
+
+  /** Moves the world clock to a chosen date, keeping the time of day. Saves the calendar too, since the date is read on it. */
+  const setClockDate = async () => {
+    if (!world || !dateDraft || advancing) return
+    const day = dayForDate(calendar, dateDraft)
+    setAdvancing(true)
+    try {
+      await worldsApi.update(world.id, { currentDay: day, calendar: calendar ?? null } as Partial<WorldCard>)
+      setCurrentDay(day)
+      setDateDraft(null)
+    } catch (e) {
+      toastError(errorMessage(e))
+    } finally {
+      setAdvancing(false)
+    }
   }
 
   const remove = async () => {
@@ -1636,17 +1660,25 @@ function WorldEditor({
               </Button>
             </div>
           </Section>
+          <Section
+            title="Calendar"
+            description="The year this world counts, its months, the names of its weekdays, and its holidays. Characters and the Game Master are told the date. Birthdays are a day of this world's year."
+          >
+            <CalendarEditor value={calendar} onChange={setCalendar} />
+          </Section>
           {world && <Section
           title="World clock"
           description="Shared by every chat in this world. Advancing it moves every character's mood and weather forward. A manual authoring step that doesn't spend an action."
         >
           {(() => {
-            const info = getCalendarInfo(currentDay)
-            const weather = getWeather(world.id, currentDay)
+            const info = getCalendarInfo(currentDay, calendar)
+            const weather = getWeather(world.id, currentDay, calendar)
+            const months = calendarMonths(calendar)
+            const draft = dateDraft ?? { year: info.year ?? Math.floor(currentDay / yearLength(calendar)), monthIndex: info.monthIndex, dayOfMonth: info.dayOfMonth }
             return (
               <>
                 <div className="mb-1 text-sm text-text">
-                  Day {info.day} · {info.weekday}, {info.season} ({info.dayOfSeason}/28)
+                  {info.custom ? formatCalendarDate(info) : <>Day {info.day} · {formatCalendarDate(info)}</>}
                   {info.holiday ? <span className="text-romance"> · {info.holiday}</span> : null}
                 </div>
                 <div className="mb-4 text-xs text-text-muted">
@@ -1660,6 +1692,33 @@ function WorldEditor({
                         currentPhaseIndex === PHASES.length - 1 ? ' (next day)' : ''
                       }`}
                 </Button>
+                <label className="mt-4 flex items-start gap-2 text-sm text-text">
+                  <input type="checkbox" className="mt-1" checked={advanceClockInPlay} onChange={(e) => setAdvanceClockInPlay(e.target.checked)} />
+                  <span>
+                    Advance time while role playing
+                    <span className="block text-xs text-text-muted">The clock moves on when the story says time passes ("that evening", "the next morning", "two days later"), when a scene ends, and when the Game Master rules that time passes. Words in "quotes" don't count. Save to apply.</span>
+                  </span>
+                </label>
+                <div className="mt-4 border-t border-border pt-4">
+                  <div className="mb-2 text-xs font-medium text-text-muted">Set today's date</div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    {info.custom && (
+                      <NumberField label="Year" className="w-28" step={1} value={draft.year}
+                        onChange={(e) => setDateDraft({ ...draft, year: Math.round(Number(e.target.value) || 0) })} />
+                    )}
+                    <SelectField label={info.custom ? 'Month' : 'Season'} className="w-40" value={draft.monthIndex}
+                      onChange={(e) => {
+                        const monthIndex = Number(e.target.value)
+                        setDateDraft({ ...draft, monthIndex, dayOfMonth: Math.min(draft.dayOfMonth, months[monthIndex]?.days ?? 1) })
+                      }}>
+                      {months.map((m, i) => <option key={i} value={i}>{m.name || `Month ${i + 1}`}</option>)}
+                    </SelectField>
+                    <NumberField label="Day" className="w-24" min={1} max={months[draft.monthIndex]?.days ?? 1} step={1} value={draft.dayOfMonth}
+                      onChange={(e) => setDateDraft({ ...draft, dayOfMonth: Math.max(1, Math.min(months[draft.monthIndex]?.days ?? 1, Math.round(Number(e.target.value) || 1))) })} />
+                    <Button className="mb-3" onClick={() => void setClockDate()} disabled={advancing || !dateDraft}>Set date</Button>
+                  </div>
+                  <p className="text-xs text-text-muted">Keeps the time of day. Setting a date also saves the calendar above.</p>
+                </div>
               </>
             )
           })()}

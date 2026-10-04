@@ -121,6 +121,9 @@ export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   promptOverrides: 'promptOverrides',
   gmNotes: 'gmNotes',
   canonFacts: 'canonFacts',
+  // The world's own calendar travels with it; where its clock stands doesn't.
+  calendar: 'setting',
+  advanceClockInPlay: 'setting',
   // Where this install's world clock stands.
   currentDay: 'local',
   currentPhaseIndex: 'local',

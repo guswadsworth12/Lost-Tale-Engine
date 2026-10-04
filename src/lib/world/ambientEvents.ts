@@ -1,4 +1,4 @@
-import type { PresenceStatus, ScheduleEntry, WeatherPreferences } from '@/lib/world/calendar'
+import type { PresenceStatus, ScheduleEntry, WeatherPreferences, WorldCalendar } from '@/lib/world/calendar'
 import { daysUntilAnnualDate, describeWeather, getCalendarInfo, getCurrentActivity, getWeather, pickFrom, seededFraction } from '@/lib/world/calendar'
 
 /**
@@ -43,6 +43,8 @@ export interface AmbientEventContext {
   weatherPreferences?: WeatherPreferences
   /** Day-of-year (`Character.birthday`) — powers the `'birthday'`/`'birthday_soon'` hooks below. */
   birthday?: number
+  /** The world's own calendar, for its holidays and year length. Unset: the built-in one. */
+  calendar?: WorldCalendar
 }
 
 /** How many days out a birthday starts being worth an ambient "it's coming up" mention. */
@@ -51,7 +53,7 @@ const BIRTHDAY_SOON_WINDOW_DAYS = 7
 /** 1–`BIRTHDAY_SOON_WINDOW_DAYS` days out only — the day itself is `selectAmbientEvent`'s own unconditional `'birthday'` check, not this. */
 function selectBirthdaySoon(ctx: AmbientEventContext): AmbientEvent | undefined {
   if (ctx.birthday === undefined) return undefined
-  const daysUntil = daysUntilAnnualDate(ctx.day, ctx.birthday)
+  const daysUntil = daysUntilAnnualDate(ctx.day, ctx.birthday, ctx.calendar)
   if (daysUntil <= 0 || daysUntil > BIRTHDAY_SOON_WINDOW_DAYS) return undefined
   return { kind: 'birthday_soon', detail: '', daysUntil }
 }
@@ -98,11 +100,11 @@ function selectFreeTimeInterest(ctx: AmbientEventContext): AmbientEvent | undefi
 
 /** Picks the best concrete ambient hook right now, if any. A holiday always wins; otherwise a seeded uniform pick among whichever other hooks qualify. */
 export function selectAmbientEvent(ctx: AmbientEventContext): AmbientEvent | undefined {
-  const info = getCalendarInfo(ctx.day)
+  const info = getCalendarInfo(ctx.day, ctx.calendar)
   if (info.holiday) return { kind: 'holiday', detail: info.holiday }
   // Same unconditional priority as a holiday — a real, once-a-year occasion, not something that
   // should have to win a coin flip against "free time interest" to ever come up on the actual day.
-  if (ctx.birthday !== undefined && daysUntilAnnualDate(ctx.day, ctx.birthday) === 0) {
+  if (ctx.birthday !== undefined && daysUntilAnnualDate(ctx.day, ctx.birthday, ctx.calendar) === 0) {
     return { kind: 'birthday', detail: '' }
   }
 
@@ -110,7 +112,7 @@ export function selectAmbientEvent(ctx: AmbientEventContext): AmbientEvent | und
   const birthdaySoon = selectBirthdaySoon(ctx)
   if (birthdaySoon) candidates.push(birthdaySoon)
   if (ctx.worldId) {
-    const weather = getWeather(ctx.worldId, ctx.day)
+    const weather = getWeather(ctx.worldId, ctx.day, ctx.calendar)
     if (ctx.weatherPreferences?.loves?.includes(weather)) candidates.push({ kind: 'weather_loved', detail: describeWeather(weather) })
     if (ctx.weatherPreferences?.hates?.includes(weather)) candidates.push({ kind: 'weather_hated', detail: describeWeather(weather) })
   }

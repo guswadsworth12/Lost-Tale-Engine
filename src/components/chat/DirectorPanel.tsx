@@ -22,6 +22,7 @@ import {
   PHASES,
   advancePhase,
   describeWeather,
+  formatShortDate,
   getCalendarInfo,
   getCurrentActivity,
   getMoodOfDay,
@@ -96,8 +97,8 @@ export function DirectorPanel({
 
   const day = world?.currentDay ?? 0
   const phaseIndex = world?.currentPhaseIndex ?? 0
-  const calendar = getCalendarInfo(day)
-  const weather = world ? getWeather(world.id, day) : undefined
+  const calendar = getCalendarInfo(day, world?.calendar)
+  const weather = world ? getWeather(world.id, day, world.calendar) : undefined
   const mood = character ? getMoodOfDay(character.id, day) : undefined
   const presence = character?.schedule?.length ? getCurrentActivity(character.schedule, day, phaseIndex) : undefined
 
@@ -211,9 +212,9 @@ export function DirectorPanel({
             <>
               <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-text-muted sm:grid-cols-4">
                 <div>
-                  <span className="text-text capitalize">{calendar.season}</span> day {calendar.dayOfSeason}
+                  <span className="text-text capitalize">{formatShortDate(calendar)}</span>
                 </div>
-                <div className="capitalize text-text">{calendar.weekday}</div>
+                <div className="capitalize text-text">{calendar.weekdayName}</div>
                 <div className="capitalize text-text">
                   {PHASES[phaseIndex]}
                   {calendar.holiday ? ` · ${calendar.holiday}` : ''}
