@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { randomInt } from 'node:crypto'
 import {
   characterStore,
+  chatCheckpointStore,
   chatFactStore,
   storyStore,
   storyMomentStore,
@@ -36,6 +37,7 @@ import { relayRouter } from './relay.ts'
 import { restoreScene, storiesRouter } from './stories.ts'
 import { momentsRouter } from './moments.ts'
 import { forkChatMemories, memoriesRouter, retractMessageMemories } from './memories.ts'
+import { rewindRouter, saveCheckpoint } from './rewind.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
 import { createCustomCampaignRoll, createResolvedCampaignRoll, requiredRollText, sameRollRequest } from './campaignRoll.ts'
 import { searchLocalLibrary } from './assistantSearch.ts'
@@ -88,6 +90,7 @@ app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
+app.use('/api', rewindRouter)
 // Files follow what they belong to: a private character's sprites are its owner's alone (access.ts).
 app.use('/avatars', avatarGuard, express.static(avatarsDir))
 
@@ -1222,6 +1225,7 @@ app.post('/api/chats/:id/roll', (req, res) => {
   const name = typeof card?.name === 'string' && card.name.trim() ? card.name : 'You'
   try {
     const presentIds = Array.isArray(req.body?.presentIds) ? uniqueIds(req.body.presentIds) : presenceOf(chat)
+    saveCheckpoint(req.params.id, messageId)
     const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, presentIds, createdAt: now })
     return res.status(201).json(created)
   } catch (error) {
@@ -1267,10 +1271,13 @@ app.post('/api/messages', (req, res) => {
   // Who was there when it was written decides who witnessed it (character memory).
   const chat = Array.isArray(req.body.presentIds) || typeof req.body.chatId !== 'string' ? undefined : chatStore.get(req.body.chatId)
   const presentIds = chat ? presenceOf(chat) : undefined
+  const id = req.body.id || newId()
+  // The scene as it stands before this message, for rewinding to it (#57).
+  if (typeof req.body.chatId === 'string') saveCheckpoint(req.body.chatId, id)
   const created = messageStore.insert({
     ...req.body,
     ...(presentIds ? { presentIds } : {}),
-    id: req.body.id || newId(),
+    id,
     createdAt: req.body.createdAt ?? Date.now(),
   })
   res.status(201).json(created)
@@ -1755,6 +1762,8 @@ app.post('/api/restore', requireOwner, express.json({ limit: '1gb' }), (req, res
       const rows = Array.isArray(data[key]) ? (data[key] as Record<string, unknown>[]) : []
       for (const row of rows) store.insert(row)
     }
+    // Checkpoints belong to the messages that were just replaced; a backup doesn't carry them.
+    chatCheckpointStore.clear()
     db.exec('COMMIT')
   } catch (e) {
     db.exec('ROLLBACK')

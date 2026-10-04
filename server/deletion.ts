@@ -18,6 +18,7 @@ import {
 } from './db.ts'
 import { removeAvatar } from './avatars.ts'
 import { purgeChatMemories } from './memories.ts'
+import { purgeChatCheckpoints } from './rewind.ts'
 import { purgeChatMoments } from './moments.ts'
 
 /** A chat and everything kept per chat: messages, objectives, relationship events, facts, memories, moments. */
@@ -27,6 +28,7 @@ export function purgeChat(chatId: string): void {
   for (const e of relationshipEventStore.list({ where: 'chatId = ?', params: [chatId] })) relationshipEventStore.remove(e.id as string)
   for (const f of chatFactStore.list({ where: 'chatId = ?', params: [chatId] })) chatFactStore.remove(f.id as string)
   purgeChatMemories(chatId)
+  purgeChatCheckpoints(chatId)
   purgeChatMoments(chatId)
   // Un-parent any chat forked from this one (parentChatId isn't indexed, so a full scan).
   for (const chat of chatStore.list()) {

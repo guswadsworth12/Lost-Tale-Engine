@@ -231,6 +231,18 @@ export const chatsApi = {
     invalidate('stories')
     return result
   },
+  /**
+   * Rewinds a scene to `messageId` (`server/rewind.ts`): removes it and everything after it, and puts
+   * the scene back as it stood just before it. `dryRun` only reports what would go. The shared world
+   * clock goes back only with `restoreClock`.
+   */
+  async rewind(id: string, body: { messageId: string; dryRun?: boolean; restoreClock?: boolean }): Promise<RewindResult> {
+    const result = await request<RewindResult>('POST', `/chats/${id}/rewind`, body)
+    if (!body.dryRun) {
+      for (const resource of ['chats', 'messages', 'objectives', 'chat-facts', 'relationship-events', 'memories', 'stories', 'worlds']) invalidate(resource)
+    }
+    return result
+  },
   /** Ends this scene with its recap and opens the next one (`server/stories.ts`). Returns the new scene. */
   async nextScene(id: string, body: NextSceneBody): Promise<Chat> {
     const result = await request<Chat>('POST', `/chats/${id}/next-scene`, body)
@@ -239,6 +251,23 @@ export const chatsApi = {
     invalidate('objectives')
     return result
   },
+}
+
+/** What a rewind undoes (`server/rewindPlan.ts` `RewindSummary`), and the world clock it can put back. */
+export interface RewindResult {
+  summary: {
+    messages: number
+    facts: number
+    relationshipChanges: number
+    objectivesRemoved: number
+    objectivesReopened: number
+    /** Relationships, gifts, scene and tracked state come back too (the message has a checkpoint). */
+    stateRestored: boolean
+  }
+  /** Dry run: where the world clock stood before the message, when it has moved since. */
+  clock?: { day: number; phaseIndex: number; suggested: boolean } | null
+  clockRestored?: boolean
+  backup?: string
 }
 
 export interface NextSceneBody {

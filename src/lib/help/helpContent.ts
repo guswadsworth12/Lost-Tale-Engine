@@ -454,7 +454,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**Steer**: tell the model what to fix ("she should pull back"), and it rewrites the reply.',
               '**Pin this moment** keeps it in Pinned moments (Story panel → Notes).',
               '**Fork chat from here** starts a new branch.',
-              '**Rewind to here** deletes that message and everything after it.',
+              '**Rewind to here** deletes that message and everything after it, and takes the scene back to how it stood just before: the memories, remembered facts, relationship changes and objective progress those messages made go too, and relationships, gifts, the scene and tracked state return to how they were. It shows what it will undo first, offers to set the world clock back when time moved since, and saves a backup.',
               '**Delete** removes one message.',
             ],
           },

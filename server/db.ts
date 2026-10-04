@@ -141,6 +141,14 @@ db.exec(`
     data TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_chat_facts_chatId_createdAt ON chat_facts(chatId, createdAt);
+  -- One per message, keyed by the message id: the scene's turn state and the world clock just before it (rewind, #57).
+  CREATE TABLE IF NOT EXISTS chat_checkpoints (
+    id TEXT PRIMARY KEY,
+    chatId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_checkpoints_chatId ON chat_checkpoints(chatId);
 
   -- Stories made of scenes (\`server/stories.ts\`). The scenes themselves are chats carrying storyId.
   CREATE TABLE IF NOT EXISTS stories (
@@ -342,6 +350,8 @@ export const objectiveStore = createStore('objectives', [
 ])
 export const relationshipEventStore = createStore('relationship_events', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { name: 'createdAt' }])
+/** The scene state saved with each message, for rewinding to it (`rewind.ts`). Keyed by the message id. */
+export const chatCheckpointStore = createStore('chat_checkpoints', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 export const storyMomentStore = createStore('story_moments', [{ name: 'storyId' }, { name: 'chatId' }, { name: 'createdAt' }])
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
