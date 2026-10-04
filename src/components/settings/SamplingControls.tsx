@@ -16,7 +16,7 @@ import { Slider } from '@/components/ui/Slider'
 import { Toggle } from '@/components/ui/Toggle'
 import { Chip } from '@/components/ui/Chip'
 import { Button } from '@/components/ui/Button'
-import { TextField, NumberField } from '@/components/ui/Field'
+import { CommaListField, NumberField, TextField } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { SettingsEyebrow } from '@/components/ui/SettingsEyebrow'
@@ -424,12 +424,12 @@ export function SamplingControls() {
                   onChange={(e) => setSampler({ [f.key]: Number(e.target.value) } as Partial<GenerationParams>)}
                 />
               ))}
-              <TextField
+              <CommaListField
                 label="Stop sequences (comma separated)"
                 className="col-span-full"
-                value={(sampler.stop_sequence ?? []).join(', ')}
-                onChange={(e) =>
-                  setSampler({ stop_sequence: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })
+                value={(sampler.stop_sequence ?? [])}
+                onChange={(list) =>
+                  setSampler({ stop_sequence: list })
                 }
               />
             </div>

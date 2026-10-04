@@ -25,7 +25,7 @@ import { combinedSceneFlags } from '@/lib/dating/stage'
 import { calendarMonths, getCalendarInfo, yearLength } from '@/lib/world/calendar'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import { newId } from '@/lib/id'
-import { NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
+import { CommaListField, NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { Chip } from '@/components/ui/Chip'
@@ -1121,28 +1121,28 @@ export function CharacterEditor({
                   </div>
                 )
               })()}
-              <TextField
+              <CommaListField
                 label="Frequented locations"
-                value={frequentedLocations.join(', ')}
-                onChange={(e) => setFrequentedLocations(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={frequentedLocations}
+                onChange={(list) => setFrequentedLocations(list)}
                 placeholder="the campus café, the riverside park"
               />
-              <TextField
+              <CommaListField
                 label="Likes / interests"
-                value={likes.join(', ')}
-                onChange={(e) => setLikes(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={likes}
+                onChange={(list) => setLikes(list)}
                 placeholder="Gothic architecture, secondhand books"
               />
-              <TextField
+              <CommaListField
                 label="Goals"
-                value={goals.join(', ')}
-                onChange={(e) => setGoals(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={goals}
+                onChange={(list) => setGoals(list)}
                 placeholder="finish her thesis, open a bookshop"
               />
-              <TextField
+              <CommaListField
                 label="Boundaries"
-                value={boundaries.join(', ')}
-                onChange={(e) => setBoundaries(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={boundaries}
+                onChange={(list) => setBoundaries(list)}
                 placeholder="won't tolerate being lied to"
                 hint="Informational for the model, not enforced. The dating opt-out is under Relationships when dating is enabled."
                 className="sm:col-span-2"
@@ -1579,11 +1579,11 @@ export function CharacterEditor({
           description="This character's own comic sound words, on top of the built-in list and any global ones. A catgirl's “nya, nyaa, mrrp”, an imouto's tics. They get the manga-style burst styling in her messages. Display-only; the model never sees this. Turn the whole feature on/off in Settings → Appearance."
           surface="bare"
         >
-          <TextField
+          <CommaListField
             label="Extra sound words"
             hint="Comma separated. Punctuation and length variants are handled automatically (“nya” also matches “Nyaa~”)."
-            value={sfxWords.join(', ')}
-            onChange={(e) => setSfxWords(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+            value={sfxWords}
+            onChange={(list) => setSfxWords(list)}
             placeholder="nya, nyaa, mrrp, purr"
           />
         </Section>
@@ -1688,10 +1688,10 @@ export function CharacterEditor({
                       value={entry.unlockAffection}
                       onChange={(e) => updateGalleryEntry(entry.id, { unlockAffection: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
                     />
-                    <TextField
+                    <CommaListField
                       label="Required scene flags"
-                      value={(entry.requiredFlags ?? []).join(', ')}
-                      onChange={(e) => updateGalleryEntry(entry.id, { requiredFlags: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
+                      value={(entry.requiredFlags ?? [])}
+                      onChange={(list) => updateGalleryEntry(entry.id, { requiredFlags: list })}
                       placeholder="first_date, confession"
                       className="sm:col-span-2"
                     />
@@ -1779,16 +1779,16 @@ export function CharacterEditor({
             surface="bare"
           >
             <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-              <TextField
+              <CommaListField
                 label="Loves gifts like"
-                value={giftLikes.join(', ')}
-                onChange={(e) => setGiftLikes(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={giftLikes}
+                onChange={(list) => setGiftLikes(list)}
                 placeholder="thoughtful books, anything handmade"
               />
-              <TextField
+              <CommaListField
                 label="Not moved by gifts like"
-                value={giftDislikes.join(', ')}
-                onChange={(e) => setGiftDislikes(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+                value={giftDislikes}
+                onChange={(list) => setGiftDislikes(list)}
                 placeholder="anything flashy or impersonal"
               />
               <TextField
@@ -2075,17 +2075,17 @@ export function CharacterEditor({
           }
         >
           <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-            <TextField
+            <CommaListField
               label="Verbal tics / filler words"
-              value={verbalTics.join(', ')}
-              onChange={(e) => setVerbalTics(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+              value={verbalTics}
+              onChange={(list) => setVerbalTics(list)}
               placeholder="well,, I mean, you know?"
               hint="Words or short phrases they lean on, comma separated."
             />
-            <TextField
+            <CommaListField
               label="Catchphrases"
-              value={catchphrases.join(', ')}
-              onChange={(e) => setCatchphrases(e.target.value.split(',').map((v) => v.trim()).filter(Boolean))}
+              value={catchphrases}
+              onChange={(list) => setCatchphrases(list)}
               placeholder="you're impossible, don't push it"
               hint="Signature phrases they reuse across scenes, not just once."
             />
@@ -2235,10 +2235,10 @@ export function CharacterEditor({
           </Section>
 
           <Section title="Metadata" surface="bare">
-            <TextField
+            <CommaListField
               label="Tags (comma separated)"
-              value={(form.tags ?? []).join(', ')}
-              onChange={(e) => set('tags', e.target.value.split(',').map((t) => t.trim()).filter(Boolean))}
+              value={(form.tags ?? [])}
+              onChange={(list) => set('tags', list)}
             />
             <div className="grid grid-cols-2 gap-x-3">
               <TextField label="Creator" value={form.creator ?? ''} onChange={(e) => set('creator', e.target.value)} />

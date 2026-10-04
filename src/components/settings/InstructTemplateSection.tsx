@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { BUILTIN_INSTRUCT_TEMPLATES, resolveInstructTemplate, type InstructTemplate } from '@/lib/prompt/instructTemplates'
 import { parseSillyTavernPreset } from '@/lib/prompt/sillyTavernPreset'
 import { Section } from '@/components/ui/Section'
-import { TextField, TextAreaField } from '@/components/ui/Field'
+import { CommaListField, TextAreaField, TextField } from '@/components/ui/Field'
 import { Toggle } from '@/components/ui/Toggle'
 import { Button } from '@/components/ui/Button'
 import { FileButton } from '@/components/ui/FileButton'
@@ -193,10 +193,10 @@ export function InstructTemplateSection() {
             onChange={(e) => set('assistantSuffix', e.target.value)}
           />
         </div>
-        <TextField
+        <CommaListField
           label="Stop sequences (comma separated)"
-          value={draft.stopSequences.join(', ')}
-          onChange={(e) => set('stopSequences', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+          value={draft.stopSequences}
+          onChange={(list) => set('stopSequences', list)}
         />
         <div className="rounded-lg bg-bg-sunken px-3">
           <Toggle

@@ -7,7 +7,7 @@ import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { anyKeyIsRisky } from '@/lib/text/regexSafety'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
-import { NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
+import { CommaListField, NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
 
 function nextId(entries: LorebookEntry[]): number {
   return entries.reduce((max, e) => Math.max(max, e.id ?? 0), 0) + 1
@@ -105,12 +105,12 @@ export function LorebookEditor({
             <div key={entry.id} className="rounded-xl bg-bg-sunken p-4">
               <div className="flex items-start gap-2">
                 <div className="flex-1">
-                  <TextField
+                  <CommaListField
                     label="Keys"
                     hint="Comma separated. Wrap one in /slashes/ for a regex."
-                    value={entry.keys.join(', ')}
-                    onChange={(e) =>
-                      updateEntry(entry.id!, { keys: e.target.value.split(',').map((k) => k.trim()).filter(Boolean) })
+                    value={entry.keys}
+                    onChange={(list) =>
+                      updateEntry(entry.id!, { keys: list })
                     }
                   />
                   {anyKeyIsRisky(entry.keys) && (
@@ -309,13 +309,13 @@ export function LorebookEditor({
                       </div>
                       {entry.selective && (
                         <>
-                          <TextField
+                          <CommaListField
                             label="Secondary keys"
                             hint="Comma separated. Any one is enough, alongside a primary key match."
-                            value={(entry.secondary_keys ?? []).join(', ')}
-                            onChange={(e) =>
+                            value={(entry.secondary_keys ?? [])}
+                            onChange={(list) =>
                               updateEntry(entry.id!, {
-                                secondary_keys: e.target.value.split(',').map((k) => k.trim()).filter(Boolean),
+                                secondary_keys: list,
                               })
                             }
                           />
