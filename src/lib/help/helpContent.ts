@@ -88,7 +88,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     group: 'Start here',
     icon: 'compass',
     summary: 'What Lost Tales Engine is, and the three things to do first.',
-    keywords: ['welcome', 'intro', 'tutorial', 'tour', 'first run', 'model', 'connect'],
+    keywords: ['welcome', 'intro', 'tutorial', 'tour', 'first run', 'model', 'connect', 'setup', 'starter world', 'hollowmere', 'invite'],
     related: ['navigation', 'stories', 'settings'],
     sections: [
       {
@@ -108,9 +108,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'steps',
             items: [
-              'Connect a model. A fresh install opens on the Welcome screen, which asks for a **Local server** or a **Cloud provider**. You can change it any time in **Settings → Models and services**.',
-              'Meet your cast. Open **Cast** to create a character with **New character**, build one with **Generate with AI**, bring one in with **Import card** (.json or .png), or **Start from a template**.',
-              'Start a story. Go to **Stories** and choose **Start a story**.',
+              'Follow the setup. A new account opens on the setup: a **Text model** (required; **Test it** asks for a real reply), then **Voice** and **Images** (both optional), **Invite players** for owners, and **Your first story**. **Set up later** keeps what is left on the **Get set up** checklist in **Settings**, which ticks each step once it is done. Models can be changed any time in **Settings → Models and services**.',
+              'Play the starter world. **Play the starter world** starts *Hollowmere Station* in Visual Novel mode: choose who you play (Rowan, or someone of your own) and the Game Master opens the scene on the platform. The guided tour starts right after. Or start with any character, or **Finish here and open Cast** to build your own.',
+              'Meet your cast. Open **Cast** to create a character with **New character**, build one with **Generate with AI**, bring one in with **Import card** (.json or .png), or **Start from a template**. Then go to **Stories** and choose **Start a story**.',
             ],
           },
         ],

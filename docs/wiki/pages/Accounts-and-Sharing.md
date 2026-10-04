@@ -10,7 +10,7 @@ The round button with your initial in the top-right corner is the **account menu
 
 ## Adding people (owners)
 
-Open **Admin** from the account menu, or **Settings → Admin**. **Add user** takes a username and an optional email (they can sign in with either). Choose **They choose it (setup code)** to get a one-time setup code to hand them, or **Set a temporary password**. Codes are shown once; keep them private. The **Users** list can issue a new setup code, set a password, or remove someone.
+Open **Admin** from the account menu, or **Settings → Admin**. **Add user** takes a username and an optional email (they can sign in with either). Choose **They choose it (setup code)** to get a one-time setup code to hand them, or **Set a temporary password**. Codes are shown once; keep them private. The **Users** list can issue a new setup code, set a password, or remove someone. The owner's first-run setup offers the same **Add user** form as its optional **Invite players** step.
 
 ![Settings → Admin with the Users list and the Add user form](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-admin.jpg)
 

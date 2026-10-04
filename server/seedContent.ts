@@ -3,7 +3,9 @@
 // schemas it's shaped against. Applied once, on first run, by seed.ts.
 import type { GiftItem, ItemDef, Persona, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
 import type { Character, CharacterCardData } from '../src/lib/characters/cardSpec.ts'
-import type { GmPlayedCharacter, SetEvent } from '../src/lib/world/gm.ts'
+import {
+  HOLLOWMERE_MARA_ID, HOLLOWMERE_PASSENGER_ID, HOLLOWMERE_ROWAN_ID, HOLLOWMERE_TAVI_ID, HOLLOWMERE_WORLD_ID,
+} from '../src/lib/setup/starterStory.ts'
 
 // Fixed, well-known ids rather than crypto.randomUUID() — so seeding is idempotent (seed.ts checks
 // whether this exact world id already exists before doing anything) and so the three pieces of
@@ -19,11 +21,7 @@ export const SEED_PERSONA_ID = 'a0000000-0000-4000-8000-000000000004'
 // and NPC are the honest, in-character amount of art for it, not a corner cut.
 export const SEED_WORLD_2_ID = 'a0000000-0000-4000-8000-000000000005'
 export const SEED_CHARACTER_2_ID = 'a0000000-0000-4000-8000-000000000006'
-export const HOLLOWMERE_WORLD_ID = 'a0000000-0000-4000-8000-000000000007'
-export const HOLLOWMERE_MARA_ID = 'a0000000-0000-4000-8000-000000000008'
-export const HOLLOWMERE_TAVI_ID = 'a0000000-0000-4000-8000-000000000009'
-export const HOLLOWMERE_PASSENGER_ID = 'a0000000-0000-4000-8000-000000000010'
-export const HOLLOWMERE_ROWAN_ID = 'a0000000-0000-4000-8000-000000000011'
+export { HOLLOWMERE_MARA_ID, HOLLOWMERE_PASSENGER_ID, HOLLOWMERE_ROWAN_ID, HOLLOWMERE_TAVI_ID, HOLLOWMERE_WORLD_ID }
 export const HOLLOWMERE_BACKGROUND_KEYS = ['platform', 'waiting-room', 'signal-box', 'marsh-edge'] as const
 export const HOLLOWMERE_EXPRESSIONS = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'scared', 'thinking', 'determined'] as const
 export const HOLLOWMERE_FOX_EXPRESSIONS = ['fox--neutral', 'fox--happy', 'fox--scared', 'fox--determined'] as const
@@ -913,31 +911,5 @@ export const hollowmereRowan: Character = {
 
 export const hollowmereCharacters = [hollowmereMara, hollowmereTavi, hollowmerePassenger, hollowmereRowan] as const
 
-export const STARTER_STORY = {
-  worldId: HOLLOWMERE_WORLD_ID,
-  leadCharacterId: HOLLOWMERE_MARA_ID,
-  participantIds: [HOLLOWMERE_TAVI_ID, HOLLOWMERE_PASSENGER_ID],
-  playerCharacterId: HOLLOWMERE_ROWAN_ID,
-  title: 'Hollowmere Station',
-  sceneTitle: 'The last train',
-  openingNarration: 'The last train reaches Hollowmere at 11:47. Its doors open under a glass canopy. Fog drifts between the wet platform stones and the marsh beyond the rails. Mara Vale waits with an oil lantern. Tavi Rook puts a mail satchel on the bench. A hooded passenger steps down last, holding a brass ticket with a blank name line. The signal lamp by the marsh is dark. Mara asks Rowan to help the passenger off the train and out of the fog.',
-  openingBackgroundId: 'platform',
-  gmNotes: 'The hooded passenger is Nell Fen, a surveyor who lost her recent memory in the marsh fog when the signal went dark. Keep her identity hidden until the player relights the lamp. She is voiced by the GM until that exact set event. Then her own agent takes over. The restored memory still contains no introductions; she does not know anyone present by name until it is said aloud near her after the lamp is lit. Relighting the lamp succeeds as written without a roll. In the final scene, the brass marker and Nell’s satchel at the marsh edge confirm her route; let her decide whether to stay or leave.',
-  setEvents: [{
-    id: 'relight-signal',
-    trigger: 'The signal lamp is relit',
-    outcome: 'The signal lamp catches. A small marsh light answers across the reeds. Letters appear on the passenger’s brass ticket: Nell Fen. She remembers that she went to survey the washed-out culvert two nights ago, lost the path in the fog, and reached the last train. She can now speak for herself.',
-    consequence: 'Nell Fen has her name and recent memory back. The signal lamp remains lit and the last train has a safe route out.',
-    match: ['light|relight|ignite|kindle', 'lamp|signal'],
-  }] satisfies SetEvent[],
-  gmPlayed: [{
-    characterId: HOLLOWMERE_PASSENGER_ID,
-    as: 'a hooded passenger with a blank ticket, cold and missing their recent memory; answer simple questions without revealing their name',
-    until: 'relight-signal',
-  }] satisfies GmPlayedCharacter[],
-  chapter: [
-    { title: 'The last train', goal: 'Bring the passenger inside, inspect the blank ticket, and learn that the signal lamp is dark.' },
-    { title: 'The signal box', goal: 'Find a dry wick and oil, then relight the signal lamp to restore the passenger’s memory.' },
-    { title: 'The marsh edge', goal: 'Follow the answering light, find Nell’s satchel and survey marker, and return safely with the mystery resolved.' },
-  ],
-}
+// The wizard starts the story from this, so it lives where the browser can read it too.
+export { STARTER_STORY } from '../src/lib/setup/starterStory.ts'

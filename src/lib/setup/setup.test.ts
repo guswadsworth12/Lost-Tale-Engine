@@ -44,4 +44,17 @@ describe('the setup wizard', () => {
     expect(previousStep('welcome')).toBeUndefined()
     expect(previousStep('voice')).toBe('text')
   })
+
+  it('gives owners an optional Invite players step before the first story, and members never see it', () => {
+    const owner = { ...nothing, isOwner: true }
+    expect(checklist(owner, NEW_SETUP).map((i) => i.step.id)).toEqual(['text', 'voice', 'images', 'invite', 'story'])
+    expect(checklist(nothing, NEW_SETUP).map((i) => i.step.id)).not.toContain('invite')
+    expect(nextStep('images', owner)).toBe('invite')
+    expect(nextStep('invite', owner)).toBe('story')
+    expect(previousStep('story', owner)).toBe('invite')
+    expect(nextStep('images', nothing)).toBe('story')
+    // Done once anyone else has an account; skippable like any optional step.
+    expect(checklist({ ...owner, hasOtherUsers: true }, NEW_SETUP).find((i) => i.step.id === 'invite')?.state).toBe('done')
+    expect(checklist(owner, withSkipped(NEW_SETUP, 'invite', true)).find((i) => i.step.id === 'invite')?.state).toBe('skipped')
+  })
 })

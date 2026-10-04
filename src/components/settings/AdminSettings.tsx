@@ -6,6 +6,7 @@ import { SettingsPage } from '@/components/ui/SettingsPage'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { PASSWORD_MIN_LENGTH } from '@/components/auth/passwordRules'
 import { adminApi, isSetupCodeIssued, usersApi } from '@/lib/accounts/api'
+import { invalidate } from '@/lib/api/client'
 import type { AccountRole, AccountUser, LeftoverAccount, SetupCodeIssued } from '@/lib/accounts/contract'
 import { useAuthStore } from '@/lib/accounts/useAuthStore'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
@@ -80,6 +81,8 @@ function AddUser({ onAdded, onCodeIssued }: { onAdded: () => void; onCodeIssued:
       setEmail('')
       setPassword('')
       setRole('member')
+      // The setup checklist's Invite players step ticks itself from the account list.
+      invalidate('users')
       onAdded()
     } catch (err) {
       toastError(errorMessage(err))
@@ -122,6 +125,21 @@ function AddUser({ onAdded, onCodeIssued }: { onAdded: () => void; onCodeIssued:
         {busy ? 'Adding…' : 'Add user'}
       </Button>
     </form>
+  )
+}
+
+/** Add user on its own, for the setup wizard's Invite players step: the setup code shows right above the form. */
+export function InvitePlayers() {
+  const [issued, setIssued] = useState<SetupCodeIssued | null>(null)
+  return (
+    <>
+      {issued && (
+        <div className="mb-4">
+          <SetupCodeNotice issued={issued} onDone={() => setIssued(null)} />
+        </div>
+      )}
+      <AddUser onAdded={() => {}} onCodeIssued={setIssued} />
+    </>
   )
 }
 

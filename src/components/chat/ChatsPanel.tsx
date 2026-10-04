@@ -16,6 +16,8 @@ import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { NewChatDialog } from './NewChatDialog'
 import { TrashPanel } from './TrashPanel'
 import { Button } from '@/components/ui/Button'
+import { SetupWizard } from '@/components/setup/SetupWizard'
+import { useSetupFacts } from '@/components/setup/useSetupFacts'
 
 function StoryPreview({ chat, world }: { chat: Chat; world?: WorldCard }) {
   const messages = useApiQuery('messages', () => messagesApi.listByChat(chat.id), [chat.id]) ?? []
@@ -64,6 +66,9 @@ export function ChatsPanel({
   const [busyId, setBusyId] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const charFor = (id: string) => characters.find((c) => c.id === id)
+  // Existing accounts never get the setup wizard; they get one line if nobody can reply (#40).
+  const { textReady, loading: factsLoading } = useSetupFacts()
+  const [fixingText, setFixingText] = useState(false)
 
   const startRename = (group: StoryGroup) => {
     setMenuForId(null)
@@ -148,6 +153,12 @@ export function ChatsPanel({
             <Plus size={15} /> Start a story
           </Button>
         </div>
+        {!factsLoading && !textReady && (
+          <div role="status" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-text">
+            <span>No Text model is set up, so nobody can reply yet.</span>
+            <button onClick={() => setFixingText(true)} className="font-medium text-accent hover:underline">Set it up</button>
+          </div>
+        )}
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {groups.map((group) => {
             const chat = group.current
@@ -208,6 +219,10 @@ export function ChatsPanel({
       </div>
       {showNew && <NewChatDialog onClose={() => setShowNew(false)} onCreated={(id) => { setShowNew(false); onSelect(id) }} />}
       {showTrash && <TrashPanel onClose={() => setShowTrash(false)} onRestored={(id) => { setShowTrash(false); onSelect(id) }} />}
+      {fixingText && (
+        <SetupWizard variant="overlay" initialStep="text" onClose={() => setFixingText(false)}
+          onStarted={(id) => { setFixingText(false); onSelect(id) }} onNavigate={() => setFixingText(false)} />
+      )}
     </div>
   )
 }
