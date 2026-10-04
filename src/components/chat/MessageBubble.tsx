@@ -7,7 +7,6 @@ import { messageAnchorId } from '@/lib/scrollToMessage'
 import { renderMessageText } from '@/lib/text/messageText'
 import { CampaignRollBadge, GmTurnCard } from './GmTurnCard'
 import type { SfxConfig } from '@/lib/text/messageSegments'
-import { confirmDialog } from '@/lib/store/useConfirmStore'
 import { copyText } from '@/lib/text/copyText'
 import { toastError } from '@/lib/store/useToastStore'
 import { intentSpec } from '@/lib/dating/intent'
@@ -370,15 +369,8 @@ export const MessageBubble = memo(function MessageBubble({
             <GitFork size={13} strokeWidth={2} />
           </button>
           <button
-            onClick={async () => {
-              const ok = await confirmDialog({
-                title: 'Rewind to here?',
-                body: 'Deletes this message and everything after it in this chat. Unlike forking, the discarded messages are not kept anywhere.',
-                confirmLabel: 'Rewind',
-                tone: 'danger',
-              })
-              if (ok) onRewind(message.id)
-            }}
+            // The rewind dialog (`RewindDialog`) shows what this undoes and asks first.
+            onClick={() => onRewind(message.id)}
             className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-bg-sunken hover:text-danger"
             title="Rewind to here (delete this and everything after)"
             aria-label="Rewind to here. Delete this message and everything after it"

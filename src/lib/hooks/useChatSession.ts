@@ -4985,13 +4985,20 @@ export function useChatSession(chatId: string | null) {
    * for a local single-user app's message counts. Unlike forking (section 4), which is for
    * *keeping* both branches, this discards the tail outright.
    */
+  /**
+   * Rewinds the scene to `messageId` on the server (#57): the message and everything after it go, and
+   * so do the memories, facts, relationship changes and objective progress they made; the scene's
+   * relationships, gifts and scene state come back from the checkpoint saved with the message.
+   * `restoreClock` also puts the shared world clock back.
+   */
   const rewindToMessage = useCallback(
-    async (messageId: string) => {
-      const idx = messages.findIndex((m) => m.id === messageId)
-      if (idx === -1) return
-      await Promise.all(messages.slice(idx).map((m) => messagesApi.remove(m.id)))
+    async (messageId: string, opts?: { restoreClock?: boolean }) => {
+      if (!chatId) return undefined
+      // Nothing still writing into the part being removed.
+      abortRef.current?.abort()
+      return chatsApi.rewind(chatId, { messageId, restoreClock: opts?.restoreClock })
     },
-    [messages],
+    [chatId],
   )
 
   const togglePinMessage = useCallback(async (messageId: string) => {

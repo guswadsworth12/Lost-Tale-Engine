@@ -31,7 +31,7 @@ Open **Story panel → Scenes** to revisit earlier scenes or **Read the whole st
 
 Untick **Include recaps** to share just the story. Failed replies are left out, and each message exports the reply you kept. **Export scene as HTML** in Tools still saves a single scene as a web page with portraits.
 
-To explore a different branch, use **Fork chat from here** on a message; **Rewind to here** deletes that message and everything after it. Later branch state does not travel backward. The current story remains available from the main menu while you play.
+To explore a different branch, use **Fork chat from here** on a message; **Rewind to here** deletes that message and everything after it, and takes the scene back to how it stood just before it: the memories, facts, relationship changes and objective progress from those messages go, and relationships, gifts, scene state and tracked state come back as they were. The dialog lists what it will undo first. If the world clock has moved since, it offers to set it back; that's ticked only when no other story in the world has been played since, because every story there shares the clock. A backup of the database is saved in the data folder's `backups` first (the newest ten are kept). Messages saved before this feature can be rewound, but their scene state stays as it is now. Later branch state does not travel backward. The current story remains available from the main menu while you play.
 
 ## Related
 

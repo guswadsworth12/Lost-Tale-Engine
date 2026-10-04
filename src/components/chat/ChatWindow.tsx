@@ -67,6 +67,7 @@ import { GenerationHud } from './GenerationHud'
 import { Composer } from './Composer'
 import { ConnectionBadge } from './ConnectionBadge'
 import { PromptInspector } from './PromptInspector'
+import { RewindDialog } from './RewindDialog'
 import { ObjectivePanel } from './ObjectivePanel'
 import { DateEventPanel } from './DateEventPanel'
 import { DayPlannerPanel } from './DayPlannerPanel'
@@ -239,6 +240,8 @@ export function ChatWindow({
   const otherCharacters = character ? allCharacters.filter((c) => c.id !== character.id) : allCharacters
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showInspector, setShowInspector] = useState(false)
+  // The message a rewind was asked for: the dialog shows what it undoes before anything goes (#57).
+  const [rewindTarget, setRewindTarget] = useState<string | null>(null)
   const [showObjective, setShowObjective] = useState(false)
   const [showEvent, setShowEvent] = useState(false)
   const [showDayPlanner, setShowDayPlanner] = useState(false)
@@ -958,6 +961,10 @@ export function ChatWindow({
           </div>
         </header>
       )}
+      {rewindTarget && chat && (
+        <RewindDialog chatId={chat.id} messageId={rewindTarget} world={world}
+          onRewind={(opts) => rewindToMessage(rewindTarget, opts)} onClose={() => setRewindTarget(null)} />
+      )}
       {showInspector && (
         <PromptInspector
           loadPrompt={previewPrompt}
@@ -1244,7 +1251,7 @@ export function ChatWindow({
           onRegenerate: regenerate,
           onSteer: regenerateWithSteer,
           onDelete: deleteMessage,
-          onRewind: rewindToMessage,
+          onRewind: setRewindTarget,
           onEdit: editMessage,
           onFork: forkChat,
           onTogglePin: togglePinMessage,
@@ -1319,7 +1326,7 @@ export function ChatWindow({
                 highlightedMessageId: highlightedId,
                 onEdit: editMessage,
                 onDelete: deleteMessage,
-                onRewind: rewindToMessage,
+                onRewind: setRewindTarget,
                 onRegenerate: regenerate,
                 onSteer: regenerateWithSteer,
                 onSwipe: swipe,
