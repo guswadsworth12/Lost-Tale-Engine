@@ -111,6 +111,9 @@ import {
   describeWeather,
   describeWorldMoment,
   detectNarratedPhase,
+  advancePhase,
+  clockAfterNarration,
+  formatCalendarDate,
   getCalendarInfo,
   resolveScheduledPresence,
   getEnergyRemaining,
@@ -775,6 +778,7 @@ export function useChatSession(chatId: string | null) {
                 day: world.currentDay ?? 0,
                 phaseIndex: promptPhaseIndex,
                 weatherPreferences: speaker.weatherPreferences,
+                calendar: world.calendar,
               }),
               // Only worth a line when this character actually has a schedule authored.
               speaker.schedule?.length
@@ -860,6 +864,7 @@ export function useChatSession(chatId: string | null) {
               frequentedLocations: speaker.frequentedLocations,
               weatherPreferences: speaker.weatherPreferences,
               birthday: speaker.birthday,
+              calendar: world?.calendar,
             }),
           })
 
@@ -1029,7 +1034,11 @@ export function useChatSession(chatId: string | null) {
       // checks the reply against them afterwards, so both halves have to be reading the same values.
       const promptLocation = sceneSetting.location ?? scheduleLocation
       const promptTimePhase = world
-        ? `${getCalendarInfo(world.currentDay ?? 0).weekday} ${PHASES[promptPhaseIndex]}`
+        ? (() => {
+            // A world with its own calendar names its own weekday; the built-in one keeps "monday".
+            const info = getCalendarInfo(world.currentDay ?? 0, world.calendar)
+            return `${info.custom ? info.weekdayName : info.weekday} ${PHASES[promptPhaseIndex]}`
+          })()
         : freshChat.scene?.timePhase || undefined
 
       // The engine-rendered ledger of a live intimate scene — clothing, contact, and arousal the app
@@ -1421,6 +1430,37 @@ export function useChatSession(chatId: string | null) {
    * never from the model. Best effort: a failed call leaves the watermark, so the next run retries.
    * A chat's first run only reads its most recent messages; older history stays with the summary.
    */
+  /**
+   * With the world's "Advance time while role playing" ticked (#51), moves the shared world clock to
+   * where the story says time has gone. Each text is read from the same starting time and the latest
+   * wins, so a player's "the next morning" and the GM narrating that morning move it once. `step`
+   * moves it one part of the day instead (a scene ending). The scene's own time of day is set to
+   * match, so the reply being written right now already reads the new time. Never throws.
+   */
+  const followStoryTime = useCallback(async (texts: string[], opts?: { step?: boolean; sceneId?: string }): Promise<boolean> => {
+    try {
+      if (!world?.advanceClockInPlay || !modulesForWorld(world).worldSimulation) return false
+      const fresh = await worldsApi.get(world.id)
+      if (!fresh?.advanceClockInPlay) return false
+      const from = { day: fresh.currentDay ?? 0, phaseIndex: fresh.currentPhaseIndex ?? 0 }
+      const later = (a: typeof from, b: typeof from) => (b.day > a.day || (b.day === a.day && b.phaseIndex > a.phaseIndex) ? b : a)
+      const next = opts?.step
+        ? advancePhase(from.day, from.phaseIndex)
+        : texts.map((t) => clockAfterNarration(from.day, from.phaseIndex, t)).reduce<typeof from | undefined>((best, t) => (t ? (best ? later(best, t) : t) : best), undefined)
+      if (!next) return false
+      await worldsApi.update(world.id, { currentDay: next.day, currentPhaseIndex: next.phaseIndex })
+      const sceneId = opts?.sceneId ?? chatId
+      const scene = sceneId ? await chatsApi.get(sceneId) : undefined
+      if (scene && scene.scene?.timePhase !== PHASES[next.phaseIndex]) {
+        await chatsApi.update(scene.id, { scene: { turnPolicy: 'manual', ...scene.scene, timePhase: PHASES[next.phaseIndex] } })
+      }
+      toastInfo(`Time moves on: ${PHASES[next.phaseIndex]}, ${formatCalendarDate(getCalendarInfo(next.day, fresh.calendar))}.`)
+      return true
+    } catch {
+      return false
+    }
+  }, [chatId, world])
+
   const scribeMemories = useCallback(async (opts?: { flush?: boolean }) => {
     if (!chatId || !character || !characterMemoryOn) return
     if (scribingRef.current) {
@@ -2851,9 +2891,11 @@ export function useChatSession(chatId: string | null) {
         },
       })
       runAssist('memory', 'Writing journals', () => writeJournals(chatId, presentIds))
+      // Time moves on between scenes when the world's clock follows the story.
+      await followStoryTime([], { step: true, sceneId: nextScene.id })
       return nextScene
     },
-    [allCharactersById, chatId, playerCharacter, runAssist, scribeMemories, world, writeJournals],
+    [allCharactersById, chatId, followStoryTime, playerCharacter, runAssist, scribeMemories, world, writeJournals],
   )
 
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */
@@ -3648,7 +3690,12 @@ export function useChatSession(chatId: string | null) {
           const setting = sceneSettingFrom(upTo, freshChat?.scene, (id) => backgroundLabel(id, world))
           return { location: setting.location, atmosphere: setting.atmosphere }
         })(),
-        timeOfDay: freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0],
+        timeOfDay: (() => {
+          const phase = freshChat?.scene?.timePhase ?? PHASES[world.currentPhaseIndex ?? 0]
+          // The date matters to the GM once the world counts its own or the clock follows the story.
+          return world.calendar || world.advanceClockInPlay ? `${phase}, ${formatCalendarDate(getCalendarInfo(world.currentDay ?? 0, world.calendar))}` : phase
+        })(),
+        clockFollowsNarration: !!world.advanceClockInPlay && modulesForWorld(world).worldSimulation,
         roster: cast,
         availableRoster: available,
         loadedRoster,
@@ -3767,6 +3814,8 @@ export function useChatSession(chatId: string | null) {
         } : {}),
       }
       await messagesApi.create(gmMsg)
+      // The player's message and the GM's narration, read together, move the clock once.
+      await followStoryTime([playerMsg.text, turn.narration])
       if (turn.addCharacterIds?.length) {
         const fresh = await chatsApi.get(chatId)
         if (fresh) {
@@ -3871,7 +3920,7 @@ export function useChatSession(chatId: string | null) {
       remoteRef.current = []
       if (characterMemoryOn) runAssist('memory', 'Remembering', () => scribeMemories())
     },
-    [character, chat?.playerCharacterId, characterMemoryOn, chatId, decideGmTurn, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
+    [character, chat?.playerCharacterId, characterMemoryOn, chatId, decideGmTurn, followStoryTime, participantCharacters, persona, runAssist, runGeneration, scribeMemories, callableLore, refineCharacterForms],
   )
 
   /** The roll is durable before the model starts; a failed model call cannot change the dice. */
@@ -3981,7 +4030,7 @@ export function useChatSession(chatId: string | null) {
           const sameGiftRun = trailingSameGiftRun(track.giftLog, opts.choice.giftId)
           const isMismatch = preferenceScore <= -0.5
           const isBirthdayToday =
-            giftTarget.birthday !== undefined && daysUntilAnnualDate(world?.currentDay ?? 0, giftTarget.birthday) === 0
+            giftTarget.birthday !== undefined && daysUntilAnnualDate(world?.currentDay ?? 0, giftTarget.birthday, world?.calendar) === 0
           // Any gifts (not just this exact one) given in the recent turn window — the soft "don't
           // gift-spam" cap, distinct from sameGiftRun's "not the same gift over and over" one.
           const recentCount = recentGiftCount(track.giftLog, messages.length)
@@ -4154,7 +4203,13 @@ export function useChatSession(chatId: string | null) {
         // Follow a time-of-day the player just narrated ("the next morning", "at lunch", "that night"):
         // a per-chat override of the shared world clock's phase, cleared back to null once the
         // narration lands back on the world clock's own phase.
-        const narratedPhase = detectNarratedPhase(composedText)
+        // A GM beat reads this message together with its own narration (`runGmBeat`).
+        const gmTurns = !!world?.campaign && modulesForWorld(world).campaignRules && (freshChat.scene?.turnPolicy ?? 'manual') === 'gm' && !opts?.withdrawCheck
+        const clockFollowsStory = !!world?.advanceClockInPlay && modulesForWorld(world).worldSimulation
+        if (!gmTurns) await followStoryTime([composedText])
+        // With the clock following the story it is the one time of day; the looser per-scene guess
+        // below (which "good night" or "this morning" would trip) is for worlds whose clock doesn't.
+        const narratedPhase = clockFollowsStory ? undefined : detectNarratedPhase(composedText)
         if (narratedPhase) {
           const worldPhase = PHASES[world?.currentPhaseIndex ?? 0]
           const nextPhaseOverride = narratedPhase === worldPhase ? null : narratedPhase
@@ -4238,7 +4293,7 @@ export function useChatSession(chatId: string | null) {
         endGeneration()
       }
     },
-    [beginGeneration, character, chatId, gmClient, endGeneration, messages, participantCharacters, persona, reducedAudio, refineCharacterForms, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
+    [beginGeneration, character, chatId, gmClient, endGeneration, followStoryTime, messages, participantCharacters, persona, reducedAudio, refineCharacterForms, replyAsCharacterId, resolveSpeaker, runGeneration, runGmBeat, world],
   )
 
   const regenerate = useCallback(
@@ -4649,6 +4704,7 @@ export function useChatSession(chatId: string | null) {
               day: moment.day,
               phaseIndex: moment.phaseIndex,
               weatherPreferences: character.weatherPreferences,
+              calendar: world.calendar,
             }),
             { charName: character.card.name, userName: persona?.name || 'You' },
           )
@@ -4659,7 +4715,7 @@ export function useChatSession(chatId: string | null) {
           // The world clock just moved — a narrated-time override from before is stale now.
           if (chat?.scene?.timePhase) await chatsApi.update(chatId, { scene: { ...chat.scene, timePhase: null } })
           if (result.slept) {
-            const weather = getWeather(world.id, result.day)
+            const weather = getWeather(world.id, result.day, world.calendar)
             toastSuccess(`Tired after a full day, you call it a night. A new morning dawns — ${describeWeather(weather)}.`)
           }
         }
@@ -4877,7 +4933,7 @@ export function useChatSession(chatId: string | null) {
         const result = spendEnergy(day, phaseIndex)
         await worldsApi.update(world.id, { currentDay: result.day, currentPhaseIndex: result.phaseIndex })
         if (chatId && chat?.scene?.timePhase) await chatsApi.update(chatId, { scene: { ...chat.scene, timePhase: null } })
-        const weather = getWeather(world.id, result.day)
+        const weather = getWeather(world.id, result.day, world.calendar)
         toastSuccess(
           result.slept
             ? `You call it a night. A new morning dawns — ${describeWeather(weather)}.`

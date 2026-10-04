@@ -746,8 +746,12 @@ export interface WorldCard {
   relationshipThresholds?: Partial<Record<Exclude<RelationshipStage, 'near_strangers'>, number>>
   /** World-authored scene flags beyond the 4 built-ins — see `CustomSceneFlag`. */
   customSceneFlags?: CustomSceneFlag[]
-  /** Absolute day count in the shared 112-day calendar (`src/lib/world/calendar.ts`) — 0 if never advanced. */
+  /** Absolute day count on this world's calendar (`src/lib/world/calendar.ts`) — 0 if never advanced. */
   currentDay?: number
+  /** This world's own calendar: year and era, months, weekday names, holidays (#51). Unset: the built-in 112-day year. */
+  calendar?: import('@/lib/world/calendar').WorldCalendar
+  /** Move the world clock forward as the story says time passes, when a scene ends, and when the Game Master rules that time passes. */
+  advanceClockInPlay?: boolean
   /** Index into `calendar.ts`'s `PHASES` (morning/afternoon/evening/night) — 0 if never advanced. */
   currentPhaseIndex?: number
   /** Picked at creation (`src/lib/world/worldTemplates.ts`), editable after — narrows which editor tabs show. Unset behaves like 'dating_sim' (full feature set). */

@@ -48,6 +48,7 @@ import { adminRouter } from './admin.ts'
 import { packsRouter, usePackRowBuilders } from './packs.ts'
 import { isCampaignResolver, normalizeCampaignRanks, normalizeCampaignStats, normalizeCharacterSheet, normalizeCharacterSheets, sheetForWorld, sheetModifier, statForMove, type CampaignConfig } from '../src/lib/world/campaign.ts'
 import { validateCustomResolver } from '../src/lib/world/customRules.ts'
+import { CALENDAR_LIMITS, normalizeCalendar } from '../src/lib/world/calendar.ts'
 import { normalizeWorldRevisions } from '../src/lib/world/revisions.ts'
 import { normalizePromptOverrides } from '../src/lib/prompt/promptOverrides.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
@@ -594,10 +595,11 @@ function normalizeOutreach(raw: unknown): { frequency: string } | undefined {
   return typeof frequency === 'string' && OUTREACH_FREQUENCIES.has(frequency) ? { frequency } : undefined
 }
 
-/** `Character.birthday` — a day-of-year (world/calendar.ts's 112-day year), clamped/rounded rather
- *  than rejected outright so a stray out-of-range value from the client still lands somewhere sane. */
+/** `Character.birthday` — a day-of-year on the character's world calendar (112 days built in, up to
+ *  `CALENDAR_LIMITS.yearDays` on a world's own), clamped/rounded rather than rejected outright so a
+ *  stray out-of-range value from the client still lands somewhere sane. */
 function normalizeDayOfYear(raw: unknown): number | undefined {
-  return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, Math.min(111, Math.round(raw))) : undefined
+  return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, Math.min(CALENDAR_LIMITS.yearDays - 1, Math.round(raw))) : undefined
 }
 
 const REPLY_LENGTHS = new Set(['auto', 'brief', 'moderate', 'detailed'])
@@ -1523,6 +1525,8 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     name: body.name,
     campaign: normalizeCampaign(body.campaign),
     modules: normalizeWorldModules(body.modules),
+    calendar: normalizeCalendar(body.calendar),
+    advanceClockInPlay: body.advanceClockInPlay === true || undefined,
     promptItems: normalizePromptItems(body.promptItems),
     canonFacts: normalizeCanonFacts(body.canonFacts),
     description: body.description,
@@ -1585,6 +1589,8 @@ app.put('/api/worlds/:id', (req, res) => {
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
+  if ('calendar' in req.body) patch.calendar = normalizeCalendar(req.body.calendar)
+  if ('advanceClockInPlay' in req.body) patch.advanceClockInPlay = req.body.advanceClockInPlay === true || undefined
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('canonFacts' in req.body) patch.canonFacts = normalizeCanonFacts(req.body.canonFacts)
   if ('avatarDataUrl' in req.body) patch.avatarDataUrl = resolveAvatar('worlds', id, req.body.avatarDataUrl)

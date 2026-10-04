@@ -1,7 +1,7 @@
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat, WorldCard } from '@/lib/types'
 import { getRelationshipTrack } from '@/lib/dating/stage'
-import { ALL_HOLIDAYS, daysUntilAnnualDate, getCalendarInfo } from '@/lib/world/calendar'
+import { daysUntilAnnualDate, formatCalendarDate, getCalendarInfo, holidaysOf } from '@/lib/world/calendar'
 import { Modal } from '@/components/ui/Modal'
 
 interface KeyDate {
@@ -24,7 +24,7 @@ interface CalendarPanelProps {
  *  every one of these is just "a day-of-year to count down to." */
 export function CalendarPanel({ world, character, participantCharacters, chat, onClose }: CalendarPanelProps) {
   const day = world.currentDay ?? 0
-  const info = getCalendarInfo(day)
+  const info = getCalendarInfo(day, world.calendar)
 
   const dates: KeyDate[] = []
   for (const c of [character, ...participantCharacters]) {
@@ -36,19 +36,19 @@ export function CalendarPanel({ world, character, participantCharacters, chat, o
     if (!track.commitmentStatus || track.commitmentStatus === 'none' || track.commitmentStartedDay === undefined) continue
     dates.push({ emoji: '💞', label: `Anniversary with ${c.card.name}`, dayOfYear: track.commitmentStartedDay })
   }
-  for (const holiday of ALL_HOLIDAYS) {
+  for (const holiday of holidaysOf(world.calendar)) {
     dates.push({ emoji: '✨', label: holiday.name, dayOfYear: holiday.dayOfYear })
   }
 
   const sorted = dates
-    .map((d) => ({ ...d, daysUntil: daysUntilAnnualDate(day, d.dayOfYear) }))
+    .map((d) => ({ ...d, daysUntil: daysUntilAnnualDate(day, d.dayOfYear, world.calendar) }))
     .sort((a, b) => a.daysUntil - b.daysUntil)
 
   return (
     <Modal
       onClose={onClose}
       title="Key dates"
-      description={`Day ${info.day}. ${info.weekday}, ${info.season} (${info.dayOfSeason}/28)`}
+      description={info.custom ? formatCalendarDate(info) : `Day ${info.day}. ${formatCalendarDate(info)}`}
       size="lg"
       scrollable
     >

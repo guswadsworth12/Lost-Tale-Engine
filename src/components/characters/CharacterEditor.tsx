@@ -22,7 +22,7 @@ import { buildCharacterPack, downloadCharacterPack, importCharacterPack, parseCh
 import { DEFAULT_EXPRESSIONS, slugifyExpressionId, type CustomExpression } from '@/lib/vn/expressions'
 import { BASE_OUTFIT_ID, expressionIdsForOutfit, outfitCoverage, slugifyOutfitId, spriteKey, type Outfit } from '@/lib/vn/outfits'
 import { combinedSceneFlags } from '@/lib/dating/stage'
-import { getCalendarInfo } from '@/lib/world/calendar'
+import { calendarMonths, getCalendarInfo, yearLength } from '@/lib/world/calendar'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import { newId } from '@/lib/id'
 import { NumberField, SelectField, TextAreaField, TextField } from '@/components/ui/Field'
@@ -1103,22 +1103,24 @@ export function CharacterEditor({
               <TextField label="Occupation" value={occupation} onChange={(e) => setOccupation(e.target.value)} placeholder="second-year architecture student" />
               <TextField label="Workplace / school" value={workplace} onChange={(e) => setWorkplace(e.target.value)} placeholder="Sakura Hill University" />
               <TextField label="Home" value={homeLocation} onChange={(e) => setHomeLocation(e.target.value)} placeholder="a small apartment near the station" />
-              <NumberField
-                label="Birthday (day of year)"
-                min={0}
-                max={111}
-                value={birthday ?? ''}
-                onChange={(e) => setBirthday(e.target.value === '' ? undefined : Math.max(0, Math.min(111, Math.round(Number(e.target.value)))))}
-                placeholder="0-111"
-                hint={
-                  birthday !== undefined
-                    ? (() => {
-                        const info = getCalendarInfo(birthday)
-                        return `→ ${info.season.charAt(0).toUpperCase() + info.season.slice(1)}, day ${info.dayOfSeason}/28`
-                      })()
-                    : 'An 8x gift bonus on the day, plus a nudge that it’s coming up. Day 0 is the first day of Spring, wrapping every 112 days.'
-                }
-              />
+              {(() => {
+                // A month and a day on this character's world calendar (its own, or the built-in seasons), stored as a day of the year.
+                const cal = editingWorld?.calendar
+                const months = calendarMonths(cal)
+                const born = birthday === undefined ? undefined : getCalendarInfo(Math.min(birthday, yearLength(cal) - 1), cal)
+                return (
+                  <div className="grid grid-cols-[1fr_6rem] gap-x-2">
+                    <SelectField label={cal ? 'Birthday month' : 'Birthday season'} value={born ? born.monthIndex : ''}
+                      onChange={(e) => setBirthday(e.target.value === '' ? undefined : months[Number(e.target.value)].start + Math.min((born?.dayOfMonth ?? 1), months[Number(e.target.value)].days) - 1)}
+                      hint="An 8x gift bonus on the day, plus a nudge that it’s coming up.">
+                      <option value="">No birthday</option>
+                      {months.map((m, i) => <option key={i} value={i}>{m.name}</option>)}
+                    </SelectField>
+                    <NumberField label="Day" min={1} max={born?.monthDays ?? 1} step={1} disabled={!born} value={born?.dayOfMonth ?? ''}
+                      onChange={(e) => born && setBirthday(months[born.monthIndex].start + Math.max(1, Math.min(born.monthDays, Math.round(Number(e.target.value) || 1))) - 1)} />
+                  </div>
+                )
+              })()}
               <TextField
                 label="Frequented locations"
                 value={frequentedLocations.join(', ')}

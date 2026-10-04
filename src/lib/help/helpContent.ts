@@ -1081,7 +1081,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
     icon: 'clock',
     summary: 'The world clock, calendar, day planner, weather and schedules.',
     condition: 'Only in worlds with World simulation turned on.',
-    keywords: ['clock', 'time', 'day', 'phase', 'morning', 'night', 'calendar', 'key dates', 'birthday', 'holiday', 'day planner', 'energy', 'actions', 'weather', 'schedule', 'outreach', 'triggers', 'scene flags'],
+    keywords: ['clock', 'time', 'day', 'phase', 'morning', 'night', 'calendar', 'year', 'month', 'era', 'advance time', 'key dates', 'birthday', 'holiday', 'day planner', 'energy', 'actions', 'weather', 'schedule', 'outreach', 'triggers', 'scene flags'],
     related: ['worlds', 'dating', 'story-panel'],
     sections: [
       {
@@ -1095,8 +1095,9 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
           {
             kind: 'list',
             items: [
-              'Worlds → Simulation → **World clock** shows it and can **Advance** to the next time of day.',
+              'Worlds → Simulation → **World clock** shows it, can **Advance** to the next time of day, and can **Set date** to any day.',
               'In play, Story panel → Scene shows the day and time of day, and **Tools → Director** can **Advance to next phase**.',
+              '**Advance time while role playing** (World clock) moves the clock on by itself: when your message or the Game Master says time passes ("that evening", "the next morning", "two days later", "by dusk"), and by one part of the day when a scene ends. Words in "quotes" never count, and the clock never goes back. A toast says where it moved.',
             ],
           },
           {
@@ -1109,6 +1110,10 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         id: 'sim-calendar',
         heading: 'Calendar and day planner',
         blocks: [
+          {
+            kind: 'text',
+            text: "Every world starts on the built-in year: four seasons of 28 days, Monday to Sunday, and a holiday mid-season. Worlds → Simulation → **Calendar** → **Use this world's own calendar** gives it its own: the year the clock starts in and an era (\"X\" shows as X792, \"AC\" as AC 792, or after the year), months with their lengths and seasons (seasons set the weather), names for the seven weekdays, and holidays. Characters and the Game Master are told the date. Birthdays (Cast → Life & background) are a month and day of the world's year.",
+          },
           {
             kind: 'list',
             items: [

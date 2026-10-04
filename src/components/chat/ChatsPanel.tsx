@@ -6,7 +6,7 @@ import { useModelFor } from '@/lib/hooks/useModelFor'
 import { createChat } from '@/lib/chat/createChat'
 import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { backgroundLabel } from '@/lib/vn/backgrounds'
-import { PHASES } from '@/lib/world/calendar'
+import { PHASES, formatShortDate, getCalendarInfo } from '@/lib/world/calendar'
 import { modulesForWorld } from '@/lib/world/worldTemplates'
 import { groupStories, type StoryGroup } from '@/lib/story/library'
 import type { Character } from '@/lib/characters/cardSpec'
@@ -26,7 +26,8 @@ function StoryPreview({ chat, world }: { chat: Chat; world?: WorldCard }) {
   const lastLine = [...messages].reverse().find((m) => (m.role === 'char' || m.role === 'user') && m.text.trim())?.text
   const usesClock = !!world && modulesForWorld(world).worldSimulation
   const phase = usesClock ? chat.scene?.timePhase ?? PHASES[world!.currentPhaseIndex ?? 0] : undefined
-  const day = usesClock ? `Day ${(world!.currentDay ?? 0) + 1}` : undefined
+  // A world with its own calendar shows its date; the built-in one counts days.
+  const day = usesClock ? (world!.calendar ? formatShortDate(getCalendarInfo(world!.currentDay ?? 0, world!.calendar)) : `Day ${(world!.currentDay ?? 0) + 1}`) : undefined
   return (
     <>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">

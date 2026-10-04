@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   ALL_HOLIDAYS,
+  CALENDAR_LIMITS,
+  WEEKDAYS,
+  advanceForPassage,
+  clockAfterNarration,
+  dayForDate,
+  detectTimePassages,
+  formatCalendarDate,
+  formatYear,
+  holidaysOf,
+  normalizeCalendar,
+  yearLength,
   DAYS_PER_YEAR,
   activityPhase,
   advancePhase,
@@ -26,7 +37,7 @@ import {
 describe('getCalendarInfo', () => {
   it('starts day 0 on spring, day-of-season 1, Monday, no holiday', () => {
     const info = getCalendarInfo(0)
-    expect(info).toEqual({ day: 0, season: 'spring', dayOfSeason: 1, weekday: 'monday', holiday: undefined })
+    expect(info).toMatchObject({ day: 0, season: 'spring', dayOfSeason: 1, weekday: 'monday', holiday: undefined })
   })
 
   it('every season starts on a Monday', () => {
@@ -413,5 +424,69 @@ describe('ALL_HOLIDAYS', () => {
     for (const holiday of ALL_HOLIDAYS) {
       expect(getCalendarInfo(holiday.dayOfYear).holiday).toBe(holiday.name)
     }
+  })
+})
+
+describe('a world with its own calendar (#51)', () => {
+  // A 12-month year of 30 days, written "X792", with renamed days and two holidays.
+  const fiore = normalizeCalendar({
+    startYear: 792,
+    era: 'X',
+    months: Array.from({ length: 12 }, (_, i) => ({ name: `Month ${i + 1}`, days: 30 })),
+    weekdays: ['Moonday', 'Tideday', 'Windday', 'Thunderday', 'Fireday', 'Starday', 'Sunday'],
+    holidays: [{ name: 'Roadlight Festival', month: 10, day: 14 }, { name: 'Nowhere', month: 2, day: 31 }],
+  })!
+
+  it('counts years with their era, months by name, and weeks straight through the year', () => {
+    expect(yearLength(fiore)).toBe(360)
+    expect(getCalendarInfo(0, fiore)).toMatchObject({ year: 792, yearLabel: 'X792', month: 'Month 1', dayOfMonth: 1, weekday: 'monday', weekdayName: 'Moonday', custom: true })
+    const roadlight = dayForDate(fiore, { year: 792, monthIndex: 10, dayOfMonth: 14 })
+    expect(getCalendarInfo(roadlight, fiore)).toMatchObject({ month: 'Month 11', dayOfMonth: 14, holiday: 'Roadlight Festival' })
+    expect(getCalendarInfo(360, fiore)).toMatchObject({ year: 793, month: 'Month 1', dayOfMonth: 1 })
+    // 360 isn't a multiple of 7, so the new year doesn't restart the week.
+    expect(getCalendarInfo(360, fiore).weekday).toBe(WEEKDAYS[360 % 7])
+    expect(formatCalendarDate(getCalendarInfo(roadlight, fiore))).toBe(`${getCalendarInfo(roadlight, fiore).weekdayName}, 14 Month 11, X792`)
+    expect(daysUntilAnnualDate(0, holidaysOf(fiore)[0].dayOfYear, fiore)).toBe(roadlight)
+  })
+
+  it('cleans what it stores: real holidays only, seven weekday names or none, capped lengths', () => {
+    expect(fiore.holidays).toEqual([{ name: 'Roadlight Festival', month: 10, day: 14 }])
+    expect(normalizeCalendar({ months: [] })).toBeUndefined()
+    expect(normalizeCalendar({ months: [{ name: 'Only', days: 5000 }] })!.months[0].days).toBe(CALENDAR_LIMITS.monthDays)
+    expect(normalizeCalendar({ months: [{ name: 'A', days: 10 }], weekdays: ['One', 'Two'] })!.weekdays).toBeUndefined()
+    expect(formatYear(12, { era: 'AC' })).toBe('AC 12')
+    expect(formatYear(12, { era: 'AC', eraAfter: true })).toBe('12 AC')
+    expect(formatYear(12, {})).toBe('Year 12')
+  })
+
+  it('leaves worlds without one exactly as they were', () => {
+    expect(getCalendarInfo(15)).toMatchObject({ season: 'spring', dayOfSeason: 16, weekday: 'tuesday', custom: false })
+    expect(formatCalendarDate(getCalendarInfo(13))).toBe('sunday, spring (14/28)')
+    expect(holidaysOf()).toEqual(ALL_HOLIDAYS)
+  })
+})
+
+describe('time the story says has passed (#51)', () => {
+  it('moves forward on phrases that pass time, in the order they come', () => {
+    expect(clockAfterNarration(4, 0, 'We part ways. That evening, the lanterns go up.')).toEqual({ day: 4, phaseIndex: 2 })
+    expect(clockAfterNarration(4, 2, 'The next morning, rain.')).toEqual({ day: 5, phaseIndex: 0 })
+    expect(clockAfterNarration(4, 1, 'That night we keep watch. The next morning we set out.')).toEqual({ day: 5, phaseIndex: 0 })
+    expect(clockAfterNarration(4, 1, 'Two days later, the letter arrives.')).toEqual({ day: 6, phaseIndex: 1 })
+    expect(clockAfterNarration(4, 3, 'Hours pass.')).toEqual({ day: 5, phaseIndex: 0 })
+    // Naming an earlier part of the day means the next one, never going back.
+    expect(clockAfterNarration(4, 3, 'By dawn the fog has lifted.')).toEqual({ day: 5, phaseIndex: 0 })
+  })
+
+  it('ignores speech, plain mentions of a time, and a time that is already now', () => {
+    expect(clockAfterNarration(4, 0, '"See you the next morning," she says.')).toBeUndefined()
+    expect(clockAfterNarration(4, 0, 'Good night. This morning was long.')).toBeUndefined()
+    expect(clockAfterNarration(4, 2, 'That evening, nobody speaks.')).toBeUndefined()
+    expect(detectTimePassages('I wave. “A week later,” I joke.')).toEqual([])
+  })
+
+  it('lands where a passage says from wherever the clock is', () => {
+    expect(advanceForPassage(1, 2, { days: 0, phase: 'afternoon' })).toEqual({ day: 2, phaseIndex: 1 })
+    expect(advanceForPassage(1, 2, { days: 7, phase: 'morning' })).toEqual({ day: 8, phaseIndex: 0 })
+    expect(advanceForPassage(1, 2, { days: 0, phases: 1 })).toEqual({ day: 1, phaseIndex: 3 })
   })
 })

@@ -821,7 +821,7 @@ export function RelationshipPanel({
         <div className="space-y-4">
           {viewingCharacter?.birthday !== undefined &&
             world &&
-            daysUntilAnnualDate(world.currentDay ?? 0, viewingCharacter.birthday) === 0 && (
+            daysUntilAnnualDate(world.currentDay ?? 0, viewingCharacter.birthday, world.calendar) === 0 && (
               <div className="flex items-center gap-2.5 rounded-xl bg-romance/10 px-3 py-2.5 text-sm text-romance">
                 <Cake size={16} strokeWidth={1.75} className="shrink-0" />
                 <span>
