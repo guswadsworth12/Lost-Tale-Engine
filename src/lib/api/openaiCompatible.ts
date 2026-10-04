@@ -45,6 +45,20 @@ function isOpenRouter(baseUrl: string): boolean {
 // OpenAI, OpenRouter, Groq, Together, local servers (llama.cpp, LM Studio, Ollama's OpenAI shim),
 // and more. Does not attempt native Anthropic/Google wire formats; OpenRouter already re-exposes
 // both through this same shape.
+/** Fields a request can't do without: never dropped, however a provider words its refusal. */
+const REQUIRED_FIELDS = new Set(['model', 'messages', 'stream'])
+
+/**
+ * The request field a 400 refuses by name, if it names one: OpenAI's "Unsupported parameter: 'stop'"
+ * and "Unsupported value: 'temperature' does not support 0.7…", Google's "Unknown name \"verbosity\"".
+ */
+export function refusedParamFrom(message: string): string | undefined {
+  const m = message.match(/Unsupported (?:parameter|value):\s*'([a-z_]+)'/i)
+    ?? message.match(/Unknown name \\?"([a-z_]+)\\?"/i)
+    ?? message.match(/'([a-z_]+)' is not supported with this model/i)
+  return m?.[1]
+}
+
 /** Finish reasons that mean a filter stopped the reply, across providers (Gemini says `content_filter` or `safety`). */
 const BLOCKED_FINISH = /^(content_filter|safety|prohibited_content|blocklist|recitation)$/i
 
@@ -83,6 +97,14 @@ export class OpenAICompatibleClient implements ChatBackend {
    */
   private usesMaxCompletionTokens = false
 
+  /**
+   * Request fields this model has refused by name ("Unsupported parameter: 'stop'", Google's
+   * "Unknown name \"verbosity\""). Newer reasoning models drop fields older ones take, and no provider
+   * publishes which, so each refusal is learned once, the request redone without it, and the field left
+   * out from then on. A refused `stop` is applied here instead (`cutAtStop`), so replies still end there.
+   */
+  private refusedParams = new Set<string>()
+
   private isMaxTokensParamError(message: string): boolean {
     const m = message.toLowerCase()
     return m.includes('max_tokens') && m.includes('max_completion_tokens')
@@ -119,7 +141,8 @@ export class OpenAICompatibleClient implements ChatBackend {
     // Gemini has no frequency penalty at all and rejects the request outright if it's present.
     if (typeof params.frequency_penalty === 'number' && params.frequency_penalty !== 0 && !isGemini(this.baseUrl)) body.frequency_penalty = params.frequency_penalty
     if (params.reasoning_effort) body.reasoning_effort = params.reasoning_effort
-    if (params.verbosity) body.verbosity = params.verbosity
+    // Gemini doesn't know `verbosity` and refuses the whole request over it.
+    if (params.verbosity && !isGemini(this.baseUrl)) body.verbosity = params.verbosity
     // See `isOpenRouter`'s doc comment. An explicit effort still wins (translated into OpenRouter's
     // own shape alongside the OpenAI-style field above, so either convention reaches the model);
     // "Auto" — no explicit choice made — means "off" here, not "let the provider pick its own
@@ -134,7 +157,19 @@ export class OpenAICompatibleClient implements ChatBackend {
     }
     if (params.stop_sequence?.length) body.stop = params.stop_sequence
     if (params.jsonOutput && this.prefersJsonObject) body.response_format = { type: 'json_object' }
+    for (const field of this.refusedParams) if (!REQUIRED_FIELDS.has(field)) delete body[field]
     return body
+  }
+
+  /** With `stop` refused by the model, where the reply should end: the first stop sequence, or nowhere. */
+  private stopAt(text: string, stops: string[] | undefined): number {
+    if (!this.refusedParams.has('stop') || !stops?.length) return -1
+    let cut = -1
+    for (const stop of stops) {
+      const at = stop ? text.indexOf(stop) : -1
+      if (at >= 0 && (cut < 0 || at < cut)) cut = at
+    }
+    return cut
   }
 
   private async parseErrorBody(res: Response): Promise<string> {
@@ -196,7 +231,8 @@ export class OpenAICompatibleClient implements ChatBackend {
     const unreachableMessage = stream ? `Could not reach ${this.baseUrl} for streaming.` : `Could not reach ${this.baseUrl}. Is the base URL and network correct?`
     const failedMessage = stream ? 'Chat completion stream failed' : 'Chat completion failed'
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // One retry per refused field at most, so a few strict fields can be learned in one turn, never a loop.
+    for (let attempt = 0; attempt < 5; attempt++) {
       const rawBody = this.body(params, stream)
       const body = isOpenMayhem(this.baseUrl) ? await openMayhemRequestBody(rawBody) : rawBody
       let res: Response
@@ -209,9 +245,17 @@ export class OpenAICompatibleClient implements ChatBackend {
       if (res.ok) return res
 
       const errorText = (await this.parseErrorBody(res)).slice(0, 300)
-      if (attempt === 0 && !this.usesMaxCompletionTokens && this.isMaxTokensParamError(errorText)) {
+      if (!this.usesMaxCompletionTokens && this.isMaxTokensParamError(errorText)) {
         this.usesMaxCompletionTokens = true
         continue
+      }
+      const refused = res.status === 400 ? refusedParamFrom(errorText) : undefined
+      if (refused && !REQUIRED_FIELDS.has(refused) && !this.refusedParams.has(refused) && refused in rawBody) {
+        this.refusedParams.add(refused)
+        continue
+      }
+      if (/only supports Interactions API/i.test(errorText)) {
+        throw new KoboldApiError('This Gemini model only works through Google\'s Interactions API, which Lost Tales Engine doesn\'t support yet. Choose another Gemini model for this job in Settings → Models and services.', res.status)
       }
       const hint = res.status === 429 ? this.rateLimitHint(res) : ''
       throw new KoboldApiError(`${failedMessage} (${res.status}): ${errorText}${hint}`, res.status)
@@ -229,7 +273,9 @@ export class OpenAICompatibleClient implements ChatBackend {
     if (!data.choices && data.error) throw this.errorInSuccess(data.error)
     const message = data.choices?.[0]?.message
     if (!(message?.content ?? '').trim() && BLOCKED_FINISH.test(data.choices?.[0]?.finish_reason ?? '')) throw this.safetyBlockedError()
-    const content = message?.content ?? ''
+    const uncut = message?.content ?? ''
+    const cut = this.stopAt(uncut, params.stop_sequence)
+    const content = cut >= 0 ? uncut.slice(0, cut) : uncut
     if (isOpenMayhem(this.baseUrl) && !content.trim()) {
       throw new KoboldApiError('OpenMayhem returned no reply text. Check the model and response token limit; generation may still have used credit.')
     }
@@ -263,6 +309,7 @@ export class OpenAICompatibleClient implements ChatBackend {
     // all-reasoning, no-content stream can be told apart from a model that legitimately sent nothing.
     let reasoningChars = 0
     let blocked = false
+    let stopped = false
 
     try {
       while (true) {
@@ -294,11 +341,21 @@ export class OpenAICompatibleClient implements ChatBackend {
           const token = delta?.content
           if (typeof token === 'string' && token) {
             full += token
+            const cut = this.stopAt(full, params.stop_sequence)
+            if (cut >= 0) {
+              // The model was past its stop sequence: keep what came before, and stop reading.
+              full = full.slice(0, cut)
+              onToken('', full)
+              await reader.cancel().catch(() => {})
+              stopped = true
+              break
+            }
             onToken(token, full)
           }
           const reasoningToken = delta?.reasoning || delta?.reasoning_content
           if (typeof reasoningToken === 'string') reasoningChars += reasoningToken.length
         }
+        if (stopped) break
       }
     } catch (e) {
       if (signal?.aborted) return full
