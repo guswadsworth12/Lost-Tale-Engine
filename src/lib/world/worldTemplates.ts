@@ -9,6 +9,7 @@ export interface WorldModules {
   dating: boolean
   visualNovel: boolean
   worldSimulation: boolean
+  deepMemory: boolean
   romanceEmphasis: RomanceEmphasis
 }
 
@@ -26,6 +27,7 @@ export function modulesForWorld(world?: Pick<WorldCard, 'template' | 'campaign' 
     dating,
     visualNovel: choices?.visualNovel ?? template !== 'freeform',
     worldSimulation: choices?.worldSimulation ?? template !== 'freeform',
+    deepMemory: choices?.deepMemory ?? false,
     romanceEmphasis: romanceEmphasisFor(template, dating),
   }
 }

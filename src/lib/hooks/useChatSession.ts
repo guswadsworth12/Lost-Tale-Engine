@@ -263,7 +263,7 @@ import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
 import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
 import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
-import { buildScribePrompt, parseScribeResponse } from '@/lib/memory/scribe'
+import { buildScribePrompt, parseScribeResponse, scribeMemoryRows } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
@@ -738,11 +738,12 @@ export function useChatSession(chatId: string | null) {
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
+      const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       // Character memory: this speaker hears only what they witnessed or were told, in this story.
       // The transcript leaves out messages from while they were not there (before they arrived, or
       // while they were away), and the scene summary reaches them only if they missed none of it.
       const memoryOn = characterMemoryOn && !opts?.impersonateAsUser
-      const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id).catch(() => []) : []
+      const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id, modules.deepMemory ? speaker.id : undefined).catch(() => []) : []
       const missedIds = new Set(memoryOn ? branchMessages.filter((m) => !witnessedMessage(m, speaker.id)).map((m) => m.id) : [])
       const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
       const memoryPicks = memoryOn
@@ -750,6 +751,11 @@ export function useChatSession(chatId: string | null) {
             characterId: speaker.id,
             presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
             recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
+            ...(modules.deepMemory ? { deep: {
+              location: sceneSetting.location,
+              now: Date.now(),
+              recalls: new Map(sceneMemories.flatMap((m) => m.recall ? [[m.id, m.recall] as const] : [])),
+            } } : {}),
           })
         : []
       const memoryJournal = memoryOn ? latestJournal(sceneMemories, speaker.id) : undefined
@@ -765,8 +771,6 @@ export function useChatSession(chatId: string | null) {
         ? stateLines(gameStateFrom(tracks, freshChat.gameState, branchMessages, { playerId: freshChat.playerCharacterId }).state, tracks,
           { audience: { characterId: speaker.id }, playerId: freshChat.playerCharacterId, nameOf: (id) => (id === speaker.id ? speaker.card.name : undefined) })
         : []
-      // Where the scene is now, replayed from the branch (`chat/sceneSetting.ts`), not the chat's opening value.
-      const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       const worldMomentLines = [
         ...(world
           ? [
@@ -1315,6 +1319,7 @@ export function useChatSession(chatId: string | null) {
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
+      if (memoryOn && modules.deepMemory) built.memoryRecallIds = memoryPicks.map((p) => p.memory.id)
       // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
       if (opts?.includeSectionBreakdown && memoryOn) {
         const names = new Map([speaker, ...roster, ...(character ? [character] : []), ...participantCharacters].map((c) => [c.id, c.card.name]))
@@ -1528,19 +1533,7 @@ export function useChatSession(chatId: string | null) {
         )
         const result = parseScribeResponse(raw, input)
         if (result.add.length) {
-          await memoriesApi.createMany(result.add.map((a) => ({
-            chatId,
-            text: a.text,
-            kind: a.kind,
-            importance: a.importance,
-            witnesses: a.witnessIds,
-            about: a.aboutIds,
-            feelings: a.feelings,
-            unresolved: a.unresolved,
-            certainty: a.certainty,
-            sourceMessageId: a.messageId,
-            origin: 'scribe' as const,
-          })))
+          await memoriesApi.createMany(scribeMemoryRows(result.add, chatId, branch, fresh.scene, (id) => backgroundLabel(id, world)))
         }
         await Promise.all([
           ...result.told.map((t) => memoriesApi.share(t.memoryId, { to: t.toIds, by: t.byId, messageId: t.messageId, chatId }).catch(() => {})),
@@ -1554,7 +1547,7 @@ export function useChatSession(chatId: string | null) {
     } finally {
       scribingRef.current = false
     }
-  }, [jobShaping.memory, character, characterMemoryOn, chatId, memoryClient, participantCharacters, persona?.name, playerCharacter, sampler.max_context_length, world?.name])
+  }, [jobShaping.memory, character, characterMemoryOn, chatId, memoryClient, participantCharacters, persona?.name, playerCharacter, sampler.max_context_length, world])
 
   /**
    * When a scene ends, each character there folds their older, settled memories into their own
@@ -3167,6 +3160,9 @@ export function useChatSession(chatId: string | null) {
       let combined = ''
       let scene: ReturnType<typeof sanitizeSceneTag>
       let wroteAnything = false
+      const recalledIds = new Set<string>()
+      let recallSwipe = 0
+      let retainReply = true
       // Set when the loop ends on a reply that's still mid-sentence with no continuation coming — trimmed after the loop.
       let needsSentenceTrim = false
 
@@ -3301,6 +3297,7 @@ export function useChatSession(chatId: string | null) {
             const freshMsg = await messagesApi.get(targetMessageId)
             const swipes = freshMsg?.swipes?.length ? [...freshMsg.swipes] : [accumulated]
             const activeSwipe = freshMsg?.activeSwipe ?? 0
+            recallSwipe = activeSwipe
             swipes[activeSwipe] = combined
             const swipeScenes = freshMsg?.swipeScenes ? [...freshMsg.swipeScenes] : []
             swipeScenes[activeSwipe] = scene
@@ -3323,6 +3320,7 @@ export function useChatSession(chatId: string | null) {
             const freshMsg = await messagesApi.get(targetMessageId)
             const existingSwipes = freshMsg?.swipes?.length ? [...freshMsg.swipes] : [combined]
             const activeSwipe = Math.min(freshMsg?.activeSwipe ?? 0, Math.max(0, existingSwipes.length - 1))
+            recallSwipe = activeSwipe
             existingSwipes[activeSwipe] = combined
             const swipeScenes = freshMsg?.swipeScenes ? [...freshMsg.swipeScenes] : []
             swipeScenes[activeSwipe] = scene
@@ -3343,6 +3341,7 @@ export function useChatSession(chatId: string | null) {
               servedBy: servedByLabel(replyJob),
             })
           }
+          if (isUsableReply) for (const id of built.memoryRecallIds ?? []) recalledIds.add(id)
           wroteAnything = wroteAnything || isUsableReply
           // Rolls world-info sticky/cooldown state forward for next turn.
           await chatsApi.update(chat.id, { worldInfoState: built.worldInfoState ?? {} })
@@ -3486,6 +3485,7 @@ export function useChatSession(chatId: string | null) {
         // never the rejected attempt's own post-reply assists (the relationship judge fires at most
         // once per message id, so the retry, not the discarded attempt, must be the one it sees).
         if (hardFailCorrection) {
+          retainReply = false
           await runGeneration(historyForPrompt, targetMessageId, images, {
             ...opts,
             hardFailRetriesLeft: (opts?.hardFailRetriesLeft ?? 1) - 1,
@@ -3584,6 +3584,11 @@ export function useChatSession(chatId: string | null) {
           await messagesApi.update(targetMessageId, { text: '', failed: true })
         }
       } finally {
+        // One batch for the retained reply, including a saved partial continuation. The server
+        // checks that it is usable; a rejected attempt leaves recording to its replacement.
+        if (retainReply && wroteAnything && recalledIds.size) {
+          void memoriesApi.recordRecalls(chat.id, speaker.id, targetMessageId, [...recalledIds], recallSwipe)
+        }
         activeGenerationClientRef.current = null
         setIsGenerating(false)
         setStreamingText('')

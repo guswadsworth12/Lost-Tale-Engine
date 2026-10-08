@@ -186,6 +186,8 @@ export function normalizeMemoryInput(raw: unknown, now: number): NewMemory | { e
     origin: (raw.origin as CharacterMemory['origin'] | undefined) ?? 'manual',
     createdAt: finite(raw.createdAt) ? raw.createdAt : now,
   }
+  const location = str(raw.location).trim().slice(0, 200)
+  if (location) memory.location = location
   if (str(raw.storyId)) memory.storyId = str(raw.storyId)
   if (str(raw.worldId)) memory.worldId = str(raw.worldId)
   if (toldVia.length) memory.toldVia = toldVia
@@ -348,7 +350,7 @@ export function forkMemories(
   idMap: Map<string, string>,
   cutoffCreatedAt: number | undefined,
   newChatId: string,
-  newId: () => string,
+  newId: (sourceId?: string) => string,
 ): CharacterMemory[] {
   const byCutoff = (at: unknown) => cutoffCreatedAt === undefined || (finite(at) && at <= cutoffCreatedAt)
   const rows: CharacterMemory[] = []
@@ -371,7 +373,7 @@ export function forkMemories(
     }
     const knownBy = computeKnownBy(m.witnesses ?? [], toldVia)
     const { toldVia: _tv, feelings: _f, sourceMessageId: _s, consolidatedFor: _cf, ...rest } = m
-    const row: CharacterMemory = { ...rest, id: newId(), chatId: newChatId, knownBy }
+    const row: CharacterMemory = { ...rest, id: newId(m.id), chatId: newChatId, knownBy }
     if (sourceMessageId) row.sourceMessageId = sourceMessageId
     if (toldVia.length) row.toldVia = toldVia
     const feelings = feelingsFor(m.feelings, knownBy)

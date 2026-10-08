@@ -499,3 +499,13 @@ describe('nextWatermark', () => {
     expect(nextWatermark(5, 20, undefined)).toBe(20)
   })
 })
+
+
+describe('memory location', () => {
+  it('keeps only a trimmed, capped, optional location on new memories', () => {
+    const raw = { chatId: 'scene', text: 'Brisa crossed the quay.', witnesses: ['brisa'] }
+    expect(normalizeMemoryInput({ ...raw, location: '  Ferry Landing  ' }, NOW)).toMatchObject({ location: 'Ferry Landing' })
+    expect(normalizeMemoryInput({ ...raw, location: ' x'.repeat(300) }, NOW)).toHaveProperty('location', (' x'.repeat(300)).trim().slice(0, 200))
+    for (const location of [undefined, null, '', '   ', 123]) expect(normalizeMemoryInput({ ...raw, location }, NOW)).not.toHaveProperty('location')
+  })
+})

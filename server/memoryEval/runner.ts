@@ -36,7 +36,7 @@ export function run(args: string[], print: (line: string) => void = console.log)
   if (!cases.length) throw new Error('No recall cases found.')
   if (new Set(cases.map((c) => c.id)).size !== cases.length) throw new Error('Duplicate case ids.')
   const results = cases.map((c) => evaluateCase(c, options))
-  print('Current ranking baseline (module off)')
+  print(`Current ranking (module ${options.module ?? 'off'})`)
   for (const r of results) {
     print(`${r.hit ? 'HIT' : 'MISS'} ${r.id}${r.mustNeverRegress ? ' [must-never-regress]' : ''}: ${r.question}`)
     print(`  Expected picked: ${r.recalled.length}/${r.expected}; tokens: ${r.usedTokens}/${r.budgetTokens}`)

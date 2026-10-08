@@ -4,6 +4,7 @@
  * model call. Witnesses come from the engine (who was present); the model may only narrow them.
  */
 
+import { sceneSettingFrom } from '@/lib/chat/sceneSetting'
 import { parseLenientJson } from '@/lib/jsonRepair'
 import type { MemoryCertainty, MemoryKind } from '@/lib/types'
 
@@ -376,4 +377,24 @@ function interpret(obj: Record<string, unknown>, input: ScribeInput): ScribeResu
   }
 
   return { add, told, retire, resolve: resolved }
+}
+
+
+/** A batch can span a move: replay only through the message each memory came from. */
+export function scribeMemoryRows(
+  additions: ScribeAdd[],
+  chatId: string,
+  branch: (Parameters<typeof sceneSettingFrom>[0][number] & { id: string })[],
+  opening: Parameters<typeof sceneSettingFrom>[1],
+  labelFor: Parameters<typeof sceneSettingFrom>[2],
+) {
+  return additions.map((a) => {
+    const index = branch.findIndex((m) => m.id === a.messageId)
+    const location = sceneSettingFrom(index < 0 ? branch : branch.slice(0, index + 1), opening, labelFor).location
+    return {
+      chatId, text: a.text, kind: a.kind, importance: a.importance, witnesses: a.witnessIds,
+      about: a.aboutIds, feelings: a.feelings, unresolved: a.unresolved, certainty: a.certainty,
+      sourceMessageId: a.messageId, origin: 'scribe' as const, location,
+    }
+  })
 }

@@ -167,6 +167,20 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
+  -- One recall per memory, speaker and reply swipe; indexed deletes keep rewind local.
+  CREATE TABLE IF NOT EXISTS memory_recall_events (
+    memoryId TEXT NOT NULL,
+    characterId TEXT NOT NULL,
+    chatId TEXT NOT NULL,
+    messageId TEXT NOT NULL,
+    swipe INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (memoryId, characterId, messageId, swipe)
+  );
+  CREATE INDEX IF NOT EXISTS idx_recall_events_message ON memory_recall_events(messageId);
+  CREATE INDEX IF NOT EXISTS idx_recall_events_chat ON memory_recall_events(chatId);
+  CREATE INDEX IF NOT EXISTS idx_recall_events_speaker ON memory_recall_events(characterId, memoryId);
+
   -- Pictures of things that happened in a story (\`server/moments.ts\`), each from one scene.
   CREATE TABLE IF NOT EXISTS story_moments (
     id TEXT PRIMARY KEY,
@@ -364,4 +378,40 @@ export const removedUserStore = createStore('removed_users', [{ name: 'createdAt
 
 export function newId(): string {
   return crypto.randomUUID()
+}
+
+export interface RecallEvent { memoryId: string; characterId: string; messageId: string; chatId: string; swipe: number; at: number }
+
+/** Indexed reply events; counts include only the selected swipe in the visible scene chain. */
+export const memoryRecallStore = {
+  list(): RecallEvent[] {
+    return db.prepare('SELECT * FROM memory_recall_events').all() as unknown as RecallEvent[]
+  },
+  forChat(chatId: string): RecallEvent[] {
+    return db.prepare('SELECT * FROM memory_recall_events WHERE chatId = ?').all(chatId) as unknown as RecallEvent[]
+  },
+  counts(characterId: string, chain: string[]) {
+    if (!chain.length) return []
+    return db.prepare(`SELECT e.memoryId, COUNT(*) AS count, MAX(e.at) AS lastAt
+      FROM memory_recall_events e JOIN messages m ON m.id = e.messageId
+      WHERE e.characterId = ? AND e.chatId IN (${chain.map(() => '?').join(', ')})
+        AND e.swipe = COALESCE(json_extract(m.data, '$.activeSwipe'), 0)
+      GROUP BY e.memoryId`).all(characterId, ...chain) as unknown as { memoryId: string; count: number; lastAt: number }[]
+  },
+  insert(row: Record<string, unknown>) {
+    db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
+      .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at))
+  },
+  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ?').run(memoryId) },
+  removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recall_events WHERE characterId = ?').run(characterId) },
+  retract(messageId: string, swipe?: number) {
+    if (swipe === undefined) db.prepare('DELETE FROM memory_recall_events WHERE messageId = ?').run(messageId)
+    else db.prepare('DELETE FROM memory_recall_events WHERE messageId = ? AND swipe = ?').run(messageId, swipe)
+  },
+  removeSwipes(messageId: string, length: number) {
+    db.prepare('DELETE FROM memory_recall_events WHERE messageId = ? AND swipe >= ?').run(messageId, length)
+  },
+  purgeChat(chatId: string) { db.prepare('DELETE FROM memory_recall_events WHERE chatId = ?').run(chatId) },
+  clear() { db.exec('DELETE FROM memory_recall_events') },
 }

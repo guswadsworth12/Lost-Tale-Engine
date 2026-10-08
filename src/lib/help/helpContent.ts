@@ -786,12 +786,22 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
               '**Dating tools**: dates, gifts, intimacy and CGs. Needs Relationships.',
               '**Visual novel presentation**: scene art, sprites and music.',
               '**World simulation**: a shared clock with days, time of day, weather and schedules.',
+              '**Deep Memory**: favors strong feelings, familiar places, and often remembered moments. Off by default; needs Character memory in Settings → Generation.',
             ],
           },
           {
             kind: 'note',
             text: 'Romance emphasis follows the template and dating tools: a Dating Sim world puts dating controls up front, other templates let romance develop naturally, and it is off when dating tools are off. Switching a module off keeps its settings for later.',
           },
+        ],
+      },
+      {
+        id: 'worlds-deep-memory',
+        heading: 'Deep Memory',
+        blocks: [
+          { kind: 'text', text: 'Enable **Deep Memory** in a world’s Overview → World modules to favor memories with strong feelings, memories of the current place, and moments that character has often remembered. It is off by default for every template and needs **Character memory** in Settings → Generation.' },
+          { kind: 'text', text: 'Characters still recall only what they witnessed or were told on this story branch. The memory budget stays the same. Frequently remembered moments gradually lose their extra pull when they are not recalled again. No extra model calls are needed.' },
+          { kind: 'text', text: '**Inspect prompt & memory** explains picks with **Strong feeling**, **Happened here**, and **Often remembered**. Turning Deep Memory off returns to ordinary memory ranking and keeps recorded places for later.' },
         ],
       },
       {

@@ -1,0 +1,250 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`preserves Phase 0 picks and prompt memory text on every case with the module off 1`] = `
+[
+  {
+    "id": "wording-bridge",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "wording-gift",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "wording-literal",
+    "picks": [
+      "wanted",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Tavi repaired the cracked silver lantern in Lantern Court. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "wording-stem",
+    "picks": [
+      "wanted",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa promised to guard the northern gates during the storm. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "connections-introduction",
+    "picks": [
+      "link",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "wanted",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Rowan welcomed Tavi at the candle guild after Mira arrived. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Mira brought Tavi to the candle guild. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+  },
+  {
+    "id": "connections-key",
+    "picks": [
+      "link",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "wanted",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Mira entrusted that borrowed key to Rowan at dawn. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Tavi lent a bronze key to Mira before the journey. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+  },
+  {
+    "id": "connections-place",
+    "picks": [
+      "link",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "wanted",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Tavi left the basket with Mira beneath an apple tree. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa learned that Mira tends the orchard. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+  },
+  {
+    "id": "emotion-pain",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "emotion-joy",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "emotion-fear",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "place-ferry",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "place-orchard",
+    "picks": [
+      "routine-6",
+      "routine-5",
+      "routine-4",
+      "routine-3",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "place-market",
+    "picks": [
+      "wanted",
+      "routine-6",
+      "routine-5",
+      "routine-4",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Rowan taught Brisa how to bargain at the night market. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.
+- Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.
+- Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+  },
+  {
+    "id": "knowledge-unknown",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa remembers the public lantern ceremony.",
+  },
+  {
+    "id": "knowledge-pinned-secret",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa remembers the public lantern ceremony.",
+  },
+  {
+    "id": "knowledge-retired",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa remembers the public lantern ceremony.",
+  },
+  {
+    "id": "knowledge-folded",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa remembers the public lantern ceremony.",
+  },
+  {
+    "id": "branch-sibling",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa recalls crossing the public stone causeway.",
+  },
+  {
+    "id": "branch-telling",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa recalls crossing the public stone causeway.",
+  },
+  {
+    "id": "branch-sequel",
+    "picks": [
+      "safe",
+    ],
+    "text": "What Brisa remembers (only Brisa knows exactly this; others may not):
+- Brisa recalls crossing the public stone causeway.",
+  },
+]
+`;

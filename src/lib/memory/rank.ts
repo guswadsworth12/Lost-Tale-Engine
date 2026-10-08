@@ -1,4 +1,4 @@
-import type { CharacterMemory } from '@/lib/types'
+import type { CharacterMemory, MemoryRecall } from '@/lib/types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 
 /**
@@ -9,6 +9,26 @@ import { estimateTokens } from '@/lib/tokenEstimate'
 
 export const MEMORY_TOKEN_BUDGET = 350
 export const MAX_PINNED = 8
+
+export const DEEP_MEMORY_WEIGHTS = {
+  importance: 0.45,
+  recency: 0.25,
+  openThread: 0.3,
+  aboutPresent: 0.2,
+  keywords: 0.3,
+  feeling: 0.5,
+  place: 0.5,
+  recall: 0.25,
+} as const
+const RECALL_HALF_LIFE_MS = 30 * 86400_000
+const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+function recallStrength(recall: MemoryRecall | undefined, now: number): number {
+  if (!recall || !Number.isFinite(recall.count) || recall.count <= 0 || !Number.isFinite(recall.lastAt)) return 0
+  const count = Math.min(1, Math.log1p(recall.count) / Math.log(11))
+  const age = Math.max(0, now - recall.lastAt)
+  return count * Math.pow(0.5, age / RECALL_HALF_LIFE_MS)
+}
 
 /** Live, non-journal memories `characterId` knows and has not already folded into their own
  *  journal (`consolidatedFor`); another knower whose journal lacks it still retrieves it. */
@@ -71,6 +91,8 @@ export interface SelectMemoriesOptions {
   recentText: string
   /** Default `MEMORY_TOKEN_BUDGET`. Pinned memories are kept even past it (up to `MAX_PINNED`). */
   budgetTokens?: number
+  /** Omitted means the original ranking, including the original reasons. */
+  deep?: { location?: string | null; recalls?: ReadonlyMap<string, MemoryRecall>; now: number }
 }
 
 /** The memories `characterId` knows that fit the budget, pinned first, then by score. */
@@ -87,6 +109,9 @@ export interface MemoryReasons {
   /** Importance 0.7 or higher. */
   important: boolean
   score: number
+  strongFeeling?: boolean
+  samePlace?: boolean
+  oftenRecalled?: boolean
 }
 
 export interface ExplainedMemory {
@@ -109,6 +134,10 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
   const reasonsFor = (m: CharacterMemory): MemoryReasons => {
     const aboutPresent = (m.about ?? []).filter((id) => present.has(id))
     const overlap = keywordOverlap(m.text, recent)
+    const deep = opts.deep
+    const feeling = deep ? Math.min(1, Math.abs(m.feelings?.[characterId] ?? 0)) : 0
+    const place = !!deep && !!placeKey(m.location) && placeKey(m.location) === placeKey(deep.location)
+    const strength = deep ? recallStrength(deep.recalls?.get(m.id), deep.now) : 0
     return {
       pinned: !!m.pinned,
       openThread: !!m.unresolved,
@@ -116,11 +145,13 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
       matchedWords: [...keywords(m.text)].filter((w) => recent.has(w)),
       recent: (recency.get(m.id) ?? 0) >= 0.8,
       important: (m.importance ?? 0.5) >= 0.7,
-      score: 0.45 * (m.importance ?? 0.5)
-        + 0.25 * (recency.get(m.id) ?? 0)
-        + (m.unresolved ? 0.3 : 0)
-        + (aboutPresent.length ? 0.2 : 0)
-        + 0.3 * overlap,
+      ...(deep ? { strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
+      score: DEEP_MEMORY_WEIGHTS.importance * (m.importance ?? 0.5)
+        + DEEP_MEMORY_WEIGHTS.recency * (recency.get(m.id) ?? 0)
+        + (m.unresolved ? DEEP_MEMORY_WEIGHTS.openThread : 0)
+        + (aboutPresent.length ? DEEP_MEMORY_WEIGHTS.aboutPresent : 0)
+        + DEEP_MEMORY_WEIGHTS.keywords * overlap
+        + (deep ? DEEP_MEMORY_WEIGHTS.feeling * feeling + DEEP_MEMORY_WEIGHTS.place * Number(place) + DEEP_MEMORY_WEIGHTS.recall * strength : 0),
     }
   }
   const reasons = new Map(known.map((m) => [m.id, reasonsFor(m)]))

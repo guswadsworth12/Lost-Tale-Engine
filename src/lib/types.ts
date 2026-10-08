@@ -233,6 +233,12 @@ export type MemoryKind = 'event' | 'learned' | 'promise' | 'secret' | 'impressio
 /** How a character knows a memory (`CharacterMemory.certainty`): saw it, was told it, or thinks it. */
 export type MemoryCertainty = 'firsthand' | 'claim' | 'belief'
 
+/** How often this speaker recalled a memory, and when it was last recalled. */
+export interface MemoryRecall {
+  count: number
+  lastAt: number
+}
+
 /**
  * Something a character remembers (`memory/`). Scoped by scene: a memory made in scene X is
  * visible in X and every later scene that follows on from X (the `previousSceneId` chain, and a
@@ -248,6 +254,8 @@ export interface CharacterMemory {
   /** Third person, one or two sentences: "Wren broke the ward on the east gate to reach Bea." */
   text: string
   kind: MemoryKind
+  /** Where the event happened; old memories may have no recorded place. */
+  location?: string
   /** Character ids who saw or heard it happen (the card the player plays included). Never widened after the fact. */
   witnesses: string[]
   /** Spread by telling: who learned it later, from whom, in which message. */

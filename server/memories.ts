@@ -1,6 +1,6 @@
 import express from 'express'
-import { characterStore, chatStore, db, memoryStore, messageStore, newId, storyStore } from './db.ts'
-import { canSeeChat } from './access.ts'
+import { characterStore, chatStore, db, memoryRecallStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
+import { canSeeCharacter, canSeeChat } from './access.ts'
 import {
   consolidateFor,
   forkMemories,
@@ -15,6 +15,7 @@ import {
   uniqueIds,
   type NewMemory,
 } from './memoryPlan.ts'
+import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { CharacterMemory } from '../src/lib/types.ts'
 
 /**
@@ -59,17 +60,23 @@ function withChatContext(m: NewMemory, chat: Row): NewMemory {
 
 /** Part of `purgeChat`: the chat's own memories go with it. */
 export function purgeChatMemories(chatId: string): void {
-  for (const m of memoryStore.list({ where: 'chatId = ?', params: [chatId] })) memoryStore.remove(m.id as string)
+  memoryRecallStore.purgeChat(chatId)
+  for (const m of memoryStore.list({ where: 'chatId = ?', params: [chatId] })) {
+    memoryRecallStore.removeMemory(String(m.id))
+    memoryStore.remove(String(m.id))
+  }
 }
 
 /**
  * A message is being deleted or rewritten: memories it produced go, tellings it recorded are undone.
  * Checks the whole visible chain, since a scene can tell someone a memory made in an earlier one.
+ * Text edits keep recall events for saved swipes; deletion and rewind remove every swipe's events.
  */
-export function retractMessageMemories(chatId: string, messageId: string): void {
+export function retractMessageMemories(chatId: string, messageId: string, keepRecalls = false): void {
   if (!chatId || !messageId) return
+  if (!keepRecalls) memoryRecallStore.retract(messageId)
   const plan = retractMessage(memoriesIn(chainOf(chatId)), messageId)
-  for (const id of plan.remove) memoryStore.remove(id)
+  for (const id of plan.remove) { memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
   for (const { id, patch } of plan.update) memoryStore.update(id, { ...patch, updatedAt: Date.now() })
 }
 
@@ -81,7 +88,18 @@ export function forkChatMemories(
   newChatId: string,
 ): void {
   const source = memoriesIn([sourceChatId])
-  for (const row of forkMemories(source, idMap, cutoffCreatedAt, newChatId, newId)) memoryStore.insert(asRow(row))
+  const sourceIds = new Set(source.map((m) => m.id))
+  const memoryIds = new Map<string, string>()
+  for (const row of forkMemories(source, idMap, cutoffCreatedAt, newChatId, (sourceId) => {
+    const id = newId()
+    if (sourceId) memoryIds.set(sourceId, id)
+    return id
+  })) memoryStore.insert(asRow(row))
+  for (const event of memoryRecallStore.forChat(sourceChatId)) {
+    if (!idMap.has(event.messageId) || (sourceIds.has(event.memoryId) && !memoryIds.has(event.memoryId))) continue
+    memoryRecallStore.insert({ ...event, memoryId: memoryIds.get(event.memoryId) ?? event.memoryId,
+      chatId: newChatId, messageId: idMap.get(event.messageId)! })
+  }
   // Earlier scenes' memories stay where they are; what was told of them in the kept part is told in the fork too.
   for (const { id, toldVia } of forkTellings(memoriesIn(chainOf(sourceChatId)), sourceChatId, idMap, newChatId)) {
     memoryStore.update(id, { toldVia, updatedAt: Date.now() })
@@ -96,10 +114,55 @@ export const memoriesRouter = express.Router()
 memoriesRouter.get('/chats/:id/memories', (req, res) => {
   if (!chatStore.get(req.params.id)) return res.status(404).json({ error: 'Not found' })
   const characterId = str(req.query.characterId)
+  const character = characterId ? characterStore.get(characterId) : undefined
+  if (character && !canSeeCharacter(req, character)) return res.status(404).json({ error: 'Not found' })
   const chain = chainOf(req.params.id)
   const inChain = new Set(chain)
   const rows = memoriesIn(chain).map((m) => memoryAsSeenFrom(m, inChain))
-  res.json(characterId ? rows.filter((m) => (m.knownBy ?? []).includes(characterId)) : rows)
+  if (!characterId) return res.json(rows)
+  const recalls = new Map(memoryRecallStore.counts(characterId, chain).map(({ memoryId, count, lastAt }) => [memoryId, { count, lastAt }]))
+  res.json(rows.filter((m) => m.knownBy.includes(characterId)).map((m) => {
+    const recall = recalls.get(m.id)
+    return recall ? { ...m, recall } : m
+  }))
+})
+
+/** One best-effort batch per saved swipe; stale or no-longer-known memories are skipped. */
+memoriesRouter.post('/memories/recalls', (req, res) => {
+  const body = req.body ?? {}
+  const characterId = str(body.characterId).trim()
+  const chatId = str(body.chatId)
+  const messageId = str(body.messageId)
+  const swipe = body.swipe ?? 0
+  if (!characterId || !chatId || !messageId || !Number.isSafeInteger(swipe) || swipe < 0 || !Array.isArray(body.memoryIds) || body.memoryIds.length > BATCH_MAX
+    || body.memoryIds.some((id: unknown) => typeof id !== 'string' || !id.trim())) {
+    return res.status(400).json({ error: 'Expected a scene, speaker, saved reply and up to 200 memory ids.' })
+  }
+  const chat = chatStore.get(chatId)
+  const character = characterStore.get(characterId)
+  if (!chat || !character || !canSeeChat(req, chat) || !canSeeCharacter(req, character)) return res.status(404).json({ error: 'Not found' })
+  const worldId = str(characterStore.get(str(chat.characterId))?.worldId)
+  const world = worldId ? worldStore.get(worldId) : undefined
+  if (!modulesForWorld(world as Parameters<typeof modulesForWorld>[0]).deepMemory) return res.status(409).json({ error: 'Deep Memory is off.' })
+  const message = messageStore.get(messageId)
+  const swipeText = swipe === (message?.activeSwipe ?? 0) ? message?.text
+    : Array.isArray(message?.swipes) ? message.swipes[swipe] : undefined
+  if (!message || message.chatId !== chatId || message.role !== 'char' || message.failed || !str(swipeText).trim()
+    || (str(message.speakerId) || str(chat.characterId)) !== characterId) return res.status(400).json({ error: 'A saved reply from this speaker is required.' })
+  const chain = new Set(chainOf(chatId))
+  const ids = uniqueIds(body.memoryIds).filter((id) => {
+    const row = memoryStore.get(id)
+    if (!row || !chain.has(str(row.chatId))) return false
+    const m = memoryAsSeenFrom(asMemory(row), chain)
+    return m.active && m.kind !== 'journal' && m.knownBy.includes(characterId) && !m.consolidatedFor?.includes(characterId)
+  })
+  const at = Date.now()
+  db.exec('BEGIN')
+  try {
+    for (const memoryId of ids) memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at })
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+  res.status(204).end()
 })
 
 /** Everything a character knows, across every chat, newest first, labelled with its scene and story. */
@@ -221,6 +284,7 @@ memoriesRouter.post('/memories/consolidate', (req, res) => {
 
 /** The player's "forget": gone for good. */
 memoriesRouter.delete('/memories/:id', (req, res) => {
+  memoryRecallStore.removeMemory(req.params.id)
   memoryStore.remove(req.params.id)
   res.status(204).end()
 })

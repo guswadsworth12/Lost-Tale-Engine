@@ -2,11 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { WORLD_TEMPLATES, assistOverridesForTemplate, getWorldTemplate, hiddenWorldTabs, modulesForWorld, normalizeWorldTemplateId, romanceEmphasisFor } from './worldTemplates'
 
 describe('modulesForWorld', () => {
+  it('defaults Deep Memory off for every template and honors explicit choices', () => {
+    for (const template of WORLD_TEMPLATES) {
+      expect(modulesForWorld({ template: template.id }).deepMemory).toBe(false)
+      expect(modulesForWorld({ template: template.id, modules: { deepMemory: true } }).deepMemory).toBe(true)
+      expect(modulesForWorld({ template: template.id, modules: { deepMemory: false } }).deepMemory).toBe(false)
+    }
+    expect(modulesForWorld().deepMemory).toBe(false)
+  })
+
   it('derives old worlds without changing their stored data', () => {
     expect(modulesForWorld()).toMatchObject({ campaignRules: false, relationships: true, dating: true, romanceEmphasis: 'focus' })
     expect(modulesForWorld({ template: 'visual_novel' })).toMatchObject({ dating: true, visualNovel: true, worldSimulation: true, romanceEmphasis: 'natural' })
     expect(modulesForWorld({ template: 'freeform', campaign: { ruleset: 'Custom', mode: 'guided', resolver: 'pbta', relationships: false, dating: false, moves: [] } })).toEqual({
-      campaignRules: 'guided', relationships: false, dating: false, visualNovel: false, worldSimulation: false, romanceEmphasis: 'off',
+      campaignRules: 'guided', relationships: false, dating: false, visualNovel: false, worldSimulation: false, deepMemory: false, romanceEmphasis: 'off',
     })
   })
 
