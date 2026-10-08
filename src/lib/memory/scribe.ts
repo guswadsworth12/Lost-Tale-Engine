@@ -84,6 +84,8 @@ const EXAMPLE = [
 export const SCRIBE_GUIDANCE = [
   'Most batches add nothing, or one memory. Only record concrete, durable things: a promise, a revelation, a name or secret learned, a changed relationship, an injury, a decision, a moment that landed hard.',
   'Skip small talk, greetings, and narration flavour. Skip tactical orders, formations, and plans for the next few minutes (who scouts, who watches the rear, a time limit): they matter now, not later. If nothing here will matter in a later scene, add nothing.',
+  'Preserve attribution: distinguish who asked, permitted, intended, offered, and explicitly committed. A request or reassurance is not a promise. Record an established fact only if someone witnessed it; mark reports and beliefs as such.',
+  'Treat changed bodies, roles, locations, and other states as transitions: retire obsolete current-state memories but preserve the earlier event as history. Resolve a completed objective only when the messages show completion; reassurance alone does not close a matter. Do not invent a routine or elapsed absence.',
 ].join('\n')
 
 export function buildScribePrompt(input: ScribeInput): string {
@@ -120,8 +122,8 @@ export function buildScribePrompt(input: ScribeInput): string {
       '- "feelings": only when it clearly landed differently on different witnesses. A number per witness name from -1 (hurt, hostile) to 1 (warm, glad).',
       '- "unresolved": true only for something still owed beyond this scene: a promise to a person, a debt, an unanswered question that matters. An order, a plan, or an intention is not an open thread.',
       '- "told": when a message shows a character telling another something from a remembered memory above, give that memory number, who learned it ("to"), who told it ("by"), and the message number ("from"). If something from these new messages is passed on in a later new message, record it with "add" instead.',
-      '- "retire": remembered memories that these messages contradict or supersede, with a short reason.',
-      '- "resolve": numbers of remembered open threads that these messages close.',
+      '- "retire": remembered current-state memories that these messages contradict or supersede, with a short reason. Keep the former state as historical context if it matters.',
+      '- "resolve": numbers of remembered open threads that these messages demonstrably close. An offer or reassurance is not completion.',
       '- Write plain sentences. Never invent anything that is not in the messages.',
     ]
       .filter(Boolean)

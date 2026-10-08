@@ -40,6 +40,12 @@ describe('extractExampleCharTurns', () => {
   it('returns nothing for loose prose with no speaker labels', () => {
     expect(extractExampleCharTurns('She walked in and sat down without a word.')).toEqual([])
   })
+
+  it('ends a character turn when a named third person speaks', () => {
+    const example = '<START>\n{{user}}: You can stay.\n{{char}}: Are you sure?\nTamsin: Nobody minds.\n{{char}}: Then I will.'
+    expect(extractExampleCharTurns(example)).toEqual(['Are you sure?', 'Then I will.'])
+    expect(deriveCardReplyBand({ mes_example: example, first_mes: '' }).source).toBe('examples')
+  })
 })
 
 describe('deriveCardReplyBand', () => {
@@ -233,5 +239,13 @@ describe('replyMaxTokens', () => {
 
   it('ignores a negative reserve rather than lowering the cap', () => {
     expect(replyMaxTokens('brief', 512, -100)).toBe(replyMaxTokens('brief', 512, 0))
+  })
+})
+
+describe('automatic reply guidance', () => {
+  it('does not force a sentence cap when examples are brief', () => {
+    const guidance = resolveReplyLength('auto', { mes_example: TERSE_EXAMPLES, first_mes: '' }).instruction
+    expect(guidance).not.toContain('one to three sentences')
+    expect(guidance).toContain('Match the length and rhythm')
   })
 })

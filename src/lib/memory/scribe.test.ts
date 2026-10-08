@@ -31,6 +31,14 @@ function input(over: Partial<ScribeInput> = {}): ScribeInput {
 const json = (value: unknown) => JSON.stringify(value)
 
 describe('buildScribePrompt', () => {
+  it('asks for attributed commitments, state transitions, and evidence before resolution', () => {
+    const prompt = buildScribePrompt(input())
+    expect(prompt).toContain('distinguish who asked, permitted, intended, offered, and explicitly committed')
+    expect(prompt).toContain('retire obsolete current-state memories')
+    expect(prompt).toContain('reassurance is not completion')
+    expect(prompt).toContain('Do not invent a routine or elapsed absence')
+  })
+
   it('numbers messages with their witness lists and lists existing memories', () => {
     const prompt = buildScribePrompt(input())
     expect(prompt).toContain('[1] Ash Vale (witnessed by: Ash Vale, Bea, Cole): Ash hands Bea the key.')

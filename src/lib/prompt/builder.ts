@@ -7,7 +7,7 @@ import { applyRegexScripts } from '@/lib/text/regexScripts'
 import type { RegexScript } from '@/lib/types'
 import type { InstructTemplate } from './instructTemplates'
 import { DEFAULT_SYSTEM_PROMPT, IMPERSONATION_SYSTEM_PROMPT } from './systemPrompts'
-import { renderPromptItems, type PromptItem } from './items'
+import type { PromptItem } from './items'
 
 export { DEFAULT_SYSTEM_PROMPT }
 export type { SystemPromptPreset } from './systemPrompts'
@@ -233,8 +233,6 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     input.characterProfile?.trim() ? sub(input.characterProfile) : '',
   ].filter(Boolean)
   const descriptionBlock = descriptionParts.join('\n')
-  const characterPromptBlock = sub(['system', 'user', 'assistant'].map((role) => renderPromptItems(input.characterPromptItems, role as PromptItem['role'])).filter(Boolean).join('\n\n'))
-  const worldPromptBlock = sub(['system', 'user', 'assistant'].map((role) => renderPromptItems(input.worldPromptItems, role as PromptItem['role'])).filter(Boolean).join('\n\n'))
   const rolePromptItems = [
     ...(sections.world ? input.worldPromptItems ?? [] : []),
     ...(sections.description ? input.characterPromptItems ?? [] : []),
@@ -454,12 +452,10 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
       { id: 'system', label: 'System prompt', text: sections.system ? systemBlock : '' },
       { id: 'summary', label: 'Story memory (earlier scenes and summary)', text: sections.summary ? summaryBlock : '' },
       { id: 'world', label: 'World / setting description', text: sections.world ? worldBlock : '' },
-      { id: 'worldPromptItems', label: 'World prompt items', text: sections.world ? worldPromptBlock : '' },
       { id: 'worldMoment', label: 'World right now (time, weather, scene)', text: worldMomentBlock },
       { id: 'worldInfo', label: 'World info (activated lore)', text: worldInfoBlock },
       { id: 'description', label: 'Character description', text: sections.description ? descriptionBlock : '' },
-      { id: 'characterPromptItems', label: 'Character prompt items', text: sections.description ? characterPromptBlock : '' },
-      { id: 'rolePromptItems', label: 'User / assistant prompt items', text: rolePromptText },
+      { id: 'rolePromptItems', label: 'World / character prompt items', text: rolePromptText },
       { id: 'participants', label: 'Other participants roster', text: sections.participants ? participantsBlock : '' },
       { id: 'persona', label: 'Persona description', text: sections.persona ? personaBlock : '' },
       { id: 'examples', label: 'Example messages', text: exampleBlock },
@@ -515,7 +511,7 @@ function buildObjectiveBlock(
     objective.description?.trim() ? sub(objective.description) : '',
     'Remaining steps:',
     ...objective.pendingTasks.map((t) => `- ${sub(t)}`),
-    '(Steer the scene toward these in character. Do not say "objective" or "task" out loud unless it fits.)',
+    '(Keep these available when relevant. Ordinary conversation need not advance them. Do not say "objective" or "task" out loud unless it fits.)',
   ]
   return lines.filter(Boolean).join('\n')
 }

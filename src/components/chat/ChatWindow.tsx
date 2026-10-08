@@ -178,6 +178,7 @@ export function ChatWindow({
     draftChapterRecap,
     finishScene,
     updateMemorySummary,
+    saveMemorySummary,
     continueMessage,
     canContinue,
     canUndoLastContinue,
@@ -970,6 +971,7 @@ export function ChatWindow({
           loadPrompt={previewPrompt}
           summary={chat.summary}
           onUpdateSummary={() => updateMemorySummary({ force: true })}
+          onSaveSummary={saveMemorySummary}
           onClose={() => setShowInspector(false)}
           lastReply={lastCharMessage ? { processed: lastCharMessage.text, raw: lastCharMessage.rawText } : undefined}
         />

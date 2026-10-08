@@ -185,7 +185,7 @@ import {
 } from '@/lib/dating/gifts'
 import { createGenerationLock, type GenerationLock } from '@/lib/chat/generationLock'
 import { getCoinMutex } from '@/lib/chat/coinMutex'
-import { nextRoundRobinSpeaker, parseMention, pickDirectorSpeaker, rosterFrom } from '@/lib/chat/scene'
+import { nextRoundRobinSpeaker, parseMention, pickDirectorSpeaker, presentRoster, rosterFrom } from '@/lib/chat/scene'
 import { itemById } from '@/lib/dating/items'
 import { buildRelationshipDescription } from '@/lib/dating/relationshipDescription'
 import { getInstructTemplate, resolveInstructTemplate } from '@/lib/prompt/instructTemplates'
@@ -701,9 +701,7 @@ export function useChatSession(chatId: string | null) {
       const speakerTemplate = templateFor(replyJobFor(speaker).kind)
       // Fresh read — the reactive `chat` closure can be one render behind a summary update that just landed.
       const freshChat = (await chatsApi.get(chat.id)) ?? chat
-      const sceneRoster = freshChat.scene?.presentCharacterIds
-        ? roster.filter((member) => freshChat.scene!.presentCharacterIds!.includes(member.id))
-        : roster
+      const sceneRoster = presentRoster(roster, freshChat.scene?.presentCharacterIds)
       // Only the active speaker's private card lore enters this request. Other characters are
       // represented by their names and the public chat transcript, so secrets do not bleed across agents.
       const lorebooks: Lorebook[] = speaker.card.character_book
@@ -736,7 +734,7 @@ export function useChatSession(chatId: string | null) {
       // the clock advances or the scene moves, and would otherwise invalidate the KV cache for
       // every history token behind it each time it did.
       const worldDescriptionLines = world
-        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign && modules.campaignRules ? campaignPrompt({ ...world.campaign, mode: modules.campaignRules, relationships: modules.relationships, dating: modules.dating }, modules.romanceEmphasis) : '', world.canonFacts?.length ? `Confirmed world facts:\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
+        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign && modules.campaignRules ? campaignPrompt({ ...world.campaign, mode: modules.campaignRules, relationships: modules.relationships, dating: modules.dating }, modules.romanceEmphasis) : '', world.canonFacts?.length ? `Setting canon and historical dates (the current scene state below controls the present):\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
@@ -1078,7 +1076,7 @@ export function useChatSession(chatId: string | null) {
       const sceneContinuityLine = sceneContinuityNote({
         location: sceneStateLine ? undefined : promptLocation,
         timePhase: sceneStateLine ? undefined : promptTimePhase,
-        presentNames: roster.map((c) => c.card.name),
+        presentNames: sceneStateLine ? undefined : sceneRoster.map((c) => c.card.name),
         currentActivity: sceneStateLine ? undefined : freshChat.activeEvent?.title,
         openThreads: activeFacts.filter((f) => f.unresolved).map((f) => f.text),
       })
@@ -1142,8 +1140,8 @@ export function useChatSession(chatId: string | null) {
         recentHistory.filter((m) => m.role === 'char' && m.name === speaker.card.name).map((m) => m.text),
         { extraPatterns: intimacyLevel === 'explicit' ? EXPLICIT_ANTI_PATTERN_ENTRIES : undefined },
       )
-      // How long this speaker's turns should run, in a unit the model can count (sentences), taken
-      // from their `replyLength` override or measured from their own example dialogue. The matching
+      // How long this speaker's turns should run, taken from their `replyLength` override or
+      // measured from their own example dialogue. The matching
       // hard token cap lives in `runGeneration` so brevity survives a model that ignores the line.
       const replyLengthInstruction = resolveReplyLength(speaker.replyLength, speaker.card).instruction
       const activityInitiativeGuidance =
@@ -1415,6 +1413,14 @@ export function useChatSession(chatId: string | null) {
     },
     [character, chat, memoryClient, keepRecentMessages, messages, persona, sampler.max_context_length, summaryDetail],
   )
+
+  // Manual repair changes only the summary text. Its checkpoint and the underlying transcript
+  // stay intact, so the user can correct a stale claim without replaying or deleting history.
+  const saveMemorySummary = useCallback(async (text: string) => {
+    if (!chat) return
+    if (chat.summaryUpToTimestamp && !text.trim()) throw new Error('Keep a factual summary for messages already archived from the prompt.')
+    await chatsApi.update(chat.id, { summary: text.trim() })
+  }, [chat])
 
   /** Marks the given indices (into `pending`) done on `objective`. Shared by the standalone task-detection pass and the merged pass in `runGeneration`. */
   const applyCompletedTasks = useCallback(async (objective: Objective, pending: ObjectiveTask[], completedIndices: number[]) => {
@@ -4235,7 +4241,7 @@ export function useChatSession(chatId: string | null) {
         // human form}") is settled before anyone replies, so the reply, and the stage, already show it.
         await refineCharacterForms(userMsg.id, composedText, { fromPlayer: true }).catch(() => {})
         if (turnPolicy !== 'manual' && character && participantCharacters.length > 0) {
-          const roster = rosterFrom(character, participantCharacters)
+          const roster = presentRoster(rosterFrom(character, participantCharacters), freshChat.scene?.presentCharacterIds)
           if (turnPolicy === 'round_robin') {
             const next = nextRoundRobinSpeaker(roster, freshChat.scene?.roundRobinIndex)
             if (next) {
@@ -5060,6 +5066,7 @@ export function useChatSession(chatId: string | null) {
     updateChapter,
     finishScene,
     updateMemorySummary,
+    saveMemorySummary,
     continueMessage,
     canContinue,
     canUndoLastContinue,

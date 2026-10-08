@@ -1222,7 +1222,7 @@ export function CharacterEditor({
           </Section>
           <Section
             title="Behavioral rules"
-            description={'Structured "when X, she Y" / "never Z" contracts. Followed exactly as written, more precise than free-text personality. Good for desire, hesitation, and aftercare.'}
+            description={'Additional structured rules. Review these after changing personality or examples: an old rule may conflict with the current card. Edit or remove obsolete rules; current explicit author guidance takes precedence.'}
             surface="bare"
           >
             <ListEditor
@@ -2066,7 +2066,7 @@ export function CharacterEditor({
         </Section>
         <Section
           title="Speech patterns"
-          description="Concrete, recurring speech patterns. Not a general impression like personality, but the actual repeatable tells that make a line unmistakably theirs. Reaches the model every turn alongside their description and personality, plus a short standalone reminder of the single most important catchphrase/tic/register so it doesn't get diluted once a chat runs long."
+          description="Dialect and rhythm guide the model's voice. Tics and catchphrases remain editable reference details, but are not required in each reply."
           surface="bare"
           action={
             <Button variant="ghost" onClick={detectVoiceFromExamples} className="inline-flex items-center">
@@ -2157,7 +2157,7 @@ export function CharacterEditor({
             </ul>
           </Section>
 
-          <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. These items enter context only when this character speaks." surface="bare">
+          <Section title="Character prompts" description="Write each instruction, example, or lore note separately and choose its order. Review older imported personality and hard-rule items when updating this card: enabled items also enter the prompt and can contradict newer text. Edit or disable obsolete items here." surface="bare">
             <div className="mb-4">
               <FileButton onPick={(files) => handleImportFile(files[0])} accept=".json">
                 Import TavernAI 2 card prompts

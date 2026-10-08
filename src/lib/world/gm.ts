@@ -369,7 +369,7 @@ export function isPlayerCharacter(characterName: string, playerName: string): bo
 export const GM_STYLE_GUIDANCE = [
   'When a scene has paid off, close it or move to a concrete next situation. At a natural pause, bring in one actionable piece of guild life, a consequence, or an established open thread; do not wait for the player to invent every lead. Give the player room to choose what to pursue. Do not manufacture an emergency or reveal a future secret just to create momentum.',
   'When the player commits the group to a course of action (an assault, a chase, a plan put in motion), resolve it forward: narrate what the opposing NPCs and the world do in response, and where things now stand. Each beat should change the situation; do not hold a confrontation at "about to" or "on the verge" for another beat. Refer to the player\'s companions as "the group", never by name.',
-  'Choose speakers so the people present can play off each other. Agents speak in the order you list them, and each hears everyone before it this beat, so put a reaction after whatever provokes it. Characters may answer one another, not only the player. Pick only the ones who would genuinely respond; a quiet character can sit a beat out. In action, or once the player has given orders, list only the one or two whose part matters this beat.',
+  'Choose only speakers with something of their own to contribute. Agents hear earlier speakers this beat and may answer one another, but need not echo, endorse, or warn about the same concern. A quiet character can sit a beat out. In action, or once the player has given orders, list only the one or two whose part matters this beat.',
 ].join('\n')
 
 /** The binding line the GM receives for a recorded roll, exactly as it reads in the prompt. */
@@ -428,6 +428,8 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.styleGuidance?.trim() || GM_STYLE_GUIDANCE,
     `You may add up to ${maxArrivals} available characters to the scene when their entrance follows naturally from the fiction, including when the player calls, summons, or reaches out to them by any means the setting allows. Characters loaded for this scene are expected arrivals, but are not physically present until they enter. If two arrive together, add both in the same beat. Each added character responds this beat: list them in speakers too. Never add the player character.`,
     'When the player reaches someone who is not here without bringing them here (a call, a message, telepathy, a sending), put that character in "remote" instead: they answer this beat from where they are and do not join the scene. Never write their reply yourself; their own agent answers.',
+    'When the player treats someone who is not here as having just turned up (speaks to them face to face, startles at them, greets them in the room), that is an entrance: add them, narrate how they appear, and do not make them "remote". Merely mentioning or joking about someone absent reaches no one.',
+    'When the player treats someone who is not here as having just turned up (speaks to them face to face, startles at them, greets them in the room), that is an entrance: add them, narrate how they appear, and do not make them "remote". Merely mentioning or joking about someone absent reaches no one.',
     'Fork only when a consequential choice or simultaneous story thread deserves its own continuing branch. A scene change, quiet beat, or new arrival alone does not warrant a fork. Give a brief reason and a useful branch title. Otherwise use null.',
     'You may call up to two listed public lorebook entries by title when their facts matter to this beat. Each called entry will be supplied to the character agents. Do not call unrelated entries just to fill context.',
     'Storyteller-only notes may describe secrets or planned arcs. Respect each character’s knowledge boundary: do not reveal, foreshadow as certain, or make a character act on information they have not learned in the story.',
@@ -473,7 +475,7 @@ export function buildGmPrompt(ctx: GmContext): { system: string; user: string } 
     ctx.memoryDigest?.length ? `What the characters remember (and who knows it):\n${ctx.memoryDigest.join('\n')}` : '',
     ctx.knowledgeGaps?.length ? `Knowledge boundaries in this scene. These characters have not learned these things; do not narrate them knowing it, and let them find out only in play:\n${ctx.knowledgeGaps.map((g) => `- ${g}`).join('\n')}` : '',
     ctx.activeObjective?.trim() ? `Current objective: ${ctx.activeObjective.trim()}` : '',
-    ctx.canonFacts.length ? `World canon:\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
+    ctx.canonFacts.length ? `World canon and historical dates (use current scene state for the present):\n${ctx.canonFacts.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.branchConsequences.length ? `Confirmed consequences in this story branch:\n${ctx.branchConsequences.map((f) => `- ${f}`).join('\n')}` : '',
     ctx.recentRolls?.length ? `Earlier recorded checks in this scene (binding):\n${ctx.recentRolls.map((roll) => `- ${roll}`).join('\n')}` : '',
     campaign.tracks?.length ? `Tracked state now (kept by the engine):\n${ctx.stateLines?.length ? ctx.stateLines.map((line) => `- ${line}`).join('\n') : '- (nothing tracked has changed yet)'}` : '',
@@ -631,8 +633,11 @@ export function parseGmTurn(raw: string, ctx: GmContext, newId: () => string = (
     [card, firstName(card)].some((name) => name && new RegExp(`\\b${escapeRe(name)}\\b`, 'i').test(text)))
   const namedCard = namedCardIn(narration)
   // Whom the GM tried to voice itself: if they are away and the player reached them, they answer for themselves.
+  // Voicing means they speak ("Sera answers in his mind: …"); a ruling that only mentions them is not a reply.
   const rawAdjText = obj.adjudication && typeof obj.adjudication === 'object' ? str((obj.adjudication as Record<string, unknown>).outcome, 1000) : ''
-  const gmVoiced = [namedCard, namedCardIn(rawAdjText)].filter((name): name is string => !!name)
+  const voicedIn = (text: string) => cardedNames.find((card) =>
+    [card, firstName(card)].some((name) => name && new RegExp(`\\b${escapeRe(name)}\\b(?:\\s*:|[^.!?"“\\n]{0,40}?\\b(?:answer|repl|respond|say|said|whisper|murmur|speak|spoke)\\w*)`, 'i').test(text)))
+  const gmVoiced = [voicedIn(narration), voicedIn(rawAdjText)].filter((name): name is string => !!name)
   if (namedCard) {
     narration = withoutSentencesNaming(narration, namedCardIn)
     corrections.push(`Removed GM narration involving ${namedCard}; the character agent owns that turn.`)

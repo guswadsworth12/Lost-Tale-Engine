@@ -11,8 +11,6 @@ const MAX_LIKES = 8
 const MAX_GOALS = 5
 const MAX_LOCATIONS = 5
 const MAX_SOCIAL_CONNECTIONS = 6
-const MAX_TICS = 6
-const MAX_CATCHPHRASES = 5
 const MAX_BEHAVIORAL_RULES = 10
 
 /** Composes occupation, locations, likes/goals/boundaries, and social connections into one "Life beyond this scene" line. Returns undefined if nothing is set. */
@@ -42,55 +40,32 @@ function buildLifeContextNote(character: Character): string | undefined {
   return `Life beyond this scene: ${parts.join('. ')}.`
 }
 
-/** Composes authored `when X → Y` / `never: Z` behavioral rules into one block, more precise than free-text personality. Returns undefined if none are set. */
+/** Composes structured `when X → Y` / `never: Z` rules for review alongside the current card. */
 function buildBehavioralRulesNote(rules: BehavioralRule[] | undefined): string | undefined {
   const usable = (rules ?? []).filter((r) => r.then.trim())
   if (usable.length === 0) return undefined
   const lines = usable
     .slice(0, MAX_BEHAVIORAL_RULES)
     .map((r) => (r.kind === 'never' ? `Never: ${r.then.trim()}.` : `When ${r.when?.trim() || 'it comes up'}: ${r.then.trim()}.`))
-  return `Behavioral rules, authored for this character and followed exactly as written:\n${lines.join('\n')}`
+  return `Additional behavioral rules (review these against the current personality and examples; current explicit author guidance takes precedence if they conflict):\n${lines.join('\n')}`
 }
 
-/** Folds a `VoiceFingerprint` into one compact style-instruction line. Returns undefined when no fingerprint is set. */
+/** Keep dialect and rhythm; recorded tics and catchphrases are references, not turn requirements. */
 function buildVoiceFingerprintNote(fingerprint: VoiceFingerprint | undefined): string | undefined {
   if (!fingerprint) return undefined
   const bits: string[] = []
-  if (fingerprint.verbalTics?.length) {
-    bits.push(`verbal tics: ${fingerprint.verbalTics.slice(0, MAX_TICS).map((t) => `"${t}"`).join(', ')}`)
-  }
-  if (fingerprint.catchphrases?.length) {
-    bits.push(`catchphrases they reuse: ${fingerprint.catchphrases.slice(0, MAX_CATCHPHRASES).map((c) => `"${c}"`).join(', ')}`)
-  }
   if (fingerprint.dialectNotes?.trim()) bits.push(`dialect/register: ${fingerprint.dialectNotes.trim()}`)
   if (fingerprint.sentenceRhythm?.trim()) bits.push(`sentence rhythm: ${fingerprint.sentenceRhythm.trim()}`)
   if (bits.length === 0) return undefined
-  return `Speech patterns to stay consistent with, every turn: ${bits.join('; ')}.`
+  return `Voice guidance: ${bits.join('; ')}. Examples illustrate voice; do not force a tic or catchphrase into a reply.`
 }
 
-/** Short, blunt restatement of just the top catchphrase/tic/register, repeated as its own line so it survives dilution over a long chat. Returns undefined if there's nothing to restate. */
-function buildVoiceFingerprintReminder(fingerprint: VoiceFingerprint | undefined): string | undefined {
-  if (!fingerprint) return undefined
-  const catchphrase = fingerprint.catchphrases?.[0]?.trim()
-  const tic = fingerprint.verbalTics?.[0]?.trim()
-  // The full voice block immediately above already carries the register. Repeat it only when it
-  // is the sole available signal; otherwise the catchphrase/tic reminder is enough.
-  const register = !catchphrase && !tic ? (fingerprint.dialectNotes?.trim() || fingerprint.sentenceRhythm?.trim())?.replace(/\.+$/, '') : undefined
-  const bits: string[] = []
-  if (catchphrase) bits.push(`reach for "${catchphrase}" again when it fits`)
-  if (tic) bits.push(`keep the "${tic}" tic alive`)
-  if (register) bits.push(register)
-  if (bits.length === 0) return undefined
-  return `Voice check, every single reply no matter how long this chat has run: ${bits.join('; ')}. Never let this quietly flatten into generic prose.`
-}
-
-/** Combines the life-context note and voice-fingerprint notes into the single profile note used by `builder.ts`. */
+/** Combines life context, rules, and voice guidance for `builder.ts`. */
 export function buildCharacterProfileNote(character: Character): string | undefined {
   const blocks = [
     buildLifeContextNote(character),
     buildBehavioralRulesNote(character.behavioralRules),
     buildVoiceFingerprintNote(character.voiceFingerprint),
-    buildVoiceFingerprintReminder(character.voiceFingerprint),
   ].filter((b): b is string => !!b)
   return blocks.length ? blocks.join('\n') : undefined
 }
