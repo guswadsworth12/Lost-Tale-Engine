@@ -72,9 +72,10 @@ The export is `.memory-eval/private/<scene-id>.json`, ignored by git. New folder
 use owner-only permissions and the file uses mode 0600; existing files are never
 overwritten. It includes memories from the visible scene chain, minimal cast
 names and scope fields, and the speaker's last six witnessed messages in the
-current scene. It omits full character cards, story descriptions and unrelated
+current scene, excluding failed and empty messages. It omits full character cards, story descriptions and unrelated
 transcripts. Review or edit the expected ids and recent context locally before
-measuring a particular turn (prompt history transformations are not reproduced).
+measuring a particular turn: this context approximates the prompt history, whose
+transformations are not reproduced.
 You can add forbidden ids and mark private cases as protected too.
 
 Private files and their evaluation output remain private: reports include the

@@ -14,13 +14,11 @@ export function parseOptions(args: string[]) {
     if (!value || value.startsWith('--')) throw new Error(`${flag} needs a value`)
     if (flag === '--cases') options.casesPath = value
     if (flag === '--budget') {
-      const budget = Number(value)
-      if (!Number.isFinite(budget) || budget < 0) throw new Error('Budget must be a non-negative number.')
-      options.budgetTokens = budget
+      options.budgetTokens = Number(value)
     }
     if (flag === '--module') {
-      if (value === 'on') throw new Error('Deep Memory is not implemented yet; use --module off for the baseline.')
-      if (value !== 'off') throw new Error('Module must be off or on.')
+      if (value !== 'off' && value !== 'on') throw new Error('Module must be off or on.')
+      options.module = value
     }
   }
   return options

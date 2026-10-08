@@ -27,6 +27,26 @@ describe('recall bench', () => {
     }
   })
 
+  it('picks the forbidden memory when each protected case loses its guard', () => {
+    for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
+      for (const m of c.memories.filter((m) => c.forbiddenIds.includes(m.id))) {
+        if (c.category === 'branch') {
+          m.chatId = c.scene.chatId
+          delete m.toldVia
+        }
+        if (c.id === 'knowledge-retired') m.active = true
+        else if (c.id === 'knowledge-folded') delete m.consolidatedFor
+        else {
+          m.knownBy = [...new Set([...m.knownBy, c.scene.speakerId])]
+          m.witnesses = [...new Set([...m.witnesses, c.scene.speakerId])]
+        }
+      }
+      const result = evaluateCase(c)
+      expect(result.forbidden, c.id).toEqual(c.forbiddenIds)
+      expect(result.hit, c.id).toBe(false)
+    }
+  })
+
   it('reports actual picks and reasons at the production budget deterministically', () => {
     const c = parseCase(fixtures[0])
     const result = evaluateCase(c)
@@ -64,9 +84,11 @@ describe('recall bench', () => {
   it('accepts local case and budget options, and refuses a fictitious module-on baseline', () => {
     expect(parseOptions(['--cases', '.memory-eval/private', '--budget', '120', '--module', 'off']))
       .toMatchObject({ casesPath: '.memory-eval/private', budgetTokens: 120, module: 'off' })
-    expect(() => parseOptions(['--module', 'on'])).toThrow(/not implemented/)
-    expect(() => parseOptions(['--budget', '-1'])).toThrow()
-    expect(() => parseOptions(['--budget', 'NaN'])).toThrow()
+    const c = parseCase(fixtures[0])
+    expect(parseOptions(['--module', 'on']).module).toBe('on')
+    expect(() => evaluateCase(c, parseOptions(['--module', 'on']))).toThrow(/not implemented/)
+    expect(() => evaluateCase(c, parseOptions(['--budget', '-1']))).toThrow(/Budget/)
+    expect(() => evaluateCase(c, parseOptions(['--budget', 'NaN']))).toThrow(/Budget/)
     expect(() => parseOptions(['--cases'])).toThrow()
     expect(() => parseOptions(['--unknown'])).toThrow()
   })

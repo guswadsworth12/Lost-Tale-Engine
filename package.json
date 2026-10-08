@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.server.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "memory:eval": "tsx src/lib/memory/eval/runner.ts",
-    "memory:export": "tsx --experimental-sqlite src/lib/memory/eval/export.ts",
+    "memory:eval": "tsx server/memoryEval/runner.ts",
+    "memory:export": "tsx --experimental-sqlite server/memoryEval/export.ts",
     "docs:check": "node tools/wiki.mjs check",
     "docs:publish": "node tools/wiki.mjs publish"
   },

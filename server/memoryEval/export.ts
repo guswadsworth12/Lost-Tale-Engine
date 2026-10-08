@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
-import { sceneChainIds } from '../../../../server/memoryPlan'
-import { witnessedMessage } from '../witnesses'
+import { sceneChainIds } from '../memoryPlan'
+import { witnessedMessage } from '../../src/lib/memory/witnesses'
 import { parseCase } from './bench'
 
 /** Owner-run only. No app/db import: that would open the configured store and run migrations. */
@@ -39,7 +39,7 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     ])])
     const cast = [...ids].map((id) => ({ id, name: get('characters', id)?.card?.name ?? id }))
     const recentMessages = db.prepare('SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt, id')
-      .all(chatId).map(decode).filter((m) => witnessedMessage(m as Parameters<typeof witnessedMessage>[0], speakerId))
+      .all(chatId).map(decode).filter((m) => !m.failed && witnessedMessage(m as Parameters<typeof witnessedMessage>[0], speakerId))
       .map((m) => m.text).filter((v): v is string => typeof v === 'string' && !!v.trim()).slice(-6)
     return parseCase({
       id: chatId, category: 'private', cast, memories, chats, stories,
@@ -73,5 +73,9 @@ export function exportLocal(args: string[], cwd = process.cwd()): string {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try { console.log(`Saved local case: ${exportLocal(process.argv.slice(2))}`) }
-  catch { console.error('Export failed. Check the options, database schema, scene and expected memory ids. Existing exports are never overwritten.'); process.exitCode = 1 }
+  catch (error) {
+    console.error('Export failed. Check the options, database schema, scene and expected memory ids. Existing exports are never overwritten.')
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

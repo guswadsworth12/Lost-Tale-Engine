@@ -4,8 +4,8 @@
     "category": "wording",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -24,17 +24,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Tavi pulled Aveline to safety when the Overbloom collapsed. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Tavi pulled Brisa to safety when the flood collapsed. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -44,17 +44,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -64,17 +64,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -84,17 +84,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -104,17 +104,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -124,17 +124,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -144,17 +144,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -164,17 +164,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -205,9 +205,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -215,7 +215,7 @@
         "Do you remember that bridge?"
       ]
     },
-    "question": "Does Aveline remember the bridge?",
+    "question": "Does Brisa remember the bridge?",
     "expectedIds": [
       "wanted"
     ],
@@ -227,8 +227,8 @@
     "category": "wording",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -247,17 +247,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Rowan gave Aveline a brass compass on her naming day. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Rowan gave Brisa a brass compass on her naming day. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -267,17 +267,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -287,17 +287,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -307,17 +307,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -327,17 +327,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -347,17 +347,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -367,17 +367,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -387,17 +387,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -428,9 +428,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -450,8 +450,8 @@
     "category": "wording",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -470,17 +470,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Tavi repaired the cracked silver lantern in Lantern Court. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Tavi repaired the cracked silver lantern in Lantern Court. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -490,17 +490,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -510,17 +510,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -530,17 +530,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -550,17 +550,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -570,17 +570,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -590,17 +590,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -610,17 +610,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -651,9 +651,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -673,8 +673,8 @@
     "category": "wording",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -693,17 +693,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline promised to guard the northern gates during the storm. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa promised to guard the northern gates during the storm. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -713,17 +713,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -733,17 +733,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -753,17 +753,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -773,17 +773,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -793,17 +793,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -813,17 +813,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -833,17 +833,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -874,14 +874,14 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
       "recentMessages": [
-        "Aveline promised to guard the northern gates during the storm."
+        "Brisa promised to guard the northern gates during the storm."
       ]
     },
     "question": "Who was guarding the gates?",
@@ -896,8 +896,8 @@
     "category": "connections",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -916,17 +916,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Mira brought Tavi to the candle guild. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Mira brought Tavi to the candle guild. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -936,17 +936,17 @@
       {
         "id": "link",
         "chatId": "root",
-        "text": "Rowan welcomed Tavi at the candle guild after Mira arrived. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Rowan welcomed Tavi at the candle guild after Mira arrived. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -956,17 +956,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -976,17 +976,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -996,17 +996,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1016,17 +1016,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1036,17 +1036,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1056,17 +1056,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1076,17 +1076,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1117,9 +1117,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -1140,8 +1140,8 @@
     "category": "connections",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -1160,17 +1160,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Tavi lent a bronze key to Mira before the journey. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Tavi lent a bronze key to Mira before the journey. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1180,17 +1180,17 @@
       {
         "id": "link",
         "chatId": "root",
-        "text": "Mira entrusted that borrowed key to Rowan at dawn. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Mira entrusted that borrowed key to Rowan at dawn. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1200,17 +1200,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1220,17 +1220,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1240,17 +1240,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1260,17 +1260,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1280,17 +1280,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1300,17 +1300,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1320,17 +1320,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1361,9 +1361,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -1384,8 +1384,8 @@
     "category": "connections",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -1404,17 +1404,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline learned that Mira tends the orchard. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa learned that Mira tends the orchard. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1424,17 +1424,17 @@
       {
         "id": "link",
         "chatId": "root",
-        "text": "Tavi left the basket with Mira beneath an apple tree. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Tavi left the basket with Mira beneath an apple tree. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1444,17 +1444,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1464,17 +1464,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1484,17 +1484,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1504,17 +1504,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1524,17 +1524,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1544,17 +1544,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1564,17 +1564,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1605,9 +1605,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -1628,8 +1628,8 @@
     "category": "emotion",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -1648,17 +1648,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline lost her oldest companion during a blizzard. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa lost her oldest companion during a blizzard. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": -0.95
+          "brisa": -0.95
         },
         "about": [],
         "active": true,
@@ -1668,17 +1668,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1688,17 +1688,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1708,17 +1708,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1728,17 +1728,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1748,17 +1748,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1768,17 +1768,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1788,17 +1788,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1829,9 +1829,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "sad",
@@ -1851,8 +1851,8 @@
     "category": "emotion",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -1871,17 +1871,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline celebrated her first successful voyage with Tavi. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa celebrated her first successful voyage with Tavi. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0.95
+          "brisa": 0.95
         },
         "about": [],
         "active": true,
@@ -1891,17 +1891,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1911,17 +1911,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1931,17 +1931,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1951,17 +1951,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1971,17 +1971,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -1991,17 +1991,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2011,17 +2011,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2052,9 +2052,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "joyful",
@@ -2074,8 +2074,8 @@
     "category": "emotion",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -2094,17 +2094,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline was trapped beneath a collapsed cellar staircase. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa was trapped beneath a collapsed cellar staircase. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": -0.9
+          "brisa": -0.9
         },
         "about": [],
         "active": true,
@@ -2114,17 +2114,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2134,17 +2134,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2154,17 +2154,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2174,17 +2174,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2194,17 +2194,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2214,17 +2214,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2234,17 +2234,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2275,9 +2275,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "frightened",
@@ -2297,8 +2297,8 @@
     "category": "place",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -2317,17 +2317,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Aveline waited at the ferry landing for a friend who never arrived. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Brisa waited at the ferry landing for a friend who never arrived. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2338,17 +2338,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2358,17 +2358,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2378,17 +2378,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2398,17 +2398,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2418,17 +2418,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2438,17 +2438,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2458,17 +2458,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2499,9 +2499,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Ferry Landing",
       "atmosphere": "quiet",
@@ -2521,8 +2521,8 @@
     "category": "place",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -2541,17 +2541,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Mira and Aveline buried a time capsule beneath an apple tree. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Mira and Brisa buried a time capsule beneath an apple tree. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2562,17 +2562,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2582,17 +2582,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2602,17 +2602,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2622,17 +2622,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2642,17 +2642,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2662,17 +2662,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2682,17 +2682,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2723,9 +2723,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Orchard",
       "atmosphere": "quiet",
@@ -2745,8 +2745,8 @@
     "category": "place",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -2765,17 +2765,17 @@
       {
         "id": "wanted",
         "chatId": "root",
-        "text": "Rowan taught Aveline how to bargain at the night market. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "text": "Rowan taught Brisa how to bargain at the night market. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.95,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2786,17 +2786,17 @@
       {
         "id": "routine-0",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2806,17 +2806,17 @@
       {
         "id": "routine-1",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2826,17 +2826,17 @@
       {
         "id": "routine-2",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2846,17 +2846,17 @@
       {
         "id": "routine-3",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2866,17 +2866,17 @@
       {
         "id": "routine-4",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2886,17 +2886,17 @@
       {
         "id": "routine-5",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2906,17 +2906,17 @@
       {
         "id": "routine-6",
         "chatId": "root",
-        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.7,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -2947,14 +2947,14 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Night Market",
       "atmosphere": "quiet",
       "recentMessages": [
-        "Rowan taught Aveline how to bargain at the night market."
+        "Rowan taught Brisa how to bargain at the night market."
       ]
     },
     "question": "What happened at the night market?",
@@ -2969,8 +2969,8 @@
     "category": "knowledge",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -2989,17 +2989,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline remembers the public lantern ceremony.",
+        "text": "Brisa remembers the public lantern ceremony.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.8,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3019,7 +3019,7 @@
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3051,9 +3051,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3061,7 +3061,7 @@
         "The hidden lantern vault contains the missing silver key."
       ]
     },
-    "question": "What may Aveline recall without learning a forbidden memory?",
+    "question": "What may Brisa recall without learning a forbidden memory?",
     "expectedIds": [
       "safe"
     ],
@@ -3075,8 +3075,8 @@
     "category": "knowledge",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3095,17 +3095,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline remembers the public lantern ceremony.",
+        "text": "Brisa remembers the public lantern ceremony.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.8,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3125,7 +3125,7 @@
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3157,9 +3157,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3167,7 +3167,7 @@
         "The hidden lantern vault contains the missing silver key."
       ]
     },
-    "question": "What may Aveline recall without learning a forbidden memory?",
+    "question": "What may Brisa recall without learning a forbidden memory?",
     "expectedIds": [
       "safe"
     ],
@@ -3181,8 +3181,8 @@
     "category": "knowledge",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3201,17 +3201,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline remembers the public lantern ceremony.",
+        "text": "Brisa remembers the public lantern ceremony.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.8,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3224,14 +3224,14 @@
         "text": "The hidden lantern vault contains the missing silver key.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": false,
@@ -3262,9 +3262,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3272,7 +3272,7 @@
         "The hidden lantern vault contains the missing silver key."
       ]
     },
-    "question": "What may Aveline recall without learning a forbidden memory?",
+    "question": "What may Brisa recall without learning a forbidden memory?",
     "expectedIds": [
       "safe"
     ],
@@ -3286,8 +3286,8 @@
     "category": "knowledge",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3306,17 +3306,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline remembers the public lantern ceremony.",
+        "text": "Brisa remembers the public lantern ceremony.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.8,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3329,21 +3329,21 @@
         "text": "The hidden lantern vault contains the missing silver key.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
         "origin": "manual",
         "createdAt": 30,
         "consolidatedFor": [
-          "aveline"
+          "brisa"
         ]
       }
     ],
@@ -3370,9 +3370,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3380,7 +3380,7 @@
         "The hidden lantern vault contains the missing silver key."
       ]
     },
-    "question": "What may Aveline recall without learning a forbidden memory?",
+    "question": "What may Brisa recall without learning a forbidden memory?",
     "expectedIds": [
       "safe"
     ],
@@ -3394,8 +3394,8 @@
     "category": "branch",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3414,17 +3414,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline recalls crossing the public stone causeway.",
+        "text": "Brisa recalls crossing the public stone causeway.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3437,14 +3437,14 @@
         "text": "Tavi hid the silver key beneath the causeway.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3476,9 +3476,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3500,8 +3500,8 @@
     "category": "branch",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3520,17 +3520,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline recalls crossing the public stone causeway.",
+        "text": "Brisa recalls crossing the public stone causeway.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3547,11 +3547,11 @@
         ],
         "knownBy": [
           "tavi",
-          "aveline"
+          "brisa"
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3561,7 +3561,7 @@
         "toldVia": [
           {
             "to": [
-              "aveline"
+              "brisa"
             ],
             "by": "tavi",
             "chatId": "other",
@@ -3593,9 +3593,9 @@
     ],
     "scene": {
       "chatId": "now",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",
@@ -3617,8 +3617,8 @@
     "category": "branch",
     "cast": [
       {
-        "id": "aveline",
-        "name": "Aveline"
+        "id": "brisa",
+        "name": "Brisa"
       },
       {
         "id": "tavi",
@@ -3637,17 +3637,17 @@
       {
         "id": "safe",
         "chatId": "root",
-        "text": "Aveline recalls crossing the public stone causeway.",
+        "text": "Brisa recalls crossing the public stone causeway.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 0.35,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3660,14 +3660,14 @@
         "text": "Tavi hid the silver key beneath the causeway.",
         "kind": "event",
         "witnesses": [
-          "aveline"
+          "brisa"
         ],
         "knownBy": [
-          "aveline"
+          "brisa"
         ],
         "importance": 1,
         "feelings": {
-          "aveline": 0
+          "brisa": 0
         },
         "about": [],
         "active": true,
@@ -3710,9 +3710,9 @@
     ],
     "scene": {
       "chatId": "sequel",
-      "speakerId": "aveline",
+      "speakerId": "brisa",
       "presentIds": [
-        "aveline"
+        "brisa"
       ],
       "location": "Lantern Court",
       "atmosphere": "quiet",

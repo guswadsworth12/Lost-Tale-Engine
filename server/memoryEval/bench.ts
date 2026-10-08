@@ -1,7 +1,7 @@
-import type { CharacterMemory } from '../../types'
-import { memoryAsSeenFrom, sceneChainIds, type ChatLike, type StoryLike } from '../../../../server/memoryPlan'
-import { estimateTokens } from '../../tokenEstimate'
-import { formatMemoryLine, MEMORY_TOKEN_BUDGET, selectMemoriesExplained } from '../rank'
+import type { CharacterMemory } from '../../src/lib/types'
+import { memoryAsSeenFrom, sceneChainIds, type ChatLike, type StoryLike } from '../memoryPlan'
+import { estimateTokens } from '../../src/lib/tokenEstimate'
+import { formatMemoryLine, MEMORY_TOKEN_BUDGET, selectMemoriesExplained } from '../../src/lib/memory/rank'
 
 export interface RecallCase {
   id: string
