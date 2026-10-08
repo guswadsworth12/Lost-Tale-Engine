@@ -339,7 +339,8 @@ describe('group interplay and scene moves', () => {
   it('shows the GM where the scene is and asks for speakers who can play off each other', () => {
     const { system, user } = buildGmPrompt(ctx({ location: 'Guild Library', atmosphere: 'rain on the windows' }))
     expect(user).toContain('Current location: Guild Library (rain on the windows)')
-    expect(system).toContain('Characters may answer one another, not only the player.')
+    expect(system).toContain('Agents hear earlier speakers this beat and may answer one another')
+    expect(system).toContain('need not echo, endorse, or warn about the same concern')
     expect(system).toContain('A character arriving is not a move.')
   })
 
@@ -735,6 +736,19 @@ describe('someone reached from afar', () => {
       ctx({ availableRoster: guildmaster, playerAction: 'Let us call it a night. Mae would have liked this place.' }), ids)
     expect(turn.remoteIds).toBeUndefined()
     expect(turn.speakerIds).toEqual(['hana'])
+  })
+
+  it('does not reach someone the player only talks about, even when the ruling mentions them', () => {
+    const turn = parseGmTurn(JSON.stringify({
+      narration: 'The infirmary stays quiet.', speakers: ['Hana Pike'],
+      adjudication: { action: 'Wren talks', outcome: 'The stakes between them rise; Sera is not here and nothing summons her.' },
+    }), ctx({ availableRoster: guildmaster, playerAction: '"You are with Sera, I could never betray her trust." Watch, she\'ll pop up out of nowhere.' }), ids)
+    expect(turn.remoteIds).toBeUndefined()
+    expect(turn.speakerIds).toEqual(['hana'])
+  })
+
+  it('tells the GM that greeting someone as if they just appeared is an entrance, not a call', () => {
+    expect(buildGmPrompt(ctx({ availableRoster: guildmaster })).system).toContain('that is an entrance: add them')
   })
 
   it('waits for a pending choice before anyone, remote or not, replies', () => {

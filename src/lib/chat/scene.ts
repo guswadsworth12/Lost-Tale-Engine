@@ -16,6 +16,11 @@ export function rosterFrom(character: Character | undefined, participantCharacte
   return [...primary, ...participantCharacters.map((c) => ({ id: c.id, name: c.card.name }))]
 }
 
+/** The scene ledger is authoritative when it has an attendance list, including an empty one. */
+export function presentRoster<T extends { id: string }>(roster: T[], presentIds: string[] | undefined): T[] {
+  return presentIds === undefined ? roster : roster.filter((member) => presentIds.includes(member.id))
+}
+
 /**
  * Round-robin's own bookkeeping is a plain array index, which the roster can silently outgrow or
  * shrink past (a participant removed, or the character list re-ordered) — modulo rather than

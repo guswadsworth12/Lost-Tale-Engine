@@ -58,87 +58,26 @@ describe('buildCharacterProfileNote', () => {
     expect(note).not.toContain('Person 6')
   })
 
-  it('folds an authored voice fingerprint in as its own sentence, not merged into life context', () => {
-    const note = buildCharacterProfileNote(
-      character({
-        occupation: 'barista',
-        voiceFingerprint: { verbalTics: ['well', 'you know'], catchphrases: ["it's not like i"] },
-      }),
-    )
-    expect(note).toContain('Works as barista')
-    expect(note).toContain('Speech patterns to stay consistent with')
-    expect(note).toContain('"well"')
-    expect(note).toContain('"you know"')
-    expect(note).toContain(`"it's not like i"`)
-  })
-
-  it('adds a compact "Voice check" reminder restating only the top catchphrase and tic, separate from the full note', () => {
-    const note = buildCharacterProfileNote(
-      character({ voiceFingerprint: { verbalTics: ['well', 'you know'], catchphrases: ["it's not like i", 'obviously'] } }),
-    )
-    expect(note).toContain('Voice check, every single reply')
-    expect(note).toContain('reach for "it\'s not like i" again')
-    expect(note).toContain('keep the "well" tic alive')
-    // Only the *first* of each list is restated in the compact reminder, not the full set.
-    const reminderLine = note!.split('\n').find((l) => l.startsWith('Voice check'))!
-    expect(reminderLine).not.toContain('obviously')
-    expect(reminderLine).not.toContain('you know')
-  })
-
-  it('does not repeat a detailed register in the reminder when a tic or catchphrase already anchors it', () => {
-    const note = buildCharacterProfileNote(
-      character({
-        voiceFingerprint: {
-          verbalTics: ['well'],
-          dialectNotes: 'formal under pressure',
-        },
-      }),
-    )!
-    const reminderLine = note.split('\n').find((line) => line.startsWith('Voice check'))!
+  it('keeps register guidance without forcing tics or catchphrases', () => {
+    const note = buildCharacterProfileNote(character({ voiceFingerprint: {
+      verbalTics: ['well'], catchphrases: ['show me'], dialectNotes: 'formal under pressure', sentenceRhythm: 'Long sentences',
+    } }))!
     expect(note).toContain('formal under pressure')
-    expect(reminderLine).not.toContain('formal under pressure')
+    expect(note).toContain('Long sentences')
+    expect(note).not.toContain('"well"')
+    expect(note).not.toContain('"show me"')
+    expect(note).not.toContain('every single reply')
   })
 
-  it('folds the register into the reminder when there is no catchphrase or tic to restate', () => {
-    const note = buildCharacterProfileNote(character({ voiceFingerprint: { dialectNotes: 'clipped, never contracts a verb' } }))
-    expect(note).toContain('Voice check, every single reply')
-    expect(note).toContain('clipped, never contracts a verb')
-  })
-
-  it('never flattens into generic prose is the closing instruction on the reminder line', () => {
-    const note = buildCharacterProfileNote(character({ voiceFingerprint: { catchphrases: ['you are impossible'] } }))
-    expect(note).toContain('Never let this quietly flatten into generic prose.')
-  })
-
-  it('includes dialect notes and sentence rhythm when authored', () => {
-    const note = buildCharacterProfileNote(
-      character({
-        voiceFingerprint: { dialectNotes: 'clipped, never contracts a verb', sentenceRhythm: 'Short, clipped sentences.' },
-      }),
-    )
-    expect(note).toContain('clipped, never contracts a verb')
-    expect(note).toContain('Short, clipped sentences.')
-  })
-
-  it('caps verbal tics and catchphrases in the note rather than growing without bound', () => {
-    const verbalTics = Array.from({ length: 10 }, (_, i) => `tic${i}`)
-    const catchphrases = Array.from({ length: 10 }, (_, i) => `phrase ${i}`)
-    const note = buildCharacterProfileNote(character({ voiceFingerprint: { verbalTics, catchphrases } }))
-    expect(note).toContain('"tic5"')
-    expect(note).not.toContain('"tic6"')
-    expect(note).toContain('"phrase 4"')
-    expect(note).not.toContain('"phrase 5"')
-  })
-
-  it('returns undefined for an empty voice fingerprint object with nothing set', () => {
-    expect(buildCharacterProfileNote(character({ voiceFingerprint: {} }))).toBeUndefined()
+  it('does not turn a tic-only fingerprint into prompt guidance', () => {
+    expect(buildCharacterProfileNote(character({ voiceFingerprint: { verbalTics: ['well'] } }))).toBeUndefined()
   })
 
   it('folds a "when_then" behavioral rule into a "When X: Y." line', () => {
     const note = buildCharacterProfileNote(
       character({ behavioralRules: [{ id: 'r1', kind: 'when_then', when: 'he brings up her sister', then: 'she deflects with a joke' }] }),
     )
-    expect(note).toContain('Behavioral rules, authored for this character and followed exactly as written:')
+    expect(note).toContain('current explicit author guidance takes precedence')
     expect(note).toContain('When he brings up her sister: she deflects with a joke.')
   })
 
@@ -165,11 +104,8 @@ describe('buildCharacterProfileNote', () => {
     expect(note).not.toContain('rule 10')
   })
 
-  it('still returns a note when only the voice fingerprint is set, with no life-context fields at all', () => {
-    const note = buildCharacterProfileNote(character({ voiceFingerprint: { dialectNotes: 'blunt, one-word answers' } }))
-    expect(note).toBe(
-      'Speech patterns to stay consistent with, every turn: dialect/register: blunt, one-word answers.\n' +
-        'Voice check, every single reply no matter how long this chat has run: blunt, one-word answers. Never let this quietly flatten into generic prose.',
-    )
+  it('keeps dialect-only guidance compact', () => {
+    expect(buildCharacterProfileNote(character({ voiceFingerprint: { dialectNotes: 'blunt, one-word answers' } })))
+      .toContain('Voice guidance: dialect/register: blunt, one-word answers')
   })
 })

@@ -36,28 +36,21 @@ describe('summarizeMessages', () => {
     expect(prompt).not.toContain('distinctive voice worth protecting')
   })
 
-  it('adds a voice-retention instruction naming the character and a concrete example when a fingerprint has catchphrases', async () => {
-    const input = baseInput({ voiceFingerprint: { catchphrases: ["it's not like i"], verbalTics: ['well'] } })
+  it('does not carry tics or catchphrases into factual memory', async () => {
+    const input = baseInput({ voiceFingerprint: { catchphrases: ['show me'], verbalTics: ['well'] } })
     await summarizeMessages(input)
     const prompt = input.generate.mock.calls[0][0] as string
-    expect(prompt).toContain('Rin has a distinctive voice worth protecting')
-    expect(prompt).toContain(`"it's not like i"`)
-    expect(prompt).toContain('keep a brief exact quote')
+    expect(prompt).not.toContain('"show me"')
+    expect(prompt).not.toContain('"well"')
+    expect(prompt).toContain('who requested, permitted, intended, or actually promised')
+    expect(prompt).toContain('Do not infer routines or elapsed absences')
   })
 
-  it('falls back to a verbal tic as the named example when there is no catchphrase', async () => {
-    const input = baseInput({ voiceFingerprint: { verbalTics: ['hmph'] } })
+  it('reminds the summarizer to keep register in the current card', async () => {
+    const input = baseInput({ voiceFingerprint: { dialectNotes: 'formal under pressure' } })
     await summarizeMessages(input)
     const prompt = input.generate.mock.calls[0][0] as string
-    expect(prompt).toContain('"hmph"')
-  })
-
-  it('still adds the instruction (without a named example) when only dialect/register notes are set', async () => {
-    const input = baseInput({ voiceFingerprint: { dialectNotes: 'never swears, even when hurt' } })
-    await summarizeMessages(input)
-    const prompt = input.generate.mock.calls[0][0] as string
-    expect(prompt).toContain('distinctive voice worth protecting')
-    expect(prompt).not.toContain('(something like')
+    expect(prompt).toContain('Their current card provides voice guidance')
   })
 
   it('keeps the existing length/no-em-dash/no-invention instructions intact alongside the new one', async () => {
@@ -65,8 +58,13 @@ describe('summarizeMessages', () => {
     await summarizeMessages(input)
     const prompt = input.generate.mock.calls[0][0] as string
     expect(prompt).toContain('no em dashes')
-    expect(prompt).toContain('under 450 words')
+    expect(prompt).toContain('under 300 words')
     expect(prompt).toContain("Do not invent anything that didn't happen above.")
+  })
+
+  it('rejects a cut-off summary without advancing the memory checkpoint', async () => {
+    const input = baseInput({ generate: vi.fn(async () => 'Pell promised to') })
+    await expect(summarizeMessages(input)).rejects.toThrow('mid-sentence')
   })
 
   it('trims and returns the generated result', async () => {

@@ -1,7 +1,7 @@
 /**
  * Reply length and register, derived per-character instead of set globally. `deriveCardReplyBand`
  * measures a card's own example dialogue/greeting; `resolveReplyLength` turns that (or an explicit
- * override) into a concrete sentence-count instruction; `replyMaxTokens` turns the same band into
+ * override) into flexible length guidance; `replyMaxTokens` turns the same band into
  * a hard sampler cap that only ever lowers the user's own `max_length`, never raises it.
  */
 
@@ -38,17 +38,17 @@ const BANDS: Record<ReplyLengthBand, BandSpec> = {
   brief: {
     words: 45,
     instruction:
-      'Length: keep this turn to one to three sentences. Lead with what they say or do; at most one short action beat. Stop as soon as the turn has landed, even if there is more you could add.',
+      'Length: keep this turn brief when little needs saying. A connected thought is welcome when the moment calls for it.',
   },
   moderate: {
     words: 95,
     instruction:
-      'Length: keep this turn to one short paragraph, around three to five sentences. Enough for a line or two of speech and what they are physically doing, and no more. Stop there.',
+      'Length: let this turn carry several connected thoughts when engaged, and end when its contribution lands.',
   },
   detailed: {
     words: 175,
     instruction:
-      'Length: two short paragraphs at most. Every sentence has to carry something new; cut anything that only restates the mood. Stop once the turn has landed rather than rounding it off.',
+      'Length: allow a fuller contribution when the character is engaged. Every sentence should carry something new.',
   },
 }
 
@@ -60,6 +60,7 @@ const AUTO_MODERATE_MAX_WORDS = 130
 const CHAR_TURN_RE = /^\s*(?:\{\{char\}\}|\{\{CHAR\}\})\s*:\s*(.*)$/
 const USER_TURN_RE = /^\s*(?:\{\{user\}\}|\{\{USER\}\})\s*:\s*/
 const START_MARKER_RE = /^\s*<START>\s*$/i
+const NAMED_TURN_RE = /^\s*[\p{L}][\p{L}\p{N} .,'-]{0,60}:\s*/u
 
 /** Words in a stretch of RP prose, ignoring the asterisks and quote marks that wrap it. */
 export function countProseWords(text: string): number {
@@ -75,7 +76,7 @@ export function extractExampleCharTurns(mesExample: string | undefined): string[
   const turns: string[] = []
   let current: string[] | null = null
   for (const line of mesExample.split('\n')) {
-    if (START_MARKER_RE.test(line) || USER_TURN_RE.test(line)) {
+    if (START_MARKER_RE.test(line) || USER_TURN_RE.test(line) || NAMED_TURN_RE.test(line)) {
       if (current) turns.push(current.join('\n'))
       current = null
       continue

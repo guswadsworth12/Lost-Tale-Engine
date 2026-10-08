@@ -36,6 +36,11 @@ describe('sceneContinuityNote', () => {
     )
   })
 
+  it('deduplicates repeated open threads without changing their wording', () => {
+    expect(sceneContinuityNote({ openThreads: ['Awaiting the guild reply.', 'awaiting the guild reply', 'The seal remains unstable'] }))
+      .toBe('Open threads: Awaiting the guild reply; The seal remains unstable.')
+  })
+
   it('does not double up punctuation when a fact text already ends in a period', () => {
     expect(sceneContinuityNote({ openThreads: ['Sumire agreed to meet Kai if he brings the artbook.'] })).toBe(
       'Open threads: Sumire agreed to meet Kai if he brings the artbook.',

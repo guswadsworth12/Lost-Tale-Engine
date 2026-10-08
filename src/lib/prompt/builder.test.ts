@@ -49,6 +49,17 @@ describe('buildPrompt — instruct template affixes', () => {
     expect(result.prompt).not.toContain('Do not include')
   })
 
+  it('sends each Advanced prompt item once and counts it once in the inspector', async () => {
+    const result = await buildPrompt(baseInput({
+      characterPromptItems: [{ id: 'voice', name: 'Voice', content: 'VOICE_MARKER', role: 'system', enabled: true }],
+      includeSectionBreakdown: true,
+    }))
+    expect(result.prompt.match(/VOICE_MARKER/g)).toHaveLength(1)
+    expect(result.messages.filter((message) => message.content.includes('VOICE_MARKER'))).toHaveLength(1)
+    expect(result.sectionBreakdown?.filter((section) => section.id === 'rolePromptItems')).toHaveLength(1)
+    expect(result.sectionBreakdown?.some((section) => section.id === 'characterPromptItems')).toBe(false)
+  })
+
   it('wraps the whole fixed block (system + description) in the template system markers', async () => {
     const result = await buildPrompt(
       baseInput({
@@ -553,6 +564,15 @@ describe('buildPrompt — promptSections (section 13 instruct-template-manager p
       baseInput({ participants: [{ name: 'Kestrel' }], promptSections: { participants: false } }),
     )
     expect(result.prompt).not.toContain('Also present in this scene')
+  })
+})
+
+describe('buildPrompt — natural dialogue', () => {
+  it('keeps objectives available without requiring every exchange to advance them', async () => {
+    const result = await buildPrompt(baseInput({ activeObjective: { title: 'Investigate the gate', pendingTasks: ['Ask the guard'] } }))
+    expect(result.prompt).toContain('Ask the guard')
+    expect(result.prompt).toContain('Ordinary conversation need not advance them')
+    expect(result.prompt).not.toContain('Steer the scene toward these')
   })
 })
 

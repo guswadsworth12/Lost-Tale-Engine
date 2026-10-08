@@ -22,11 +22,18 @@ function trimTrailingPunct(text: string): string {
 
 export function sceneContinuityNote(facts: SceneContinuityFacts): string {
   const whereWhen = [facts.location ? `at ${facts.location}` : '', facts.timePhase ?? ''].filter(Boolean).join(', ')
+  const seen = new Set<string>()
+  const threads = (facts.openThreads ?? []).map((thread) => trimTrailingPunct(thread.trim())).filter((thread) => {
+    const key = thread.toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
   const lines = [
     whereWhen ? `Scene: ${whereWhen}.` : '',
     facts.presentNames?.length ? `Also present: ${facts.presentNames.join(', ')}.` : '',
     facts.currentActivity ? `Currently: ${trimTrailingPunct(facts.currentActivity)}.` : '',
-    facts.openThreads?.length ? `Open threads: ${facts.openThreads.map(trimTrailingPunct).join('; ')}.` : '',
+    threads.length ? `Open threads: ${threads.join('; ')}.` : '',
   ].filter(Boolean)
   return lines.join(' ')
 }

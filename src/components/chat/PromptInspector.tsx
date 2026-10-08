@@ -10,12 +10,14 @@ export function PromptInspector({
   loadPrompt,
   summary,
   onUpdateSummary,
+  onSaveSummary,
   onClose,
   lastReply,
 }: {
   loadPrompt: () => Promise<PromptInspection | null>
   summary?: string
   onUpdateSummary: () => Promise<string | null>
+  onSaveSummary: (text: string) => Promise<void>
   onClose: () => void
   /** The chat's latest character reply, processed (what's stored/rendered) vs. raw (the model's
    *  exact output, before scene-tag extraction) — `raw` is undefined for a reply generated before
@@ -25,6 +27,9 @@ export function PromptInspector({
   const [result, setResult] = useState<PromptInspection | null | 'error'>(null)
   const [summarizing, setSummarizing] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [summaryDraft, setSummaryDraft] = useState(summary ?? '')
+  const [savedSummary, setSavedSummary] = useState<string | undefined>(undefined)
   const [showRawReply, setShowRawReply] = useState(false)
 
   useEffect(() => {
@@ -41,13 +46,26 @@ export function PromptInspector({
     setSummarizing(true)
     setSummaryError(null)
     try {
-      await onUpdateSummary()
+      const updated = await onUpdateSummary()
+      if (updated !== null) setSavedSummary(updated)
       const r = await loadPrompt()
       setResult(r)
     } catch (e) {
       setSummaryError(e instanceof Error ? e.message : String(e))
     } finally {
       setSummarizing(false)
+    }
+  }
+
+  const saveSummary = async () => {
+    setSummaryError(null)
+    try {
+      await onSaveSummary(summaryDraft)
+      setSavedSummary(summaryDraft.trim())
+      setEditingSummary(false)
+      setResult(await loadPrompt())
+    } catch (e) {
+      setSummaryError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -100,14 +118,23 @@ export function PromptInspector({
             <div className="mb-5 rounded-xl bg-bg-sunken p-4">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-xs font-semibold text-text-muted">Long-term memory (summary)</h3>
+                <Button variant="ghost" onClick={() => { setSummaryDraft(savedSummary ?? summary ?? ''); setEditingSummary(!editingSummary) }}>
+                  {editingSummary ? 'Cancel' : 'Edit'}
+                </Button>
                 <Button variant="ghost" onClick={refreshSummary} disabled={summarizing} className="flex items-center gap-1.5">
                   <RotateCcw size={12} strokeWidth={2} className={summarizing ? 'animate-spin' : ''} />
                   {summarizing ? 'Updating…' : 'Update now'}
                 </Button>
               </div>
               {summaryError && <p className="mb-2 text-xs text-danger">{summaryError}</p>}
-              {summary?.trim() ? (
-                <p className="text-xs text-text">{summary}</p>
+              {editingSummary ? (
+                <div>
+                  <textarea className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text" rows={8} value={summaryDraft} onChange={(e) => setSummaryDraft(e.target.value)} aria-label="Edit long-term memory summary" />
+                  <Button onClick={saveSummary}>Save summary</Button>
+                  <p className="mt-1 text-xs text-text-muted">This edits the summary only. The transcript and memory checkpoint remain available.</p>
+                </div>
+              ) : (savedSummary ?? summary)?.trim() ? (
+                <p className="text-xs text-text">{savedSummary ?? summary}</p>
               ) : (
                 <p className="text-xs text-text-muted">
                   No summary yet. Once this chat has enough history, older turns are folded in here

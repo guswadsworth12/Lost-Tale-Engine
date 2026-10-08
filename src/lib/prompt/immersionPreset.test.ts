@@ -11,6 +11,12 @@ import {
 } from './immersionPreset'
 
 describe('immersionPreset', () => {
+  it('treats marked OOC directions as author guidance without granting character knowledge', () => {
+    const prompt = BUILTIN_SYSTEM_PROMPTS.find((p) => p.id === 'immersive')!.prompt
+    expect(prompt).toContain('out-of-character directions')
+    expect(prompt).toContain('without making them dialogue or knowledge')
+    expect(prompt).not.toContain('does not understand it or ignores it')
+  })
   it('names a system prompt id that actually exists among the built-ins', () => {
     expect(BUILTIN_SYSTEM_PROMPTS.some((p) => p.id === MAXIMUM_IMMERSION_SYSTEM_PROMPT_ID)).toBe(true)
   })

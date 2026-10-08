@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextRoundRobinSpeaker, parseMention, pickDirectorSpeaker, rosterFrom, type SceneRoster } from './scene'
+import { nextRoundRobinSpeaker, parseMention, pickDirectorSpeaker, presentRoster, rosterFrom, type SceneRoster } from './scene'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { ChatBackend } from '@/lib/api/chatBackend'
 import type { ChatMessage } from '@/lib/prompt/builder'
@@ -66,6 +66,14 @@ describe('rosterFrom', () => {
 
   it('handles no primary (falls back to just participants)', () => {
     expect(rosterFrom(undefined, [char('x', 'X')])).toEqual([{ id: 'x', name: 'X' }])
+  })
+})
+
+describe('presentRoster', () => {
+  it('uses the attendance ledger for speaker choice and prompt rosters', () => {
+    expect(presentRoster(roster, ['a', 'c'])).toEqual([roster[0], roster[2]])
+    expect(presentRoster(roster, [])).toEqual([])
+    expect(presentRoster(roster, undefined)).toEqual(roster)
   })
 })
 
