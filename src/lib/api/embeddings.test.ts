@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { embeddingConnection } from './embeddings'
+import { embeddingConnection, useEmbeddingDimensions } from './embeddings'
 import { OpenAICompatibleClient } from './openaiCompatible'
 import { loadServiceModels } from './serviceModels'
 import { RELAY_HEADERS, serviceSecretName } from '@/lib/accounts/contract'
@@ -40,4 +40,18 @@ describe('embedding services and relay', () => {
     expect(embeddingConnection({ services: [local], embeddingModel: { serviceId: 'local', model: 'typed-model' } }, {})?.model).toBe('typed-model')
     expect(embeddingConnection({ services: [local], embeddingModel: null }, {})).toBeUndefined()
   })
+})
+
+
+it('observes dimensions from query/Test it calls, keeping background indexing out of that signal', async () => {
+  const local = { id: 'local', name: 'Local', kind: 'openai-compatible' as const, baseUrl: 'http://localhost:1234/v1' }
+  const settings = { services: [local], embeddingModel: { serviceId: 'local', model: 'synthetic' } }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ index: 0, embedding: [1, 0, 0] }] }))))
+  useEmbeddingDimensions.setState({ byConnection: {} })
+  const query = embeddingConnection(settings, {})!
+  const background = embeddingConnection(settings, {}, false)!
+  await background.embed(['A crossing.'])
+  expect(query.dimensions()).toBeUndefined()
+  await query.embed(['A crossing.'])
+  expect(query.dimensions()).toBe(3)
 })

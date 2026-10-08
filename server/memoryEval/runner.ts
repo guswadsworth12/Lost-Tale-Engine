@@ -17,7 +17,7 @@ export function parseOptions(args: string[]) {
     const value = args[++i]
     if (!value || value.startsWith('--')) throw new Error(`${flag} needs a value`)
     if (flag === '--embedder') {
-      if (value !== 'stub') throw new Error('Embedder must be stub.')
+      if (value !== 'stub' && value !== 'stub-compressed') throw new Error('Embedder must be stub or stub-compressed.')
       options.embedder = value
     }
     if (flag === '--embeddings-url') options.embeddingsUrl = value
@@ -50,7 +50,7 @@ function loadCases(options: ReturnType<typeof parseOptions>): RecallCase[] {
 }
 
 function report(results: RecallResult[], options: ReturnType<typeof parseOptions>, print: (line: string) => void): number {
-  print(`Current ranking (module ${options.module ?? 'off'}${options.embedder ? ', synthetic stub embedder: wiring only' : options.embeddingsUrl ? ', real embeddings endpoint' : ''})`)
+  print(`Current ranking (module ${options.module ?? 'off'}${options.embedder ? `, synthetic ${options.embedder} embedder: wiring only` : options.embeddingsUrl ? ', real embeddings endpoint' : ''})`)
   for (const r of results) {
     print(`${r.hit ? 'HIT' : 'MISS'} ${r.id}${r.mustNeverRegress ? ' [must-never-regress]' : ''}: ${r.question}`)
     print(`  Expected picked: ${r.recalled.length}/${r.expected}; tokens: ${r.usedTokens}/${r.budgetTokens}`)

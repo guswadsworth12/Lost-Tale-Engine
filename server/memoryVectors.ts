@@ -3,7 +3,7 @@ import { characterStore, chatStore, db, memoryStore, memoryVectorStore, worldSto
 import { canSeeCharacter, canSeeChat } from './access.ts'
 import { chainOf, memoriesIn } from './memories.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
-import { normalizeVector } from '../src/lib/memory/vector.ts'
+import { MAX_VECTOR_DIMS, normalizeVector } from '../src/lib/memory/vector.ts'
 import { memorySimilarities, memoryTextHash } from './memoryVectorPlan.ts'
 
 export const memoryVectorsRouter = express.Router()
@@ -16,16 +16,19 @@ memoryVectorsRouter.get('/chats/:id/memory-vectors/missing', (req, res) => {
   if (!enabled(chat)) return res.status(409).json({ error: 'Deep Memory is off.' })
   const model = req.query.model
   if (!modelName(model)) return res.status(400).json({ error: 'Choose an embedding model.' })
+  const dims = req.query.dims === undefined ? undefined : Number(req.query.dims)
+  if (dims !== undefined && (!Number.isInteger(dims) || dims < 1 || dims > MAX_VECTOR_DIMS)) return res.status(400).json({ error: 'Invalid embedding dimensions.' })
   const visible = memoriesIn(chainOf(req.params.id)).filter((m) => canSeeChat(req, chatStore.get(m.chatId)))
-  const missing = visible.filter((m) => m.active && m.kind !== 'journal' && !memoryVectorStore.current(m.id, model, memoryTextHash(model, m.text)))
-  res.json({ total: missing.length, missing: missing.slice(0, 32).map((m) => ({ memoryId: m.id, text: m.text, textHash: memoryTextHash(model, m.text) })) })
+  const missing = visible.filter((m) => m.active && m.kind !== 'journal')
+    .map((m) => ({ memoryId: m.id, text: m.text, textHash: memoryTextHash(model, m.text) }))
+    .filter((m) => !memoryVectorStore.current(m.memoryId, model, m.textHash, dims))
+  res.json({ total: missing.length, missing: missing.slice(0, 32) })
 })
 
 memoryVectorsRouter.put('/memory-vectors', (req, res) => {
   const rows = req.body?.vectors
   if (!Array.isArray(rows) || rows.length > 32) return res.status(400).json({ error: 'Send up to 32 vectors.' })
   const prepared: { memoryId: string; model: string; dims: number; textHash: string; vector: Float32Array }[] = []
-  const dimensions = new Map<string, number>()
   for (const row of rows) {
     if (!row || typeof row.memoryId !== 'string' || !modelName(row.model) || !Array.isArray(row.vector) || row.dims !== row.vector.length) return res.status(400).json({ error: 'Invalid embedding.' })
     const memory = memoryStore.get(row.memoryId)
@@ -33,11 +36,8 @@ memoryVectorsRouter.put('/memory-vectors', (req, res) => {
     if (!memory || !chat || !canSeeChat(req, chat)) return res.status(404).json({ error: 'Not found' })
     if (!enabled(chat)) return res.status(409).json({ error: 'Deep Memory is off.' })
     if (row.textHash !== memoryTextHash(row.model, String(memory.text))) return res.status(409).json({ error: 'The memory changed. Index it again.' })
-    const dims = dimensions.get(row.model) ?? memoryVectorStore.dimensions(row.model)
-    if (dims !== undefined && dims !== row.dims) return res.status(400).json({ error: 'Embedding dimensions differ for this model.' })
     let vector: Float32Array
     try { vector = normalizeVector(row.vector) } catch { return res.status(400).json({ error: 'Invalid embedding vector.' }) }
-    dimensions.set(row.model, row.dims)
     prepared.push({ ...row, vector })
   }
   db.exec('BEGIN')
@@ -57,9 +57,7 @@ memoryVectorsRouter.post('/chats/:id/memory-similarity', (req, res) => {
   if (!modelName(model) || !Array.isArray(vector)) return res.status(400).json({ error: 'Invalid embedding query.' })
   let query: Float32Array
   try { query = normalizeVector(vector) } catch { return res.status(400).json({ error: 'Invalid embedding vector.' }) }
-  const dims = memoryVectorStore.dimensions(model)
-  if (dims !== undefined && dims !== query.length) return res.status(400).json({ error: 'Embedding dimensions differ for this model.' })
   const chain = new Set(chainOf(req.params.id))
   const memories = memoriesIn([...chain]).filter((m) => canSeeChat(req, chatStore.get(m.chatId)))
-  res.json(memorySimilarities(memories, chain, characterId, model, query, (id) => memoryVectorStore.get(id)))
+  res.json(memorySimilarities(memories, chain, characterId, model, query, (id) => memoryVectorStore.get(id, model)))
 })

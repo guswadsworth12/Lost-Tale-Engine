@@ -574,13 +574,13 @@ export const memoriesApi = {
 
 /** Derived memory vectors stay on the server. The browser only sends new embeddings and queries. */
 export const memoryVectorsApi = {
-  missing(chatId: string, model: string, signal?: AbortSignal): Promise<{ total: number; missing: { memoryId: string; text: string; textHash: string }[] }> {
-    return request('GET', `/chats/${chatId}/memory-vectors/missing?model=${encodeURIComponent(model)}`, undefined, { signal, quiet: true })
+  missing(chatId: string, model: string, signal?: AbortSignal, dims?: number): Promise<{ total: number; missing: { memoryId: string; text: string; textHash: string }[] }> {
+    return request('GET', `/chats/${chatId}/memory-vectors/missing?model=${encodeURIComponent(model)}${dims === undefined ? '' : `&dims=${dims}`}`, undefined, { signal, quiet: true })
   },
   put(vectors: { memoryId: string; model: string; dims: number; textHash: string; vector: number[] }[], signal?: AbortSignal): Promise<void> {
     return request('PUT', '/memory-vectors', { vectors }, { signal, quiet: true })
   },
-  similarities(chatId: string, characterId: string, model: string, vector: number[]): Promise<Record<string, number>> {
-    return request('POST', `/chats/${chatId}/memory-similarity`, { characterId, model, vector }, { quiet: true })
+  similarities(chatId: string, characterId: string, model: string, vector: number[], signal?: AbortSignal): Promise<Record<string, number>> {
+    return request('POST', `/chats/${chatId}/memory-similarity`, { characterId, model, vector }, { signal, quiet: true })
   },
 }

@@ -758,7 +758,7 @@ export function useChatSession(chatId: string | null) {
       const recentMemoryText = historyForPrompt.slice(-6).map((m) => m.text).join('\n')
       const meaning = memoryOn ? await meaningRecall.current.recall(modules.deepMemory,
         embeddingConnection(useSettingsStore.getState(), secrets), opts?.meaningText ?? recentMemoryText,
-        (model, vector) => memoryVectorsApi.similarities(freshChat.id, speaker.id, model, vector)) : {}
+        (model, vector, signal) => memoryVectorsApi.similarities(freshChat.id, speaker.id, model, vector, signal)) : {}
       const memoryPicks = memoryOn
         ? selectMemoriesExplained(sceneMemories, {
             characterId: speaker.id,

@@ -59,8 +59,22 @@ it('boosts similarity only behind deep, with a reason, and preserves Phase 1 whe
   const base = { characterId: 'brisa', presentIds: [], recentText: '', deep: { now: 1 } }
   const ordinary = selectMemoriesExplained([memory], base)[0]
   const meaning = selectMemoriesExplained([memory], { ...base, deep: { now: 1, similarities: new Map([[memory.id, 0.8]]) } })[0]
-  expect(meaning.reasons.score - ordinary.reasons.score).toBeCloseTo(DEEP_MEMORY_WEIGHTS.similarity * 0.8)
+  expect(meaning.reasons.score - ordinary.reasons.score).toBeCloseTo(DEEP_MEMORY_WEIGHTS.similarity * ((0.8 - 0.4) / 0.6))
   expect(meaning.reasons.similarMeaning).toBe(true)
   expect(ordinary.reasons).not.toHaveProperty('similarMeaning')
   expect(selectMemoriesExplained([memory], { ...base, deep: { now: 1, similarities: undefined } })).toEqual([ordinary])
+})
+
+
+it('calibrates compressed cosine using only eligible candidates and labels only the strong match', () => {
+  const memories = [0.45, 0.48, 0.50, 0.52, 0.70].map((similarity, i) => memory({ id: `candidate-${i}`, createdAt: i, importance: i === 4 ? 0.1 : 1 }))
+  const similarities = new Map(memories.map((m, i) => [m.id, [0.45, 0.48, 0.50, 0.52, 0.70][i]]))
+  const hidden = memory({ id: 'hidden', knownBy: ['tavi'] })
+  similarities.set(hidden.id, 1)
+  const picks = selectMemoriesExplained([...memories, hidden], { ...base, deep: { now, similarities } })
+  expect(picks[0].memory.id).toBe('candidate-4')
+  expect(picks.filter((p) => p.reasons.similarMeaning).map((p) => p.memory.id)).toEqual(['candidate-4'])
+  const flat = selectMemoriesExplained(memories, { ...base, deep: { now, similarities: new Map(memories.map((m) => [m.id, 0.6])) } })
+  expect(flat.every((p) => !p.reasons.similarMeaning)).toBe(true)
+  expect(flat.map((p) => p.reasons.score)).toEqual(selectMemoriesExplained(memories, { ...base, deep: { now } }).map((p) => p.reasons.score))
 })

@@ -21,6 +21,21 @@ export const DEEP_MEMORY_WEIGHTS = {
   recall: 0.25,
   similarity: 0.75,
 } as const
+// Calibrate only finite scores of this speaker's eligible candidates. With five or
+// more, median maps to zero and maximum to one; flat distributions add no boost.
+// Small sets use a fixed 0.4 floor, rescaled to 0..1 to avoid amplifying noise.
+function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<string, number>) {
+  const values = known.map((m) => scores?.get(m.id)).filter((v): v is number => v !== undefined && Number.isFinite(v))
+    .map((v) => Math.max(0, Math.min(1, v))).sort((a, b) => a - b)
+  const middle = Math.floor(values.length / 2)
+  const floor = values.length >= 5 ? (values[middle] + values[Math.ceil(values.length / 2) - 1]) / 2 : 0.4
+  const ceiling = values.length >= 5 ? values[values.length - 1] : 1
+  return new Map(known.map((m) => {
+    const raw = scores?.get(m.id)
+    return [m.id, raw !== undefined && Number.isFinite(raw) && ceiling > floor
+      ? Math.max(0, Math.min(1, (raw - floor) / (ceiling - floor))) : 0]
+  }))
+}
 const RECALL_HALF_LIFE_MS = 30 * 86400_000
 const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 
@@ -128,6 +143,7 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
   const known = memoriesKnownBy(memories, characterId).filter((m) => typeof m.text === 'string' && m.text.trim())
   if (known.length === 0) return []
 
+  const similarities = calibratedSimilarities(known, opts.deep?.similarities)
   const recent = keywords(opts.recentText ?? '')
   const present = new Set(presentIds)
   const byAge = [...known].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -140,8 +156,7 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
     const feeling = deep ? Math.min(1, Math.abs(m.feelings?.[characterId] ?? 0)) : 0
     const place = !!deep && !!placeKey(m.location) && placeKey(m.location) === placeKey(deep.location)
     const strength = deep ? recallStrength(deep.recalls?.get(m.id), deep.now) : 0
-    const rawSimilarity = deep?.similarities?.get(m.id) ?? 0
-    const similarity = Number.isFinite(rawSimilarity) ? Math.max(0, Math.min(1, rawSimilarity)) : 0
+    const similarity = similarities.get(m.id) ?? 0
     return {
       pinned: !!m.pinned,
       openThread: !!m.unresolved,
@@ -150,7 +165,7 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
       recent: (recency.get(m.id) ?? 0) >= 0.8,
       important: (m.importance ?? 0.5) >= 0.7,
       ...(deep ? { strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
-      ...(deep?.similarities ? { similarMeaning: similarity >= 0.5 } : {}),
+      ...(deep?.similarities ? { similarMeaning: similarity >= 0.6 } : {}),
       score: DEEP_MEMORY_WEIGHTS.importance * (m.importance ?? 0.5)
         + DEEP_MEMORY_WEIGHTS.recency * (recency.get(m.id) ?? 0)
         + (m.unresolved ? DEEP_MEMORY_WEIGHTS.openThread : 0)

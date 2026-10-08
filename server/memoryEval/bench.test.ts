@@ -17,7 +17,7 @@ describe('recall bench', () => {
   })
 
   it('keeps every knowledge and branch case as a must-never-regress check', () => {
-    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }] as const) for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
+    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }, { module: 'on', embedder: 'stub-compressed' }] as const) for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
       expect(c.mustNeverRegress, c.id).toBe(true)
       expect(c.forbiddenIds.length, c.id).toBeGreaterThan(0)
       const result = evaluateCase(c, options)
@@ -28,7 +28,7 @@ describe('recall bench', () => {
   })
 
   it('picks the forbidden memory when each protected case loses its guard', () => {
-    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
+    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }, { module: 'on', embedder: 'stub-compressed' }] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
       for (const m of c.memories.filter((m) => c.forbiddenIds.includes(m.id))) {
         if (c.category === 'branch') {
           m.chatId = c.scene.chatId
@@ -136,4 +136,12 @@ it('improves different wording with the explicitly synthetic stub while preservi
   expect(() => parseOptions(['--embedder', 'real'])).toThrow()
   expect(() => parseOptions(['--embeddings-url', 'http://localhost:1234'])).toThrow()
   expect(parseOptions(['--embeddings-url', 'http://localhost:1234', '--embeddings-model', 'synthetic'])).toMatchObject({ embeddingsModel: 'synthetic' })
+})
+
+
+it('runs compressed synthetic vectors through production filters and preserves module-off picks', () => {
+  const lines: string[] = []
+  expect(run(['--module', 'on', '--embedder', 'stub-compressed'], (s) => lines.push(s))).toBe(0)
+  expect(lines.join('\n')).toContain('synthetic stub-compressed embedder: wiring only')
+  for (const c of fixtures.map(parseCase)) expect(evaluateCase(c, { module: 'off', embedder: 'stub-compressed' })).toEqual(evaluateCase(c))
 })

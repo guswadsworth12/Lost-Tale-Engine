@@ -78,7 +78,7 @@ export function parseCase(raw: unknown): RecallCase {
   return c as RecallCase
 }
 
-export interface EvalOptions { budgetTokens?: number; module?: 'off' | 'on'; embedder?: 'stub'; similarities?: ReadonlyMap<string, number> }
+export interface EvalOptions { budgetTokens?: number; module?: 'off' | 'on'; embedder?: 'stub' | 'stub-compressed'; similarities?: ReadonlyMap<string, number> }
 
 export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
   const budgetTokens = options.budgetTokens ?? MEMORY_TOKEN_BUDGET
@@ -89,11 +89,19 @@ export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
   // Same order as GET /chats/:id/memories: scene scope, branch-scoped tellings, then ranking.
   const visible = c.memories.filter((m) => chain.has(m.chatId)).map((m) => memoryAsSeenFrom(m, chain))
   let similarities = options.similarities
-  if (options.module === 'on' && options.embedder === 'stub') {
+  if (options.module === 'on' && !!options.embedder) {
+    const compressed = options.embedder === 'stub-compressed'
+    const embed = (text: string, query = false) => {
+      const vector = stubEmbedding(text)
+      // Unit vectors whose dot products span 0.45..0.70, including a private
+      // padding axis for memories, separate from the query padding axis.
+      return compressed ? new Float32Array([...vector.map((v) => v * 0.5), Math.sqrt(0.45),
+        query ? 0 : Math.sqrt(0.30), query ? Math.sqrt(0.30) : 0]) : vector
+    }
     const model = 'synthetic-stub'
-    const vectors = new Map(c.memories.map((m) => [m.id, { model, textHash: memoryTextHash(model, m.text), vector: stubEmbedding(m.text) } satisfies MemoryVector]))
+    const vectors = new Map(c.memories.map((m) => [m.id, { model, textHash: memoryTextHash(model, m.text), vector: embed(m.text) } satisfies MemoryVector]))
     similarities = new Map(Object.entries(memorySimilarities(c.memories, chain, c.scene.speakerId, model,
-      stubEmbedding(c.scene.recentMessages.slice(-6).join('\n')), (id) => vectors.get(id))))
+      embed(c.scene.recentMessages.slice(-6).join('\n'), true), (id) => vectors.get(id))))
   }
   const picks = selectMemoriesExplained(visible, {
     characterId: c.scene.speakerId,

@@ -81,3 +81,39 @@ describe('background indexing steps', () => {
     await expect(indexMemoryBatch(true, c, new AbortController().signal, () => false, missing, put)).rejects.toThrow('synthetic')
   })
 })
+
+
+it('falls back within 2.5 seconds when embedding ignores cancellation, and caches the failure', async () => {
+  const c = connection()
+  c.embed.mockImplementation(() => new Promise(() => {}))
+  const score = vi.fn(async () => ({ memory: 1 }))
+  const recall = new MeaningRecall()
+  const started = performance.now()
+  expect((await recall.recall(true, c, 'A slow crossing.', score)).skipped).toMatch(/Ordinary recall/)
+  expect(performance.now() - started).toBeLessThan(2900)
+  expect(c.embed.mock.calls[0][1]?.aborted).toBe(true)
+  await recall.recall(true, c, 'A slow crossing.', score)
+  expect(c.embed).toHaveBeenCalledTimes(1)
+  expect(score).not.toHaveBeenCalled()
+})
+it('bounds scoring within the same reply deadline', async () => {
+  const started = performance.now()
+  const result = await new MeaningRecall().recall(true, connection(), 'A crossing.', () => new Promise(() => {}))
+  expect(result.skipped).toMatch(/Ordinary recall/)
+  expect(performance.now() - started).toBeLessThan(2900)
+})
+
+
+it('refreshes a cached query after Test it observes new dimensions under the same model name', async () => {
+  const c = connection()
+  let dims = 2
+  const observed = { ...c, dimensions: () => dims }
+  const recall = new MeaningRecall()
+  const score = vi.fn(async () => ({ memory: 1 }))
+  await recall.recall(true, observed, 'A crossing.', score)
+  dims = 3
+  c.embed.mockResolvedValue([[1, 0, 0]])
+  await recall.recall(true, observed, 'A crossing.', score)
+  expect(c.embed).toHaveBeenCalledTimes(2)
+  expect(score).toHaveBeenLastCalledWith('synthetic', [1, 0, 0], expect.any(AbortSignal))
+})
