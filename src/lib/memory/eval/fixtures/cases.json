@@ -1,0 +1,3732 @@
+[
+  {
+    "id": "wording-bridge",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi pulled Aveline to safety when the Overbloom collapsed. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Do you remember that bridge?"
+      ]
+    },
+    "question": "Does Aveline remember the bridge?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-gift",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Rowan gave Aveline a brass compass on her naming day. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "What was my birthday present?"
+      ]
+    },
+    "question": "What birthday present did Rowan give?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-literal",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi repaired the cracked silver lantern in Lantern Court. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi repaired the cracked silver lantern."
+      ]
+    },
+    "question": "Who repaired the silver lantern?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-stem",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline promised to guard the northern gates during the storm. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Aveline promised to guard the northern gates during the storm."
+      ]
+    },
+    "question": "Who was guarding the gates?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-introduction",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Mira brought Tavi to the candle guild. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Rowan welcomed Tavi at the candle guild after Mira arrived. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Who introduced Tavi to Rowan?"
+      ]
+    },
+    "question": "Who introduced Tavi to Rowan?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-key",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi lent a bronze key to Mira before the journey. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Mira entrusted that borrowed key to Rowan at dawn. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Who can help Rowan find the missing key?"
+      ]
+    },
+    "question": "Who can help Rowan find the key?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-place",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline learned that Mira tends the orchard. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Tavi left the basket with Mira beneath an apple tree. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Where did Tavi leave the basket?"
+      ]
+    },
+    "question": "Who knows where Tavi left the basket?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-pain",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline lost her oldest companion during a blizzard. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": -0.95
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "sad",
+      "recentMessages": [
+        "I feel hollow today."
+      ]
+    },
+    "question": "What loss surfaces in a sad scene?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-joy",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline celebrated her first successful voyage with Tavi. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0.95
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "joyful",
+      "recentMessages": [
+        "I am so happy tonight."
+      ]
+    },
+    "question": "What joyful event fits this celebration?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-fear",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline was trapped beneath a collapsed cellar staircase. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": -0.9
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "frightened",
+      "recentMessages": [
+        "This narrow passage makes me afraid."
+      ]
+    },
+    "question": "What explains her fear of confined spaces?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-ferry",
+    "category": "place",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Aveline waited at the ferry landing for a friend who never arrived. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1,
+        "location": "Ferry Landing"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Ferry Landing",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "We have returned here."
+      ]
+    },
+    "question": "What happened here at the ferry landing?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-orchard",
+    "category": "place",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Mira and Aveline buried a time capsule beneath an apple tree. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1,
+        "location": "Orchard"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Orchard",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "This place feels familiar."
+      ]
+    },
+    "question": "What does the orchard remind her of?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-market",
+    "category": "place",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Rowan taught Aveline how to bargain at the night market. Aveline kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20,
+        "location": "Night Market"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Aveline inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Aveline waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Night Market",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Rowan taught Aveline how to bargain at the night market."
+      ]
+    },
+    "question": "What happened at the night market?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "knowledge-unknown",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "secret",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": false
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Aveline recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-pinned-secret",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "secret",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Aveline recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-retired",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": false,
+        "origin": "manual",
+        "createdAt": 30
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Aveline recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-folded",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "consolidatedFor": [
+          "aveline"
+        ]
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Aveline recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-sibling",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "other",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-telling",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi",
+          "aveline"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true,
+        "toldVia": [
+          {
+            "to": [
+              "aveline"
+            ],
+            "by": "tavi",
+            "chatId": "other",
+            "at": 20
+          }
+        ]
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-sequel",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "aveline",
+        "name": "Aveline"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Aveline recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "other",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "aveline"
+        ],
+        "knownBy": [
+          "aveline"
+        ],
+        "importance": 1,
+        "feelings": {
+          "aveline": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "sequel",
+        "storyId": "second"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      },
+      {
+        "id": "second",
+        "continuesFrom": {
+          "storyId": "first",
+          "sceneId": "now"
+        }
+      }
+    ],
+    "scene": {
+      "chatId": "sequel",
+      "speakerId": "aveline",
+      "presentIds": [
+        "aveline"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  }
+]
