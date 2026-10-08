@@ -23,7 +23,7 @@ export interface ImageGenerateParams {
   /** A transparent background (a sprite), on backends that can; see `ImageCapabilities`. */
   transparent?: boolean
   /** Images whose look should carry over (a character's portrait), on backends that take them. */
-  /** `name`: who or what it shows ("Aveline Pyre", "Underground Cistern (location)"); sent with the image so the model can tell them apart. */
+  /** `name`: who or what it shows ("Brisa Vale", "Underground Cistern (location)"); sent with the image so the model can tell them apart. */
   referenceImages?: { base64: string; mimeType: string; name?: string }[]
 }
 
@@ -107,7 +107,7 @@ export const IMAGE_BACKEND_LABELS: Record<ImageBackendId, string> = {
   'gemini-image': 'Google Gemini (hosted)',
 }
 
-/** A reference image's file name from what it shows: "Aveline Pyre" → `aveline-pyre-reference.png`. */
+/** A reference image's file name from what it shows: "Brisa Vale" → `brisa-vale-reference.png`. */
 export function referenceFileName(ref: { mimeType: string; name?: string }, index: number): string {
   const slug = (ref.name ?? '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
   return `${slug || `image-${index + 1}`}-reference.${ref.mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'}`

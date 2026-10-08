@@ -45,7 +45,7 @@ it('splits long narration into bounded clips without losing words', () => {
 })
 
 it('keeps short replies together instead of splitting a quoted phrase at 120 characters', () => {
-  const text = '"You brought something for both of us, huh?" "All right, then. Let\'s see if you learned how to pack light before rescuing Aveline from whatever you\'ve dragged back this time."'
+  const text = '"You brought something for both of us, huh?" "All right, then. Let\'s see if you learned how to pack light before rescuing Brisa from whatever you\'ve dragged back this time."'
   expect(splitSpeechText(text)).toEqual([text])
 })
 
