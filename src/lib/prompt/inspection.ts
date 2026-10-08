@@ -17,6 +17,8 @@ export interface InspectedMemoryPick {
  * asked for, how character memory shaped it. The real generation path never fills these.
  */
 export interface PromptInspection extends PromptBuildResult {
+  /** Turn bookkeeping only, filled for Deep Memory without changing the prompt. */
+  memoryRecallIds?: string[]
   /** Present whenever character memory ran for this speaker (may be empty). */
   memoryPicks?: InspectedMemoryPick[]
   /** The speaker's journal text, when one was folded in. */

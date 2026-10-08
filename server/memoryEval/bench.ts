@@ -1,4 +1,4 @@
-import type { CharacterMemory } from '../../src/lib/types'
+import type { CharacterMemory, MemoryRecall } from '../../src/lib/types'
 import { memoryAsSeenFrom, sceneChainIds, type ChatLike, type StoryLike } from '../memoryPlan'
 import { estimateTokens } from '../../src/lib/tokenEstimate'
 import { formatMemoryLine, MEMORY_TOKEN_BUDGET, selectMemoriesExplained } from '../../src/lib/memory/rank'
@@ -7,7 +7,7 @@ export interface RecallCase {
   id: string
   category: string
   cast: { id: string; name: string }[]
-  memories: (CharacterMemory & { location?: string; links?: unknown[] })[]
+  memories: (CharacterMemory & { recalls?: MemoryRecall; links?: unknown[] })[]
   chats: (ChatLike & { id: string })[]
   stories: (StoryLike & { id: string })[]
   scene: {
@@ -17,6 +17,7 @@ export interface RecallCase {
     location?: string | null
     atmosphere?: string | null
     recentMessages: string[]
+    now?: number
   }
   question: string
   expectedIds: string[]
@@ -43,6 +44,8 @@ export function parseCase(raw: unknown): RecallCase {
   require(object(c.scene), 'scene is required')
   require(text(c.scene.chatId) && text(c.scene.speakerId) && strings(c.scene.presentIds)
     && strings(c.scene.recentMessages), 'scene needs a chat, speaker, presentIds and recentMessages')
+  require(c.scene.location === undefined || c.scene.location === null || typeof c.scene.location === 'string', 'invalid scene location')
+  require(c.scene.now === undefined || finite(c.scene.now), 'invalid evaluation time')
   const cast = new Set(c.cast.map((v: any) => v.id))
   const chats = new Set(c.chats.map((v: any) => v.id))
   require(cast.has(c.scene.speakerId) && c.scene.presentIds.every((id: string) => cast.has(id)), 'scene refers to missing cast')
@@ -59,6 +62,8 @@ export function parseCase(raw: unknown): RecallCase {
     require(m.feelings === undefined || (object(m.feelings) && Object.entries(m.feelings).every(([id, v]) => cast.has(id) && finite(v) && Math.abs(v) <= 1)), 'invalid feelings')
     require(m.toldVia === undefined || (Array.isArray(m.toldVia) && m.toldVia.every((t: any) => object(t) && strings(t.to)
       && t.to.every((id: string) => cast.has(id)) && finite(t.at) && (t.chatId === undefined || chats.has(t.chatId)))), 'invalid tellings')
+    require(m.location === undefined || typeof m.location === 'string', 'invalid memory location')
+    require(m.recalls === undefined || (object(m.recalls) && Number.isInteger(m.recalls.count) && m.recalls.count >= 0 && finite(m.recalls.lastAt)), 'invalid recalls')
     for (const key of ['pinned', 'unresolved']) require(m[key] === undefined || typeof m[key] === 'boolean', `invalid ${key}`)
   }
   const ids = new Set(c.memories.map((m: any) => m.id))
@@ -74,7 +79,6 @@ export function parseCase(raw: unknown): RecallCase {
 export interface EvalOptions { budgetTokens?: number; module?: 'off' | 'on' }
 
 export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
-  if (options.module === 'on') throw new Error('Deep Memory is not implemented yet; use --module off for the baseline.')
   const budgetTokens = options.budgetTokens ?? MEMORY_TOKEN_BUDGET
   if (!Number.isFinite(budgetTokens) || budgetTokens < 0) throw new Error('Budget must be a non-negative number.')
   const chats = new Map(c.chats.map((v) => [v.id, v]))
@@ -87,6 +91,7 @@ export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
     presentIds: c.scene.presentIds,
     recentText: c.scene.recentMessages.slice(-6).join('\n'),
     budgetTokens,
+    ...(options.module === 'on' ? { deep: { location: c.scene.location, now: c.scene.now ?? 2_000_000_000, recalls: new Map(c.memories.flatMap((m) => m.recalls ? [[m.id, m.recalls] as const] : [])) } } : {}),
   })
   const picked = new Set(picks.map((p) => p.memory.id))
   const recalled = c.expectedIds.filter((id) => picked.has(id))

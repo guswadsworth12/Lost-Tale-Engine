@@ -3,6 +3,8 @@ import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { sceneChainIds } from '../memoryPlan'
+import { sceneSettingFrom } from '../../src/lib/chat/sceneSetting'
+import { backgroundLabel } from '../../src/lib/vn/backgrounds'
 import { witnessedMessage } from '../../src/lib/memory/witnesses'
 import { parseCase } from './bench'
 
@@ -14,7 +16,7 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     const { data, ...columns } = row
     return { ...JSON.parse(data), ...columns }
   }
-  const get = (table: 'chats' | 'stories' | 'characters', id: string): Row | undefined => {
+  const get = (table: 'chats' | 'stories' | 'characters' | 'worlds', id: string): Row | undefined => {
     const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id)
     return row ? decode(row) : undefined
   }
@@ -24,6 +26,15 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     const chain = sceneChainIds(chatId, (id) => get('chats', id), (id) => get('stories', id))
     const memories = db.prepare(`SELECT * FROM memories WHERE chatId IN (${chain.map(() => '?').join(', ')}) ORDER BY createdAt, id`)
       .all(...chain).map(decode)
+    const now = Date.now()
+    if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_recalls'").get()) {
+      const recalls = db.prepare('SELECT * FROM memory_recalls WHERE characterId = ?').all(speakerId)
+      for (const row of recalls) {
+        const events = (JSON.parse(String(row.events)) as { chatId: string; at: number }[]).filter((e) => chain.includes(e.chatId))
+        const memory = memories.find((m) => m.id === row.memoryId)
+        if (memory && events.length) memory.recalls = { count: events.length, lastAt: Math.max(...events.map((e) => e.at)) }
+      }
+    }
     const chats = chain.map((id) => {
       const row = get('chats', id)!
       return { id, previousSceneId: row.previousSceneId, storyId: row.storyId }
@@ -38,12 +49,15 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
       ...Object.keys(m.feelings ?? {}), ...(m.toldVia ?? []).flatMap((t: Row) => t.to),
     ])])
     const cast = [...ids].map((id) => ({ id, name: get('characters', id)?.card?.name ?? id }))
-    const recentMessages = db.prepare('SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt, id')
-      .all(chatId).map(decode).filter((m) => !m.failed && witnessedMessage(m as Parameters<typeof witnessedMessage>[0], speakerId))
+    const branch = db.prepare('SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt, id').all(chatId).map(decode)
+    const worldId = get('characters', String(chat.characterId))?.worldId
+    const world = worldId ? get('worlds', String(worldId)) : undefined
+    const setting = sceneSettingFrom(branch as unknown as Parameters<typeof sceneSettingFrom>[0], chat.scene, (id) => backgroundLabel(id, world))
+    const recentMessages = branch.filter((m) => !m.failed && witnessedMessage(m as Parameters<typeof witnessedMessage>[0], speakerId))
       .map((m) => m.text).filter((v): v is string => typeof v === 'string' && !!v.trim()).slice(-6)
     return parseCase({
       id: chatId, category: 'private', cast, memories, chats, stories,
-      scene: { chatId, speakerId, presentIds, location: chat.scene?.location, atmosphere: chat.scene?.atmosphere, recentMessages },
+      scene: { chatId, speakerId, presentIds, location: setting.location, atmosphere: setting.atmosphere, recentMessages, now },
       question, expectedIds, forbiddenIds: [], mustNeverRegress: false,
     })
   } finally { db.close() }

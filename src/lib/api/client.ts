@@ -512,9 +512,14 @@ export type CharacterMemoryPatch = Partial<
 /** Per-character memory (`server/memories.ts`). Every write invalidates 'memories'. */
 export const memoriesApi = {
   /** Memories visible from a scene (it and every scene before it), oldest first; inactive and consolidated included. */
-  forChat(chatId: string, characterId?: string): Promise<CharacterMemory[]> {
+  forChat(chatId: string, characterId?: string): Promise<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]> {
     const query = characterId ? `?characterId=${encodeURIComponent(characterId)}` : ''
-    return request<CharacterMemory[]>('GET', `/chats/${chatId}/memories${query}`)
+    return request<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]>('GET', `/chats/${chatId}/memories${query}`)
+  },
+  /** Best-effort HTTP bookkeeping, never in the way of a saved reply. */
+  async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[]): Promise<void> {
+    if (!memoryIds.length) return
+    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds }).catch(() => {})
   },
   /** Everything a character knows, across every chat, newest first. */
   forCharacter(characterId: string): Promise<CharacterMemoryListing[]> {

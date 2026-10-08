@@ -14,6 +14,7 @@ import {
   assistantThreadStore,
   instructTemplateStore,
   memoryStore,
+  memoryRecallStore,
   messageStore,
   newId,
   objectiveStore,
@@ -147,7 +148,7 @@ function normalizeWorldModules(raw: unknown) {
   const value = raw as Record<string, unknown>
   const modules: Record<string, boolean | 'guided' | 'mechanical'> = {}
   if (value.campaignRules === false || value.campaignRules === 'guided' || value.campaignRules === 'mechanical') modules.campaignRules = value.campaignRules
-  for (const key of ['relationships', 'dating', 'visualNovel', 'worldSimulation']) {
+  for (const key of ['relationships', 'dating', 'visualNovel', 'worldSimulation', 'deepMemory']) {
     if (typeof value[key] === 'boolean') modules[key] = value[key] as boolean
   }
   return modules
@@ -1718,6 +1719,7 @@ const BACKUP_STORES = {
   relationshipEvents: relationshipEventStore,
   chatFacts: chatFactStore,
   memories: memoryStore,
+  memoryRecalls: memoryRecallStore,
   stories: storyStore,
   storyMoments: storyMomentStore,
 } as const

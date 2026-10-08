@@ -1837,7 +1837,8 @@
       "atmosphere": "sad",
       "recentMessages": [
         "I feel hollow today."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What loss surfaces in a sad scene?",
     "expectedIds": [
@@ -1886,7 +1887,11 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 1
+        "createdAt": 1,
+        "recalls": {
+          "count": 4,
+          "lastAt": 2000000000
+        }
       },
       {
         "id": "routine-0",
@@ -2060,7 +2065,8 @@
       "atmosphere": "joyful",
       "recentMessages": [
         "I am so happy tonight."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What joyful event fits this celebration?",
     "expectedIds": [
@@ -2283,7 +2289,8 @@
       "atmosphere": "frightened",
       "recentMessages": [
         "This narrow passage makes me afraid."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What explains her fear of confined spaces?",
     "expectedIds": [
@@ -2507,7 +2514,8 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "We have returned here."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What happened here at the ferry landing?",
     "expectedIds": [
@@ -2731,7 +2739,8 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "This place feels familiar."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What does the orchard remind her of?",
     "expectedIds": [
@@ -2955,7 +2964,8 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "Rowan taught Brisa how to bargain at the night market."
-      ]
+      ],
+      "now": 2000000000
     },
     "question": "What happened at the night market?",
     "expectedIds": [
@@ -3019,13 +3029,18 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
         "origin": "manual",
         "createdAt": 30,
-        "pinned": false
+        "pinned": false,
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3125,13 +3140,18 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
         "origin": "manual",
         "createdAt": 30,
-        "pinned": true
+        "pinned": true,
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3231,12 +3251,17 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": false,
         "origin": "manual",
-        "createdAt": 30
+        "createdAt": 30,
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3336,7 +3361,7 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
@@ -3344,7 +3369,12 @@
         "createdAt": 30,
         "consolidatedFor": [
           "brisa"
-        ]
+        ],
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3444,13 +3474,18 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
         "origin": "manual",
         "createdAt": 30,
-        "pinned": true
+        "pinned": true,
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3551,7 +3586,7 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
@@ -3567,7 +3602,12 @@
             "chatId": "other",
             "at": 20
           }
-        ]
+        ],
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [
@@ -3667,13 +3707,18 @@
         ],
         "importance": 1,
         "feelings": {
-          "brisa": 0
+          "brisa": 1
         },
         "about": [],
         "active": true,
         "origin": "manual",
         "createdAt": 30,
-        "pinned": true
+        "pinned": true,
+        "location": "Lantern Court",
+        "recalls": {
+          "count": 1000,
+          "lastAt": 2000000000
+        }
       }
     ],
     "chats": [

@@ -858,6 +858,10 @@ function WorldEditor({
               <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.dating} disabled={!effectiveModules.relationships} onChange={(e) => setModule('dating', e.target.checked)} /> Dating tools</label>
               <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.visualNovel} onChange={(e) => setModule('visualNovel', e.target.checked)} /> Visual novel presentation</label>
               <label className="flex items-center gap-2 text-sm text-text"><input type="checkbox" checked={effectiveModules.worldSimulation} onChange={(e) => setModule('worldSimulation', e.target.checked)} /> World simulation</label>
+              <label className="flex items-start gap-2 text-sm text-text sm:col-span-2">
+                <input type="checkbox" className="mt-1" checked={effectiveModules.deepMemory} onChange={(e) => setModule('deepMemory', e.target.checked)} />
+                <span>Deep Memory<span className="block text-xs text-text-muted">Recall favors strong feelings, familiar places, and often remembered moments.</span></span>
+              </label>
             </div>
             <p className="mt-3 text-xs text-text-muted">Romance emphasis: {effectiveModules.romanceEmphasis}. Change the template or dating tools to adjust it.</p>
           </Section>

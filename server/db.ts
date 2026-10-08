@@ -167,6 +167,16 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
+  -- Recall history belongs to a memory and a speaker; reply ids let rewind undo it.
+  CREATE TABLE IF NOT EXISTS memory_recalls (
+    memoryId TEXT NOT NULL,
+    characterId TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    lastAt INTEGER NOT NULL,
+    events TEXT NOT NULL,
+    PRIMARY KEY (memoryId, characterId)
+  );
+
   -- Pictures of things that happened in a story (\`server/moments.ts\`), each from one scene.
   CREATE TABLE IF NOT EXISTS story_moments (
     id TEXT PRIMARY KEY,
@@ -364,4 +374,44 @@ export const removedUserStore = createStore('removed_users', [{ name: 'createdAt
 
 export function newId(): string {
   return crypto.randomUUID()
+}
+
+export interface RecallEvent { messageId: string; chatId: string; at: number }
+export interface MemoryRecallRow { memoryId: string; characterId: string; count: number; lastAt: number; events: RecallEvent[] }
+
+/** The aggregate is small; its reply history makes delete, rewind and fork reversible. */
+export const memoryRecallStore = {
+  list(characterId?: string): MemoryRecallRow[] {
+    const rows = characterId
+      ? db.prepare('SELECT * FROM memory_recalls WHERE characterId = ?').all(characterId)
+      : db.prepare('SELECT * FROM memory_recalls').all()
+    return rows.map((row) => ({ ...row, events: JSON.parse(String(row.events)) }) as unknown as MemoryRecallRow)
+  },
+  insert(row: Record<string, unknown>) {
+    const events = row.events as RecallEvent[]
+    if (!Array.isArray(events)) throw new Error('Recall history needs reply events.')
+    if (!events.length) {
+      db.prepare('DELETE FROM memory_recalls WHERE memoryId = ? AND characterId = ?').run(bind(row.memoryId), bind(row.characterId))
+      return
+    }
+    const lastAt = Math.max(...events.map((e) => e.at))
+    db.prepare(`INSERT INTO memory_recalls (memoryId, characterId, count, lastAt, events) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(memoryId, characterId) DO UPDATE SET count = excluded.count, lastAt = excluded.lastAt, events = excluded.events`)
+      .run(bind(row.memoryId), bind(row.characterId), events.length, lastAt, JSON.stringify(events))
+  },
+  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recalls WHERE memoryId = ?').run(memoryId) },
+  removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recalls WHERE characterId = ?').run(characterId) },
+  retract(messageId: string) {
+    for (const row of this.list()) {
+      const events = row.events.filter((e) => e.messageId !== messageId)
+      if (events.length !== row.events.length) this.insert({ ...row, events })
+    }
+  },
+  purgeChat(chatId: string) {
+    for (const row of this.list()) {
+      const events = row.events.filter((e) => e.chatId !== chatId)
+      if (events.length !== row.events.length) this.insert({ ...row, events })
+    }
+  },
+  clear() { db.exec('DELETE FROM memory_recalls') },
 }

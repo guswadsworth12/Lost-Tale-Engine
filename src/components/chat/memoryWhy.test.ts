@@ -50,3 +50,9 @@ describe('whyLabels', () => {
     expect(whyLabels(reasons({ openThread: true }), [])).toEqual(['Open thread'])
   })
 })
+
+
+it('explains all Deep Memory boosts in plain language', () => {
+  expect(whyLabels(reasons({ strongFeeling: true, samePlace: true, oftenRecalled: true }), []))
+    .toEqual(['Strong feeling', 'Happened here', 'Often remembered'])
+})

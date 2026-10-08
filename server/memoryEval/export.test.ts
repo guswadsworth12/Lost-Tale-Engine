@@ -28,7 +28,7 @@ describe('private recall export', () => {
       put('stories', 'first', { title: 'DO NOT EXPORT' })
       put('characters', 'brisa', { card: { name: 'Brisa', description: 'DO NOT EXPORT' } })
       put('characters', 'tavi', { card: { name: 'Tavi' } })
-      put('messages', 'line', { chatId: 'now', text: 'Remember the quay?', createdAt: 3 })
+      put('messages', 'line', { chatId: 'now', text: 'Remember the quay?', createdAt: 3, sceneSetting: { location: 'Ferry Landing' } })
       put('messages', 'elsewhere', { chatId: 'unrelated', text: 'DO NOT EXPORT', createdAt: 4 })
       put('messages', 'unheard', { chatId: 'now', text: 'DO NOT EXPORT', presentIds: ['tavi'], createdAt: 5 })
       put('messages', 'failed', { chatId: 'now', text: 'DO NOT EXPORT', failed: true, createdAt: 6 })
@@ -36,11 +36,17 @@ describe('private recall export', () => {
       const memory = { chatId: 'past', text: 'Brisa met Tavi at the quay.', kind: 'event', importance: 0.8, witnesses: ['brisa'], knownBy: ['brisa'], active: true, origin: 'manual', createdAt: 1 }
       put('memories', 'wanted', memory)
       put('memories', 'secret', { ...memory, witnesses: ['tavi'], knownBy: ['tavi', 'brisa'], toldVia: [{ to: ['brisa'], chatId: 'unrelated', at: 2 }] })
+      db.exec('CREATE TABLE memory_recalls (memoryId TEXT, characterId TEXT, count INTEGER, lastAt INTEGER, events TEXT)')
+      db.prepare('INSERT INTO memory_recalls VALUES (?, ?, ?, ?, ?)').run('wanted', 'brisa', 2, 4, JSON.stringify([
+        { messageId: 'line', chatId: 'now', at: 3 }, { messageId: 'elsewhere', chatId: 'unrelated', at: 4 },
+      ]))
       db.close()
       const before = fs.readFileSync(file)
       const result = exportCase(file, 'now', 'brisa', ['wanted'], 'What happened at the quay?')
       expect(JSON.stringify(result)).not.toContain('DO NOT EXPORT')
-      expect(result.scene.location).toBe('Quay')
+      expect(result.scene.location).toBe('Ferry Landing')
+      expect(result.memories.find((m) => m.id === 'wanted')?.recalls).toEqual({ count: 1, lastAt: 3 })
+      expect(result.scene.now).toEqual(expect.any(Number))
       expect(result.scene.recentMessages).toEqual(['Remember the quay?'])
       expect(evaluateCase(result).picks.map((p) => p.memory.id)).toEqual(['wanted'])
       expect(fs.readFileSync(file)).toEqual(before)
@@ -49,6 +55,10 @@ describe('private recall export', () => {
       expect(fs.statSync(output).mode & 0o777).toBe(0o600)
       expect(() => exportLocal(['--database', file, '--chat', 'now', '--speaker', 'brisa', '--expected', 'wanted', '--question', 'What happened?'], dir)).toThrow()
       expect(() => exportCase(file, 'missing', 'brisa', ['wanted'], 'What happened?')).toThrow()
+      const old = new DatabaseSync(file)
+      old.exec('DROP TABLE memory_recalls')
+      old.close()
+      expect(exportCase(file, 'now', 'brisa', ['wanted'], 'What happened?').memories[0]).not.toHaveProperty('recalls')
     } finally {
       try { db.close() } catch { /* Already closed before the read-only check. */ }
       fs.rmSync(dir, { recursive: true, force: true })

@@ -17,18 +17,18 @@ describe('recall bench', () => {
   })
 
   it('keeps every knowledge and branch case as a must-never-regress check', () => {
-    for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
+    for (const module of ['off', 'on'] as const) for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
       expect(c.mustNeverRegress, c.id).toBe(true)
       expect(c.forbiddenIds.length, c.id).toBeGreaterThan(0)
-      const result = evaluateCase(c)
+      const result = evaluateCase(c, { module })
       expect(result.hit, c.id).toBe(true)
       expect(result.forbidden, c.id).toEqual([])
-      expect(result.picks).toEqual(evaluateCase({ ...c, memories: c.memories.filter((m) => !c.forbiddenIds.includes(m.id)) }).picks)
+      expect(result.picks).toEqual(evaluateCase({ ...c, memories: c.memories.filter((m) => !c.forbiddenIds.includes(m.id)) }, { module }).picks)
     }
   })
 
   it('picks the forbidden memory when each protected case loses its guard', () => {
-    for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
+    for (const module of ['off', 'on'] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
       for (const m of c.memories.filter((m) => c.forbiddenIds.includes(m.id))) {
         if (c.category === 'branch') {
           m.chatId = c.scene.chatId
@@ -41,7 +41,7 @@ describe('recall bench', () => {
           m.witnesses = [...new Set([...m.witnesses, c.scene.speakerId])]
         }
       }
-      const result = evaluateCase(c)
+      const result = evaluateCase(c, { module })
       expect(result.forbidden, c.id).toEqual(c.forbiddenIds)
       expect(result.hit, c.id).toBe(false)
     }
@@ -81,12 +81,12 @@ describe('recall bench', () => {
     expect(() => parseCase({ ...c, chats: [] })).toThrow()
   })
 
-  it('accepts local case and budget options, and refuses a fictitious module-on baseline', () => {
+  it('accepts local cases, budget options and module-on ranking', () => {
     expect(parseOptions(['--cases', '.memory-eval/private', '--budget', '120', '--module', 'off']))
       .toMatchObject({ casesPath: '.memory-eval/private', budgetTokens: 120, module: 'off' })
     const c = parseCase(fixtures[0])
     expect(parseOptions(['--module', 'on']).module).toBe('on')
-    expect(() => evaluateCase(c, parseOptions(['--module', 'on']))).toThrow(/not implemented/)
+    expect(evaluateCase(c, parseOptions(['--module', 'on'])).picks.length).toBeGreaterThan(0)
     expect(() => evaluateCase(c, parseOptions(['--budget', '-1']))).toThrow(/Budget/)
     expect(() => evaluateCase(c, parseOptions(['--budget', 'NaN']))).toThrow(/Budget/)
     expect(() => parseOptions(['--cases'])).toThrow()
@@ -111,4 +111,15 @@ describe('recall bench', () => {
       expect(() => run(['--cases', file], () => {})).toThrow(/Duplicate/)
     } finally { fs.rmSync(dir, { recursive: true, force: true }) }
   })
+})
+
+
+it('improves emotional and place recall with the module on', () => {
+  for (const category of ['emotion', 'place']) {
+    const cases = fixtures.map(parseCase).filter((c) => c.category === category)
+    const off = summarize(cases.map((c) => evaluateCase(c)))
+    const on = summarize(cases.map((c) => evaluateCase(c, { module: 'on' })))
+    expect(on.recalled, category).toBeGreaterThan(off.recalled)
+    expect(on.hits, category).toBe(cases.length)
+  }
 })

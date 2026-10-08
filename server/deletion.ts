@@ -10,6 +10,7 @@ import {
   chatFactStore,
   chatStore,
   messageStore,
+  memoryRecallStore,
   objectiveStore,
   personaStore,
   relationshipEventStore,
@@ -58,6 +59,7 @@ export function deleteCharacter(characterId: string): void {
   }
   // Removes the whole per-character folder in one shot (avatar, sprites, gallery — see avatars.ts).
   removeAvatar('characters', characterId)
+  memoryRecallStore.removeCharacter(characterId)
   characterStore.remove(characterId)
 }
 
