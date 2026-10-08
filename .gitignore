@@ -20,3 +20,6 @@ tools/comfy/backups/
 
 # Local Comfy MCP registration — hardcodes this machine's absolute paths (see tools/comfy/README.md)
 .mcp.json
+
+# Throwaway data folder for local runs (see AGENTS.md)
+.scratch-data/
