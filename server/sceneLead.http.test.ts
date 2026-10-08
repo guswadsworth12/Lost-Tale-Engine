@@ -18,32 +18,32 @@ const card = async (name: string) => (await t.call('/api/characters', 'POST', { 
 
 describe('changing a scene\'s lead over HTTP', () => {
   it('hands the lead over with both relationships, and keeps the old lead\'s lines theirs', async () => {
-    const [orra, aveline, rend] = [await card('Orra'), await card('Aveline'), await card('Rend')]
+    const [orra, brisa, rend] = [await card('Orra'), await card('Brisa'), await card('Rend')]
     const chat = (await t.call('/api/chats', 'POST', { cookie: ash, body: {
-      characterId: orra, participants: [aveline], playerCharacterId: rend, title: 'The Seal', affection: 20,
-      scene: { turnPolicy: 'gm', presentCharacterIds: [orra, aveline] },
+      characterId: orra, participants: [brisa], playerCharacterId: rend, title: 'The Seal', affection: 20,
+      scene: { turnPolicy: 'gm', presentCharacterIds: [orra, brisa] },
     } })).body
-    await t.call(`/api/chats/${chat.id}`, 'PUT', { cookie: ash, body: { participantRelationships: { [aveline]: { affection: 35 } } } })
+    await t.call(`/api/chats/${chat.id}`, 'PUT', { cookie: ash, body: { participantRelationships: { [brisa]: { affection: 35 } } } })
     const said = (await t.call('/api/messages', 'POST', { cookie: ash, body: { chatId: chat.id, role: 'char', name: 'Orra', text: 'Hold the line.' } })).body
 
     expect((await t.call(`/api/chats/${chat.id}/lead`, 'PUT', { cookie: ash, body: { characterId: rend } })).status).toBe(409)
     expect((await t.call(`/api/chats/${chat.id}/lead`, 'PUT', { cookie: ash, body: { characterId: 'nobody' } })).status).toBe(404)
 
-    const changed = await t.call(`/api/chats/${chat.id}/lead`, 'PUT', { cookie: ash, body: { characterId: aveline, keepPrevious: false } })
+    const changed = await t.call(`/api/chats/${chat.id}/lead`, 'PUT', { cookie: ash, body: { characterId: brisa, keepPrevious: false } })
     expect(changed.status).toBe(200)
-    expect(changed.body).toMatchObject({ characterId: aveline, affection: 35, participantRelationships: { [orra]: { affection: 20 } }, scene: { presentCharacterIds: [aveline] } })
+    expect(changed.body).toMatchObject({ characterId: brisa, affection: 35, participantRelationships: { [orra]: { affection: 20 } }, scene: { presentCharacterIds: [brisa] } })
     expect(changed.body.participants).toBeUndefined()
     const lines = (await t.call(`/api/chats/${chat.id}/messages`, 'GET', { cookie: ash })).body
     expect(lines.find((m: { id: string }) => m.id === said.id)).toMatchObject({ speakerId: orra, name: 'Orra' })
 
     // The next scene starts with the new lead; an ended scene keeps its own.
     const next = await t.call(`/api/chats/${chat.id}/next-scene`, 'POST', { cookie: ash, body: recap('The seal held.') })
-    expect(next.body.characterId).toBe(aveline)
+    expect(next.body.characterId).toBe(brisa)
     expect((await t.call(`/api/chats/${chat.id}/lead`, 'PUT', { cookie: ash, body: { characterId: orra } })).status).toBe(409)
 
     // Choosing a different lead when ending a scene.
     const third = await t.call(`/api/chats/${next.body.id}/next-scene`, 'POST', { cookie: ash, body: { ...recap('They went below.'), next: { presentIds: [orra], leadId: orra } } })
-    expect(third.body).toMatchObject({ characterId: orra, affection: 20, participantRelationships: { [aveline]: { affection: 35 } } })
+    expect(third.body).toMatchObject({ characterId: orra, affection: 20, participantRelationships: { [brisa]: { affection: 35 } } })
   })
 })
 

@@ -23,3 +23,6 @@ tools/comfy/backups/
 
 # Throwaway data folder for local runs (see AGENTS.md)
 .scratch-data/
+
+# Private recall cases exported locally by the owner.
+.memory-eval/

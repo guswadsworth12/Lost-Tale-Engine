@@ -1,0 +1,3732 @@
+[
+  {
+    "id": "wording-bridge",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi pulled Brisa to safety when the flood collapsed. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Do you remember that bridge?"
+      ]
+    },
+    "question": "Does Brisa remember the bridge?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-gift",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Rowan gave Brisa a brass compass on her naming day. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "What was my birthday present?"
+      ]
+    },
+    "question": "What birthday present did Rowan give?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-literal",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi repaired the cracked silver lantern in Lantern Court. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi repaired the cracked silver lantern."
+      ]
+    },
+    "question": "Who repaired the silver lantern?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "wording-stem",
+    "category": "wording",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa promised to guard the northern gates during the storm. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Brisa promised to guard the northern gates during the storm."
+      ]
+    },
+    "question": "Who was guarding the gates?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-introduction",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Mira brought Tavi to the candle guild. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Rowan welcomed Tavi at the candle guild after Mira arrived. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Who introduced Tavi to Rowan?"
+      ]
+    },
+    "question": "Who introduced Tavi to Rowan?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-key",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Tavi lent a bronze key to Mira before the journey. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Mira entrusted that borrowed key to Rowan at dawn. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Who can help Rowan find the missing key?"
+      ]
+    },
+    "question": "Who can help Rowan find the key?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "connections-place",
+    "category": "connections",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa learned that Mira tends the orchard. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "link",
+        "chatId": "root",
+        "text": "Tavi left the basket with Mira beneath an apple tree. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 21
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Where did Tavi leave the basket?"
+      ]
+    },
+    "question": "Who knows where Tavi left the basket?",
+    "expectedIds": [
+      "wanted",
+      "link"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-pain",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa lost her oldest companion during a blizzard. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": -0.95
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "sad",
+      "recentMessages": [
+        "I feel hollow today."
+      ]
+    },
+    "question": "What loss surfaces in a sad scene?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-joy",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa celebrated her first successful voyage with Tavi. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0.95
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "joyful",
+      "recentMessages": [
+        "I am so happy tonight."
+      ]
+    },
+    "question": "What joyful event fits this celebration?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "emotion-fear",
+    "category": "emotion",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa was trapped beneath a collapsed cellar staircase. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": -0.9
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "frightened",
+      "recentMessages": [
+        "This narrow passage makes me afraid."
+      ]
+    },
+    "question": "What explains her fear of confined spaces?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-ferry",
+    "category": "place",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Brisa waited at the ferry landing for a friend who never arrived. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1,
+        "location": "Ferry Landing"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Ferry Landing",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "We have returned here."
+      ]
+    },
+    "question": "What happened here at the ferry landing?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-orchard",
+    "category": "place",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Mira and Brisa buried a time capsule beneath an apple tree. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1,
+        "location": "Orchard"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Orchard",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "This place feels familiar."
+      ]
+    },
+    "question": "What does the orchard remind her of?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "place-market",
+    "category": "place",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "wanted",
+        "chatId": "root",
+        "text": "Rowan taught Brisa how to bargain at the night market. Brisa kept this recollection private and wrote a short account in a folded notebook, carefully preserving the sequence of events for another day.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.95,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 20,
+        "location": "Night Market"
+      },
+      {
+        "id": "routine-0",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 0 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 10
+      },
+      {
+        "id": "routine-1",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 1 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 11
+      },
+      {
+        "id": "routine-2",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 2 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 12
+      },
+      {
+        "id": "routine-3",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 3 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 13
+      },
+      {
+        "id": "routine-4",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 4 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 14
+      },
+      {
+        "id": "routine-5",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 5 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 15
+      },
+      {
+        "id": "routine-6",
+        "chatId": "root",
+        "text": "Brisa inspected numbered parcel 6 at the storehouse. The clerk checked the inventory, wrapped the box in brown paper, and signed the delivery register. Brisa waited beside a stack of crates while a porter counted the supplies, then returned the receipt to the clerk and finished the ordinary inspection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.7,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 16
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Night Market",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Rowan taught Brisa how to bargain at the night market."
+      ]
+    },
+    "question": "What happened at the night market?",
+    "expectedIds": [
+      "wanted"
+    ],
+    "forbiddenIds": [],
+    "mustNeverRegress": false
+  },
+  {
+    "id": "knowledge-unknown",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "secret",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": false
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Brisa recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-pinned-secret",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "secret",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Brisa recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-retired",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": false,
+        "origin": "manual",
+        "createdAt": 30
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Brisa recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "knowledge-folded",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa remembers the public lantern ceremony.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "The hidden lantern vault contains the missing silver key.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "consolidatedFor": [
+          "brisa"
+        ]
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "The hidden lantern vault contains the missing silver key."
+      ]
+    },
+    "question": "What may Brisa recall without learning a forbidden memory?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-sibling",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "other",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-telling",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "root",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "tavi"
+        ],
+        "knownBy": [
+          "tavi",
+          "brisa"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true,
+        "toldVia": [
+          {
+            "to": [
+              "brisa"
+            ],
+            "by": "tavi",
+            "chatId": "other",
+            "at": 20
+          }
+        ]
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      }
+    ],
+    "scene": {
+      "chatId": "now",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  },
+  {
+    "id": "branch-sequel",
+    "category": "branch",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      },
+      {
+        "id": "mira",
+        "name": "Mira"
+      }
+    ],
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "root",
+        "text": "Brisa recalls crossing the public stone causeway.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.35,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 1
+      },
+      {
+        "id": "forbidden",
+        "chatId": "other",
+        "text": "Tavi hid the silver key beneath the causeway.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 1,
+        "feelings": {
+          "brisa": 0
+        },
+        "about": [],
+        "active": true,
+        "origin": "manual",
+        "createdAt": 30,
+        "pinned": true
+      }
+    ],
+    "chats": [
+      {
+        "id": "root",
+        "storyId": "first"
+      },
+      {
+        "id": "now",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "other",
+        "storyId": "first",
+        "previousSceneId": "root"
+      },
+      {
+        "id": "sequel",
+        "storyId": "second"
+      }
+    ],
+    "stories": [
+      {
+        "id": "first"
+      },
+      {
+        "id": "second",
+        "continuesFrom": {
+          "storyId": "first",
+          "sceneId": "now"
+        }
+      }
+    ],
+    "scene": {
+      "chatId": "sequel",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "location": "Lantern Court",
+      "atmosphere": "quiet",
+      "recentMessages": [
+        "Tavi hid the silver key beneath the causeway."
+      ]
+    },
+    "question": "Which causeway memories belong to this branch?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "forbidden"
+    ],
+    "mustNeverRegress": true
+  }
+]

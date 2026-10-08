@@ -64,10 +64,10 @@ describe('OpenAI images', () => {
     let form: FormData | undefined
     stubRelayedFetch((_url, init) => { form = init.body as FormData; return image })
     await new OpenAIImageClient(true, '').generateImage(params({ purpose: 'cg', referenceImages: [
-      { base64: 'aGVsbG8=', mimeType: 'image/png', name: 'Aveline Pyre' },
+      { base64: 'aGVsbG8=', mimeType: 'image/png', name: 'Brisa Vale' },
       { base64: 'aGVsbG8=', mimeType: 'image/jpeg', name: 'Underground Cistern (location)' },
     ] }))
-    expect(form!.getAll('image[]').map((f) => (f as File).name)).toEqual(['aveline-pyre-reference.png', 'underground-cistern-location-reference.jpg'])
+    expect(form!.getAll('image[]').map((f) => (f as File).name)).toEqual(['brisa-vale-reference.png', 'underground-cistern-location-reference.jpg'])
   })
 
   it('says what went wrong, without the key', async () => {
