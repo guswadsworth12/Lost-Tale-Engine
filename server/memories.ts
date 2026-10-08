@@ -1,5 +1,5 @@
 import express from 'express'
-import { characterStore, chatStore, db, memoryRecallStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
+import { characterStore, chatStore, db, memoryRecallStore, memoryVectorStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
 import { canSeeCharacter, canSeeChat } from './access.ts'
 import {
   consolidateFor,
@@ -34,11 +34,11 @@ const asRow = (m: object) => m as Row
 const BATCH_MAX = 200
 
 /** Every scene id visible from `chatId`, current first. */
-function chainOf(chatId: string): string[] {
+export function chainOf(chatId: string): string[] {
   return sceneChainIds(chatId, (id) => chatStore.get(id), (id) => storyStore.get(id))
 }
 
-function memoriesIn(chatIds: string[]): CharacterMemory[] {
+export function memoriesIn(chatIds: string[]): CharacterMemory[] {
   if (!chatIds.length) return []
   return memoryStore
     .list({ where: `chatId IN (${chatIds.map(() => '?').join(', ')})`, params: chatIds, orderBy: 'createdAt' })
@@ -62,6 +62,7 @@ function withChatContext(m: NewMemory, chat: Row): NewMemory {
 export function purgeChatMemories(chatId: string): void {
   memoryRecallStore.purgeChat(chatId)
   for (const m of memoryStore.list({ where: 'chatId = ?', params: [chatId] })) {
+    memoryVectorStore.remove(String(m.id))
     memoryRecallStore.removeMemory(String(m.id))
     memoryStore.remove(String(m.id))
   }
@@ -76,7 +77,7 @@ export function retractMessageMemories(chatId: string, messageId: string, keepRe
   if (!chatId || !messageId) return
   if (!keepRecalls) memoryRecallStore.retract(messageId)
   const plan = retractMessage(memoriesIn(chainOf(chatId)), messageId)
-  for (const id of plan.remove) { memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
+  for (const id of plan.remove) { memoryVectorStore.remove(id); memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
   for (const { id, patch } of plan.update) memoryStore.update(id, { ...patch, updatedAt: Date.now() })
 }
 
@@ -94,7 +95,10 @@ export function forkChatMemories(
     const id = newId()
     if (sourceId) memoryIds.set(sourceId, id)
     return id
-  })) memoryStore.insert(asRow(row))
+  })) {
+    memoryStore.insert(asRow(row))
+  }
+  for (const [sourceId, targetId] of memoryIds) memoryVectorStore.copy(sourceId, targetId)
   for (const event of memoryRecallStore.forChat(sourceChatId)) {
     if (!idMap.has(event.messageId) || (sourceIds.has(event.memoryId) && !memoryIds.has(event.memoryId))) continue
     memoryRecallStore.insert({ ...event, memoryId: memoryIds.get(event.memoryId) ?? event.memoryId,
@@ -284,6 +288,7 @@ memoriesRouter.post('/memories/consolidate', (req, res) => {
 
 /** The player's "forget": gone for good. */
 memoriesRouter.delete('/memories/:id', (req, res) => {
+  memoryVectorStore.remove(req.params.id)
   memoryRecallStore.removeMemory(req.params.id)
   memoryStore.remove(req.params.id)
   res.status(204).end()

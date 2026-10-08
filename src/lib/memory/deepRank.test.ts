@@ -52,3 +52,15 @@ describe('Deep Memory ranking', () => {
     }
   })
 })
+
+
+it('boosts similarity only behind deep, with a reason, and preserves Phase 1 when unavailable', () => {
+  const memory = { id: 'synthetic', chatId: 'chat', text: 'A river crossing.', active: true, kind: 'event', knownBy: ['brisa'], witnesses: ['brisa'], createdAt: 1, importance: 0.5 } as CharacterMemory
+  const base = { characterId: 'brisa', presentIds: [], recentText: '', deep: { now: 1 } }
+  const ordinary = selectMemoriesExplained([memory], base)[0]
+  const meaning = selectMemoriesExplained([memory], { ...base, deep: { now: 1, similarities: new Map([[memory.id, 0.8]]) } })[0]
+  expect(meaning.reasons.score - ordinary.reasons.score).toBeCloseTo(DEEP_MEMORY_WEIGHTS.similarity * 0.8)
+  expect(meaning.reasons.similarMeaning).toBe(true)
+  expect(ordinary.reasons).not.toHaveProperty('similarMeaning')
+  expect(selectMemoriesExplained([memory], { ...base, deep: { now: 1, similarities: undefined } })).toEqual([ordinary])
+})

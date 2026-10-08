@@ -1,3 +1,5 @@
+import { stubEmbedding } from './stubEmbedder'
+import { memorySimilarities, memoryTextHash, type MemoryVector } from '../memoryVectorPlan'
 import type { CharacterMemory, MemoryRecall } from '../../src/lib/types'
 import { memoryAsSeenFrom, sceneChainIds, type ChatLike, type StoryLike } from '../memoryPlan'
 import { estimateTokens } from '../../src/lib/tokenEstimate'
@@ -76,7 +78,7 @@ export function parseCase(raw: unknown): RecallCase {
   return c as RecallCase
 }
 
-export interface EvalOptions { budgetTokens?: number; module?: 'off' | 'on' }
+export interface EvalOptions { budgetTokens?: number; module?: 'off' | 'on'; embedder?: 'stub'; similarities?: ReadonlyMap<string, number> }
 
 export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
   const budgetTokens = options.budgetTokens ?? MEMORY_TOKEN_BUDGET
@@ -86,12 +88,19 @@ export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
   const chain = new Set(sceneChainIds(c.scene.chatId, (id) => chats.get(id), (id) => stories.get(id)))
   // Same order as GET /chats/:id/memories: scene scope, branch-scoped tellings, then ranking.
   const visible = c.memories.filter((m) => chain.has(m.chatId)).map((m) => memoryAsSeenFrom(m, chain))
+  let similarities = options.similarities
+  if (options.module === 'on' && options.embedder === 'stub') {
+    const model = 'synthetic-stub'
+    const vectors = new Map(c.memories.map((m) => [m.id, { model, textHash: memoryTextHash(model, m.text), vector: stubEmbedding(m.text) } satisfies MemoryVector]))
+    similarities = new Map(Object.entries(memorySimilarities(c.memories, chain, c.scene.speakerId, model,
+      stubEmbedding(c.scene.recentMessages.slice(-6).join('\n')), (id) => vectors.get(id))))
+  }
   const picks = selectMemoriesExplained(visible, {
     characterId: c.scene.speakerId,
     presentIds: c.scene.presentIds,
     recentText: c.scene.recentMessages.slice(-6).join('\n'),
     budgetTokens,
-    ...(options.module === 'on' ? { deep: { location: c.scene.location, now: c.scene.now ?? 2_000_000_000, recalls: new Map(c.memories.flatMap((m) => m.recalls ? [[m.id, m.recalls] as const] : [])) } } : {}),
+    ...(options.module === 'on' ? { deep: { similarities, location: c.scene.location, now: c.scene.now ?? 2_000_000_000, recalls: new Map(c.memories.flatMap((m) => m.recalls ? [[m.id, m.recalls] as const] : [])) } } : {}),
   })
   const picked = new Set(picks.map((p) => p.memory.id))
   const recalled = c.expectedIds.filter((id) => picked.has(id))

@@ -42,6 +42,7 @@ export function useModelSettings(): ModelSettings {
     textModel: s.textModel,
     imageModel: s.imageModel,
     voiceModel: s.voiceModel,
+    embeddingModel: s.embeddingModel,
     modelJobs: s.modelJobs,
     chatBackend: s.chatBackend,
   })))

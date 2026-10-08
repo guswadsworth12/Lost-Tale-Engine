@@ -61,10 +61,13 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
-  opts?: { notFoundIsUndefined?: boolean; timeoutMs?: number },
+  opts?: { notFoundIsUndefined?: boolean; timeoutMs?: number; signal?: AbortSignal; quiet?: boolean },
 ): Promise<T> {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (opts?.signal?.aborted) controller.abort()
+  opts?.signal?.addEventListener('abort', abort, { once: true })
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   let res: Response
   try {
@@ -75,18 +78,20 @@ async function request<T>(
       signal: controller.signal,
     })
   } catch (e) {
+    if (opts?.signal?.aborted) throw e
     if (controller.signal.aborted) {
       throw new Error(`${method} ${path} timed out after ${timeoutMs / 1000}s`)
     }
     // Anything else `fetch` throws on a same-origin relative URL — connection refused, DNS,
     // the dev server not running at all — means the server genuinely can't be reached, not just
     // that it answered with an error (that's the `!res.ok` branch below, left alone).
-    reportUnreachable()
+    if (!opts?.quiet) reportUnreachable()
     throw e
   } finally {
     clearTimeout(timeout)
+    opts?.signal?.removeEventListener('abort', abort)
   }
-  reportReachable()
+  if (!opts?.quiet) reportReachable()
   // The session is gone (expired, signed out elsewhere, or never existed): show the sign-in screen.
   if (res.status === 401 && !path.startsWith('/auth/')) useAuthStore.getState().signedOut()
   if (res.status === 404 && opts?.notFoundIsUndefined) return undefined as T
@@ -564,5 +569,18 @@ export const memoriesApi = {
     const result = await request<Chat>('POST', `/chats/${chatId}/memory-watermark`, { upTo, from })
     invalidate('chats')
     return result
+  },
+}
+
+/** Derived memory vectors stay on the server. The browser only sends new embeddings and queries. */
+export const memoryVectorsApi = {
+  missing(chatId: string, model: string, signal?: AbortSignal): Promise<{ total: number; missing: { memoryId: string; text: string; textHash: string }[] }> {
+    return request('GET', `/chats/${chatId}/memory-vectors/missing?model=${encodeURIComponent(model)}`, undefined, { signal, quiet: true })
+  },
+  put(vectors: { memoryId: string; model: string; dims: number; textHash: string; vector: number[] }[], signal?: AbortSignal): Promise<void> {
+    return request('PUT', '/memory-vectors', { vectors }, { signal, quiet: true })
+  },
+  similarities(chatId: string, characterId: string, model: string, vector: number[]): Promise<Record<string, number>> {
+    return request('POST', `/chats/${chatId}/memory-similarity`, { characterId, model, vector }, { quiet: true })
   },
 }

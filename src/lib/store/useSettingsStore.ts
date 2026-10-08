@@ -353,6 +353,7 @@ interface SettingsState {
   textModel: ModelChoice | null
   imageModel: ModelChoice | null
   voiceModel: ModelChoice | null
+  embeddingModel: ModelChoice | null
   setModelChoice: (capability: Capability, choice: ModelChoice | null) => void
   /** A different text model for a job. Unset: the Text model. */
   modelJobs: Partial<Record<ModelJob, ModelChoice>>
@@ -626,12 +627,14 @@ export const useSettingsStore = create<SettingsState>()(
         textModel: s.textModel?.serviceId === id ? null : s.textModel,
         imageModel: s.imageModel?.serviceId === id ? null : s.imageModel,
         voiceModel: s.voiceModel?.serviceId === id ? null : s.voiceModel,
+        embeddingModel: s.embeddingModel?.serviceId === id ? null : s.embeddingModel,
         modelJobs: Object.fromEntries(Object.entries(s.modelJobs).filter(([, choice]) => choice?.serviceId !== id)),
       })),
       textModel: null,
       imageModel: null,
       voiceModel: null,
-      setModelChoice: (capability, choice) => set((s) => withLegacy(s, capability === 'text' ? { textModel: choice } : capability === 'images' ? { imageModel: choice } : { voiceModel: choice })),
+      embeddingModel: null,
+      setModelChoice: (capability, choice) => set((s) => withLegacy(s, capability === 'text' ? { textModel: choice } : capability === 'images' ? { imageModel: choice } : capability === 'voice' ? { voiceModel: choice } : { embeddingModel: choice })),
       modelJobs: {},
       setModelJob: (job, choice) => set((s) => {
         const { [job]: _old, ...rest } = s.modelJobs

@@ -2,6 +2,7 @@
 // OpenAI-compatible /v1 shape (LM Studio, llama.cpp, Ollama, TabbyAPI, oobabooga) — so onboarding
 // can take one address and wire the right backend without asking which protocol it is.
 
+import { openAiRoot } from './openAiRoot'
 import { hasAvailableOpenMayhemProvider, isOpenMayhem, loadOpenMayhemModels } from './openMayhem'
 import { relayFetch } from './relay'
 
@@ -24,16 +25,7 @@ const strip = (u: string) => u.trim().replace(/\/+$/, '')
  * the path local servers use; LM Studio answers anything else with an error dressed as a success.
  * An address with a path of its own (`…/v1beta/openai`, a proxy's) is used as typed.
  */
-export function openAiRoot(url: string): string {
-  const base = strip(url)
-  try {
-    const { pathname } = new URL(base)
-    if (pathname === '' || pathname === '/') return `${base}/v1`
-  } catch {
-    // Not a full address: used as typed.
-  }
-  return base
-}
+export { openAiRoot } from './openAiRoot'
 
 /** `keySaved`: attach the saved chat key (bearer) through the relay. The browser never holds it. */
 async function getJson(url: string, keySaved?: boolean): Promise<unknown | null> {

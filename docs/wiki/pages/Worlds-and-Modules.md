@@ -25,6 +25,16 @@ The scene's current place follows moves on this story branch. New memories recor
 
 After a saved reply, the engine remembers which memories that speaker was given. This uses no extra model calls. Frequent recall gradually loses its extra pull over time when a memory is not recalled again. **Inspect prompt & memory** shows **Strong feeling**, **Happened here**, and **Often remembered** alongside the existing reasons.
 
+### Optional recall by meaning
+
+Choose an **Embedding model** under **Settings → Models and services**. OpenAI and OpenAI-compatible services are supported, including local servers with an embeddings endpoint. You can type a model name. **Test it** embeds one short sentence and reports its dimensions. A cloud service receives memory text and recent conversation; choose a local service to keep these on your machine.
+
+With Deep Memory on and a model selected, the open scene's memories are prepared in batches of up to 32 while the app is idle. Progress and **Cancel indexing** appear in chat and **Inspect prompt & memory**; **Resume indexing** restarts after cancellation. Indexing pauses during replies and retries failures later. Closing the app stops indexing.
+
+Each reply uses at most one embedding of the recent six messages, reused by retries and the Inspector. **Similar meaning** explains its extra pull. Characters still know only what they witnessed or were told in this branch. No model, an empty index, or a failed service keeps the ordinary Deep Memory ranking; the Inspector gives one plain explanation and no toast appears. Deep Memory off or no selected embedding model makes no embedding calls.
+
+Embeddings are derived local data. Editing memory text or changing models makes old vectors unusable. Forks copy unchanged vectors; deletion and rewind remove vectors with their memories. Full backups omit vectors, and restore clears them so background indexing can rebuild them.
+
 Forgetting a memory or permanently purging its scene removes its recall history. Selecting a different reply restores its own recall history; continuing keeps the original memories, while regenerating replaces that reply’s credit. Rewind undoes the recalled turns too; forks and full backups keep the history that belongs to their memories. Turning Deep Memory off returns to ordinary ranking and keeps recorded places and recall history for later.
 
 ## Build in a useful order

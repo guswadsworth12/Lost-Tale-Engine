@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetUnreachableStateForTests, memoriesApi, personasApi } from './client'
+import { __resetUnreachableStateForTests, memoriesApi, memoryVectorsApi, personasApi } from './client'
 import { useToastStore } from '@/lib/store/useToastStore'
 
 /**
@@ -129,4 +129,13 @@ it('records recalls in one plain HTTP batch and swallows failures after a reply'
   expect(fetchMock).toHaveBeenCalledTimes(1)
   fetchMock.mockResolvedValue(errorResponse(500, 'synthetic error'))
   await expect(memoriesApi.recordRecalls('scene', 'brisa', 'reply', ['memory-1'])).resolves.toBeUndefined()
+})
+
+
+it('keeps optional meaning search and indexing failures quiet', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Synthetic network failure')))
+  await expect(memoryVectorsApi.similarities('scene', 'brisa', 'synthetic', [1, 0])).rejects.toThrow()
+  await expect(memoryVectorsApi.missing('scene', 'synthetic')).rejects.toThrow()
+  await expect(memoryVectorsApi.put([])).rejects.toThrow()
+  expect(useToastStore.getState().toasts).toEqual([])
 })

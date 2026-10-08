@@ -15,6 +15,7 @@ import {
   instructTemplateStore,
   memoryStore,
   memoryRecallStore,
+  memoryVectorStore,
   messageStore,
   newId,
   objectiveStore,
@@ -37,6 +38,7 @@ import { meRouter } from './me.ts'
 import { relayRouter } from './relay.ts'
 import { restoreScene, storiesRouter } from './stories.ts'
 import { momentsRouter } from './moments.ts'
+import { memoryVectorsRouter } from './memoryVectors.ts'
 import { forkChatMemories, memoriesRouter, retractMessageMemories } from './memories.ts'
 import { rewindRouter, saveCheckpoint } from './rewind.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
@@ -91,6 +93,7 @@ app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
+app.use('/api', memoryVectorsRouter)
 app.use('/api', rewindRouter)
 // Files follow what they belong to: a private character's sprites are its owner's alone (access.ts).
 app.use('/avatars', avatarGuard, express.static(avatarsDir))
@@ -1771,6 +1774,7 @@ app.post('/api/restore', requireOwner, express.json({ limit: '1gb' }), (req, res
     }
     // Checkpoints belong to the messages that were just replaced; a backup doesn't carry them.
     chatCheckpointStore.clear()
+    memoryVectorStore.clear()
     db.exec('COMMIT')
   } catch (e) {
     db.exec('ROLLBACK')

@@ -11,6 +11,7 @@ const state = {
   textModel: { serviceId: 'groq', model: 'llama-3.3-70b' },
   imageModel: { serviceId: 'openai', model: 'gpt-image-2' },
   voiceModel: null,
+  embeddingModel: null,
   modelJobs: { gm: { serviceId: 'openai', model: 'gpt-4o' } },
   imageBackendQuality: '',
   instructTemplateId: 'chatml',
@@ -35,6 +36,8 @@ describe('Settings → Models and services', () => {
     expect(html).toMatch(/<option value="llama-3.3-70b" selected="">llama-3.3-70b<\/option>/)
     expect(html).toMatch(/<option value="gpt-image-2" selected="">gpt-image-2<\/option>/)
     expect(html).toContain('Quality: the model&#x27;s default')
+    expect(html).toContain('Embedding model: service')
+    expect(html).toContain('A cloud service receives memory text')
     expect(html).toContain('Use a different text model for a job')
     expect(html).toContain('· 1 set')
     // A voice-only service isn't offered for text.
@@ -61,4 +64,19 @@ describe('picking a model', () => {
     expect(none).toMatch(/<option value="" selected="">Same as Story replies<\/option>/)
     expect(none.match(/<select/g)).toHaveLength(1)
   })
+})
+
+
+it('lets an embedding model be typed even when the service has a loaded list', async () => {
+  const { ModelPicker } = await import('./ModelPicker')
+  const html = renderToStaticMarkup(createElement(ModelPicker, { capability: 'embeddings', value: { serviceId: 'openai', model: 'custom-embedding' }, onChange: () => {} }))
+  expect(html).toContain('Type a model name')
+  expect(html).toContain('custom-embedding')
+  expect(html).not.toContain('gpt-4o')
+})
+
+
+it('hides embedding models in an older cached text list', async () => {
+  const { modelsOf } = await import('./ModelPicker')
+  expect(modelsOf({ id: 'local', name: 'Local', kind: 'openai-compatible', models: { text: ['synthetic-chat', 'nomic-embed-text'] } }, 'text')).toEqual(['synthetic-chat'])
 })

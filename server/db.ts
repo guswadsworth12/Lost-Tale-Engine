@@ -167,6 +167,17 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
+  -- Derived embeddings: rebuilt locally and deliberately omitted from backups.
+  CREATE TABLE IF NOT EXISTS memory_vectors (
+    memoryId TEXT PRIMARY KEY,
+    model TEXT NOT NULL,
+    dims INTEGER NOT NULL,
+    textHash TEXT NOT NULL,
+    vector BLOB NOT NULL,
+    updatedAt INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_memory_vectors_model ON memory_vectors(model);
+
   -- One recall per memory, speaker and reply swipe; indexed deletes keep rewind local.
   CREATE TABLE IF NOT EXISTS memory_recall_events (
     memoryId TEXT NOT NULL,
@@ -414,4 +425,33 @@ export const memoryRecallStore = {
   },
   purgeChat(chatId: string) { db.prepare('DELETE FROM memory_recall_events WHERE chatId = ?').run(chatId) },
   clear() { db.exec('DELETE FROM memory_recall_events') },
+}
+
+/** Normalized float32 blobs stay on the server; only similarity scores leave it. */
+export const memoryVectorStore = {
+  get(memoryId: string) {
+    const row = db.prepare('SELECT * FROM memory_vectors WHERE memoryId = ?').get(memoryId)
+    if (!row) return undefined
+    const bytes = row.vector as Uint8Array
+    const vector = new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+    return { model: String(row.model), textHash: String(row.textHash), vector, dims: Number(row.dims) }
+  },
+  current(memoryId: string, model: string, textHash: string): boolean {
+    return !!db.prepare('SELECT 1 FROM memory_vectors WHERE memoryId = ? AND model = ? AND textHash = ?').get(memoryId, model, textHash)
+  },
+  dimensions(model: string): number | undefined {
+    const row = db.prepare('SELECT dims FROM memory_vectors WHERE model = ? LIMIT 1').get(model)
+    return row ? Number(row.dims) : undefined
+  },
+  insert(row: { memoryId: string; model: string; dims: number; textHash: string; vector: Float32Array }) {
+    db.prepare(`INSERT INTO memory_vectors (memoryId, model, dims, textHash, vector, updatedAt) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(memoryId) DO UPDATE SET model = excluded.model, dims = excluded.dims, textHash = excluded.textHash, vector = excluded.vector, updatedAt = excluded.updatedAt`)
+      .run(row.memoryId, row.model, row.dims, row.textHash, new Uint8Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength), Date.now())
+  },
+  remove(memoryId: string) { db.prepare('DELETE FROM memory_vectors WHERE memoryId = ?').run(memoryId) },
+  copy(sourceId: string, targetId: string) {
+    db.prepare(`INSERT INTO memory_vectors (memoryId, model, dims, textHash, vector, updatedAt)
+      SELECT ?, model, dims, textHash, vector, updatedAt FROM memory_vectors WHERE memoryId = ?`).run(targetId, sourceId)
+  },
+  clear() { db.exec('DELETE FROM memory_vectors') },
 }

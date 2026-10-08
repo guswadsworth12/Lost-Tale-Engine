@@ -74,6 +74,7 @@ import { DayPlannerPanel } from './DayPlannerPanel'
 import { CalendarPanel } from './CalendarPanel'
 import { RelationshipPanel } from './RelationshipPanel'
 import { AuthorNotePanel } from './AuthorNotePanel'
+import { MemoryIndexProgress } from './MemoryIndexProgress'
 import { AssistActivityBar } from './AssistActivityBar'
 import { SearchPanel } from './SearchPanel'
 import { PinnedMessagesPanel } from './PinnedMessagesPanel'
@@ -1306,6 +1307,7 @@ export function ChatWindow({
           assistSlot: <>
             {endedBanner}
             {showGenerationHud && <GenerationHud stats={genStats} variant="vn" />}
+            <MemoryIndexProgress />
             <AssistActivityBar items={assistActivity} variant="vn" />
           </>,
           composerSlot: composerNode('vn'),
@@ -1340,7 +1342,7 @@ export function ChatWindow({
           portrait: liveDateActive && character ? <ReactivePortrait spriteUrl={reactivePortraitUrl} alt={character.card.name} /> : undefined,
           choices: choiceListNode('default') || quickReplyNode('default'),
           hud: showGenerationHud ? <GenerationHud stats={genStats} /> : undefined,
-          assist: <AssistActivityBar items={assistActivity} />,
+          assist: <><MemoryIndexProgress /><AssistActivityBar items={assistActivity} /></>,
           composer: composerNode('default'),
         }}
         storyPanel={showStoryPanel ? <StoryPanel
