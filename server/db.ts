@@ -167,15 +167,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
-  -- Recall history belongs to a memory and a speaker; reply ids let rewind undo it.
-  CREATE TABLE IF NOT EXISTS memory_recalls (
+  -- One recall per memory, speaker and reply swipe; indexed deletes keep rewind local.
+  CREATE TABLE IF NOT EXISTS memory_recall_events (
     memoryId TEXT NOT NULL,
     characterId TEXT NOT NULL,
-    count INTEGER NOT NULL,
-    lastAt INTEGER NOT NULL,
-    events TEXT NOT NULL,
-    PRIMARY KEY (memoryId, characterId)
+    chatId TEXT NOT NULL,
+    messageId TEXT NOT NULL,
+    swipe INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (memoryId, characterId, messageId, swipe)
   );
+  CREATE INDEX IF NOT EXISTS idx_recall_events_message ON memory_recall_events(messageId);
+  CREATE INDEX IF NOT EXISTS idx_recall_events_chat ON memory_recall_events(chatId);
+  CREATE INDEX IF NOT EXISTS idx_recall_events_speaker ON memory_recall_events(characterId, memoryId);
 
   -- Pictures of things that happened in a story (\`server/moments.ts\`), each from one scene.
   CREATE TABLE IF NOT EXISTS story_moments (
@@ -376,42 +380,38 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
-export interface RecallEvent { messageId: string; chatId: string; at: number }
-export interface MemoryRecallRow { memoryId: string; characterId: string; count: number; lastAt: number; events: RecallEvent[] }
+export interface RecallEvent { memoryId: string; characterId: string; messageId: string; chatId: string; swipe: number; at: number }
 
-/** The aggregate is small; its reply history makes delete, rewind and fork reversible. */
+/** Indexed reply events; counts include only the selected swipe in the visible scene chain. */
 export const memoryRecallStore = {
-  list(characterId?: string): MemoryRecallRow[] {
-    const rows = characterId
-      ? db.prepare('SELECT * FROM memory_recalls WHERE characterId = ?').all(characterId)
-      : db.prepare('SELECT * FROM memory_recalls').all()
-    return rows.map((row) => ({ ...row, events: JSON.parse(String(row.events)) }) as unknown as MemoryRecallRow)
+  list(): RecallEvent[] {
+    return db.prepare('SELECT * FROM memory_recall_events').all() as unknown as RecallEvent[]
+  },
+  forChat(chatId: string): RecallEvent[] {
+    return db.prepare('SELECT * FROM memory_recall_events WHERE chatId = ?').all(chatId) as unknown as RecallEvent[]
+  },
+  counts(characterId: string, chain: string[]) {
+    if (!chain.length) return []
+    return db.prepare(`SELECT e.memoryId, COUNT(*) AS count, MAX(e.at) AS lastAt
+      FROM memory_recall_events e JOIN messages m ON m.id = e.messageId
+      WHERE e.characterId = ? AND e.chatId IN (${chain.map(() => '?').join(', ')})
+        AND e.swipe = COALESCE(json_extract(m.data, '$.activeSwipe'), 0)
+      GROUP BY e.memoryId`).all(characterId, ...chain) as unknown as { memoryId: string; count: number; lastAt: number }[]
   },
   insert(row: Record<string, unknown>) {
-    const events = row.events as RecallEvent[]
-    if (!Array.isArray(events)) throw new Error('Recall history needs reply events.')
-    if (!events.length) {
-      db.prepare('DELETE FROM memory_recalls WHERE memoryId = ? AND characterId = ?').run(bind(row.memoryId), bind(row.characterId))
-      return
-    }
-    const lastAt = Math.max(...events.map((e) => e.at))
-    db.prepare(`INSERT INTO memory_recalls (memoryId, characterId, count, lastAt, events) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(memoryId, characterId) DO UPDATE SET count = excluded.count, lastAt = excluded.lastAt, events = excluded.events`)
-      .run(bind(row.memoryId), bind(row.characterId), events.length, lastAt, JSON.stringify(events))
+    db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
+      .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at))
   },
-  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recalls WHERE memoryId = ?').run(memoryId) },
-  removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recalls WHERE characterId = ?').run(characterId) },
-  retract(messageId: string) {
-    for (const row of this.list()) {
-      const events = row.events.filter((e) => e.messageId !== messageId)
-      if (events.length !== row.events.length) this.insert({ ...row, events })
-    }
+  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ?').run(memoryId) },
+  removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recall_events WHERE characterId = ?').run(characterId) },
+  retract(messageId: string, swipe?: number) {
+    if (swipe === undefined) db.prepare('DELETE FROM memory_recall_events WHERE messageId = ?').run(messageId)
+    else db.prepare('DELETE FROM memory_recall_events WHERE messageId = ? AND swipe = ?').run(messageId, swipe)
   },
-  purgeChat(chatId: string) {
-    for (const row of this.list()) {
-      const events = row.events.filter((e) => e.chatId !== chatId)
-      if (events.length !== row.events.length) this.insert({ ...row, events })
-    }
+  removeSwipes(messageId: string, length: number) {
+    db.prepare('DELETE FROM memory_recall_events WHERE messageId = ? AND swipe >= ?').run(messageId, length)
   },
-  clear() { db.exec('DELETE FROM memory_recalls') },
+  purgeChat(chatId: string) { db.prepare('DELETE FROM memory_recall_events WHERE chatId = ?').run(chatId) },
+  clear() { db.exec('DELETE FROM memory_recall_events') },
 }

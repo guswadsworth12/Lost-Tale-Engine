@@ -1302,13 +1302,18 @@ app.put('/api/messages/:id', (req, res) => {
   // memory scribe reads this message again.
   if ('text' in body && body.text !== existing.text) {
     const chatId = existing.chatId as string
-    retractMessageMemories(chatId, req.params.id)
+    retractMessageMemories(chatId, req.params.id, true)
     const chat = chatStore.get(chatId)
     const createdAt = existing.createdAt as number
     if (chat && typeof chat.memoryScribedUpTo === 'number' && chat.memoryScribedUpTo >= createdAt) {
       chatStore.update(chatId, { memoryScribedUpTo: createdAt - 1 })
     }
   }
+  // Blanking the selected reply starts a regeneration. Changing swipes or extending text keeps its credit.
+  if (body.text === '' && (body.activeSwipe ?? existing.activeSwipe ?? 0) === (existing.activeSwipe ?? 0)) {
+    memoryRecallStore.retract(req.params.id, Number(existing.activeSwipe ?? 0))
+  }
+  if (Array.isArray(body.swipes)) memoryRecallStore.removeSwipes(req.params.id, Math.max(1, body.swipes.length))
   const updated = messageStore.update(req.params.id, body)
   res.json(updated)
 })
@@ -1719,7 +1724,7 @@ const BACKUP_STORES = {
   relationshipEvents: relationshipEventStore,
   chatFacts: chatFactStore,
   memories: memoryStore,
-  memoryRecalls: memoryRecallStore,
+  memoryRecallEvents: memoryRecallStore,
   stories: storyStore,
   storyMoments: storyMomentStore,
 } as const

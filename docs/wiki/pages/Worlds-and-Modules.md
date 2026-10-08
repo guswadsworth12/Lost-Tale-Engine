@@ -25,7 +25,7 @@ The scene's current place follows moves on this story branch. New memories recor
 
 After a saved reply, the engine remembers which memories that speaker was given. This uses no extra model calls. Frequent recall gradually loses its extra pull over time when a memory is not recalled again. **Inspect prompt & memory** shows **Strong feeling**, **Happened here**, and **Often remembered** alongside the existing reasons.
 
-Forgetting a memory or permanently purging its scene removes its recall history. Rewind undoes the recalled turns too; forks and full backups keep the history that belongs to their memories. Turning Deep Memory off returns to ordinary ranking and keeps recorded places and recall history for later.
+Forgetting a memory or permanently purging its scene removes its recall history. Selecting a different reply restores its own recall history; continuing keeps the original memories, while regenerating replaces that reply’s credit. Rewind undoes the recalled turns too; forks and full backups keep the history that belongs to their memories. Turning Deep Memory off returns to ordinary ranking and keeps recorded places and recall history for later.
 
 ## Build in a useful order
 

@@ -233,17 +233,18 @@ export type MemoryKind = 'event' | 'learned' | 'promise' | 'secret' | 'impressio
 /** How a character knows a memory (`CharacterMemory.certainty`): saw it, was told it, or thinks it. */
 export type MemoryCertainty = 'firsthand' | 'claim' | 'belief'
 
+/** How often this speaker recalled a memory, and when it was last recalled. */
+export interface MemoryRecall {
+  count: number
+  lastAt: number
+}
+
 /**
  * Something a character remembers (`memory/`). Scoped by scene: a memory made in scene X is
  * visible in X and every later scene that follows on from X (the `previousSceneId` chain, and a
  * sequel story's `continuesFrom`), never in another story. Known only by `knownBy`: the witnesses
  * the engine recorded when it happened, plus anyone later told.
  */
-export interface MemoryRecall {
-  count: number
-  lastAt: number
-}
-
 export interface CharacterMemory {
   id: string
   /** The scene (chat) it happened in. */

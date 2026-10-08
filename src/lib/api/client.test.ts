@@ -121,10 +121,10 @@ describe('request(): local-server-unreachable toast', () => {
 it('records recalls in one plain HTTP batch and swallows failures after a reply', async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 })
   vi.stubGlobal('fetch', fetchMock)
-  await memoriesApi.recordRecalls('scene', 'brisa', 'reply', ['memory-1', 'memory-2'])
+  await memoriesApi.recordRecalls('scene', 'brisa', 'reply', ['memory-1', 'memory-2'], 2)
   expect(fetchMock).toHaveBeenCalledTimes(1)
   expect(fetchMock.mock.calls[0][0]).toBe('/api/memories/recalls')
-  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ chatId: 'scene', characterId: 'brisa', messageId: 'reply', memoryIds: ['memory-1', 'memory-2'] })
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ chatId: 'scene', characterId: 'brisa', messageId: 'reply', memoryIds: ['memory-1', 'memory-2'], swipe: 2 })
   await memoriesApi.recordRecalls('scene', 'brisa', 'reply', [])
   expect(fetchMock).toHaveBeenCalledTimes(1)
   fetchMock.mockResolvedValue(errorResponse(500, 'synthetic error'))

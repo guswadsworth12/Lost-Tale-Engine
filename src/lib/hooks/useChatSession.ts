@@ -3161,6 +3161,7 @@ export function useChatSession(chatId: string | null) {
       let scene: ReturnType<typeof sanitizeSceneTag>
       let wroteAnything = false
       const recalledIds = new Set<string>()
+      let recallSwipe = 0
       let retainReply = true
       // Set when the loop ends on a reply that's still mid-sentence with no continuation coming — trimmed after the loop.
       let needsSentenceTrim = false
@@ -3296,6 +3297,7 @@ export function useChatSession(chatId: string | null) {
             const freshMsg = await messagesApi.get(targetMessageId)
             const swipes = freshMsg?.swipes?.length ? [...freshMsg.swipes] : [accumulated]
             const activeSwipe = freshMsg?.activeSwipe ?? 0
+            recallSwipe = activeSwipe
             swipes[activeSwipe] = combined
             const swipeScenes = freshMsg?.swipeScenes ? [...freshMsg.swipeScenes] : []
             swipeScenes[activeSwipe] = scene
@@ -3318,6 +3320,7 @@ export function useChatSession(chatId: string | null) {
             const freshMsg = await messagesApi.get(targetMessageId)
             const existingSwipes = freshMsg?.swipes?.length ? [...freshMsg.swipes] : [combined]
             const activeSwipe = Math.min(freshMsg?.activeSwipe ?? 0, Math.max(0, existingSwipes.length - 1))
+            recallSwipe = activeSwipe
             existingSwipes[activeSwipe] = combined
             const swipeScenes = freshMsg?.swipeScenes ? [...freshMsg.swipeScenes] : []
             swipeScenes[activeSwipe] = scene
@@ -3584,7 +3587,7 @@ export function useChatSession(chatId: string | null) {
         // One batch for the retained reply, including a saved partial continuation. The server
         // checks that it is usable; a rejected attempt leaves recording to its replacement.
         if (retainReply && wroteAnything && recalledIds.size) {
-          void memoriesApi.recordRecalls(chat.id, speaker.id, targetMessageId, [...recalledIds])
+          void memoriesApi.recordRecalls(chat.id, speaker.id, targetMessageId, [...recalledIds], recallSwipe)
         }
         activeGenerationClientRef.current = null
         setIsGenerating(false)

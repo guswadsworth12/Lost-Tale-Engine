@@ -41,39 +41,110 @@ describe('recall counting and lifecycle', () => {
     expect((await call(`/api/chats/${s.chat.id}/memories?characterId=${tavi.id}`)).body[0].recall.count).toBe(1)
     expect((await s.read())[0].recall.count).toBe(2)
     await call(`/api/characters/${tavi.id}`, 'DELETE')
-    expect((await call('/api/backup')).body.data.memoryRecalls.some((r: any) => r.characterId === tavi.id)).toBe(false)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.some((r: any) => r.characterId === tavi.id)).toBe(false)
     expect((await call(`/api/chats/${s.chat.id}/memories`)).body[0]).not.toHaveProperty('recall')
     const backup = (await call('/api/backup')).body
-    expect(backup.data.memoryRecalls.find((r: any) => r.memoryId === s.memory.id)).toMatchObject({ characterId: s.brisa.id, count: 2 })
+    expect(backup.data.memoryRecallEvents.filter((r: any) => r.memoryId === s.memory.id)).toHaveLength(2)
     await call(`/api/memories/${s.memory.id}`, 'DELETE')
-    expect((await call('/api/backup')).body.data.memoryRecalls.some((r: any) => r.memoryId === s.memory.id)).toBe(false)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.some((r: any) => r.memoryId === s.memory.id)).toBe(false)
     expect((await call('/api/restore', 'POST', backup)).status).toBe(204)
     expect((await s.read())[0].recall.count).toBe(2)
     // Old backups carry no recall table: replace it with an empty one, never keep stale counts.
-    delete backup.data.memoryRecalls
+    delete backup.data.memoryRecallEvents
+    backup.data.memoryRecalls = [{ memoryId: s.memory.id, characterId: s.brisa.id, count: 99, lastAt: 1, events: [] }]
     await call('/api/restore', 'POST', backup)
     expect((await s.read())[0]).not.toHaveProperty('recall')
   })
 
-  it('refuses inaccessible scenes, unknown memories, off-branch tellings and failed replies', async () => {
+  it('skips stale, unknown and off-branch memories but refuses access problems and failed replies', async () => {
     const s = await scene()
     const a = await s.say('A remembered crossing.')
     expect((await call('/api/memories/recalls', 'POST', { chatId: s.chat.id, characterId: s.brisa.id, messageId: a.id, memoryIds: [s.memory.id] }, member)).status).toBe(404)
-    expect((await s.recall(a.id, ['missing'])).status).toBe(400)
+    expect((await call('/api/memories/recalls', 'POST', { chatId: 'missing', characterId: s.brisa.id, messageId: a.id, memoryIds: [s.memory.id] })).status).toBe(404)
+    expect((await call('/api/memories/recalls', 'POST', { chatId: s.chat.id, characterId: 'missing', messageId: a.id, memoryIds: [s.memory.id] })).status).toBe(404)
+    expect((await call('/api/memories/recalls', 'POST', { chatId: s.chat.id, characterId: s.brisa.id, messageId: a.id, swipe: -1, memoryIds: [s.memory.id] })).status).toBe(400)
+    expect((await s.recall(a.id, ['missing'])).status).toBe(204)
     const secret = (await call('/api/memories', 'POST', { chatId: s.chat.id, text: 'Tavi hid a key.', witnesses: ['tavi'] })).body
-    expect((await s.recall(a.id, [s.memory.id, secret.id])).status).toBe(400)
-    expect((await s.read())[0]).not.toHaveProperty('recall')
+    expect((await s.recall(a.id, [s.memory.id, secret.id, 'missing'])).status).toBe(204)
+    expect((await s.read())[0].recall.count).toBe(1)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.filter((r: any) => r.messageId === a.id).map((r: any) => r.memoryId)).toEqual([s.memory.id])
     const other = (await call('/api/chats', 'POST', { characterId: s.brisa.id, title: 'Elsewhere' })).body
     const offBranch = (await call('/api/memories', 'POST', { chatId: other.id, text: 'A different crossing.', witnesses: [s.brisa.id] })).body
-    expect((await s.recall(a.id, [offBranch.id])).status).toBe(400)
+    expect((await s.recall(a.id, [offBranch.id])).status).toBe(204)
     await call(`/api/memories/${secret.id}/share`, 'POST', { to: [s.brisa.id], chatId: other.id })
-    expect((await s.recall(a.id, [secret.id])).status).toBe(400)
+    expect((await s.recall(a.id, [secret.id])).status).toBe(204)
     await call(`/api/messages/${a.id}`, 'PUT', { failed: true })
     expect((await s.recall(a.id)).status).toBe(400)
     expect((await call('/api/memories/recalls', 'POST', { memoryIds: [] })).status).toBe(400)
     await call(`/api/worlds/${s.world.id}`, 'PUT', { modules: { deepMemory: false } })
     await call(`/api/messages/${a.id}`, 'PUT', { failed: false })
     expect((await s.recall(a.id)).status).toBe(409)
+  })
+
+  it('preserves credit on swipe selection and continuation, replacing only a regenerated swipe', async () => {
+    const s = await scene()
+    const a = await s.say('First crossing.')
+    const second = (await call('/api/memories', 'POST', { chatId: s.chat.id, text: 'Brisa saw a ferry.', witnesses: [s.brisa.id], createdAt: 600 })).body
+    const record = (swipe: number, memoryIds: string[]) => call('/api/memories/recalls', 'POST', {
+      chatId: s.chat.id, characterId: s.brisa.id, messageId: a.id, swipe, memoryIds,
+    })
+    const counts = async () => Object.fromEntries((await s.read()).map((m: any) => [m.id, m.recall?.count ?? 0]))
+    await record(0, [s.memory.id])
+    await call(`/api/messages/${a.id}`, 'PUT', { text: '', swipes: ['First crossing.', ''], activeSwipe: 1 })
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'The ferry.', swipes: ['First crossing.', 'The ferry.'] })
+    await record(1, [second.id])
+    expect(await counts()).toEqual({ [s.memory.id]: 0, [second.id]: 1 })
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'First crossing.', activeSwipe: 0 })
+    expect(await counts()).toEqual({ [s.memory.id]: 1, [second.id]: 0 })
+    // Continuation supplies another memory on the same swipe, without double-counting the original.
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'First crossing. A ferry arrived.', swipes: ['First crossing. A ferry arrived.', 'The ferry.'] })
+    await record(0, [s.memory.id, second.id])
+    expect(await counts()).toEqual({ [s.memory.id]: 1, [second.id]: 1 })
+    await call(`/api/messages/${a.id}`, 'PUT', { text: '' })
+    expect((await record(0, [second.id])).status).toBe(400) // Old swipe text cannot credit an unsaved regeneration.
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'A new crossing.', swipes: ['A new crossing.', 'The ferry.'] })
+    await record(0, [s.memory.id])
+    expect(await counts()).toEqual({ [s.memory.id]: 1, [second.id]: 0 })
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'The ferry.', activeSwipe: 1 })
+    expect(await counts()).toEqual({ [s.memory.id]: 0, [second.id]: 1 })
+    const fork = (await call(`/api/chats/${s.chat.id}/fork`, 'POST', { messageId: a.id })).body
+    const forkRead = async () => (await call(`/api/chats/${fork.id}/memories?characterId=${s.brisa.id}`)).body
+    expect((await forkRead()).map((m: any) => [m.text, m.recall?.count ?? 0])).toEqual([
+      ['Brisa crossed the quay.', 0], ['Brisa saw a ferry.', 1],
+    ])
+    const forkMessages = (await call(`/api/chats/${fork.id}/messages`)).body
+    await call(`/api/messages/${forkMessages[0].id}`, 'PUT', { activeSwipe: 0, text: 'A new crossing.' })
+    expect((await forkRead()).map((m: any) => m.recall?.count ?? 0)).toEqual([1, 0])
+    // Removing a trailing swipe removes only its events; deleting the reply removes every swipe.
+    await call(`/api/messages/${a.id}`, 'PUT', { text: 'A new crossing.', activeSwipe: 0, swipes: ['A new crossing.'] })
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.filter((r: any) => r.messageId === a.id).map((r: any) => r.swipe)).toEqual([0])
+    await call(`/api/messages/${a.id}`, 'DELETE')
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.some((r: any) => r.messageId === a.id)).toBe(false)
+  })
+
+  it('retracts only the deleted message’s rows and leaves unrelated events untouched', async () => {
+    const s = await scene()
+    const other = await scene()
+    const a = await s.say('First reply.')
+    const b = await s.say('Second reply.')
+    const c = await other.say('An unrelated reply.')
+    await s.recall(a.id)
+    await s.recall(b.id)
+    await other.recall(c.id)
+    const before = (await call('/api/backup')).body.data.memoryRecallEvents
+    await call(`/api/messages/${a.id}`, 'DELETE')
+    expect((await call('/api/backup')).body.data.memoryRecallEvents).toEqual(before.filter((r: any) => r.messageId !== a.id))
+  })
+
+  it('records valid picks when other picks were retired or folded before recording', async () => {
+    const s = await scene()
+    const a = await s.say('A remembered crossing.')
+    const retired = (await call('/api/memories', 'POST', { chatId: s.chat.id, text: 'An old ferry.', witnesses: [s.brisa.id] })).body
+    const folded = (await call('/api/memories', 'POST', { chatId: s.chat.id, text: 'A harbor day.', witnesses: [s.brisa.id] })).body
+    await call(`/api/memories/${retired.id}`, 'PUT', { active: false })
+    await call(`/api/memories/${folded.id}`, 'PUT', { consolidatedFor: [s.brisa.id] })
+    expect((await s.recall(a.id, [s.memory.id, retired.id, folded.id, 'missing'])).status).toBe(204)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.filter((r: any) => r.messageId === a.id).map((r: any) => r.memoryId)).toEqual([s.memory.id])
   })
 
   it('undoes reply recalls on message deletion and rewind, including surviving old memories', async () => {
@@ -90,9 +161,9 @@ describe('recall counting and lifecycle', () => {
     expect((await call(`/api/chats/${s.chat.id}/rewind`, 'POST', { messageId: c.id })).status).toBe(200)
     expect((await s.read()).map((m: any) => m.id)).toEqual([s.memory.id])
     expect((await s.read())[0].recall.count).toBe(1)
-    expect((await call('/api/backup')).body.data.memoryRecalls.some((r: any) => r.memoryId === newMemory.id)).toBe(false)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.some((r: any) => r.memoryId === newMemory.id)).toBe(false)
     await call(`/api/chats/${s.chat.id}/purge`, 'DELETE')
-    expect((await call('/api/backup')).body.data.memoryRecalls.some((r: any) => r.memoryId === s.memory.id)).toBe(false)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.some((r: any) => r.memoryId === s.memory.id)).toBe(false)
   })
 
   it('copies recall history with a fork and purges it on character/chat deletion', async () => {
@@ -105,7 +176,7 @@ describe('recall counting and lifecycle', () => {
     expect(copied[0].id).not.toBe(s.memory.id)
     expect(copied[0].recall.count).toBe(1)
     await call(`/api/characters/${s.brisa.id}`, 'DELETE')
-    const rows = (await call('/api/backup')).body.data.memoryRecalls
+    const rows = (await call('/api/backup')).body.data.memoryRecallEvents
     expect(rows.some((r: any) => [s.memory.id, copied[0].id].includes(r.memoryId))).toBe(false)
   })
 
@@ -130,6 +201,6 @@ describe('recall counting and lifecycle', () => {
     expect((await read(later.id)).recall.count).toBe(2)
     await call(`/api/chats/${later.id}/purge`, 'DELETE')
     expect((await s.read())[0].recall.count).toBe(1)
-    expect((await call('/api/backup')).body.data.memoryRecalls.find((r: any) => r.memoryId === s.memory.id).count).toBe(1)
+    expect((await call('/api/backup')).body.data.memoryRecallEvents.filter((r: any) => r.memoryId === s.memory.id)).toHaveLength(1)
   })
 })

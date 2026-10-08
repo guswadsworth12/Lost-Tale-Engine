@@ -117,9 +117,13 @@ and halves after thirty days. Only this speaker's feelings and recall counts are
 
 The production client gets counts with its existing per-speaker scene-memory
 request. After a usable reply is saved it sends one best-effort batch, with the
-reply id and the union of memories supplied across automatic continuations. No
-extra model call or extra read request is needed. The local `memory_recalls` table
-keeps `(memoryId, characterId)` aggregates and reply events so rewind can undo a
-reply's contribution to old memories too. Events follow copied memories on fork,
+reply id, swipe index, and the union of memories supplied across automatic continuations. No
+extra model call or extra read request is needed. The local `memory_recall_events` table
+keeps one row per `(memoryId, characterId, messageId, swipe)`. Indexed deletes undo a
+reply's contribution without scanning unrelated history. Counts and last recall time
+are aggregated in SQL for the speaker and visible scene chain, using only active swipes.
+Selecting an existing swipe restores its credit; continuation adds picks to the same
+swipe, and regeneration replaces that swipe's credit. Events follow copied memories on fork,
 are scoped to the scene chain on reads, and are included in backup/restore. An old
-backup without this table restores with empty recall history.
+backup without this table restores with empty recall history, ignoring the earlier
+unshipped `memoryRecalls` aggregate format.

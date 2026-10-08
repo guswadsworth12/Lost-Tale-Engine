@@ -517,9 +517,9 @@ export const memoriesApi = {
     return request<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]>('GET', `/chats/${chatId}/memories${query}`)
   },
   /** Best-effort HTTP bookkeeping, never in the way of a saved reply. */
-  async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[]): Promise<void> {
+  async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[], swipe = 0): Promise<void> {
     if (!memoryIds.length) return
-    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds }).catch(() => {})
+    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds, swipe }).catch(() => {})
   },
   /** Everything a character knows, across every chat, newest first. */
   forCharacter(characterId: string): Promise<CharacterMemoryListing[]> {

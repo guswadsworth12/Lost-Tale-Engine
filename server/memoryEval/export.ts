@@ -27,12 +27,15 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     const memories = db.prepare(`SELECT * FROM memories WHERE chatId IN (${chain.map(() => '?').join(', ')}) ORDER BY createdAt, id`)
       .all(...chain).map(decode)
     const now = Date.now()
-    if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_recalls'").get()) {
-      const recalls = db.prepare('SELECT * FROM memory_recalls WHERE characterId = ?').all(speakerId)
+    if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_recall_events'").get()) {
+      const recalls = db.prepare(`SELECT e.memoryId, COUNT(*) AS count, MAX(e.at) AS lastAt
+        FROM memory_recall_events e JOIN messages m ON m.id = e.messageId
+        WHERE e.characterId = ? AND e.chatId IN (${chain.map(() => '?').join(', ')})
+          AND e.swipe = COALESCE(json_extract(m.data, '$.activeSwipe'), 0)
+        GROUP BY e.memoryId`).all(speakerId, ...chain)
       for (const row of recalls) {
-        const events = (JSON.parse(String(row.events)) as { chatId: string; at: number }[]).filter((e) => chain.includes(e.chatId))
         const memory = memories.find((m) => m.id === row.memoryId)
-        if (memory && events.length) memory.recalls = { count: events.length, lastAt: Math.max(...events.map((e) => e.at)) }
+        if (memory) memory.recalls = { count: Number(row.count), lastAt: Number(row.lastAt) }
       }
     }
     const chats = chain.map((id) => {

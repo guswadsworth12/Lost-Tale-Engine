@@ -70,10 +70,11 @@ export function purgeChatMemories(chatId: string): void {
 /**
  * A message is being deleted or rewritten: memories it produced go, tellings it recorded are undone.
  * Checks the whole visible chain, since a scene can tell someone a memory made in an earlier one.
+ * Text edits keep recall events for saved swipes; deletion and rewind remove every swipe's events.
  */
-export function retractMessageMemories(chatId: string, messageId: string): void {
+export function retractMessageMemories(chatId: string, messageId: string, keepRecalls = false): void {
   if (!chatId || !messageId) return
-  memoryRecallStore.retract(messageId)
+  if (!keepRecalls) memoryRecallStore.retract(messageId)
   const plan = retractMessage(memoriesIn(chainOf(chatId)), messageId)
   for (const id of plan.remove) { memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
   for (const { id, patch } of plan.update) memoryStore.update(id, { ...patch, updatedAt: Date.now() })
@@ -94,14 +95,10 @@ export function forkChatMemories(
     if (sourceId) memoryIds.set(sourceId, id)
     return id
   })) memoryStore.insert(asRow(row))
-  for (const row of memoryRecallStore.list()) {
-    if (sourceIds.has(row.memoryId) && !memoryIds.has(row.memoryId)) continue
-    const events = row.events.filter((e) => e.chatId === sourceChatId && idMap.has(e.messageId))
-      .map((e) => ({ ...e, chatId: newChatId, messageId: idMap.get(e.messageId)! }))
-    if (!events.length) continue
-    const memoryId = memoryIds.get(row.memoryId) ?? row.memoryId
-    const existing = memoryId === row.memoryId ? row.events : []
-    memoryRecallStore.insert({ ...row, memoryId, events: [...existing, ...events] })
+  for (const event of memoryRecallStore.forChat(sourceChatId)) {
+    if (!idMap.has(event.messageId) || (sourceIds.has(event.memoryId) && !memoryIds.has(event.memoryId))) continue
+    memoryRecallStore.insert({ ...event, memoryId: memoryIds.get(event.memoryId) ?? event.memoryId,
+      chatId: newChatId, messageId: idMap.get(event.messageId)! })
   }
   // Earlier scenes' memories stay where they are; what was told of them in the kept part is told in the fork too.
   for (const { id, toldVia } of forkTellings(memoriesIn(chainOf(sourceChatId)), sourceChatId, idMap, newChatId)) {
@@ -123,23 +120,21 @@ memoriesRouter.get('/chats/:id/memories', (req, res) => {
   const inChain = new Set(chain)
   const rows = memoriesIn(chain).map((m) => memoryAsSeenFrom(m, inChain))
   if (!characterId) return res.json(rows)
-  const recalls = new Map(memoryRecallStore.list(characterId).map((r) => {
-    const events = r.events.filter((e) => inChain.has(e.chatId))
-    return [r.memoryId, events.length ? { count: events.length, lastAt: Math.max(...events.map((e) => e.at)) } : undefined]
-  }))
+  const recalls = new Map(memoryRecallStore.counts(characterId, chain).map(({ memoryId, count, lastAt }) => [memoryId, { count, lastAt }]))
   res.json(rows.filter((m) => m.knownBy.includes(characterId)).map((m) => {
     const recall = recalls.get(m.id)
     return recall ? { ...m, recall } : m
   }))
 })
 
-/** One best-effort batch per saved reply. Validate all ids before writing any count. */
+/** One best-effort batch per saved swipe; stale or no-longer-known memories are skipped. */
 memoriesRouter.post('/memories/recalls', (req, res) => {
   const body = req.body ?? {}
   const characterId = str(body.characterId).trim()
   const chatId = str(body.chatId)
   const messageId = str(body.messageId)
-  if (!characterId || !chatId || !messageId || !Array.isArray(body.memoryIds) || body.memoryIds.length > BATCH_MAX
+  const swipe = body.swipe ?? 0
+  if (!characterId || !chatId || !messageId || !Number.isSafeInteger(swipe) || swipe < 0 || !Array.isArray(body.memoryIds) || body.memoryIds.length > BATCH_MAX
     || body.memoryIds.some((id: unknown) => typeof id !== 'string' || !id.trim())) {
     return res.status(400).json({ error: 'Expected a scene, speaker, saved reply and up to 200 memory ids.' })
   }
@@ -150,26 +145,21 @@ memoriesRouter.post('/memories/recalls', (req, res) => {
   const world = worldId ? worldStore.get(worldId) : undefined
   if (!modulesForWorld(world as Parameters<typeof modulesForWorld>[0]).deepMemory) return res.status(409).json({ error: 'Deep Memory is off.' })
   const message = messageStore.get(messageId)
-  if (!message || message.chatId !== chatId || message.role !== 'char' || message.failed || !str(message.text).trim()
+  const swipeText = swipe === (message?.activeSwipe ?? 0) ? message?.text
+    : Array.isArray(message?.swipes) ? message.swipes[swipe] : undefined
+  if (!message || message.chatId !== chatId || message.role !== 'char' || message.failed || !str(swipeText).trim()
     || (str(message.speakerId) || str(chat.characterId)) !== characterId) return res.status(400).json({ error: 'A saved reply from this speaker is required.' })
   const chain = new Set(chainOf(chatId))
-  const ids = uniqueIds(body.memoryIds)
-  for (const id of ids) {
+  const ids = uniqueIds(body.memoryIds).filter((id) => {
     const row = memoryStore.get(id)
-    if (!row || !chain.has(str(row.chatId))) return res.status(400).json({ error: 'A memory is outside this scene.' })
+    if (!row || !chain.has(str(row.chatId))) return false
     const m = memoryAsSeenFrom(asMemory(row), chain)
-    if (!m.active || m.kind === 'journal' || !m.knownBy.includes(characterId) || m.consolidatedFor?.includes(characterId)) {
-      return res.status(400).json({ error: 'The speaker cannot recall one of these memories.' })
-    }
-  }
-  const existing = new Map(memoryRecallStore.list(characterId).map((r) => [r.memoryId, r]))
+    return m.active && m.kind !== 'journal' && m.knownBy.includes(characterId) && !m.consolidatedFor?.includes(characterId)
+  })
   const at = Date.now()
   db.exec('BEGIN')
   try {
-    for (const memoryId of ids) {
-      const events = existing.get(memoryId)?.events ?? []
-      if (!events.some((e) => e.messageId === messageId)) memoryRecallStore.insert({ memoryId, characterId, events: [...events, { chatId, messageId, at }] })
-    }
+    for (const memoryId of ids) memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at })
     db.exec('COMMIT')
   } catch (error) { db.exec('ROLLBACK'); throw error }
   res.status(204).end()

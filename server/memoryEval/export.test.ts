@@ -36,10 +36,11 @@ describe('private recall export', () => {
       const memory = { chatId: 'past', text: 'Brisa met Tavi at the quay.', kind: 'event', importance: 0.8, witnesses: ['brisa'], knownBy: ['brisa'], active: true, origin: 'manual', createdAt: 1 }
       put('memories', 'wanted', memory)
       put('memories', 'secret', { ...memory, witnesses: ['tavi'], knownBy: ['tavi', 'brisa'], toldVia: [{ to: ['brisa'], chatId: 'unrelated', at: 2 }] })
-      db.exec('CREATE TABLE memory_recalls (memoryId TEXT, characterId TEXT, count INTEGER, lastAt INTEGER, events TEXT)')
-      db.prepare('INSERT INTO memory_recalls VALUES (?, ?, ?, ?, ?)').run('wanted', 'brisa', 2, 4, JSON.stringify([
-        { messageId: 'line', chatId: 'now', at: 3 }, { messageId: 'elsewhere', chatId: 'unrelated', at: 4 },
-      ]))
+      db.exec('CREATE TABLE memory_recall_events (memoryId TEXT, characterId TEXT, chatId TEXT, messageId TEXT, swipe INTEGER, at INTEGER)')
+      const recall = db.prepare('INSERT INTO memory_recall_events VALUES (?, ?, ?, ?, ?, ?)')
+      recall.run('wanted', 'brisa', 'now', 'line', 0, 3)
+      recall.run('wanted', 'brisa', 'unrelated', 'elsewhere', 0, 4)
+      recall.run('wanted', 'brisa', 'now', 'line', 1, 9) // Unselected swipe is not recall credit.
       db.close()
       const before = fs.readFileSync(file)
       const result = exportCase(file, 'now', 'brisa', ['wanted'], 'What happened at the quay?')
@@ -56,7 +57,7 @@ describe('private recall export', () => {
       expect(() => exportLocal(['--database', file, '--chat', 'now', '--speaker', 'brisa', '--expected', 'wanted', '--question', 'What happened?'], dir)).toThrow()
       expect(() => exportCase(file, 'missing', 'brisa', ['wanted'], 'What happened?')).toThrow()
       const old = new DatabaseSync(file)
-      old.exec('DROP TABLE memory_recalls')
+      old.exec('DROP TABLE memory_recall_events')
       old.close()
       expect(exportCase(file, 'now', 'brisa', ['wanted'], 'What happened?').memories[0]).not.toHaveProperty('recalls')
     } finally {
