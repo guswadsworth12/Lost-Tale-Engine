@@ -590,6 +590,9 @@ export function useChatSession(chatId: string | null) {
   const genKeyRef = useRef<string>('')
   const summarizingRef = useRef(false)
   const scribingRef = useRef(false)
+  /** Unparseable scribe replies per batch (keyed by its first message): after this many, the lenient parse commits it. */
+  const SCRIBE_MAX_RETRIES = 2
+  const scribeFailuresRef = useRef(new Map<string, number>())
   // Synchronous lock guarding against double-dispatch within one tick — `isGenerating` state alone is one render too slow. Lazy-built to avoid allocating every render.
   const generationLockRef = useRef<GenerationLock | null>(null)
   if (!generationLockRef.current) generationLockRef.current = createGenerationLock()
@@ -1549,6 +1552,8 @@ export function useChatSession(chatId: string | null) {
           undefined,
           jobShaping.memory,
         )
+        const batchKey = `${chatId}|${batch[0].id}`
+        const failures = scribeFailuresRef.current.get(batchKey) ?? 0
         const committed = await commitScribeResponse(raw, input, async (result) => {
           const added = result.add.length ? await memoriesApi.createMany(scribeMemoryRows(result.add, chatId, branch, fresh.scene, (id) => backgroundLabel(id, world))) : []
           await Promise.all([
@@ -1557,8 +1562,13 @@ export function useChatSession(chatId: string | null) {
             ...result.resolve.map((id) => memoriesApi.update(id, { unresolved: false }).catch(() => {})),
           ])
           await memoriesApi.setWatermark(chatId, batch[batch.length - 1].createdAt, fresh.memoryScribedUpTo ?? null)
-        })
-        if (!committed) return
+        }, failures >= SCRIBE_MAX_RETRIES)
+        if (!committed) {
+          // Left unscribed so a cut-off reply is retried; after a few failures the lenient parse commits it.
+          scribeFailuresRef.current.set(batchKey, failures + 1)
+          return
+        }
+        scribeFailuresRef.current.delete(batchKey)
         if (batch.length < unread.length && fresh.memoryScribedUpTo !== undefined) continue
         return
       }

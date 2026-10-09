@@ -248,3 +248,20 @@ it('does not commit memories or advance the watermark after a failed batch, and 
   expect(watermark).toBe(3000)
   expect(commit).toHaveBeenCalledTimes(1)
 })
+
+it('accepts commentary after a complete reply, but not a reply cut off after an inner object', () => {
+  const json = '{"add":[],"told":[],"retire":[],"resolve":[]}'
+  expect(tryParseScribeResponse(`${json}\nNothing new happened.`, input())).toEqual({ add: [], told: [], retire: [], resolve: [] })
+  expect(tryParseScribeResponse(`Here you go:\n${json}\nHope that helps!`, input())).toBeDefined()
+  expect(tryParseScribeResponse('{"add":[{"from":1,"text":"Bea kept the key.","kind":"event"},{"from":2,"te', input())).toBeUndefined()
+})
+
+it('commits leniently on the give-up path, so a stubborn batch cannot stall scribing', async () => {
+  const commit = vi.fn(async () => {})
+  expect(await commitScribeResponse('garbage', input(), commit, true)).toBe(true)
+  expect(commit).toHaveBeenCalledWith({ add: [], told: [], retire: [], resolve: [] })
+  const cut = '{"add":[{"from":1,"text":"Bea kept the key.","kind":"event","certainty":"firsthand","importance":0.6}],"told":[],"retire":[],"resolve":['
+  expect(await commitScribeResponse(cut, input(), commit)).toBe(false)
+  expect(await commitScribeResponse(cut, input(), commit, true)).toBe(true)
+  expect(commit).toHaveBeenLastCalledWith(expect.objectContaining({ add: [expect.objectContaining({ text: 'Bea kept the key.' })] }))
+})

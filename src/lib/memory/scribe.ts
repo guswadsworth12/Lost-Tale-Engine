@@ -288,9 +288,13 @@ export function tryParseScribeResponse(raw: string, input: ScribeInput, allowTru
   }
 }
 
-/** Commit the whole interpreted batch, including its watermark, only after a complete reply. */
-export async function commitScribeResponse(raw: string, input: ScribeInput, commit: (result: ScribeResult) => Promise<void>): Promise<boolean> {
-  const result = tryParseScribeResponse(raw, input)
+/**
+ * Commit the whole interpreted batch, including its watermark, only after a complete reply.
+ * `lenient` is the give-up path after repeated failures: repair what it can (or record nothing)
+ * and commit anyway, so one stubborn batch never stalls scribing for good.
+ */
+export async function commitScribeResponse(raw: string, input: ScribeInput, commit: (result: ScribeResult) => Promise<void>, lenient = false): Promise<boolean> {
+  const result = lenient ? parseScribeResponse(raw, input) : tryParseScribeResponse(raw, input)
   if (!result) return false
   await commit(result)
   return true

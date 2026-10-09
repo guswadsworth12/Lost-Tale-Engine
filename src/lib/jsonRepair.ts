@@ -42,8 +42,10 @@ function extractBraces(text: string, allowTruncation: boolean): string {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1) throw new Error('No JSON object found in model output')
+  // Strict: commentary after the object is dropped, but a reply cut off mid-object keeps its open
+  // brackets, so it stays unparseable rather than being guessed closed.
+  if (!allowTruncation) return end > start ? text.slice(start, end + 1) : text.slice(start)
   // Tolerate a response cut off before its closing brace — closeUnbalanced() downstream appends what's missing.
-  if (!allowTruncation) return text.slice(start)
   return end === -1 || end <= start ? text.slice(start) : text.slice(start, end + 1)
 }
 
