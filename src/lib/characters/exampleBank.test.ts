@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { EXAMPLE_TOKEN_BUDGET, guessSituations, pickExamples, splitExamples, validateExampleBank, type ExampleBankEntry } from './exampleBank'
+import { EXAMPLE_TOKEN_BUDGET, defaultExamples, guessSituations, pickExamples, splitExamples, validateExampleBank, type ExampleBankEntry } from './exampleBank'
 import { deriveCardReplyBand } from './voice'
 const entry = (id: string, situations: ExampleBankEntry['situations'], text = '<START>\n{{user}}: Hello.\n{{char}}: A synthetic reply.'): ExampleBankEntry => ({ id, situations, text, enabled: true })
 it('guesses literal situation words and scene state without matching word fragments', () => {
@@ -33,8 +33,22 @@ it('falls back to one enabled everyday entry, or adds nothing without one', () =
 it('similarity changes a tied pick and marks its reason', () => {
   const bank = [entry('a', ['everyday']), entry('b', ['everyday']), entry('c', ['everyday'])]
   const picks = pickExamples(bank, { recentText: 'hello', similarities: new Map([['c', 0.9], ['b', 0.1]]) })
-  expect(picks.map((p) => p.entry.id)).toEqual(['c', 'b'])
-  expect(picks.every((p) => p.similarMeaning)).toBe(true)
+  // Calibrated: 0.9 stands out (similar meaning); 0.1 is below the floor and counts for nothing.
+  expect(picks.map((p) => p.entry.id)).toEqual(['c', 'a'])
+  expect(picks.map((p) => p.similarMeaning)).toEqual([true, false])
+})
+
+it('ignores bunched, noise-level similarity: no label, and the everyday fallback still applies', () => {
+  const bank = [entry('daily', ['everyday']), entry('b', ['danger']), entry('c', ['grief']), entry('d', ['anger']), entry('e', ['planning'])]
+  const similarities = new Map([['daily', 0.50], ['b', 0.51], ['c', 0.52], ['d', 0.505], ['e', 0.53]])
+  const picks = pickExamples(bank, { recentText: 'An unmatched sentence.', similarities })
+  expect(picks.map((p) => [p.entry.id, p.fallback, p.similarMeaning])).toEqual([['daily', true, false]])
+})
+
+it('sends one steady default where situational picking is off and the card has no other examples', () => {
+  expect(defaultExamples([entry('off', ['everyday']), entry('danger', ['danger']), entry('daily', ['everyday'])].map((e) => e.id === 'off' ? { ...e, enabled: false } : e)).map((p) => p.entry.id)).toEqual(['daily'])
+  expect(defaultExamples([entry('danger', ['danger'])]).map((p) => p.entry.id)).toEqual(['danger'])
+  expect(defaultExamples([{ ...entry('off', ['everyday']), enabled: false }])).toEqual([])
 })
 it('splits line-based START blocks, suggests editable tags and preserves reply band and measured median', () => {
   const text = '<start>\n{{user}}: A danger!\n{{char}}: Keep calm and stay close.\n<START>\n{{char}}: We should plan the route very carefully.\nMore words follow.'

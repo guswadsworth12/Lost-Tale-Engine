@@ -13,32 +13,51 @@ it('does not embed when off, missing a model/query or all entries disabled', asy
   await examples.similarities(true, c, [1, 0], bank.map((e) => ({ ...e, enabled: false })))
   expect(embed).not.toHaveBeenCalled()
 })
-it('reuses the Phase 2 query and embeds missing entry texts once in a batch, including concurrent previews', async () => {
-  const embed = vi.fn(async (texts: string[]) => texts.map((text) => text.includes('storm') ? [0, 1] : [1, 0]))
+it('embeds missing entries once in the background, never inside a reply, then scores from the cache', async () => {
+  let release = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const vectors = (texts: string[]) => texts.map((text) => text.includes('storm') ? [0, 1] : [1, 0])
+  // The first entry batch waits until released, as a slow service would.
+  const embed = vi.fn(async (texts: string[]) => { if (texts.length === 2 && embed.mock.calls.length === 2) await gate; return vectors(texts) })
   const c = { model: 'synthetic', key: 'synthetic', embed }
   const recall = new MeaningRecall()
   const result = await recall.recall(true, c, 'A crossing.', async () => ({}))
   expect(result.queryVector).toEqual([1, 0])
   const examples = new ExampleMeaning()
+  // The first replies don't wait: no scores yet, one shared background batch for both.
   const [a, b] = await Promise.all([examples.similarities(true, c, result.queryVector, bank), examples.similarities(true, c, result.queryVector, bank)])
-  expect(a).toEqual(b)
-  expect(a?.get('first')).toBe(1)
-  expect(a?.get('second')).toBe(0)
+  expect(a).toBeUndefined()
+  expect(b).toBeUndefined()
+  release()
+  await examples.idle()
+  const scores = await examples.similarities(true, c, result.queryVector, bank)
+  expect(scores?.get('first')).toBe(1)
+  expect(scores?.get('second')).toBe(0)
   expect(embed.mock.calls.map(([texts]) => texts.length)).toEqual([1, 2])
   await examples.similarities(true, c, [0, 1], bank)
   expect(embed).toHaveBeenCalledTimes(2)
+  // Edited text or another model embeds only what's missing.
   await examples.similarities(true, c, [0, 1], [bank[0], { ...bank[1], text: bank[1].text + ' Changed.' }])
   expect(embed.mock.calls[embed.mock.calls.length - 1]?.[0]).toHaveLength(1)
+  await examples.idle()
   await examples.similarities(true, { ...c, key: 'other-model' }, [1, 0], bank)
   expect(embed.mock.calls[embed.mock.calls.length - 1]?.[0]).toHaveLength(2)
 })
-it('falls back on failures or incompatible dimensions without repeatedly embedding a failed entry', async () => {
+it('pauses after a failure instead of remembering it all session, and falls back on mismatched dimensions', async () => {
+  let clock = 0
   const embed = vi.fn(async () => { throw new Error('Synthetic failure') })
-  const examples = new ExampleMeaning(), c = { model: 'synthetic', key: 'failure', embed }
+  const examples = new ExampleMeaning(() => clock, 30_000), c = { model: 'synthetic', key: 'failure', embed }
   expect(await examples.similarities(true, c, [1, 0], bank)).toBeUndefined()
+  await examples.idle()
   expect(await examples.similarities(true, c, [1, 0], bank)).toBeUndefined()
   expect(embed).toHaveBeenCalledTimes(1)
-  expect(await new ExampleMeaning().similarities(true, { ...c, embed: async () => [[1, 0, 0], [1, 0, 0]] }, [1, 0], bank)).toBeUndefined()
+  clock = 30_001
+  await examples.similarities(true, c, [1, 0], bank)
+  expect(embed).toHaveBeenCalledTimes(2)
+  const mismatched = new ExampleMeaning(), m = { ...c, key: 'dims', embed: async () => [[1, 0, 0], [1, 0, 0]] }
+  await mismatched.similarities(true, m, [1, 0], bank)
+  await mismatched.idle()
+  expect(await mismatched.similarities(true, m, [1, 0], bank)).toBeUndefined()
 })
 it('tracks successful picks separately for each speaker and chat without consuming previews', () => {
   const history = new ExampleHistory()

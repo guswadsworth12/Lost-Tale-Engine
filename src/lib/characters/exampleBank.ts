@@ -1,4 +1,5 @@
 import { estimateTokens } from '../tokenEstimate.ts'
+import { calibrateSimilarities } from '../memory/vector.ts'
 import { extractExampleCharTurns, splitExampleBlocks } from './voice.ts'
 
 export const SITUATIONS = ['everyday', 'banter', 'teasing', 'flirting', 'comfort', 'grief', 'anger', 'scolding', 'embarrassed', 'danger', 'planning', 'celebrating'] as const
@@ -60,11 +61,16 @@ export function splitExamples(text: string, id: () => string): ExampleBankEntry[
 export interface ExamplePick { entry: ExampleBankEntry; situations: Situation[]; similarMeaning: boolean; fallback: boolean; tokens: number; score: number }
 export function pickExamples(bank: readonly ExampleBankEntry[], context: ExampleContext): ExamplePick[] {
   const situations = guessSituations(context.recentText, context)
-  const candidates = bank.filter((entry) => entry.enabled && entry.text.trim()).map((entry) => {
+  const enabled = bank.filter((entry) => entry.enabled && entry.text.trim())
+  // Raw cosine is bunched with real models; only a clear standout counts as similar meaning.
+  const similarity = calibrateSimilarities(enabled.map((e) => e.id), context.similarities)
+  const candidates = enabled.map((entry) => {
     const matched = entry.situations.filter((s) => situations.includes(s))
-    const similarity = context.similarities?.get(entry.id) ?? 0
-    return { entry, situations: matched, similarMeaning: Number.isFinite(similarity) && similarity > 0, fallback: false,
-      tokens: estimateTokens(entry.text), score: matched.length + (Number.isFinite(similarity) ? Math.max(0, similarity) : 0) }
+    // Below this, a calibrated score is noise-level: it shouldn't beat the everyday fallback.
+    const calibrated = similarity.get(entry.id) ?? 0
+    const meaning = calibrated >= 0.3 ? calibrated : 0
+    return { entry, situations: matched, similarMeaning: meaning >= 0.6, fallback: false,
+      tokens: estimateTokens(entry.text), score: matched.length + meaning }
   }).filter((pick) => pick.tokens <= EXAMPLE_TOKEN_BUDGET)
   let fits = candidates.filter((p) => p.score > 0)
   if (!fits.length) fits = candidates.filter((p) => p.entry.situations.includes('everyday')).map((p) => ({ ...p, fallback: true }))
@@ -75,6 +81,16 @@ export function pickExamples(bank: readonly ExampleBankEntry[], context: Example
   let used = 0
   for (const pick of fits) if (picked.length < (pick.fallback ? 1 : 2) && used + pick.tokens <= EXAMPLE_TOKEN_BUDGET) { picked.push(pick); used += pick.tokens }
   return picked
+}
+/**
+ * Where situational picking is off (Deep Memory off) but the card keeps all its examples in the
+ * bank, its voice must not vanish: send one steady example, the first enabled everyday entry,
+ * else the first enabled entry, within the example budget.
+ */
+export function defaultExamples(bank: readonly ExampleBankEntry[]): ExamplePick[] {
+  const usable = bank.filter((e) => e.enabled && e.text.trim() && estimateTokens(e.text) <= EXAMPLE_TOKEN_BUDGET)
+  const entry = usable.find((e) => e.situations.includes('everyday')) ?? usable[0]
+  return entry ? [{ entry, situations: [], similarMeaning: false, fallback: true, tokens: estimateTokens(entry.text), score: 0 }] : []
 }
 /** Off and empty-bank paths return the original base bytes. */
 export function exampleText(base: string, picks: readonly ExamplePick[], enabled: boolean): string {

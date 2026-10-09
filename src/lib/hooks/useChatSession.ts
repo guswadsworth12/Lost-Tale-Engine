@@ -267,7 +267,7 @@ import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
 import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
 import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
-import { pickExamples, exampleText, guessSituations } from '@/lib/characters/exampleBank'
+import { pickExamples, exampleText, guessSituations, defaultExamples } from '@/lib/characters/exampleBank'
 import { exampleMeaning, exampleHistory, previousExampleTurn } from '@/lib/characters/exampleMeaning'
 import { buildScribePrompt, commitScribeResponse, scribeMemoryRows } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
@@ -762,6 +762,9 @@ export function useChatSession(chatId: string | null) {
       const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
       const recentMemoryText = historyForPrompt.slice(-6).map((m) => m.text).join('\n')
       const bankOn = modules.deepMemory && !opts?.impersonateAsUser && !!speaker.exampleBank?.some((e) => e.enabled) && promptSections.examples !== false
+      // A card that keeps all its examples in the bank still has a voice where Deep Memory is off.
+      const bankDefault = !modules.deepMemory && !opts?.impersonateAsUser && !speaker.card.mes_example?.trim()
+        && !!speaker.exampleBank?.some((e) => e.enabled) && promptSections.examples !== false
       const exampleConnection = embeddingConnection(useSettingsStore.getState(), secrets)
       const meaning = memoryOn ? await meaningRecall.current.recall(modules.deepMemory,
         exampleConnection, opts?.meaningText ?? recentMemoryText,
@@ -771,11 +774,10 @@ export function useChatSession(chatId: string | null) {
         recentText: opts?.meaningText ?? recentMemoryText,
         activeDate: isLiveScene(freshChat.activeEvent) && freshChat.activeEvent?.kind === 'date',
         activeHangout: isLiveScene(freshChat.activeEvent) && freshChat.activeEvent?.kind === 'hangout',
-        pendingAdjudication: !!pendingChoiceFrom(branchMessages) || (!!modules.campaignRules && branchMessages[branchMessages.length - 1]?.role === 'user'),
+        pendingAdjudication: !!pendingChoiceFrom(branchMessages),
         danger: guessSituations(freshChat.scene?.atmosphere ?? '').includes('danger'),
-        planning: !!activeObjective,
         similarities: exampleSimilarities, previousIds: exampleHistory.ids(freshChat.id, speaker.id, previousExampleTurn(branchMessages, speaker.id, freshChat.characterId)),
-      }) : []
+      }) : bankDefault ? defaultExamples(speaker.exampleBank ?? []) : []
       const memoryPicks = memoryOn
         ? selectMemoriesExplained(sceneMemories, {
             characterId: speaker.id,
@@ -1180,7 +1182,7 @@ export function useChatSession(chatId: string | null) {
       // How long this speaker's turns should run, taken from their `replyLength` override or
       // measured from their own example dialogue. The matching
       // hard token cap lives in `runGeneration` so brevity survives a model that ignores the line.
-      const replyLengthInstruction = resolveReplyLength(speaker.replyLength, speaker.card, modules.deepMemory ? speaker.exampleBank : undefined).instruction
+      const replyLengthInstruction = resolveReplyLength(speaker.replyLength, speaker.card, modules.deepMemory || !speaker.card.mes_example?.trim() ? speaker.exampleBank : undefined).instruction
       const activityInitiativeGuidance =
         speakerWarmth >= 20 && charReplyCount >= 3
           ? `Do not only react: let ${speaker.card.name} sometimes suggest something that fits their own interests or routine.`
@@ -1290,7 +1292,7 @@ export function useChatSession(chatId: string | null) {
       })
       const built: PromptInspection = await buildPrompt({
         character: speaker.card,
-        exampleDialogue: exampleText(speaker.card.mes_example, examplePicks, bankOn),
+        exampleDialogue: exampleText(speaker.card.mes_example, examplePicks, bankOn || bankDefault),
         characterPromptItems: speaker.promptItems,
         worldPromptItems: world?.promptItems,
         characterProfile: [buildCharacterProfileNote(speaker), appearanceNote(speaker.card.name, speaker.outfits, speakerOutfitId, speaker.baseForm), speaker.privateMemory?.trim() ? `Private memory for ${speaker.card.name}: ${speaker.privateMemory.trim()}` : '', memoryText].filter(Boolean).join('\n\n'),
@@ -1356,7 +1358,7 @@ export function useChatSession(chatId: string | null) {
       if (bankOn) { built.exampleIds = examplePicks.map((p) => p.entry.id); built.exampleSpeakerId = speaker.id }
       if (opts?.includeSectionBreakdown && speaker.exampleBank?.length) {
         built.examplePicks = examplePicks
-        built.exampleBankSkipped = !modules.deepMemory ? 'Example bank is off for this world.' : !bankOn ? 'Example bank is not used for this reply.' : !examplePicks.length ? 'No enabled example fits this situation and the example budget.' : undefined
+        built.exampleBankSkipped = bankDefault ? 'Deep Memory is off for this world: one example from the bank was sent, because the card has no other examples.' : !modules.deepMemory ? 'Example bank is off for this world.' : !bankOn ? 'Example bank is not used for this reply.' : !examplePicks.length ? 'No enabled example fits this situation and the example budget.' : undefined
       }
       if (memoryOn && modules.deepMemory) built.memoryRecallIds = memoryPicks.map((p) => p.memory.id)
       // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
@@ -3188,7 +3190,7 @@ export function useChatSession(chatId: string | null) {
       // Hard max_length ceiling from this speaker's reply-length band, so a terse character stays
       // terse even if the model ignores the prose instruction. Only tightens the user's cap, never raises it.
       // `reasoningTokenReserve` (Settings → Generation) adds thinking headroom on top for reasoning models.
-      const replyBand = resolveReplyLength(speaker.replyLength, speaker.card, modulesForWorld(world).deepMemory ? speaker.exampleBank : undefined).band
+      const replyBand = resolveReplyLength(speaker.replyLength, speaker.card, modulesForWorld(world).deepMemory || !speaker.card.mes_example?.trim() ? speaker.exampleBank : undefined).band
       const effectiveMaxLength = replyMaxTokens(replyBand, sampler.max_length, reasoningTokenReserve)
       const bandCapsBelowUserMax = effectiveMaxLength < sampler.max_length
       // Becomes true once an auto-continue round kicks in — every remaining round then behaves like a manual continue.

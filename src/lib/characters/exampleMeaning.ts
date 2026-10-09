@@ -2,35 +2,50 @@ import type { EmbeddingConnection } from '../memory/meaningRecall'
 import { cosine, normalizeVector } from '../memory/vector'
 import type { ExampleBankEntry } from './exampleBank'
 
-/** Session-only entry vectors, keyed by connection and exact text hash; no story data is persisted. */
+/**
+ * Session-only entry vectors, keyed by connection and exact text hash; no story data is persisted.
+ * Entries are embedded in the background, never inside a reply's deadline: a reply uses meaning
+ * only once every enabled entry has a vector, and situations alone until then. A failed batch is
+ * retried after a short pause instead of being remembered as failed for the whole session.
+ */
 export class ExampleMeaning {
-  private vectors = new Map<string, Promise<Float32Array>>()
+  private ready = new Map<string, Float32Array>()
+  private pending = new Set<string>()
+  private failedUntil = new Map<string, number>()
+  private inFlight = new Set<Promise<void>>()
+  constructor(private now: () => number = () => Date.now(), private retryMs = 30_000, private timeoutMs = 15_000) {}
+
   async similarities(enabled: boolean, connection: EmbeddingConnection | undefined, query: number[] | undefined, bank: readonly ExampleBankEntry[]): Promise<ReadonlyMap<string, number> | undefined> {
     if (!enabled || !connection || !query || !bank.some((e) => e.enabled) || !crypto.subtle) return undefined
-    const signal = AbortSignal.timeout(2500)
     try {
       const entries = await Promise.all(bank.filter((e) => e.enabled).map(async (entry) => {
         const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(connection.key + '\n' + entry.text))
         return { entry, key: Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('') }
       }))
-      const missing = [...new Map(entries.filter(({ key }) => !this.vectors.has(key)).map((e) => [e.key, e])).values()]
-      if (missing.length) {
-        const batch = connection.embed(missing.map(({ entry }) => entry.text), signal)
-        missing.forEach(({ key }, index) => {
-          const vector = batch.then((rows) => normalizeVector(rows[index]))
-          vector.catch(() => {}) // Failed entries are cached too; retries never spam a failing service.
-          this.vectors.set(key, vector)
-        })
-      }
+      const now = this.now()
+      const missing = [...new Map(entries.filter(({ key }) => !this.ready.has(key) && !this.pending.has(key) && (this.failedUntil.get(key) ?? 0) <= now)
+        .map((e) => [e.key, e])).values()]
+      if (missing.length) this.embedInBackground(connection, missing)
+      if (!entries.every(({ key }) => this.ready.has(key))) return undefined
       const normalizedQuery = normalizeVector(query)
-      const scores = Promise.all(entries.map(async ({ entry, key }) => [entry.id, cosine(normalizedQuery, await this.vectors.get(key)!)] as const))
-      return await new Promise((resolve) => {
-        const abort = () => resolve(undefined)
-        signal.addEventListener('abort', abort, { once: true })
-        if (signal.aborted) abort()
-        scores.then((rows) => resolve(new Map(rows)), () => resolve(undefined)).finally(() => signal.removeEventListener('abort', abort))
-      })
+      return new Map(entries.map(({ entry, key }) => [entry.id, cosine(normalizedQuery, this.ready.get(key)!)] as const))
     } catch { return undefined }
+  }
+
+  /** Settles once current background embedding finishes (tests and previews). */
+  async idle(): Promise<void> { await Promise.all([...this.inFlight]) }
+
+  private embedInBackground(connection: EmbeddingConnection, missing: { entry: ExampleBankEntry; key: string }[]): void {
+    for (const { key } of missing) this.pending.add(key)
+    const fail = () => { const until = this.now() + this.retryMs; for (const { key } of missing) this.failedUntil.set(key, until) }
+    const job: Promise<void> = connection.embed(missing.map(({ entry }) => entry.text), AbortSignal.timeout(this.timeoutMs)).then((rows) => {
+      if (rows.length !== missing.length) return fail()
+      missing.forEach(({ key }, index) => {
+        try { this.ready.set(key, normalizeVector(rows[index])); this.failedUntil.delete(key) }
+        catch { this.failedUntil.set(key, this.now() + this.retryMs) }
+      })
+    }, fail).finally(() => { for (const { key } of missing) this.pending.delete(key); this.inFlight.delete(job) })
+    this.inFlight.add(job)
   }
 }
 export const exampleMeaning = new ExampleMeaning()

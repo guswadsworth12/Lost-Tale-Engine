@@ -1,5 +1,6 @@
 import type { CharacterMemory, MemoryRecall } from '../types.ts'
 import { estimateTokens } from '../tokenEstimate.ts'
+import { calibrateSimilarities } from './vector.ts'
 
 /**
  * Which of a character's memories reach their prompt. A character only ever sees memories whose
@@ -23,23 +24,9 @@ export const DEEP_MEMORY_WEIGHTS = {
   linked: 0.4,
 } as const
 // Below this gap between the best and the median score, a "best match" is mostly noise.
-const MIN_SIMILARITY_SPREAD = 0.15
-// Calibrate only finite scores of this speaker's eligible candidates. With five or
-// more, median maps to zero and maximum to one, scaled down when the maximum barely
-// stands out, so noise never crowns a winner; flat distributions add no boost.
-// Small sets use a fixed 0.4 floor, rescaled to 0..1 to avoid amplifying noise.
+// Calibrate only finite scores of this speaker's eligible candidates (`memory/vector.ts`).
 function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<string, number>) {
-  const values = known.map((m) => scores?.get(m.id)).filter((v): v is number => v !== undefined && Number.isFinite(v))
-    .map((v) => Math.max(0, Math.min(1, v))).sort((a, b) => a - b)
-  const middle = Math.floor(values.length / 2)
-  const floor = values.length >= 5 ? (values[middle] + values[Math.ceil(values.length / 2) - 1]) / 2 : 0.4
-  const ceiling = values.length >= 5 ? values[values.length - 1] : 1
-  const confidence = values.length >= 5 ? Math.min(1, (ceiling - floor) / MIN_SIMILARITY_SPREAD) : 1
-  return new Map(known.map((m) => {
-    const raw = scores?.get(m.id)
-    return [m.id, raw !== undefined && Number.isFinite(raw) && ceiling > floor
-      ? confidence * Math.max(0, Math.min(1, (raw - floor) / (ceiling - floor))) : 0]
-  }))
+  return calibrateSimilarities(known.map((m) => m.id), scores)
 }
 const RECALL_HALF_LIFE_MS = 30 * 86400_000
 export const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
