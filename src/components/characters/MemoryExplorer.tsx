@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { Chat } from '@/lib/types'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { memoryExplorerApi, memoriesApi } from '@/lib/api/client'
 import { LINK_RELATIONS } from '@/lib/memory/links'
-import type { ExplorerMemory, MemoryExplorer } from '@/lib/memory/explorer'
+import type { ExplorerMemory, ExplorerSubject, MemoryExplorer } from '@/lib/memory/explorer'
 import { Section } from '@/components/ui/Section'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { MemoryMap } from './MemoryMap'
 import { chatOptionLabel } from './memoriesView'
 import { errorMessage, toastError } from '@/lib/store/useToastStore'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
@@ -35,9 +37,11 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
   const [picked, setPicked] = useState('')
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
-  const names = new Map(characters.map((c) => [c.id, c.card.name]))
+  const [view, setView] = useState<'map' | 'list'>('map')
+  const names = useMemo(() => new Map(characters.map((c) => [c.id, c.card.name])), [characters])
   const nameOf = (kind: string, id: string) => kind === 'person' ? names.get(id) || 'Someone' : kind === 'memory' ? 'Earlier memory' : data?.subjects.find((s) => s.kind === kind && s.id === id)?.displayLabel || id
-  const subjectName = (s: import('@/lib/memory/explorer').ExplorerSubject) => nameOf(s.kind, s.id)
+  // Stable, so the map only lays itself out again when the memories or names change.
+  const subjectName = useCallback((s: ExplorerSubject) => s.kind === 'person' ? names.get(s.id) || 'Someone' : s.displayLabel || s.id, [names])
   const subject = data?.subjects.find((s) => s.key === picked)
   const run = async (action: () => Promise<unknown>) => {
     if (busy) return
@@ -45,7 +49,14 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
     try { await action() } catch (error) { toastError(errorMessage(error)) } finally { setBusy(false) }
   }
   if (!data) return <p className="text-sm text-text-muted">Loading what they know…</p>
-  return <ExplorerLayout data={data} picked={!!subject} list={<>
+  const toggle = <SegmentedControl size="sm" className="mb-4" value={view} onChange={setView} options={[{ value: 'map', label: 'Map' }, { value: 'list', label: 'List' }]} />
+  if (view === 'map') return <>
+    {toggle}
+    {!data.deepMemory && <p className="mb-3 text-xs text-text-muted">Connections are recorded when Deep Memory is on.</p>}
+    <MemoryMap data={data} character={character} subjectName={subjectName}
+      renderMemory={(m) => <ExplorerMemoryCard memory={m} character={character} chatId={chatId} busy={busy} run={run} />} />
+  </>
+  return <>{toggle}<ExplorerLayout data={data} picked={!!subject} list={<>
     <input className={inputClass} aria-label="Filter people, places and things" placeholder="Find a person, place or thing…" value={filter} onChange={(e) => setFilter(e.target.value)} />
     <ul className="mt-3 space-y-1">
       {data.subjects.filter((s) => subjectName(s).toLowerCase().includes(filter.toLowerCase())).map((s) => <li key={s.key}>
@@ -75,7 +86,7 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
     </div>)}
     <h5 className="mb-2 text-sm font-medium">Memories</h5>
     {data.memories.filter((m) => subject.memoryIds.includes(m.id)).map((m) => <ExplorerMemoryCard key={m.id} memory={m} character={character} chatId={chatId} busy={busy} run={run} />)}
-  </> : <p className="text-sm text-text-muted">Choose a person, place or thing to see their connections and memories.</p>} />
+  </> : <p className="text-sm text-text-muted">Choose a person, place or thing to see their connections and memories.</p>} /></>
 }
 /** Phone navigation replaces the list with a full-width detail; desktop keeps both visible. */
 export function ExplorerLayout({ data, picked, list, detail }: { data: Pick<MemoryExplorer, 'deepMemory'>; picked: boolean; list: React.ReactNode; detail: React.ReactNode }) {
