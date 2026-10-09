@@ -57,3 +57,14 @@ it('chooses the replacement with most shared about people and link entities, or 
   expect(replacementFor(old, [memory('none'), memory('less', { about: ['seed'] }), best])?.id).toBe('best')
   expect(replacementFor(old, [memory('none')])).toBeUndefined()
 })
+
+it('does not expand through an absent player or change aboutPresent when the player links to everyone', () => {
+  const edge = memory('edge', { about: ['player'], links: [link('player', 'neighbour'), link('player', 'second')] })
+  const target = memory('target', { about: ['neighbour'] })
+  const opts = { characterId: 'speaker', presentIds: ['speaker'], recentText: '', deep: { now: 100 } }
+  for (const pick of selectMemoriesExplained([edge, target], opts)) {
+    expect(pick.reasons.linkedThrough).toEqual([])
+    expect(pick.reasons.aboutPresent).toEqual([])
+  }
+  expect(selectMemoriesExplained([edge, target], { ...opts, presentIds: ['player'] }).find((p) => p.memory.id === 'target')?.reasons.linkedThrough).toEqual(['neighbour'])
+})

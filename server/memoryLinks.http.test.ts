@@ -140,3 +140,46 @@ it('remaps closed link messages and supersedes memory ids when forking after the
   expect(supersedes.fromId).toBe(newCopy.id)
   expect(supersedes.toId).toBe(oldCopy.id)
 })
+
+for (const on of [false, true]) it(`keeps retirement through edits/swipes/continuation, but reopens and restarts its batch on rewind (${on})`, async () => {
+  const s = await scene(on)
+  const source = await s.message('An old debt.', 1000)
+  const old = await s.make('Mara owes Rowan.', { sourceMessageId: source.id })
+  const evidence = await s.message('Mara repaid Rowan.', 1500)
+  const replacement = await s.make('Mara repaid Rowan.', { sourceMessageId: evidence.id })
+  const newest = await s.message('They talk about the harbor.', 2000)
+  const retire = async (messageId: string) => call(`/api/memories/${old.id}`, 'PUT', { active: false, retiredReason: 'repaid', retiredByMessageId: messageId, retiredBatchFrom: 1500, replacementIds: [replacement.id] })
+  await retire(newest.id)
+  await call(`/api/chats/${s.chat.id}/memory-watermark`, 'POST', { upTo: 2000 })
+  for (const body of [{ text: 'An edited harbor line.' }, { text: 'A different swipe.', swipes: ['An edited harbor line.', 'A different swipe.'], activeSwipe: 1 }, { text: '' }, { text: 'A regenerated harbor line.' }, { text: 'A regenerated harbor line. Continued.' }]) {
+    expect((await call(`/api/messages/${newest.id}`, 'PUT', body)).status).toBe(200)
+    expect((await call(`/api/chats/${s.chat.id}/memories`)).body.find((m: any) => m.id === old.id)).toMatchObject({ active: false, retiredByMessageId: newest.id, retiredBatchFrom: 1500 })
+    if (on) {
+      expect((await allLinks()).find((l) => l.memoryId === old.id).closedByMessageId).toBe(newest.id)
+      expect((await allLinks()).some((l) => l.relation === 'supersedes' && l.sourceMessageId === newest.id)).toBe(true)
+    }
+  }
+  await call(`/api/chats/${s.chat.id}/memory-watermark`, 'POST', { upTo: 2000 })
+  // The evidence survives this cut; the next batch must read it again, rather than resurrecting stale state permanently.
+  await call(`/api/chats/${s.chat.id}/rewind`, 'POST', { messageId: newest.id })
+  expect((await call(`/api/chats/${s.chat.id}`)).body.memoryScribedUpTo).toBe(1499)
+  expect((await call(`/api/chats/${s.chat.id}/memories`)).body.find((m: any) => m.id === old.id)).toMatchObject({ active: true })
+  if (on) expect((await allLinks()).find((l) => l.memoryId === old.id).validTo).toBeNull()
+  // Re-scribing the surviving evidence retires the state again, now attributed to that evidence.
+  await retire(evidence.id)
+  await call(`/api/chats/${s.chat.id}/memory-watermark`, 'POST', { upTo: 1500 })
+  await call(`/api/chats/${s.chat.id}/rewind`, 'POST', { messageId: evidence.id })
+  expect((await call(`/api/chats/${s.chat.id}`)).body.memoryScribedUpTo).toBe(1499)
+  expect((await call(`/api/chats/${s.chat.id}/memories`)).body.find((m: any) => m.id === old.id).active).toBe(true)
+  if (on) expect((await allLinks()).some((l) => l.relation === 'supersedes' && l.sourceMessageId === evidence.id)).toBe(false)
+})
+it('restarts a retired batch when its evidence is deleted, without rescanning introductions', async () => {
+  const s = await scene()
+  const old = await s.make('An outstanding debt.')
+  const evidence = await s.message('The debt was repaid.', 2000)
+  await call(`/api/memories/${old.id}`, 'PUT', { active: false, retiredByMessageId: evidence.id, retiredBatchFrom: 1500 })
+  await call(`/api/chats/${s.chat.id}/memory-watermark`, 'POST', { upTo: 3000 })
+  await call(`/api/messages/${evidence.id}`, 'DELETE')
+  expect((await call(`/api/chats/${s.chat.id}`)).body.memoryScribedUpTo).toBe(1499)
+  expect((await call(`/api/chats/${s.chat.id}/memories`)).body.find((m: any) => m.id === old.id).active).toBe(true)
+})

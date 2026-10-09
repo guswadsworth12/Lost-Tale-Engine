@@ -1,14 +1,16 @@
 import { characterStore, chatStore, messageStore } from './db.ts'
 import { introductionsFrom, type Introduction, type Strangers } from '../src/lib/story/acquaintance.ts'
 
-export function recordIntroductions(chatId: string): void {
+export function recordIntroductions(chatId: string, messageId?: string): void {
   const chat = chatStore.get(chatId)
-  if (!chat) return
-  const messages = messageStore.list({ where: 'chatId = ?', params: [chatId], orderBy: 'createdAt' })
+  const records = Object.values((chat?.strangers ?? {}) as Strangers).filter((record) => record.ids.length)
+  if (!chat || !records.length) return
+  const messages = messageId ? [messageStore.get(messageId)].filter((m) => m !== undefined)
+    : messageStore.list({ where: 'chatId = ? AND createdAt >= ?', params: [chatId, Math.min(...records.map((r) => r.since))], orderBy: 'createdAt' })
   const fresh = introductionsFrom(chat.strangers as Strangers | undefined, messages as unknown as Parameters<typeof introductionsFrom>[1],
     (id) => (characterStore.get(id)?.card as { name?: string } | undefined)?.name, String(chat.characterId), typeof chat.playerCharacterId === 'string' ? chat.playerCharacterId : undefined)
-  const ids = new Set(messages.map((m) => m.id))
-  const kept = ((chat.introductions ?? []) as Introduction[]).filter((i) => ids.has(i.messageId))
+  const strangers = chat.strangers as Strangers
+  const kept = ((chat.introductions ?? []) as Introduction[]).filter((i) => strangers[i.newcomerId]?.ids.includes(i.personId) && i.at >= strangers[i.newcomerId].since)
   const first = new Map<string, Introduction>()
   for (const intro of [...fresh, ...kept].sort((a, b) => a.at - b.at)) {
     const key = `${intro.newcomerId}|${intro.personId}`

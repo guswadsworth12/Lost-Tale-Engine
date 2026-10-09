@@ -290,6 +290,7 @@ export interface CharacterMemory {
   /** False once retired (contradicted or superseded). Kept for the audit trail. */
   active: boolean
   retiredReason?: string
+  retiredBatchFrom?: number
   retiredByMessageId?: string
   retiredInChatId?: string
   links?: import('./memory/links').MemoryLink[]

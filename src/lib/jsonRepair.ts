@@ -3,11 +3,11 @@
 // quote marks inside dialogue text that desync naive string-boundary tracking. Each repair pass
 // below assumes the earlier ones already ran; parseLenientJson tries progressively more aggressive
 // combinations.
-export function parseLenientJson(raw: string): unknown {
+export function parseLenientJson(raw: string, allowTruncation = true): unknown {
   const attempts: (() => unknown)[] = [
     () => JSON.parse(raw),
-    () => JSON.parse(extractBraces(raw)),
-    () => JSON.parse(repairPipeline(extractBraces(raw))),
+    () => JSON.parse(extractBraces(raw, allowTruncation)),
+    () => JSON.parse(repairPipeline(extractBraces(raw, allowTruncation), allowTruncation)),
   ]
 
   let lastError: unknown
@@ -21,7 +21,7 @@ export function parseLenientJson(raw: string): unknown {
   throw lastError instanceof Error ? lastError : new Error('Could not parse JSON from model output')
 }
 
-function repairPipeline(json: string): string {
+function repairPipeline(json: string, allowTruncation: boolean): string {
   const quotesNormalized = normalizeQuotes(json)
   // Must run before repairUnescapedQuotes — that pass would otherwise read a key genuinely followed by a bracket as "not really closed" and escape it into a never-ending string.
   const colonsInserted = insertMissingColons(quotesNormalized)
@@ -29,7 +29,7 @@ function repairPipeline(json: string): string {
   const newlinesEscaped = escapeRawNewlinesInStrings(quotesRepaired)
   const commasInserted = insertMissingCommas(newlinesEscaped)
   const commasStripped = stripTrailingCommas(commasInserted)
-  return closeUnbalanced(commasStripped)
+  return allowTruncation ? closeUnbalanced(commasStripped) : commasStripped
 }
 
 /** A model occasionally drops the colon entirely, e.g. `"occupation" ["barista"]` instead of `"occupation": [...]`. Safe without nesting-tracking — a string is never legitimately followed directly by `[` or `{`. */
@@ -37,11 +37,13 @@ function insertMissingColons(json: string): string {
   return json.replace(/("(?:[^"\\]|\\.)*")\s*([[{])/g, '$1: $2')
 }
 
-function extractBraces(text: string): string {
+function extractBraces(text: string, allowTruncation: boolean): string {
+  if (!allowTruncation) text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1) throw new Error('No JSON object found in model output')
   // Tolerate a response cut off before its closing brace — closeUnbalanced() downstream appends what's missing.
+  if (!allowTruncation) return text.slice(start)
   return end === -1 || end <= start ? text.slice(start) : text.slice(start, end + 1)
 }
 

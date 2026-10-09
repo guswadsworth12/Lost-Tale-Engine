@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { buildScribePrompt, parseScribeResponse, type ScribeInput } from './scribe'
+import { describe, expect, it, vi } from 'vitest'
+import { buildScribePrompt, parseScribeResponse, tryParseScribeResponse, commitScribeResponse, type ScribeInput } from './scribe'
 
 const cast = [
   { id: 'ash', name: 'Ash Vale' },
@@ -219,4 +219,32 @@ describe('parseScribeResponse', () => {
     expect(result.retire).toEqual([{ memoryId: 'mem-3', reason: 'Dara now trusts Cole.' }])
     expect(result.resolve).toEqual(['mem-2'])
   })
+})
+
+it('keeps failed or truncated batches retryable instead of accepting repaired partial output', () => {
+  for (const raw of ['no JSON', '{"add":[{"from":1,"text":"An unfinished memory', '{"add":[{"from":1,"text":"A completed item."}],"retire":[']) {
+    expect(tryParseScribeResponse(raw, input())).toBeUndefined()
+  }
+  expect(tryParseScribeResponse('```json\n{"add":[],"told":[],"retire":[],"resolve":[]}\n```', input())).toEqual({ add: [], told: [], retire: [], resolve: [] })
+  expect(tryParseScribeResponse('{"add":[],"told":[],"retire":[],"resolve":[]}', input())).toBeDefined()
+})
+it('attributes module-on retirements to optional from and leaves invalid or omitted attribution for the batch fallback', () => {
+  const raw = json({ retire: [{ memory: 1, reason: 'changed', from: 2 }, { memory: 2, from: 99 }, { memory: 3 }] })
+  expect(tryParseScribeResponse(raw, input({ deepMemory: true }))?.retire).toEqual([
+    { memoryId: 'mem-1', reason: 'changed', messageId: 'msg-2' }, { memoryId: 'mem-2', reason: 'superseded' }, { memoryId: 'mem-3', reason: 'superseded' },
+  ])
+  expect(tryParseScribeResponse(raw, input())?.retire[0]).not.toHaveProperty('messageId')
+})
+
+it('does not commit memories or advance the watermark after a failed batch, and retries it successfully', async () => {
+  let watermark = 999
+  const commit = vi.fn(async () => { watermark = 3000 })
+  for (const raw of ['garbage', '{"add":[{"from":1,"text":"Incomplete', '{}']) {
+    expect(await commitScribeResponse(raw, input(), commit)).toBe(false)
+    expect(watermark).toBe(999)
+    expect(commit).not.toHaveBeenCalled()
+  }
+  expect(await commitScribeResponse('{"add":[],"told":[],"retire":[],"resolve":[]}', input(), commit)).toBe(true)
+  expect(watermark).toBe(3000)
+  expect(commit).toHaveBeenCalledTimes(1)
 })

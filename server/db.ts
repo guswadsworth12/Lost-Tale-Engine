@@ -178,6 +178,7 @@ db.exec(`
     validFrom INTEGER NOT NULL,
     validTo INTEGER,
     closedByMessageId TEXT,
+    sourceMessageId TEXT,
     createdAt INTEGER NOT NULL,
     data TEXT NOT NULL
   );
@@ -271,6 +272,13 @@ db.exec(`
     data TEXT NOT NULL
   );
 `)
+
+// Optional provenance column for installations that tested the earlier link schema.
+if (!(db.prepare('PRAGMA table_info(memory_links)').all() as { name: string }[]).some((c) => c.name === 'sourceMessageId')) {
+  db.exec('ALTER TABLE memory_links ADD COLUMN sourceMessageId TEXT')
+  db.exec("UPDATE memory_links SET sourceMessageId = json_extract(data, '$.sourceMessageId')")
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_memory_links_sourceMessageId ON memory_links(sourceMessageId)')
 
 // Accounts tables made before sign-in by email existed lack users.emailKey.
 if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'emailKey')) {
@@ -399,7 +407,7 @@ export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { na
 export const chatCheckpointStore = createStore('chat_checkpoints', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 export const storyMomentStore = createStore('story_moments', [{ name: 'storyId' }, { name: 'chatId' }, { name: 'createdAt' }])
-export const memoryLinkStore = createStore('memory_links', ['memoryId', 'fromKind', 'fromId', 'relation', 'toKind', 'toId', 'validFrom', 'validTo', 'closedByMessageId', 'createdAt'].map((name) => ({ name })))
+export const memoryLinkStore = createStore('memory_links', ['memoryId', 'fromKind', 'fromId', 'relation', 'toKind', 'toId', 'validFrom', 'validTo', 'closedByMessageId', 'sourceMessageId', 'createdAt'].map((name) => ({ name })))
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
 // Accounts: security state, deliberately left out of BACKUP_STORES in app.ts.
 export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 'emailKey' }, { name: 'createdAt' }])

@@ -267,7 +267,7 @@ import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
 import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
 import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
-import { buildScribePrompt, parseScribeResponse, scribeMemoryRows } from '@/lib/memory/scribe'
+import { buildScribePrompt, commitScribeResponse, scribeMemoryRows } from '@/lib/memory/scribe'
 import { buildJournalPrompt, parseJournalResponse, pickForJournal } from '@/lib/memory/journal'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
@@ -762,9 +762,7 @@ export function useChatSession(chatId: string | null) {
       const memoryPicks = memoryOn
         ? selectMemoriesExplained(sceneMemories, {
             characterId: speaker.id,
-            presentIds: modules.deepMemory
-              ? [...new Set([...(freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id)), ...(freshChat.playerCharacterId ? [freshChat.playerCharacterId] : [])])]
-              : freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
+            presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
             recentText: recentMemoryText,
             ...(modules.deepMemory ? { deep: {
               introductions: freshChat.introductions,
@@ -1535,7 +1533,7 @@ export function useChatSession(chatId: string | null) {
           memoryClient,
           {
             prompt: buildScribePrompt(input),
-            max_length: 700,
+            max_length: input.deepMemory ? 1000 : 700,
             max_context_length: sampler.max_context_length,
             temperature: 0.3,
             top_p: 1,
@@ -1551,14 +1549,16 @@ export function useChatSession(chatId: string | null) {
           undefined,
           jobShaping.memory,
         )
-        const result = parseScribeResponse(raw, input)
-        const added = result.add.length ? await memoriesApi.createMany(scribeMemoryRows(result.add, chatId, branch, fresh.scene, (id) => backgroundLabel(id, world))) : []
-        await Promise.all([
-          ...result.told.map((t) => memoriesApi.share(t.memoryId, { to: t.toIds, by: t.byId, messageId: t.messageId, chatId }).catch(() => {})),
-          ...result.retire.map((r) => memoriesApi.update(r.memoryId, { active: false, retiredReason: r.reason, retiredByMessageId: batch[batch.length - 1].id, replacementIds: added.map((m) => m.id) }).catch(() => {})),
-          ...result.resolve.map((id) => memoriesApi.update(id, { unresolved: false }).catch(() => {})),
-        ])
-        await memoriesApi.setWatermark(chatId, batch[batch.length - 1].createdAt, fresh.memoryScribedUpTo ?? null)
+        const committed = await commitScribeResponse(raw, input, async (result) => {
+          const added = result.add.length ? await memoriesApi.createMany(scribeMemoryRows(result.add, chatId, branch, fresh.scene, (id) => backgroundLabel(id, world))) : []
+          await Promise.all([
+            ...result.told.map((t) => memoriesApi.share(t.memoryId, { to: t.toIds, by: t.byId, messageId: t.messageId, chatId }).catch(() => {})),
+            ...result.retire.map((r) => memoriesApi.update(r.memoryId, { active: false, retiredReason: r.reason, retiredByMessageId: r.messageId ?? batch[batch.length - 1].id, retiredBatchFrom: batch[0].createdAt, replacementIds: added.map((m) => m.id) }).catch(() => {})),
+            ...result.resolve.map((id) => memoriesApi.update(id, { unresolved: false }).catch(() => {})),
+          ])
+          await memoriesApi.setWatermark(chatId, batch[batch.length - 1].createdAt, fresh.memoryScribedUpTo ?? null)
+        })
+        if (!committed) return
         if (batch.length < unread.length && fresh.memoryScribedUpTo !== undefined) continue
         return
       }

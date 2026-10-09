@@ -53,7 +53,7 @@ export interface ScribeTold {
 export interface ScribeResult {
   add: ScribeAdd[]
   told: ScribeTold[]
-  retire: { memoryId: string; reason: string }[]
+  retire: { memoryId: string; reason: string; messageId?: string }[]
   /** Memory ids of open threads now closed. */
   resolve: string[]
 }
@@ -130,6 +130,7 @@ export function buildScribePrompt(input: ScribeInput): string {
       '- "told": when a message shows a character telling another something from a remembered memory above, give that memory number, who learned it ("to"), who told it ("by"), and the message number ("from"). If something from these new messages is passed on in a later new message, record it with "add" instead.',
       '- "retire": remembered current-state memories that these messages contradict or supersede, with a short reason. Keep the former state as historical context if it matters.',
       '- "resolve": numbers of remembered open threads that these messages demonstrably close. An offer or reassurance is not completion.',
+      input.deepMemory ? '- Optional \"from\" on a retirement identifies the message showing the change, using the same message numbers as additions.' : '',
       input.deepMemory ? `- Optional "links": at most 3 per added memory and 30 per batch. Each endpoint has exactly one explicit kind: {"person":"cast name"}, {"place":"location"}, or {"thing":"named object"} (at most 60 characters). Relations only: ${LINK_RELATIONS.join(', ')}. Record only connections shown in the messages; never write supersedes.` : '',
       '- Write plain sentences. Never invent anything that is not in the messages.',
     ]
@@ -265,21 +266,34 @@ function narrow(base: string[], requested: string[]): string[] {
 
 /** Tolerant: code fences, leading prose, slightly broken JSON. Garbage gives an empty result; never throws. */
 export function parseScribeResponse(raw: string, input: ScribeInput): ScribeResult {
+  return tryParseScribeResponse(raw, input, true) ?? emptyResult()
+}
+
+/** Failed or truncated batches remain unscribed and can be retried. */
+export function tryParseScribeResponse(raw: string, input: ScribeInput, allowTruncation = false): ScribeResult | undefined {
   let parsed: unknown
   try {
     const text = (raw ?? '').trim()
-    if (!text.includes('{')) return emptyResult()
-    parsed = parseLenientJson(text)
+    if (!text.includes('{')) return undefined
+    parsed = parseLenientJson(text, allowTruncation)
   } catch {
-    return emptyResult()
+    return undefined
   }
-  if (!isObject(parsed)) return emptyResult()
+  if (!isObject(parsed) || (!allowTruncation && !['add', 'told', 'retire', 'resolve'].some((key) => Array.isArray(parsed[key])))) return undefined
 
   try {
     return interpret(parsed, input)
   } catch {
-    return emptyResult()
+    return undefined
   }
+}
+
+/** Commit the whole interpreted batch, including its watermark, only after a complete reply. */
+export async function commitScribeResponse(raw: string, input: ScribeInput, commit: (result: ScribeResult) => Promise<void>): Promise<boolean> {
+  const result = tryParseScribeResponse(raw, input)
+  if (!result) return false
+  await commit(result)
+  return true
 }
 
 function parseLinks(raw: unknown, resolve: (name: unknown) => string | undefined): MemoryLinkInput[] {
@@ -396,7 +410,9 @@ function interpret(obj: Record<string, unknown>, input: ScribeInput): ScribeResu
     const memory = index === undefined ? undefined : memories.get(index)
     if (!memory || retire.some((r) => r.memoryId === memory.id)) continue
     const reason = isObject(item) ? cleanText(item.reason, MAX_REASON) : ''
-    retire.push({ memoryId: memory.id, reason: reason || 'superseded' })
+    const from = isObject(item) ? toIndex(item.from) : undefined
+    const messageId = input.deepMemory && from !== undefined ? messages.get(from)?.id : undefined
+    retire.push({ memoryId: memory.id, reason: reason || 'superseded', ...(messageId ? { messageId } : {}) })
   }
 
   // --- resolve ---

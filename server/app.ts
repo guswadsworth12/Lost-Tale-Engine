@@ -1234,7 +1234,7 @@ app.post('/api/chats/:id/roll', (req, res) => {
     const presentIds = Array.isArray(req.body?.presentIds) ? uniqueIds(req.body.presentIds) : presenceOf(chat)
     saveCheckpoint(req.params.id, messageId)
     const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, presentIds, createdAt: now })
-    recordIntroductions(String(created.chatId))
+    recordIntroductions(String(created.chatId), String(created.id))
     return res.status(201).json(created)
   } catch (error) {
     // A concurrent retry may have won the unique message-id insert in another server process.
@@ -1288,7 +1288,7 @@ app.post('/api/messages', (req, res) => {
     id,
     createdAt: req.body.createdAt ?? Date.now(),
   })
-  recordIntroductions(String(created.chatId))
+  recordIntroductions(String(created.chatId), String(created.id))
   res.status(201).json(created)
 })
 
@@ -1323,7 +1323,7 @@ app.put('/api/messages/:id', (req, res) => {
   }
   if (Array.isArray(body.swipes)) memoryRecallStore.removeSwipes(req.params.id, Math.max(1, body.swipes.length))
   const updated = messageStore.update(req.params.id, body)
-  recordIntroductions(String(existing.chatId))
+  if ('text' in body && body.text !== existing.text) recordIntroductions(String(existing.chatId))
   res.json(updated)
 })
 
@@ -1331,7 +1331,6 @@ app.delete('/api/messages/:id', (req, res) => {
   const existing = messageStore.get(req.params.id)
   if (existing) retractMessageMemories(existing.chatId as string, req.params.id)
   messageStore.remove(req.params.id)
-  if (existing) recordIntroductions(String(existing.chatId))
   res.status(204).end()
 })
 

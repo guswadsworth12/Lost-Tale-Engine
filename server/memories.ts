@@ -1,5 +1,5 @@
 import express from 'express'
-import { withLinks, validateLinks, saveLinks, removeMemoryLinks, reopenLinks, copyLinks } from './memoryLinks.ts'
+import { withLinks, withLinksMany, validateLinks, saveLinks, removeMemoryLinks, reopenLinks, copyLinks } from './memoryLinks.ts'
 import { retractIntroductions, forkIntroductions } from './introductions.ts'
 import { replacementFor, type MemoryLinkInput } from '../src/lib/memory/links.ts'
 import { characterStore, chatStore, db, memoryLinkStore, memoryRecallStore, memoryVectorStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
@@ -80,14 +80,22 @@ export function purgeChatMemories(chatId: string): void {
 /**
  * A message is being deleted or rewritten: memories it produced go, tellings it recorded are undone.
  * Checks the whole visible chain, since a scene can tell someone a memory made in an earlier one.
- * Text edits keep recall events for saved swipes; deletion and rewind remove every swipe's events.
+ * Text edits keep recall events and retirements; deletion and rewind undo them and restart the retired batch.
  */
-export function retractMessageMemories(chatId: string, messageId: string, keepRecalls = false): void {
+export function retractMessageMemories(chatId: string, messageId: string, textChange = false): void {
   if (!chatId || !messageId) return
-  if (!keepRecalls) memoryRecallStore.retract(messageId)
+  if (!textChange) memoryRecallStore.retract(messageId)
   retractIntroductions(chatId, messageId)
-  reopenLinks(messageId)
-  const plan = retractMessage(memoriesIn(chainOf(chatId)), messageId)
+  const memories = memoriesIn(chainOf(chatId))
+  if (!textChange) {
+    reopenLinks(messageId)
+    const starts = memories.filter((m) => m.retiredByMessageId === messageId && m.retiredBatchFrom !== undefined).map((m) => m.retiredBatchFrom! - 1)
+    const chat = chatStore.get(chatId)
+    if (starts.length && typeof chat?.memoryScribedUpTo === 'number' && chat.memoryScribedUpTo > Math.min(...starts)) {
+      chatStore.update(chatId, { memoryScribedUpTo: Math.min(...starts) })
+    }
+  }
+  const plan = retractMessage(memories, messageId, !textChange)
   for (const id of plan.remove) { removeMemoryLinks(id); memoryVectorStore.remove(id); memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
   for (const { id, patch } of plan.update) memoryStore.update(id, { ...patch, updatedAt: Date.now() })
 }
@@ -139,8 +147,8 @@ memoriesRouter.get('/chats/:id/memories', (req, res) => {
   if (!characterId) return res.json(rows)
   const recalls = new Map(memoryRecallStore.counts(characterId, chain).map(({ memoryId, count, lastAt }) => [memoryId, { count, lastAt }]))
   const deep = deepMemoryForChat(chatStore.get(req.params.id)!)
-  res.json(rows.filter((m) => m.knownBy.includes(characterId) && (!deep || (m.active && !m.consolidatedFor?.includes(characterId)))).map((row) => {
-    const m = deep ? withLinks(row, inChain) : row
+  const visible = rows.filter((m) => m.knownBy.includes(characterId) && (!deep || (m.active && !m.consolidatedFor?.includes(characterId))))
+  res.json((deep ? withLinksMany(visible, inChain) : visible).map((m) => {
     const recall = recalls.get(m.id)
     return recall ? { ...m, recall } : m
   }))

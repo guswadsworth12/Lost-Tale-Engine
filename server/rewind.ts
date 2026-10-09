@@ -5,7 +5,6 @@ import {
   characterStore, chatCheckpointStore, chatFactStore, chatStore, dataDir, db, messageStore, objectiveStore,
   relationshipEventStore, worldStore,
 } from './db.ts'
-import { recordIntroductions } from './introductions.ts'
 import { retractMessageMemories } from './memories.ts'
 import { checkpointOf, planRewind, type Checkpoint } from './rewindPlan.ts'
 
@@ -111,7 +110,6 @@ rewindRouter.post('/chats/:id/rewind', (req, res) => {
     for (const id of plan.deleteObjectiveIds) objectiveStore.remove(id)
     for (const { id, patch } of plan.updateObjectives) objectiveStore.update(id, { ...patch, updatedAt: Date.now() })
     if (plan.chatPatch) chatStore.update(chatId, { ...plan.chatPatch, updatedAt: Date.now() })
-    recordIntroductions(chatId)
     if (restoreClock) worldStore.update(String(world!.id), { currentDay: plan.clock!.day, currentPhaseIndex: plan.clock!.phaseIndex })
     db.exec('COMMIT')
   } catch (e) {

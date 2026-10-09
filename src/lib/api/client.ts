@@ -508,7 +508,7 @@ export type CharacterMemoryListing = CharacterMemory & { sceneLabel?: string; st
 /** What `create` takes: the server assigns `id`, fills `storyId`/`worldId` from the chat, and computes `knownBy`. */
 export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active' | 'links'> & { createdAt?: number; links?: import('@/lib/memory/links').MemoryLinkInput[] }
 export type CharacterMemoryPatch = Partial<
-  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'retiredByMessageId' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
+  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'retiredByMessageId' | 'retiredBatchFrom' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
 > & {
   /** `null` clears the player's ruling. */
   verdict?: CharacterMemory['verdict'] | null
