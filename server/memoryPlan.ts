@@ -361,6 +361,7 @@ export function forkMemories(
   cutoffCreatedAt: number | undefined,
   newChatId: string,
   newId: (sourceId?: string) => string,
+  retainedMemoryIds: ReadonlySet<string> = new Set(),
 ): CharacterMemory[] {
   const byCutoff = (at: unknown) => cutoffCreatedAt === undefined || (finite(at) && at <= cutoffCreatedAt)
   const rows: CharacterMemory[] = []
@@ -369,7 +370,7 @@ export function forkMemories(
     if (m.sourceMessageId) {
       sourceMessageId = idMap.get(m.sourceMessageId)
       if (!sourceMessageId) continue
-    } else if (!byCutoff(m.createdAt)) {
+    } else if (!retainedMemoryIds.has(m.id) && !byCutoff(m.createdAt)) {
       continue
     }
     const toldVia: ToldVia[] = []
@@ -411,7 +412,7 @@ export function memoryAsSeenFrom(memory: CharacterMemory, chain: ReadonlySet<str
   }
   if (memory.consolidationScopes?.length) {
     const scopes = memory.consolidationScopes
-    memory = { ...memory, consolidatedFor: memory.consolidatedFor?.filter((id) => !scopes.some((s) => s.characterId === id) || scopes.some((s) => s.characterId === id && chain.has(s.chatId))) }
+    memory = { ...memory, consolidatedFor: [...new Set([...(memory.consolidatedFor ?? []), ...scopes.filter((s) => chain.has(s.chatId)).map((s) => s.characterId)])] }
   }
   const told = memory.toldVia ?? []
   const seen = told.filter((t) => !t.chatId || chain.has(t.chatId))

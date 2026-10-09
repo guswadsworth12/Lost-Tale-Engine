@@ -1133,7 +1133,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
   }
 
   // Memories from the kept messages, re-pointed at their copies.
-  forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId)
+  forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId, !req.body.messageId)
 
   res.status(201).json(chatStore.get(newChatId))
 })

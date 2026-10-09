@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, expect, it } from 'vitest'
+import { beforeAll, afterAll, expect, it, vi } from 'vitest'
 import { startTestServer, type TestServer } from './httpTestServer.ts'
 let server: TestServer, cookie: string
 beforeAll(async () => { server = await startTestServer('phase5'); cookie = await server.setupOwner('memory_owner', 'synthetic-password-123') })
@@ -37,7 +37,7 @@ it('reserves one call, rejects invalid replies without side effects, folds for o
   const run = (await call(`/chats/${s.chat.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Mara remembers three events at the quay."]}' })).body
   const visible = (await call(`/chats/${s.chat.id}/memories?characterId=${s.speaker.id}`)).body
   expect(visible).toHaveLength(1)
-  expect(visible[0]).toMatchObject({ origin: 'consolidation', witnesses: [s.speaker.id], knownBy: [s.speaker.id], importance: 0.4, kind: 'learned', chatId: s.chat.id })
+  expect(visible[0]).toMatchObject({ origin: 'consolidation', witnesses: [s.speaker.id], knownBy: [s.speaker.id], importance: 0.4, kind: 'event', chatId: s.chat.id })
   expect((await call(`/chats/${s.chat.id}/memories?characterId=${s.other.id}`)).body.map((m: any) => m.id)).toEqual(expect.arrayContaining(s.originals.map((m) => m.id)))
   expect((await s.prepare()).body).toBeNull()
   expect((await call(`/chats/${s.chat.id}/consolidations/${run.id}/undo`, 'POST')).status).toBe(204)
@@ -131,4 +131,123 @@ it('does not strengthen links when the module is off, and failed attempts consum
   expect((await call('/memories/recalls', 'POST', { chatId: s.chat.id, characterId: s.speaker.id, messageId: s.source.id, memoryIds: [s.originals[0].id] })).status).toBe(409)
   const links = (await call('/backup')).body.data.memoryLinks.filter((l: any) => l.memoryId === s.originals[0].id)
   expect(links).toHaveLength(1); expect(links[0].weight).toBeNull(); expect(links[0].lastUsedAt).toBe(links[0].createdAt)
+})
+
+it('commits a memory retired only in a sibling branch using its branch view', async () => {
+  const s = await setup()
+  const branch = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  const sibling = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  for (const chat of [branch, sibling]) await call(`/chats/${chat.id}`, 'PUT', { previousSceneId: s.chat.id })
+  const evidence = (await call('/messages', 'POST', { chatId: sibling.id, role: 'char', speakerId: s.speaker.id, text: 'A different telling.' })).body
+  await call(`/memories/${s.originals[0].id}`, 'PUT', { active: false, retiredByMessageId: evidence.id, retiredReason: 'A different telling.' })
+  const p = (await call(`/chats/${branch.id}/consolidation/prepare`, 'POST', { characterId: s.speaker.id })).body
+  expect(p).not.toBeNull()
+  expect((await call(`/chats/${branch.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Quay events."]}' })).status).toBe(200)
+})
+
+it('keeps consolidation through an unrelated last-reply edit and preserves summary recall metadata', async () => {
+  const s = await setup()
+  await call(`/memories/${s.originals[0].id}`, 'PUT', { kind: 'secret', about: [s.speaker.id, s.other.id], feelings: { [s.speaker.id]: -0.4 }, certainty: 'belief' })
+  await call(`/memories/${s.originals[1].id}`, 'PUT', { kind: 'promise', feelings: { [s.speaker.id]: 0.2 }, certainty: 'claim' })
+  const reply = (await call('/messages', 'POST', { chatId: s.chat.id, role: 'char', speakerId: s.speaker.id, text: 'An unrelated farewell.' })).body
+  const p = (await s.prepare()).body
+  const run = (await call(`/chats/${s.chat.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["A uncertain secret at the quay."]}' })).body
+  expect(run.sourceMessageId).toBeUndefined()
+  let summary = (await call(`/chats/${s.chat.id}/memories?characterId=${s.speaker.id}`)).body[0]
+  expect(summary).toMatchObject({ kind: 'secret', about: [s.other.id], location: 'quay', certainty: 'belief', feelings: { [s.speaker.id]: -0.4 } })
+  expect(summary.sourceMessageId).toBeUndefined()
+  await call(`/messages/${reply.id}`, 'PUT', { text: 'A regenerated farewell.', swipes: ['An unrelated farewell.', 'A regenerated farewell.'], activeSwipe: 1 })
+  expect((await call(`/worlds/${s.world.id}/consolidations`)).body[0].undoneAt).toBeUndefined()
+  summary = (await call(`/chats/${s.chat.id}/memories?characterId=${s.speaker.id}`)).body[0]
+  expect(summary.id).toBe(run.summaryIds[0])
+  await call(`/memories/${s.originals[0].id}`, 'PUT', { text: 'Corrected original fact.' })
+  expect((await call(`/worlds/${s.world.id}/consolidations`)).body[0].undoneAt).toBeTypeOf('number')
+})
+
+it('preserves a sibling journal fold when another branch consolidation is undone', async () => {
+  const s = await setup()
+  const a = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  const b = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  for (const chat of [a, b]) await call(`/chats/${chat.id}`, 'PUT', { previousSceneId: s.chat.id })
+  const p = (await call(`/chats/${a.id}/consolidation/prepare`, 'POST', { characterId: s.speaker.id })).body
+  const run = (await call(`/chats/${a.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Quay events."]}' })).body
+  const raw = (await call('/backup')).body.data.memories.find((m: any) => m.id === s.originals[0].id)
+  expect(raw.consolidatedFor).toBeUndefined()
+  expect((await call(`/chats/${b.id}/memories?characterId=${s.speaker.id}`)).body).toHaveLength(3)
+  expect((await call('/memories/consolidate', 'POST', { characterId: s.speaker.id, ids: s.originals.map((m) => m.id) })).status).toBe(200)
+  expect((await call(`/chats/${b.id}/memories?characterId=${s.speaker.id}`)).body).toHaveLength(0)
+  await call(`/chats/${a.id}/consolidations/${run.id}/undo`, 'POST')
+  expect((await call(`/chats/${b.id}/memories?characterId=${s.speaker.id}`)).body).toHaveLength(0)
+  const after = (await call('/backup')).body.data.memories.find((m: any) => m.id === s.originals[0].id)
+  expect(after.consolidatedFor).toEqual([s.speaker.id])
+  expect(after.consolidationScopes).toBeUndefined()
+})
+
+it('does not spend another user’s cap or block their reservation in a shared world', async () => {
+  const s = await setup()
+  await call(`/worlds/${s.world.id}`, 'PUT', { visibility: 'shared' })
+  await call(`/characters/${s.speaker.id}`, 'PUT', { visibility: 'shared' })
+  const memberCookie = await server.addMember(cookie, 'consolidation_member', 'synthetic-password-456')
+  const memberCall = (path: string, method = 'GET', body?: unknown) => server.call(`/api${path}`, method, { body, cookie: memberCookie })
+  const chat = (await memberCall('/chats', 'POST', { characterId: s.speaker.id })).body
+  expect(chat.id).toBeTypeOf('string')
+  for (let i = 0; i < 3; i++) expect((await memberCall('/memories', 'POST', { chatId: chat.id, witnesses: [s.speaker.id], text: `A member quay event ${i}.`, location: 'quay', importance: 0.2 })).status).toBe(201)
+  const ownerReservation = (await s.prepare()).body
+  const memberReservation = (await memberCall(`/chats/${chat.id}/consolidation/prepare`, 'POST', { characterId: s.speaker.id })).body
+  expect(memberReservation).not.toBeNull()
+  expect((await call(`/chats/${s.chat.id}/consolidation/${ownerReservation.id}`, 'POST', { raw: 'invalid' })).status).toBe(400)
+  expect((await memberCall(`/chats/${chat.id}/consolidation/${memberReservation.id}`, 'POST', { raw: 'invalid' })).status).toBe(400)
+  expect((await s.prepare()).body).toBeNull()
+  expect((await memberCall(`/chats/${chat.id}/consolidation/prepare`, 'POST', { characterId: s.speaker.id })).body).toBeNull()
+})
+
+it('loads recall protection before reserving a call, and keeps protected memories out of summaries', async () => {
+  const s = await setup()
+  for (let i = 0; i < 3; i++) {
+    const reply = (await call('/messages', 'POST', { chatId: s.chat.id, role: 'char', speakerId: s.speaker.id, text: `Recall ${i}.` })).body
+    await call('/memories/recalls', 'POST', { chatId: s.chat.id, characterId: s.speaker.id, messageId: reply.id, memoryIds: [s.originals[0].id] })
+  }
+  await call(`/memories/${s.originals[1].id}`, 'PUT', { importance: 0.7 })
+  await call(`/memories/${s.originals[2].id}`, 'PUT', { feelings: { [s.speaker.id]: -0.5 } })
+  expect((await s.prepare()).body).toBeNull()
+  for (let i = 0; i < 3; i++) await call('/memories', 'POST', { chatId: s.chat.id, text: `A settled dock event ${i}.`, witnesses: [s.speaker.id], location: 'dock', importance: 0.1 })
+  const p = (await s.prepare()).body
+  expect(p).not.toBeNull() // A no-op did not consume the cap.
+  expect(p.prompt).not.toContain('A quay event')
+  const run = (await call(`/chats/${s.chat.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Dock events."]}' })).body
+  expect(run.originalIds).toHaveLength(3)
+  expect(run.originalIds.some((id: string) => s.originals.some((m) => m.id === id))).toBe(false)
+})
+
+it('excludes later source-less summaries from a historical fork and unfolds when a summary is forgotten', async () => {
+  const s = await setup()
+  const p = (await s.prepare()).body
+  const run = (await call(`/chats/${s.chat.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Quay events."]}' })).body
+  const historical = (await call(`/chats/${s.chat.id}/fork`, 'POST', { messageId: s.source.id })).body
+  expect((await call(`/chats/${historical.id}/memories?characterId=${s.speaker.id}`)).body).toHaveLength(3)
+  expect((await call(`/chats/${historical.id}`)).body.consolidationRuns).toEqual([])
+  await call(`/memories/${run.summaryIds[0]}`, 'DELETE')
+  expect((await call(`/chats/${s.chat.id}/memories?characterId=${s.speaker.id}`)).body).toHaveLength(3)
+  expect((await call(`/worlds/${s.world.id}/consolidations`)).body.find((r: any) => r.id === run.id).undoneAt).toBeTypeOf('number')
+})
+
+it('cleans only chats referenced by affected memories, and leaves unrelated runs intact', async () => {
+  const s = await setup(), unrelated = await setup()
+  const createRun = async (fixture: Awaited<ReturnType<typeof setup>>) => {
+    const p = (await fixture.prepare()).body
+    return (await call(`/chats/${fixture.chat.id}/consolidation/${p.id}`, 'POST', { raw: '{"summaries":["Quay events."]}' })).body
+  }
+  const run = await createRun(s), otherRun = await createRun(unrelated)
+  const { chatStore } = await import('./db.ts')
+  const { cleanConsolidations } = await import('./consolidation.ts')
+  const list = vi.spyOn(chatStore, 'list')
+  try {
+    cleanConsolidations(s.chat.id, 'unrelated-message')
+    expect(list).not.toHaveBeenCalled()
+    expect((chatStore.get(s.chat.id)?.consolidationRuns as any[])[0].undoneAt).toBeUndefined()
+    cleanConsolidations(s.chat.id, s.source.id)
+    expect(list).not.toHaveBeenCalled()
+    expect((chatStore.get(s.chat.id)?.consolidationRuns as any[]).find((r) => r.id === run.id).undoneAt).toBeTypeOf('number')
+    expect((chatStore.get(unrelated.chat.id)?.consolidationRuns as any[]).find((r) => r.id === otherRun.id).undoneAt).toBeUndefined()
+  } finally { list.mockRestore() }
 })

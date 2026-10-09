@@ -5,7 +5,7 @@ import { effectiveLinkWeight, LINK_WEIGHT } from './linkWeight'
 import { selectMemoriesExplained, MEMORY_TOKEN_BUDGET, memoryBlock, memoryPrompt } from './rank'
 import { estimateTokens } from '../tokenEstimate'
 import { whyLabels } from '../../components/chat/memoryWhy'
-import { buildConsolidationPrompt, consolidationAllowed, consolidationClusters, tryParseConsolidation } from './consolidation'
+import { buildConsolidationPrompt, consolidationMetadata, consolidationAllowed, consolidationClusters, tryParseConsolidation } from './consolidation'
 const now = 100 * 86400_000
 type RecalledMemory = CharacterMemory & { recall?: MemoryRecall }
 const m = (id: string, extra: Partial<RecalledMemory> = {}): RecalledMemory => ({ id, chatId: 'scene', text: `Mara remembers ${id}.`, kind: 'event', witnesses: ['mara'], knownBy: ['mara'], importance: 0.1, origin: 'manual', active: true, createdAt: 1, ...extra })
@@ -26,8 +26,8 @@ it('scales by the strongest link, caps the boost, labels effective strength, and
   expect(effectiveLinkWeight(link, now)).toBe(0.25)
   expect(score(2).reasons.score - score(0).reasons.score).toBeCloseTo(0.1)
   expect(score(100).reasons.score - score(0).reasons.score).toBeCloseTo(0.4)
-  expect(whyLabels(score(2).reasons, [])).toContain('Linked through Mara (faint; 0.25)')
-  expect(whyLabels(score(100).reasons, [])).toContain('Linked through Mara (strong; 12.50)')
+  expect(whyLabels(score(2).reasons, [])).toContain('Linked through Mara (faint)')
+  expect(whyLabels(score(100).reasons, [])).toContain('Linked through Mara (strong)')
   expect(memories[0].links).toEqual([link])
 })
 it('clusters only known, active, settled, unfolded originals with shared entities, and strictly parses all summaries', () => {
@@ -76,4 +76,36 @@ it('reserves journal space on, keeps the off block byte-identical, and leaves so
   expect(on.picks.map((p) => p.memory.id)).toEqual(expect.arrayContaining(['0', '1']))
   expect(on.journal!.text.length).toBeLessThan(journal.text.length)
   expect(memories[0]).toBe(journal)
+})
+
+it('groups by one key, excludes the player and speaker, and protects salient originals', () => {
+  const playerMemories = Array.from({ length: 12 }, (_, i) => m(`player-${i}`, { about: ['player', 'mara'] }))
+  const placeMemories = Array.from({ length: 3 }, (_, i) => m(`place-${i}`, { about: ['player'], location: 'quay' }))
+  const protectedMemories = [m('important', { location: 'quay', importance: 0.7 }), m('felt', { location: 'quay', feelings: { mara: -0.5 } }), m('recalled', { location: 'quay', recall: { count: 10, lastAt: now } })]
+  expect(consolidationClusters([...playerMemories, ...placeMemories, ...protectedMemories], 'mara', now, ['player'])).toEqual([placeMemories])
+  const overlaps = [m('a', { about: ['tavi'], location: 'quay' }), m('b', { about: ['tavi'], location: 'quay' }), m('c', { about: ['tavi'] }), m('d', { location: 'quay' }), m('e', { location: 'quay' })]
+  const groups = consolidationClusters(overlaps, 'mara', now)
+  expect(groups.map((g) => g.map((m) => m.id))).toEqual([['a', 'b', 'd', 'e']])
+})
+
+it('cuts journal excerpts at sentence endings, or adds an ellipsis at a word boundary', () => {
+  const opts = { characterId: 'mara', presentIds: [], recentText: '', budgetTokens: 40, deep: { now } }
+  const journal = m('j', { kind: 'journal', text: 'One complete sentence. ' + 'unfinished words '.repeat(40) })
+  expect(memoryPrompt([journal], opts, 'Mara').journal!.text).toBe('One complete sentence.')
+  const noSentence = m('j', { kind: 'journal', text: 'unfinished words '.repeat(40) })
+  const result = memoryPrompt([noSentence], opts, 'Mara')
+  expect(result.journal!.text).toMatch(/(?:words|unfinished)…$/)
+  expect(result.journal!.text.length).toBeLessThanOrEqual(80)
+  expect(estimateTokens(result.text)).toBeLessThanOrEqual(40)
+  expect(noSentence.text.endsWith('…')).toBe(false)
+})
+
+it('preserves summary certainty, promise precedence and recall cues for people and places', () => {
+  const originals = [m('a', { kind: 'promise', about: ['mara', 'tavi'], location: 'quay', certainty: 'claim', feelings: { mara: -0.4 } }), m('b', { location: 'quay', certainty: 'belief' }), m('c', { location: 'quay' })]
+  const summary = m('summary', { ...consolidationMetadata(originals, 'mara'), origin: 'consolidation', text: 'A harbor undertaking.' })
+  expect(summary).toMatchObject({ kind: 'promise', certainty: 'belief', about: ['tavi'], location: 'quay', feelings: { mara: -0.4 } })
+  const pick = selectMemoriesExplained([summary], { characterId: 'mara', presentIds: ['tavi'], recentText: '', deep: { now, location: 'quay' } })[0]
+  expect(pick.memory.id).toBe('summary')
+  expect(pick.reasons).toMatchObject({ samePlace: true, aboutPresent: ['tavi'] })
+  expect(buildConsolidationPrompt([[summary]], 'mara')).toContain('Believes')
 })

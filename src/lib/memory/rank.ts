@@ -268,8 +268,11 @@ export function memoryPrompt(memories: CharacterMemory[], opts: SelectMemoriesOp
     const limit = Math.floor(budget * JOURNAL_PROMPT_SHARE) * 4
     if (journal.text.length > limit) {
       const cut = journal.text.slice(0, limit)
-      const space = cut.lastIndexOf(' ')
-      journal = { ...journal, text: space > limit / 2 ? cut.slice(0, space) : cut }
+      const endings = [...cut.matchAll(/[.!?](?=\s)/g)]
+      const end = endings[endings.length - 1]?.index
+      const fragment = journal.text.slice(0, Math.max(0, limit - 1))
+      const space = fragment.lastIndexOf(' ')
+      journal = { ...journal, text: end !== undefined ? cut.slice(0, end + 1) : `${space >= 0 ? fragment.slice(0, space) : fragment}…` }
     }
     selection = { ...opts, budgetTokens: Math.max(0, budget - estimateTokens(memoryBlock(name, [], journal, opts.characterId))) }
   }

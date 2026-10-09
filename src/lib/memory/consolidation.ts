@@ -1,9 +1,10 @@
-import type { CharacterMemory, WorldCard } from '../types.ts'
-import { memoriesKnownBy, placeKey, formatMemoryLine } from './rank.ts'
+import type { CharacterMemory, MemoryRecall, WorldCard } from '../types.ts'
+import { memoriesKnownBy, placeKey, formatMemoryLine, recallStrength } from './rank.ts'
+import { modulesForWorld } from '../world/worldTemplates.ts'
+export const utcDay = (at: number) => Math.floor(at / 86400_000)
 export interface ConsolidationRun {
   copiedFrom?: string
   undoneAt?: number
-  sourceMessageId?: string
   id: string; characterId: string; chatId: string; summaryIds: string[]; originalIds: string[]; at: number
 }
 export const CONSOLIDATION_LIMITS = { dailyCap: 1, clusters: 3, minimum: 3, summaryChars: 600 } as const
@@ -14,28 +15,51 @@ export function consolidationSettings(value: unknown): { enabled: boolean; daily
 export function consolidationAllowed(world: WorldCard | undefined, runs: Pick<ConsolidationRun, 'characterId' | 'at'>[], characterId: string, now: number): boolean {
   // When Lean mode (#61) lands, it disables this
   const settings = consolidationSettings(world?.memoryConsolidation)
-  return world?.modules?.deepMemory === true && settings.enabled
-    && runs.filter((r) => r.characterId === characterId && Math.floor(r.at / 86400_000) === Math.floor(now / 86400_000)).length < settings.dailyCap
+  return modulesForWorld(world).deepMemory && settings.enabled
+    && runs.filter((r) => r.characterId === characterId && utcDay(r.at) === utcDay(now)).length < settings.dailyCap
 }
-/** Disjoint connected groups, using only known, settled, live entities; no text guesses. */
-export function consolidationClusters(memories: CharacterMemory[], characterId: string, now: number): CharacterMemory[][] {
-  const eligible = memoriesKnownBy(memories, characterId).filter((m) => !m.pinned && !m.unresolved && m.origin !== 'consolidation')
-  const keys = (m: CharacterMemory) => new Set([
-    ...(m.about ?? []).map((id) => `person:${id}`),
-    ...(placeKey(m.location) ? [`place:${placeKey(m.location)}`] : []),
-    ...(m.links ?? []).filter((l) => l.validTo === null && l.validFrom <= now && l.relation !== 'supersedes')
-      .flatMap((l) => [l.fromKind !== 'memory' ? `${l.fromKind}:${l.fromId}` : '', l.toKind !== 'memory' ? `${l.toKind}:${l.toId}` : '']).filter(Boolean),
-  ])
-  const groups: { memories: CharacterMemory[]; keys: Set<string> }[] = []
-  for (const memory of eligible) {
-    const entities = keys(memory)
-    if (!entities.size) continue
-    const joined = groups.filter((g) => [...entities].some((key) => g.keys.has(key)))
-    const group = { memories: [memory, ...joined.flatMap((g) => g.memories)], keys: new Set([...entities, ...joined.flatMap((g) => [...g.keys])]) }
-    for (const old of joined) groups.splice(groups.indexOf(old), 1)
-    groups.push(group)
+type RecalledMemory = CharacterMemory & { recall?: MemoryRecall }
+export function consolidationEligible(memory: RecalledMemory, characterId: string, now: number): boolean {
+  return memoriesKnownBy([memory], characterId).length > 0 && !memory.pinned && !memory.unresolved && memory.origin !== 'consolidation'
+    && memory.importance < 0.7 && Math.abs(memory.feelings?.[characterId] ?? 0) < 0.5 && recallStrength(memory.recall, now) < 0.5
+}
+/** Each group shares one key; protect highlights and assign each memory once, largest groups first. */
+export function consolidationClusters(memories: RecalledMemory[], characterId: string, now: number, excludedPeople: string[] = []): CharacterMemory[][] {
+  const excluded = new Set([characterId, ...excludedPeople])
+  const groups = new Map<string, CharacterMemory[]>()
+  for (const memory of memories.filter((m) => consolidationEligible(m, characterId, now))) {
+    const keys = new Set([
+      ...(memory.about ?? []).map((id) => `person:${id}`),
+      ...(placeKey(memory.location) ? [`place:${placeKey(memory.location)}`] : []),
+      ...(memory.links ?? []).filter((l) => l.validTo === null && l.validFrom <= now && l.relation !== 'supersedes')
+        .flatMap((l) => [l.fromKind !== 'memory' ? `${l.fromKind}:${l.fromId}` : '', l.toKind !== 'memory' ? `${l.toKind}:${l.toId}` : '']).filter(Boolean),
+    ])
+    for (const key of keys) {
+      if (key.startsWith('person:') && excluded.has(key.slice(7))) continue
+      groups.set(key, [...(groups.get(key) ?? []), memory])
+    }
   }
-  return groups.filter((g) => g.memories.length >= CONSOLIDATION_LIMITS.minimum).slice(0, CONSOLIDATION_LIMITS.clusters).map((g) => g.memories)
+  const used = new Set<string>(), result: CharacterMemory[][] = []
+  while (result.length < CONSOLIDATION_LIMITS.clusters) {
+    const largest = [...groups].map(([key, candidates]) => [key, candidates.filter((m) => !used.has(m.id))] as const)
+      .filter(([, group]) => group.length >= CONSOLIDATION_LIMITS.minimum)
+      .sort(([ak, a], [bk, b]) => b.length - a.length || ak.localeCompare(bk))[0]
+    if (!largest) break
+    const group = largest[1]
+    result.push(group); group.forEach((m) => used.add(m.id))
+  }
+  return result
+}
+/** Metadata follows the originals, independently of the model's prose. */
+export function consolidationMetadata(group: CharacterMemory[], characterId: string): Pick<CharacterMemory, 'about' | 'location' | 'feelings' | 'kind' | 'certainty' | 'importance'> {
+  const about = [...new Set(group.flatMap((m) => m.about ?? []))].filter((id) => id !== characterId)
+  const location = group[0].location && group.every((m) => placeKey(m.location) === placeKey(group[0].location)) ? group[0].location : undefined
+  const feeling = group.reduce((value, m) => Math.abs(m.feelings?.[characterId] ?? 0) > Math.abs(value) ? m.feelings![characterId] : value, 0)
+  const kinds = new Map<CharacterMemory['kind'], number>()
+  group.forEach((m) => kinds.set(m.kind, (kinds.get(m.kind) ?? 0) + 1))
+  const kind = kinds.has('secret') ? 'secret' : kinds.has('promise') ? 'promise' : [...kinds].sort((a, b) => b[1] - a[1])[0][0]
+  const certainty = group.some((m) => m.certainty === 'belief') ? 'belief' : group.some((m) => m.certainty === 'claim') ? 'claim' : 'firsthand'
+  return { about: about.length ? about : undefined, location, feelings: feeling ? { [characterId]: feeling } : undefined, kind, certainty, importance: Math.max(...group.map((m) => m.importance)) }
 }
 export const CONSOLIDATION_PROMPT = [
   'Task: consolidate the supplied clusters of one character’s private memories.',
