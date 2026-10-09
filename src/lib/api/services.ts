@@ -24,7 +24,7 @@ export type ServiceKind =
   | 'a1111' | 'comfyui' | 'swarmui' | 'elevenlabs' | 'azure' | 'luxtts'
   | 'fishaudio' | 'minimax' | 'edge' | 'alltalk'
 
-export type Capability = 'text' | 'images' | 'voice'
+export type Capability = 'text' | 'images' | 'voice' | 'embeddings'
 
 export interface ServiceKindInfo {
   label: string
@@ -47,8 +47,8 @@ export interface ServiceKindInfo {
 
 export const SERVICE_KINDS: Record<ServiceKind, ServiceKindInfo> = {
   openai: {
-    label: 'OpenAI', offers: ['text', 'images', 'voice'], key: 'required', sharedSecret: 'openaiApiKey',
-    models: { text: ['gpt-4o', 'gpt-5'], images: ['gpt-image-2', 'gpt-image-1'], voice: ['tts-1', 'gpt-4o-mini-tts'] },
+    label: 'OpenAI', offers: ['text', 'images', 'voice', 'embeddings'], key: 'required', sharedSecret: 'openaiApiKey',
+    models: { text: ['gpt-4o', 'gpt-5'], images: ['gpt-image-2', 'gpt-image-1'], voice: ['tts-1', 'gpt-4o-mini-tts'], embeddings: ['text-embedding-3-small', 'text-embedding-3-large'] },
   },
   gemini: {
     label: 'Google Gemini', offers: ['text', 'images', 'voice'], key: 'required', sharedSecret: 'geminiApiKey',
@@ -56,7 +56,7 @@ export const SERVICE_KINDS: Record<ServiceKind, ServiceKindInfo> = {
   },
   openmayhem: { label: 'OpenMayhem', offers: ['text', 'images', 'voice'], key: 'required', sharedSecret: 'openMayhemApiKey' },
   'openai-compatible': {
-    label: 'OpenAI-compatible', offers: ['text', 'voice'], key: 'optional', address: { default: '', required: true },
+    label: 'OpenAI-compatible', offers: ['text', 'voice', 'embeddings'], key: 'optional', address: { default: '', required: true },
     hint: 'OpenRouter, Groq, Mistral, DeepSeek, LM Studio, Ollama, a local Kokoro voice server, and anything else that speaks the OpenAI API.',
   },
   koboldcpp: { label: 'KoboldCpp', offers: ['text', 'voice'], key: 'none', address: { default: 'http://localhost:5001', required: true } },
@@ -131,6 +131,7 @@ export interface ServiceSettings {
   textModel?: ModelChoice | null
   imageModel?: ModelChoice | null
   voiceModel?: ModelChoice | null
+  embeddingModel?: ModelChoice | null
   modelJobs?: Partial<Record<ModelJob, ModelChoice>>
 }
 

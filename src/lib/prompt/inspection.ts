@@ -19,6 +19,8 @@ export interface InspectedMemoryPick {
 export interface PromptInspection extends PromptBuildResult {
   /** Turn bookkeeping only, filled for Deep Memory without changing the prompt. */
   memoryRecallIds?: string[]
+  /** Plain explanation of a meaning-recall fallback; never added to the model prompt. */
+  memoryMeaningSkipped?: string
   /** Present whenever character memory ran for this speaker (may be empty). */
   memoryPicks?: InspectedMemoryPick[]
   /** The speaker's journal text, when one was folded in. */

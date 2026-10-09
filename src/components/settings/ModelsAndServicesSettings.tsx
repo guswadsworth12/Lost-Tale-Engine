@@ -15,11 +15,12 @@ import { TextField } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
 import { SettingsPage } from '@/components/ui/SettingsPage'
 import { STATUS_DOT, STATUS_LABEL } from './HostedConnectionStatus'
+import { EmbeddingModelSettings } from './EmbeddingModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { SecretKeyField } from './SecretKeyField'
 
-const CAPABILITY_LABEL: Record<Capability, string> = { text: 'Text', images: 'Images', voice: 'Voice' }
-const BADGE: Record<Capability, string> = { text: 'bg-accent/10 text-accent', images: 'bg-success/10 text-success', voice: 'bg-warning/15 text-text' }
+const CAPABILITY_LABEL: Record<Capability, string> = { text: 'Text', images: 'Images', voice: 'Voice', embeddings: 'Embeddings' }
+const BADGE: Record<Capability, string> = { text: 'bg-accent/10 text-accent', images: 'bg-success/10 text-success', voice: 'bg-warning/15 text-text', embeddings: 'bg-accent/10 text-accent' }
 const selectClass = 'w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-base text-text outline-none ring-1 ring-transparent focus:ring-accent/40 sm:py-2 sm:text-sm'
 
 /** What "Add a service" offers, grouped; an OpenAI-compatible pick fills in its address. */
@@ -248,6 +249,8 @@ function ModelsSection() {
           <ModelPicker capability="voice" label="Voice model" value={voiceModel} onChange={(c) => setModelChoice('voice', c)} emptyLabel="None" />
           <p className="mt-1 text-xs text-text-muted">Which voice speaks is set on the Voice tab.</p>
         </div>
+        <span className="pt-2 text-sm text-text-muted">Meaning recall</span>
+        <EmbeddingModelSettings />
       </div>
 
       <div className="mt-5 border-t border-border pt-4">

@@ -3,12 +3,16 @@
  * prompts, streams generation, and runs the post-reply "assist" passes (relationship judging,
  * intimacy scenes, gifts, objectives, world triggers, summarization, choice suggestions).
  */
+import { MeaningRecall } from '@/lib/memory/meaningRecall'
+import { embeddingConnection } from '@/lib/api/embeddings'
+import { useMemoryIndexer } from '@/lib/hooks/useMemoryIndexer'
+import { useAuthStore } from '@/lib/accounts/useAuthStore'
 import { appearanceNote, cardBrief } from '@/lib/characters/cardBrief'
 import { stillStrangers, strangerNote, strangersFor } from '@/lib/story/acquaintance'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { promptOverride } from '@/lib/prompt/promptOverrides'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, memoriesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
+import { memoryVectorsApi, charactersApi, chatFactsApi, chatsApi, instructTemplatesApi, memoriesApi, messagesApi, objectivesApi, relationshipEventsApi, storiesApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
 import { sceneChain, sceneLabel, storyRecapBlock } from '@/lib/story/recaps'
 import { chapterBriefing, chapterIdOf, chapterLabel, chapterLine, chaptersOf } from '@/lib/story/chapters'
 import { writeChapterRecap, type ChapterRecapDraft } from '@/lib/story/chapterRecap'
@@ -573,8 +577,12 @@ export function useChatSession(chatId: string | null) {
   )
 
   const [isGenerating, setIsGenerating] = useState(false)
+  const meaningRecall = useRef(new MeaningRecall())
+  const accountId = useAuthStore((s) => s.user?.id)
+  useEffect(() => { meaningRecall.current.clear() }, [accountId, chatId])
   // True while the Game Master decides a turn, before any reply streams, so Stop is offered then too.
   const [isGmRuling, setIsGmRuling] = useState(false)
+  useMemoryIndexer(chatId, modulesForWorld(world).deepMemory, isGenerating || isGmRuling)
   const [streamingText, setStreamingText] = useState('')
   const [generatingMessageId, setGeneratingMessageId] = useState<string | null>(null)
   const [genStats, setGenStats] = useState<GenerationStats | null>(null)
@@ -683,6 +691,7 @@ export function useChatSession(chatId: string | null) {
     async (
       historyForPrompt: ChatMessage[],
       opts?: {
+        meaningText?: string
         continueLastTurn?: boolean
         impersonateAsUser?: boolean
         speakerId?: string | null
@@ -746,12 +755,17 @@ export function useChatSession(chatId: string | null) {
       const sceneMemories = memoryOn ? await memoriesApi.forChat(freshChat.id, modules.deepMemory ? speaker.id : undefined).catch(() => []) : []
       const missedIds = new Set(memoryOn ? branchMessages.filter((m) => !witnessedMessage(m, speaker.id)).map((m) => m.id) : [])
       const missedSummarized = branchMessages.some((m) => missedIds.has(m.id) && m.createdAt <= (freshChat.summaryUpToTimestamp ?? 0))
+      const recentMemoryText = historyForPrompt.slice(-6).map((m) => m.text).join('\n')
+      const meaning = memoryOn ? await meaningRecall.current.recall(modules.deepMemory,
+        embeddingConnection(useSettingsStore.getState(), secrets), opts?.meaningText ?? recentMemoryText,
+        (model, vector, signal) => memoryVectorsApi.similarities(freshChat.id, speaker.id, model, vector, signal)) : {}
       const memoryPicks = memoryOn
         ? selectMemoriesExplained(sceneMemories, {
             characterId: speaker.id,
             presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
-            recentText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
+            recentText: recentMemoryText,
             ...(modules.deepMemory ? { deep: {
+              similarities: meaning.similarities,
               location: sceneSetting.location,
               now: Date.now(),
               recalls: new Map(sceneMemories.flatMap((m) => m.recall ? [[m.id, m.recall] as const] : [])),
@@ -1322,6 +1336,7 @@ export function useChatSession(chatId: string | null) {
       if (memoryOn && modules.deepMemory) built.memoryRecallIds = memoryPicks.map((p) => p.memory.id)
       // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
       if (opts?.includeSectionBreakdown && memoryOn) {
+        built.memoryMeaningSkipped = meaning.skipped
         const names = new Map([speaker, ...roster, ...(character ? [character] : []), ...participantCharacters].map((c) => [c.id, c.card.name]))
         const knownCount = memoriesKnownBy(sceneMemories, speaker.id).filter((m) => typeof m.text === 'string' && m.text.trim()).length
         const journalText = memoryJournal?.text?.trim()
@@ -3170,6 +3185,7 @@ export function useChatSession(chatId: string | null) {
         // Auto-continues a reply that used its whole token budget (likely cut off mid-thought), capped so a model with no stop sequence can't loop forever.
         for (let round = 0; round <= MAX_AUTO_CONTINUE_ROUNDS; round++) {
           let built = await buildCurrentPrompt(currentHistory, {
+            meaningText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
             continueLastTurn: continuing,
             speakerId: opts?.speakerId,
             intent: opts?.intent,
@@ -3181,6 +3197,7 @@ export function useChatSession(chatId: string | null) {
           if (autoSummarize && built.excludedMessageCount > 0) {
             await updateMemorySummary({ force: true })
             const rebuilt = await buildCurrentPrompt(currentHistory, {
+              meaningText: historyForPrompt.slice(-6).map((m) => m.text).join('\n'),
               continueLastTurn: continuing,
               speakerId: opts?.speakerId,
               extraStyleGuidance: opts?.extraStyleGuidance,

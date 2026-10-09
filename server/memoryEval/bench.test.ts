@@ -17,18 +17,18 @@ describe('recall bench', () => {
   })
 
   it('keeps every knowledge and branch case as a must-never-regress check', () => {
-    for (const module of ['off', 'on'] as const) for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
+    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }, { module: 'on', embedder: 'stub-compressed' }] as const) for (const c of fixtures.map(parseCase).filter((c) => ['knowledge', 'branch'].includes(c.category))) {
       expect(c.mustNeverRegress, c.id).toBe(true)
       expect(c.forbiddenIds.length, c.id).toBeGreaterThan(0)
-      const result = evaluateCase(c, { module })
+      const result = evaluateCase(c, options)
       expect(result.hit, c.id).toBe(true)
       expect(result.forbidden, c.id).toEqual([])
-      expect(result.picks).toEqual(evaluateCase({ ...c, memories: c.memories.filter((m) => !c.forbiddenIds.includes(m.id)) }, { module }).picks)
+      expect(result.picks).toEqual(evaluateCase({ ...c, memories: c.memories.filter((m) => !c.forbiddenIds.includes(m.id)) }, options).picks)
     }
   })
 
   it('picks the forbidden memory when each protected case loses its guard', () => {
-    for (const module of ['off', 'on'] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
+    for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }, { module: 'on', embedder: 'stub-compressed' }] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
       for (const m of c.memories.filter((m) => c.forbiddenIds.includes(m.id))) {
         if (c.category === 'branch') {
           m.chatId = c.scene.chatId
@@ -41,7 +41,7 @@ describe('recall bench', () => {
           m.witnesses = [...new Set([...m.witnesses, c.scene.speakerId])]
         }
       }
-      const result = evaluateCase(c, { module })
+      const result = evaluateCase(c, options)
       expect(result.forbidden, c.id).toEqual(c.forbiddenIds)
       expect(result.hit, c.id).toBe(false)
     }
@@ -122,4 +122,26 @@ it('improves emotional and place recall with the module on', () => {
     expect(on.recalled, category).toBeGreaterThan(off.recalled)
     expect(on.hits, category).toBe(cases.length)
   }
+})
+
+
+it('improves different wording with the explicitly synthetic stub while preserving off snapshots', () => {
+  const cases = fixtures.map(parseCase).filter((c) => c.category === 'wording')
+  expect(summarize(cases.map((c) => evaluateCase(c, { module: 'on', embedder: 'stub' }))).hits).toBe(4)
+  expect(summarize(cases.map((c) => evaluateCase(c, { module: 'on' }))).hits).toBe(2)
+  for (const c of fixtures.map(parseCase)) expect(evaluateCase(c, { module: 'off', embedder: 'stub' })).toEqual(evaluateCase(c))
+  const lines: string[] = []
+  expect(run(['--module', 'on', '--embedder', 'stub'], (s) => lines.push(s))).toBe(0)
+  expect(lines.join('\n')).toContain('synthetic stub embedder: wiring only')
+  expect(() => parseOptions(['--embedder', 'real'])).toThrow()
+  expect(() => parseOptions(['--embeddings-url', 'http://localhost:1234'])).toThrow()
+  expect(parseOptions(['--embeddings-url', 'http://localhost:1234', '--embeddings-model', 'synthetic'])).toMatchObject({ embeddingsModel: 'synthetic' })
+})
+
+
+it('runs compressed synthetic vectors through production filters and preserves module-off picks', () => {
+  const lines: string[] = []
+  expect(run(['--module', 'on', '--embedder', 'stub-compressed'], (s) => lines.push(s))).toBe(0)
+  expect(lines.join('\n')).toContain('synthetic stub-compressed embedder: wiring only')
+  for (const c of fixtures.map(parseCase)) expect(evaluateCase(c, { module: 'off', embedder: 'stub-compressed' })).toEqual(evaluateCase(c))
 })

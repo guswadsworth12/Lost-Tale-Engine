@@ -24,5 +24,6 @@ export function whyLabels(reasons: MemoryReasons, aboutNames: string[]): string[
   if (reasons.strongFeeling) labels.push('Strong feeling')
   if (reasons.samePlace) labels.push('Happened here')
   if (reasons.oftenRecalled) labels.push('Often remembered')
+  if (reasons.similarMeaning) labels.push('Similar meaning')
   return labels
 }

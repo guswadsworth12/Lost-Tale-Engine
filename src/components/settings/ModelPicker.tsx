@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
 import { SERVICE_KINDS, offers, serviceSecret, type Capability, type ModelChoice, type Service } from '@/lib/api/services'
-import { loadServiceModels } from '@/lib/api/serviceModels'
+import { EMBEDDING_MODEL, loadServiceModels } from '@/lib/api/serviceModels'
 
 const selectClass = 'w-full rounded-xl bg-bg-sunken px-3 py-2.5 text-base text-text outline-none ring-1 ring-transparent focus:ring-accent/40 sm:py-2 sm:text-sm'
 
@@ -12,7 +12,8 @@ const LISTABLE = new Set(['openai', 'gemini', 'openmayhem', 'openai-compatible',
 /** The models a service lists for a capability: its loaded list, else the suggested ones. */
 export function modelsOf(service: Service, capability: Capability): string[] {
   const loaded = service.models?.[capability]
-  return loaded?.length ? loaded : SERVICE_KINDS[service.kind].models?.[capability] ?? []
+  const models = loaded?.length ? loaded : SERVICE_KINDS[service.kind].models?.[capability] ?? []
+  return capability === 'text' ? models.filter((m) => !EMBEDDING_MODEL.test(m)) : models
 }
 
 // Each service's list is asked for once a session, by whichever picker shows it first.
@@ -65,7 +66,7 @@ export function ModelPicker({ capability, value, onChange, emptyLabel, label, id
   // The chosen service's models, plus the chosen model if its list doesn't have it.
   const listed = service ? modelsOf(service, capability) : []
   const models = current?.model && !listed.includes(current.model) ? [current.model, ...listed] : listed
-  const canType = !!service && !service.models?.[capability]?.length && !LISTABLE.has(service.kind) && !SERVICE_KINDS[service.kind].noModels
+  const canType = !!service && (capability === 'embeddings' || (!service.models?.[capability]?.length && !LISTABLE.has(service.kind))) && !SERVICE_KINDS[service.kind].noModels
   const modelValue = typing ? '__type' : current?.model && models.includes(current.model) ? current.model : ''
 
   return (

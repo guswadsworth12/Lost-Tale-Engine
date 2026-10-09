@@ -127,3 +127,82 @@ swipe, and regeneration replaces that swipe's credit. Events follow copied memor
 are scoped to the scene chain on reads, and are included in backup/restore. An old
 backup without this table restores with empty recall history, ignoring the earlier
 unshipped `memoryRecalls` aggregate format.
+
+
+## Phase 2: optional recall by meaning
+
+`npm run memory:eval -- --module on --embedder stub` runs the deterministic synthetic
+embedder defined by `fixtures/stub/concepts.json`. It maps the hand-written crossing
+and gift phrases to shared concepts, with a neutral catch-all for unrelated text.
+This proves storage/scoring/ranking wiring and knowledge guards, **not real-world
+embedding quality**. The production app never uses this stub. The original cases,
+expected IDs, and module-off prompt snapshots are unchanged. All seven protected
+cases and guard-removal leak tests also run with both stub modes.
+
+`npm run memory:eval -- --module on --embedder stub-compressed` uses the same
+concepts with shared background components, producing cosine scores in 0.45..0.70.
+This exercises compressed score calibration through the production filters and
+ranking; it remains synthetic and does not measure real-model quality.
+
+| Mode | Case hits | Expected recalled | Recall | Forbidden / protected failures |
+| --- | ---: | ---: | ---: | ---: |
+| Off | 13/20 | 16/23 | 69.6% | 0 / 0 |
+| On, no embedder | 18/20 | 21/23 | 91.3% | 0 / 0 |
+| On, synthetic stub | 20/20 | 23/23 | 100.0% | 0 / 0 |
+| On, compressed synthetic stub | 20/20 | 23/23 | 100.0% | 0 / 0 |
+
+Different-wording case hits improve from 2/4 to 4/4 with the stub. The additional
+similarity weight is **0.75** times a calibrated score. With at least five finite
+scores among this speaker’s eligible memories, the median maps to zero and the
+maximum to one; scores below the median add nothing. A flat distribution adds
+nothing. Smaller sets use `clamp((cosine - 0.4) / 0.6, 0, 1)`. **Similar meaning**
+requires a calibrated score of at least **0.6**. These constants and the method
+live beside `DEEP_MEMORY_WEIGHTS`; real-provider tuning is still unmeasured.
+Existing weights and the 350-token budget remain.
+
+For an explicitly owner-run evaluation of a real **local** endpoint:
+
+```bash
+npm run memory:eval -- --module on --embeddings-url http://localhost:1234/v1 --embeddings-model your-embedding-model
+```
+
+This sends fixture memory text and recent context to that endpoint in batches of
+32. It is never run in tests or CI. No API key is read. If the endpoint fails, this
+explicit evaluation fails instead of reporting keyword fallback as embedding
+results. The app's browser uses the existing relay and vault credential instead;
+the application server stores vectors and computes similarity, never calls models.
+
+The index is normalized Float32 BLOB data in `memory_vectors`, outside backups.
+The primary key is `(memoryId, model)`, so models coexist. SHA-256 of
+`model + text` prevents stale vectors being used. Dimension mismatches are skipped;
+a query or **Test it** observes changed dimensions and queues affected memories
+for reindexing even when the model name stays the same. Candidate branch,
+known-by, active and folded state are checked before any vector lookup or cosine.
+The server returns scores only, never candidate vectors. The browser query cache
+holds up to 32 text/configuration hashes, shares in-flight calls across retries
+and the Inspector, and backs off failed embeddings for 30 seconds. Query embedding
+and score requests share a **2.5-second** reply deadline; background embedding keeps
+its **15-second** limit. Background indexing pauses while generating, wakes after
+memory writes, scene/model changes or observed dimension changes, and checks every
+five minutes as a safety net after completion. Cancellation applies to the current
+scene/model and resets when either changes. Failures retry with increasing delay
+up to a minute. Restoring a backup clears the
+index. No configured model or a disabled module makes no embedding calls.
+
+
+### Similarity payload measurements
+
+Measured UTF-8 JSON bytes using deterministic normalized Float32 sine vectors,
+a synthetic model name, and a 36-character speaker ID (no provider or user data):
+
+| Dimensions | One similarity query | Local vector BLOB |
+| ---: | ---: | ---: |
+| 768 | 16,218 bytes | 3,072 bytes |
+| 1,536 | 32,570 bytes | 6,144 bytes |
+| 3,072 | 65,628 bytes | 12,288 bytes |
+
+A score-only response with 36-character memory IDs and 16-digit scores is 1,857
+bytes for 32 candidates, or 58,001 bytes for 1,000. Actual JSON sizes depend on
+numeric precision and names. Only one query vector is sent per context; candidate
+vectors stay in SQLite. The browser must be on HTTPS or localhost to hash cached
+queries; otherwise the Inspector explains that ordinary recall is being used.

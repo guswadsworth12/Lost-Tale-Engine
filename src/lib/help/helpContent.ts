@@ -800,8 +800,8 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         heading: 'Deep Memory',
         blocks: [
           { kind: 'text', text: 'Enable **Deep Memory** in a world’s Overview → World modules to favor memories with strong feelings, memories of the current place, and moments that character has often remembered. It is off by default for every template and needs **Character memory** in Settings → Generation.' },
-          { kind: 'text', text: 'Characters still recall only what they witnessed or were told on this story branch. The memory budget stays the same. Frequently remembered moments gradually lose their extra pull when they are not recalled again. No extra model calls are needed.' },
-          { kind: 'text', text: '**Inspect prompt & memory** explains picks with **Strong feeling**, **Happened here**, and **Often remembered**. Turning Deep Memory off returns to ordinary memory ranking and keeps recorded places for later.' },
+          { kind: 'text', text: 'Characters still recall only what they witnessed or were told on this story branch. The memory budget stays the same. Optional recall by meaning uses the **Embedding model** in Settings → Models and services; with no model it makes no embedding calls. Frequently remembered moments gradually lose their extra pull when they are not recalled again. Ordinary recall needs no extra model calls.' },
+          { kind: 'text', text: '**Inspect prompt & memory** explains picks with **Strong feeling**, **Happened here**, and **Often remembered**, and **Similar meaning**. Optional meaning recall prepares memories in the background while the scene is open and pauses during replies. Its progress and **Cancel indexing** appear in chat and the Inspector. If the service cannot answer, the Inspector explains the fallback and ordinary recall continues. A cloud embedding service receives memory text and recent conversation; choose a local service to keep them on your machine. Turning Deep Memory off returns to ordinary memory ranking and keeps recorded places for later.' },
         ],
       },
       {

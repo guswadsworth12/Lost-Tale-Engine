@@ -4,6 +4,7 @@ import type { PromptInspection } from '@/lib/prompt/inspection'
 import { describeEntry } from '@/lib/worldinfo/activation'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { MemoryIndexProgress } from './MemoryIndexProgress'
 import { whyLabels } from './memoryWhy'
 
 export function PromptInspector({
@@ -245,6 +246,8 @@ function MemoriesSection({ result }: { result: PromptInspection }) {
   return (
     <div className="mb-5">
       <h3 className="mb-1 text-xs font-semibold text-text-muted">Memories ({picks.length})</h3>
+      <MemoryIndexProgress />
+      {result.memoryMeaningSkipped && <p className="mb-2 text-xs text-text-muted">{result.memoryMeaningSkipped}</p>}
       {picks.length === 0 && !result.memoryJournal ? (
         <p className="mb-2 text-xs text-text-muted">No memories for this speaker yet.</p>
       ) : (

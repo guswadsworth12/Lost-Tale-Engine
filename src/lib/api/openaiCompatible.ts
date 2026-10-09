@@ -4,7 +4,7 @@ import { KoboldApiError } from './types'
 import { estimateTokens } from '@/lib/tokenEstimate'
 import type { ChatBackend, ConnectionCheckResult } from './chatBackend'
 import { isOpenMayhem, loadOpenMayhemModels, OPENMAYHEM_PROXY, openMayhemRequestBody } from './openMayhem'
-import { openAiRoot } from './detectBackend'
+import { openAiRoot } from './openAiRoot'
 import { relayFetch, type RelayInit } from './relay'
 
 /**
@@ -397,6 +397,24 @@ export class OpenAICompatibleClient implements ChatBackend {
   /** Not a locally-loaded GGUF — nothing to compare the active instruct template against. */
   async getChatTemplate(): Promise<string | null> {
     return null
+  }
+
+  /** Optional meaning recall uses the same relay, vault credential and /v1 handling as text. */
+  async embed(input: string[], signal?: AbortSignal): Promise<number[][]> {
+    const res = await relayFetch(openAiRoot(this.baseUrl) + '/embeddings', {
+      method: 'POST', headers: this.headers(), ...this.credential(), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+      body: JSON.stringify({ model: this.model, input, encoding_format: 'float' }),
+    })
+    if (!res.ok) throw new Error(`Embedding request failed (${res.status}).`)
+    const body = await res.json() as { data?: { index: number; embedding: number[] }[] }
+    const rows = body.data
+    if (!Array.isArray(rows) || rows.length !== input.length) throw new Error('The service returned an incomplete embedding batch.')
+    const ordered = [...rows].sort((a, b) => a.index - b.index)
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].index !== i || !Array.isArray(ordered[i].embedding) || !ordered[i].embedding.length
+        || ordered[i].embedding.some((v) => typeof v !== 'number' || !Number.isFinite(v))) throw new Error('The service returned an invalid embedding.')
+    }
+    return ordered.map((r) => r.embedding)
   }
 
   /** The service's models (`GET /models`), for picking one. Empty when it can't say. Gemini's come back as `models/…`; the prefix is dropped. */

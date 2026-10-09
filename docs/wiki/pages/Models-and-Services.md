@@ -22,6 +22,7 @@ Reasoning ("thinking") models spend part of each reply's token budget thinking b
 
 - **Images:** add an image-capable service (OpenAI, Gemini, OpenMayhem, NovelAI, Automatic1111/Forge, ComfyUI, SwarmUI), pick it under **Models → Images**, then configure **Settings → Images**. These power **Picture this** and character art. Every generated result is previewed before saving.
 - **Voice:** **Edge TTS (free)** needs no account; ElevenLabs, Fish Audio, MiniMax, Gemini, OpenAI, Microsoft/Azure Speech, and local Kokoro or AllTalk servers are also supported. Choose voices in **Settings → Voice**; character voice overrides live in **Cast → Voice**.
+- **Recall by meaning:** pick the optional **Embedding model**, separate from text jobs, for worlds with Deep Memory on. OpenAI and OpenAI-compatible embeddings endpoints are supported. Type a model name if the list omits it, and use **Test it** to check its dimensions. A cloud service receives memory text and recent conversation; local services keep these on your machine. Without an embedding model, ordinary recall continues with no embedding calls.
 - **Vision:** scene-vision features need a model that accepts images; a text-only model cannot infer a sprite form from the pixels.
 
 If a model is unavailable, check that its server is running, that the address and port are reachable from the Lost Tales server, the key, and the model name. [Troubleshooting](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Troubleshooting) gives the failure-by-failure checks.

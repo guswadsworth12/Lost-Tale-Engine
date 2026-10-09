@@ -8,7 +8,8 @@ import { serviceSecret, textBaseUrl, type Capability, type Service } from './ser
 const IMAGE_MODEL = /image|dall-e|imagen/i
 const VOICE_MODEL = /tts/i
 const SPEECH_SERVER_MODEL = /tts|kokoro|speech/i
-const NOT_A_CHAT_MODEL = /image|dall-e|imagen|tts|whisper|embedding|moderation|transcribe|audio|realtime|aqa|search/i
+export const EMBEDDING_MODEL = /embed/i
+const NOT_A_CHAT_MODEL = /image|dall-e|imagen|tts|whisper|embed|moderation|transcribe|audio|realtime|aqa|search/i
 
 /**
  * A service's own model lists, per capability, for the model pickers. Whatever it can't list stays
@@ -23,11 +24,11 @@ export async function loadServiceModels(service: Service, secrets: Partial<Recor
     case 'openai-compatible': {
       const all = await new OpenAICompatibleClient(textBaseUrl(service), keySaved, '', secret).listModels()
       // A voice server (Kokoro) lists its speech models with the rest.
-      if (service.kind === 'openai-compatible') return { text: all, ...(all.some((m) => SPEECH_SERVER_MODEL.test(m)) ? { voice: all.filter((m) => SPEECH_SERVER_MODEL.test(m)) } : {}) }
+      if (service.kind === 'openai-compatible') return { text: all.filter((m) => !EMBEDDING_MODEL.test(m)), embeddings: all.filter((m) => EMBEDDING_MODEL.test(m)), ...(all.some((m) => SPEECH_SERVER_MODEL.test(m)) ? { voice: all.filter((m) => SPEECH_SERVER_MODEL.test(m)) } : {}) }
       return {
         text: all.filter((m) => !NOT_A_CHAT_MODEL.test(m)),
         images: all.filter((m) => IMAGE_MODEL.test(m)),
-        ...(service.kind === 'openai' ? { voice: all.filter((m) => VOICE_MODEL.test(m)) } : {}),
+        ...(service.kind === 'openai' ? { voice: all.filter((m) => VOICE_MODEL.test(m)), embeddings: all.filter((m) => EMBEDDING_MODEL.test(m)) } : {}),
       }
     }
     case 'openmayhem': {

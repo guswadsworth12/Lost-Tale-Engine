@@ -1,0 +1,7 @@
+{
+  "description": "Synthetic wiring fixture only. These hand-written concepts are not a real embedding model or a quality benchmark.",
+  "concepts": [
+    { "name": "river crossing", "phrases": ["river crossing", "bridge", "flood"] },
+    { "name": "celebration gift", "phrases": ["birthday", "present", "naming day", "brass compass"] }
+  ]
+}
