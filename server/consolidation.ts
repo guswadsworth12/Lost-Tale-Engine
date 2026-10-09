@@ -47,8 +47,9 @@ export function cleanMemoryConsolidations(memoryId: string): void {
   const row = memoryStore.get(memoryId) as unknown as CharacterMemory | undefined
   if (row) for (const run of dependentRuns([row])) undoConsolidation(run)
 }
-export function cleanConsolidations(chatId: string, messageId?: string): void {
-  const affected = memoriesIn(messageId ? chainOf(chatId) : [chatId]).filter((m) => !messageId || m.sourceMessageId === messageId || m.toldVia?.some((t) => t.messageId === messageId))
+/** `chainMemories` lets a caller that already loaded the chain's memories skip a second read. */
+export function cleanConsolidations(chatId: string, messageId?: string, chainMemories?: CharacterMemory[]): void {
+  const affected = (chainMemories ?? memoriesIn(messageId ? chainOf(chatId) : [chatId])).filter((m) => !messageId || m.sourceMessageId === messageId || m.toldVia?.some((t) => t.messageId === messageId))
   const runs = [...dependentRuns(affected), ...(!messageId ? runsIn(chatId) : [])]
   const seen = new Set<string>()
   for (const run of runs) if (!seen.has(run.id)) { seen.add(run.id); undoConsolidation(run) }

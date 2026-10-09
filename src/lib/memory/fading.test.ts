@@ -90,8 +90,12 @@ it('groups by one key, excludes the player and speaker, and protects salient ori
 
 it('cuts journal excerpts at sentence endings, or adds an ellipsis at a word boundary', () => {
   const opts = { characterId: 'mara', presentIds: [], recentText: '', budgetTokens: 40, deep: { now } }
-  const journal = m('j', { kind: 'journal', text: 'One complete sentence. ' + 'unfinished words '.repeat(40) })
-  expect(memoryPrompt([journal], opts, 'Mara').journal!.text).toBe('One complete sentence.')
+  const journal = m('j', { kind: 'journal', text: 'unfinished words '.repeat(3) + 'Then it ended. ' + 'more words '.repeat(20) })
+  expect(memoryPrompt([journal], opts, 'Mara').journal!.text).toBe('unfinished words '.repeat(3) + 'Then it ended.')
+  // A sentence ending too early to keep half the room gives way to a word cut.
+  const early = memoryPrompt([m('j', { kind: 'journal', text: 'One complete sentence. ' + 'unfinished words '.repeat(40) })], opts, 'Mara').journal!.text
+  expect(early).toMatch(/…$/)
+  expect(early.length).toBeGreaterThan(40)
   const noSentence = m('j', { kind: 'journal', text: 'unfinished words '.repeat(40) })
   const result = memoryPrompt([noSentence], opts, 'Mara')
   expect(result.journal!.text).toMatch(/(?:words|unfinished)…$/)

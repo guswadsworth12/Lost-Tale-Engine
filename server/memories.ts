@@ -76,10 +76,10 @@ export function purgeChatMemories(chatId: string): void {
  */
 export function retractMessageMemories(chatId: string, messageId: string, textChange = false): void {
   if (!chatId || !messageId) return
-  cleanConsolidations(chatId, messageId)
+  const memories = memoriesIn(chainOf(chatId))
+  cleanConsolidations(chatId, messageId, memories)
   if (!textChange) memoryRecallStore.retract(messageId)
   retractIntroductions(chatId, messageId)
-  const memories = memoriesIn(chainOf(chatId))
   if (!textChange) {
     reopenLinks(messageId)
     const starts = memories.filter((m) => m.retiredByMessageId === messageId && m.retiredBatchFrom !== undefined).map((m) => m.retiredBatchFrom! - 1)

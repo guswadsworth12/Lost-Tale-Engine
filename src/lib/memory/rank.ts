@@ -269,7 +269,9 @@ export function memoryPrompt(memories: CharacterMemory[], opts: SelectMemoriesOp
     if (journal.text.length > limit) {
       const cut = journal.text.slice(0, limit)
       const endings = [...cut.matchAll(/[.!?](?=\s)/g)]
-      const end = endings[endings.length - 1]?.index
+      // A sentence end only counts when it keeps at least half the room; otherwise cut at a word.
+      const last = endings[endings.length - 1]?.index
+      const end = last !== undefined && last + 1 >= limit / 2 ? last : undefined
       const fragment = journal.text.slice(0, Math.max(0, limit - 1))
       const space = fragment.lastIndexOf(' ')
       journal = { ...journal, text: end !== undefined ? cut.slice(0, end + 1) : `${space >= 0 ? fragment.slice(0, space) : fragment}…` }
