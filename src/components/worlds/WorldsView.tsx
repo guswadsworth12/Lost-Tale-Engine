@@ -1,3 +1,4 @@
+import { MemoryConsolidationSettings } from './MemoryConsolidationSettings'
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Globe, ImagePlus, Moon, Music, Plus, Star, X } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
@@ -402,6 +403,7 @@ function WorldEditor({
   const [showExport, setShowExport] = useState(false)
   const initialModules = initialWorldEditorModules(base)
   const [campaign, setCampaign] = useState<CampaignConfig>(initialModules.campaign)
+  const [memoryConsolidation, setMemoryConsolidation] = useState(base.memoryConsolidation)
   const [modules, setModules] = useState<WorldModuleChoices>(initialModules.modules)
   const [promptItems, setPromptItems] = useState<PromptItem[]>(base.promptItems ?? [])
   const [canonFacts, setCanonFacts] = useState<NonNullable<WorldCard['canonFacts']>>(base.canonFacts ?? [])
@@ -472,6 +474,7 @@ function WorldEditor({
       gmNotes,
       campaign,
       modules,
+      memoryConsolidation,
       promptItems,
       canonFacts,
       template,
@@ -863,6 +866,7 @@ function WorldEditor({
                 <span>Deep Memory<span className="block text-xs text-text-muted">Recall favors strong feelings, familiar places, and often remembered moments.</span></span>
               </label>
             </div>
+            {effectiveModules.deepMemory && <MemoryConsolidationSettings world={world ?? undefined} value={memoryConsolidation} onChange={setMemoryConsolidation} />}
             <p className="mt-3 text-xs text-text-muted">Romance emphasis: {effectiveModules.romanceEmphasis}. Change the template or dating tools to adjust it.</p>
           </Section>
         </div>

@@ -3,8 +3,11 @@
  * prose account so a long campaign stays small. Pure selection, prompt building and parsing.
  */
 
+import { recallStrength } from './rank'
 import { parseLenientJson } from '@/lib/jsonRepair'
-import type { CharacterMemory } from '@/lib/types'
+import type { CharacterMemory, MemoryRecall } from '@/lib/types'
+
+export const JOURNAL_WEIGHTS = { importance: 0.6, recency: 0.4, feeling: 1, recall: 1 } as const
 
 export const DEFAULT_JOURNAL_KEEP_RECENT = 12
 export const MAX_JOURNAL_CHARS = 1500
@@ -16,9 +19,9 @@ export const MAX_JOURNAL_CHARS = 1500
  * `keepRecent` best by 0.6 * importance + 0.4 * recency stay as their own lines; the rest fold.
  */
 export function pickForJournal(
-  memories: CharacterMemory[],
+  memories: (CharacterMemory & { recall?: MemoryRecall })[],
   characterId: string,
-  opts?: { keepRecent?: number },
+  opts?: { keepRecent?: number; deep?: { now: number } },
 ): CharacterMemory[] {
   const keepRecent = Math.max(0, Math.floor(opts?.keepRecent ?? DEFAULT_JOURNAL_KEEP_RECENT))
   const candidates = memories
@@ -39,7 +42,8 @@ export function pickForJournal(
   const scored = candidates.map((m, i) => ({
     m,
     i,
-    score: 0.6 * clampUnit(m.importance) + 0.4 * (last ? 1 - i / last : 1),
+    score: JOURNAL_WEIGHTS.importance * clampUnit(m.importance) + JOURNAL_WEIGHTS.recency * (last ? 1 - i / last : 1)
+      + (opts?.deep ? JOURNAL_WEIGHTS.feeling * clampUnit(Math.abs(m.feelings?.[characterId] ?? 0)) + JOURNAL_WEIGHTS.recall * recallStrength(m.recall, opts.deep.now) : 0),
   }))
   const keep = new Set(
     [...scored]

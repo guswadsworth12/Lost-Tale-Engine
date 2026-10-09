@@ -22,6 +22,7 @@ import { newId } from '@/lib/id'
 import type { AuthorNote, Chat, CommitmentStatus, DateEventCard, ItemEffect, MessageIntent, Objective, ObjectiveTask, RelationshipStage, StoredMessage, WorldCard } from '@/lib/types'
 import { collectImageBase64, composeMessageText, type PendingAttachment } from '@/lib/attachments'
 import { makeGenKey } from '@/lib/api/kobold'
+import { runConsolidation } from '@/lib/memory/runConsolidation'
 import { generateWithTimeout, type AssistShaping } from '@/lib/api/generateWithTimeout'
 import { useChatBackendClient } from '@/lib/hooks/useChatBackendClient'
 import { characterClient, useJobClients, useModelSettings } from '@/lib/hooks/useModelFor'
@@ -264,7 +265,7 @@ import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
 import { buildFactsLorebook } from '@/lib/worldinfo/facts'
 import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
-import { latestJournal, memoriesKnownBy, memoryBlock, selectMemoriesExplained } from '@/lib/memory/rank'
+import { latestJournal, memoriesKnownBy, memoryPrompt } from '@/lib/memory/rank'
 import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
 import { pickExamples, exampleText, guessSituations, defaultExamples } from '@/lib/characters/exampleBank'
@@ -778,8 +779,8 @@ export function useChatSession(chatId: string | null) {
         danger: guessSituations(freshChat.scene?.atmosphere ?? '').includes('danger'),
         similarities: exampleSimilarities, previousIds: exampleHistory.ids(freshChat.id, speaker.id, previousExampleTurn(branchMessages, speaker.id, freshChat.characterId)),
       }) : bankDefault ? defaultExamples(speaker.exampleBank ?? []) : []
-      const memoryPicks = memoryOn
-        ? selectMemoriesExplained(sceneMemories, {
+      const recallPrompt = memoryOn
+        ? memoryPrompt(sceneMemories, {
             characterId: speaker.id,
             presentIds: freshChat.scene?.presentCharacterIds ?? roster.map((c) => c.id),
             recentText: recentMemoryText,
@@ -791,12 +792,11 @@ export function useChatSession(chatId: string | null) {
               now: Date.now(),
               recalls: new Map(sceneMemories.flatMap((m) => m.recall ? [[m.id, m.recall] as const] : [])),
             } } : {}),
-          })
-        : []
-      const memoryJournal = memoryOn ? latestJournal(sceneMemories, speaker.id) : undefined
-      const memoryText = memoryOn
-        ? memoryBlock(speaker.card.name, memoryPicks.map((e) => e.memory), memoryJournal, speaker.id)
-        : ''
+          }, speaker.card.name)
+        : undefined
+      const memoryPicks = recallPrompt?.picks ?? []
+      const memoryJournal = recallPrompt?.journal
+      const memoryText = recallPrompt?.text ?? ''
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
       const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
       const recentRolls = modules.campaignRules === 'mechanical' ? recentRollsFrom(branchMessages) : []
@@ -1605,11 +1605,13 @@ export function useChatSession(chatId: string | null) {
    */
   const writeJournals = useCallback(async (sceneId: string, characterIds: string[]) => {
     if (!characterMemoryOn) return
-    const all = await memoriesApi.forChat(sceneId)
+    const deep = modulesForWorld(world).deepMemory
+    const unscoped = deep ? [] : await memoriesApi.forChat(sceneId)
     for (const id of characterIds) {
       const card = allCharactersById.get(id) ?? arrivalsRef.current.find((c) => c.id === id)
       if (!card || id === playerCharacter?.id) continue
-      const toFold = pickForJournal(all, id)
+      const all = deep ? await memoriesApi.forChat(sceneId, id) : unscoped
+      const toFold = pickForJournal(all, id, deep ? { deep: { now: Date.now() } } : undefined)
       if (!toFold.length) continue
       const raw = await generateWithTimeout(
         memoryClient,
@@ -1642,7 +1644,7 @@ export function useChatSession(chatId: string | null) {
       await memoriesApi.create({ chatId: sceneId, kind: 'journal', text, witnesses: [id], importance: 1, origin: 'journal' })
       await memoriesApi.consolidate(id, toFold.map((m) => m.id))
     }
-  }, [allCharactersById, jobShaping.memory, characterMemoryOn, memoryClient, playerCharacter?.id, sampler.max_context_length, world?.name])
+  }, [allCharactersById, jobShaping.memory, characterMemoryOn, memoryClient, playerCharacter?.id, sampler.max_context_length, world])
 
   /** Checks whether the reply that just landed completed any pending objective tasks. Standalone path only — see `runGeneration` for the merged one. */
   const detectAndMarkTasks = useCallback(
@@ -2939,12 +2941,18 @@ export function useChatSession(chatId: string | null) {
           newStorylineName: input.next.newStorylineName?.trim() || undefined,
         },
       })
-      runAssist('memory', 'Writing journals', () => writeJournals(chatId, presentIds))
+      runAssist('memory', 'Writing journals', async () => {
+        await writeJournals(chatId, presentIds)
+        for (const id of presentIds) if (id !== playerCharacter?.id) {
+          try { await runConsolidation(world, chatId, id, modelSettings, secrets, jobShaping.memory, sampler.max_context_length) }
+          catch (error) { toastError(`Memory consolidation: ${errorMessage(error)}`) }
+        }
+      })
       // Time moves on between scenes when the world's clock follows the story.
       await followStoryTime([], { step: true, sceneId: nextScene.id })
       return nextScene
     },
-    [allCharactersById, chatId, followStoryTime, playerCharacter, runAssist, scribeMemories, world, writeJournals],
+    [allCharactersById, chatId, followStoryTime, playerCharacter, runAssist, scribeMemories, world, writeJournals, modelSettings, secrets, jobShaping.memory, sampler.max_context_length],
   )
 
   /** Best-effort: proposes a few next-move options for the user, attached to the char message they follow from. Never blocks the reply. */

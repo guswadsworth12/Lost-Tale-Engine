@@ -1,3 +1,4 @@
+import { migrateLinkWeights } from './linkWeightMigration.ts'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -279,6 +280,7 @@ if (!(db.prepare('PRAGMA table_info(memory_links)').all() as { name: string }[])
   db.exec("UPDATE memory_links SET sourceMessageId = json_extract(data, '$.sourceMessageId')")
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_memory_links_sourceMessageId ON memory_links(sourceMessageId)')
+migrateLinkWeights(db)
 
 // Accounts tables made before sign-in by email existed lack users.emailKey.
 if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'emailKey')) {
@@ -407,7 +409,7 @@ export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { na
 export const chatCheckpointStore = createStore('chat_checkpoints', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 export const storyMomentStore = createStore('story_moments', [{ name: 'storyId' }, { name: 'chatId' }, { name: 'createdAt' }])
-export const memoryLinkStore = createStore('memory_links', ['memoryId', 'fromKind', 'fromId', 'relation', 'toKind', 'toId', 'validFrom', 'validTo', 'closedByMessageId', 'sourceMessageId', 'createdAt'].map((name) => ({ name })))
+export const memoryLinkStore = createStore('memory_links', ['memoryId', 'fromKind', 'fromId', 'relation', 'toKind', 'toId', 'validFrom', 'validTo', 'closedByMessageId', 'sourceMessageId', 'weight', 'lastUsedAt', 'createdAt'].map((name) => ({ name })))
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
 // Accounts: security state, deliberately left out of BACKUP_STORES in app.ts.
 export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 'emailKey' }, { name: 'createdAt' }])
@@ -439,7 +441,7 @@ export const memoryRecallStore = {
       GROUP BY e.memoryId`).all(characterId, ...chain) as unknown as { memoryId: string; count: number; lastAt: number }[]
   },
   insert(row: Record<string, unknown>) {
-    db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at)
+    return db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at)
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
       .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at))
   },

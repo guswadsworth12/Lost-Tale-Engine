@@ -73,6 +73,7 @@ export interface CharacterPackV1 {
     relationshipThresholds?: WorldCard['relationshipThresholds']
     campaign?: WorldCard['campaign']
     modules?: WorldCard['modules']
+    memoryConsolidation?: WorldCard['memoryConsolidation']
   }
 }
 

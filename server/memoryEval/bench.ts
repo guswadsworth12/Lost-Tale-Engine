@@ -60,7 +60,7 @@ export function parseCase(raw: unknown): RecallCase {
     require(['event', 'learned', 'promise', 'secret', 'impression', 'journal'].includes(m.kind), 'unknown memory kind')
     require(strings(m.witnesses) && strings(m.knownBy) && [...m.witnesses, ...m.knownBy].every((id) => cast.has(id)), 'invalid memory knowers')
     require(finite(m.createdAt) && finite(m.importance) && m.importance >= 0 && m.importance <= 1, 'invalid memory time or importance')
-    require(typeof m.active === 'boolean' && ['scribe', 'manual', 'journal'].includes(m.origin), 'invalid memory state or origin')
+    require(typeof m.active === 'boolean' && ['scribe', 'manual', 'journal', 'consolidation'].includes(m.origin), 'invalid memory state or origin')
     for (const key of ['about', 'consolidatedFor']) {
       require(m[key] === undefined || (strings(m[key]) && m[key].every((id: string) => cast.has(id))), `invalid ${key}`)
     }
