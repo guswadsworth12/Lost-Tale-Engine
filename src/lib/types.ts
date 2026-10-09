@@ -290,6 +290,10 @@ export interface CharacterMemory {
   /** False once retired (contradicted or superseded). Kept for the audit trail. */
   active: boolean
   retiredReason?: string
+  retiredBatchFrom?: number
+  retiredByMessageId?: string
+  retiredInChatId?: string
+  links?: import('./memory/links').MemoryLink[]
   /** Characters whose journal already holds this memory. For them it is no longer retrieved as its own line; for other knowers it still is. */
   consolidatedFor?: string[]
   /** The message it came from. Deleting that message removes the memory; editing it re-reads it. */
@@ -566,6 +570,7 @@ export interface Chat {
   /** Carded characters the Game Master plays itself until a set event hands them over (`world/gm.ts` `GmPlayedCharacter`). Carried into later scenes. */
   gmPlayed?: import('@/lib/world/gm').GmPlayedCharacter[]
   /** Who a character new to the story hasn't been introduced to yet (`story/acquaintance.ts`). Carried into later scenes. */
+  introductions?: import('@/lib/story/acquaintance').Introduction[]
   strangers?: import('@/lib/story/acquaintance').Strangers
   /** Tracked state (`world/gameState.ts`) when this scene opened: carried from the scene before it.
    *  What happens in the scene rides on its messages and is replayed over this. */

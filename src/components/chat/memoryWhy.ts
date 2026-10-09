@@ -25,5 +25,6 @@ export function whyLabels(reasons: MemoryReasons, aboutNames: string[]): string[
   if (reasons.samePlace) labels.push('Happened here')
   if (reasons.oftenRecalled) labels.push('Often remembered')
   if (reasons.similarMeaning) labels.push('Similar meaning')
+  for (const name of reasons.linkedThrough ?? []) labels.push(`Linked through ${name}`)
   return labels
 }

@@ -56,3 +56,8 @@ it('explains all Deep Memory boosts in plain language', () => {
   expect(whyLabels(reasons({ strongFeeling: true, samePlace: true, oftenRecalled: true, similarMeaning: true }), []))
     .toEqual(['Strong feeling', 'Happened here', 'Often remembered', 'Similar meaning'])
 })
+
+
+it('names the one-step connection in the Inspector', () => {
+  expect(whyLabels({ pinned: false, openThread: false, aboutPresent: [], matchedWords: [], recent: false, important: false, score: 1, linkedThrough: ['Mara'] }, [])).toEqual(['Linked through Mara'])
+})

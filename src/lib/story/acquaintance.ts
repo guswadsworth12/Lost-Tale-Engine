@@ -1,4 +1,4 @@
-import { nameVariants } from '@/lib/vn/appearances'
+import { nameVariants } from '../text/nameVariants.ts'
 
 /**
  * Who a character hasn't been introduced to yet. A character who enters the story as someone new
@@ -21,6 +21,8 @@ export interface StrangerRecord {
 export type Strangers = Record<string, StrangerRecord>
 
 interface HeardMessage {
+  id?: string
+  role?: string
   speakerId?: string
   text?: string
   swipes?: string[]
@@ -82,4 +84,26 @@ export function strangerNote(speakerName: string, names: readonly string[]): str
   return `${speakerName} has not been introduced to ${list} and does not know ${names.length === 1 ? 'that name' : 'their names'}. `
     + `The narration and other notes use these names, but ${speakerName} cannot: refer to ${names.length === 1 ? 'them' : 'each'} by how they look or what they are doing, `
     + `and do not treat anything about them as known beyond what ${speakerName} has seen and heard here. Someone saying a name aloud is how ${speakerName} learns it.`
+}
+
+export interface Introduction {
+  newcomerId: string; personId: string; byId: string; messageId: string; at: number
+  witnessIds: string[]
+}
+/** First spoken name that actually clears a stranger; witnesses come only from the message. */
+export function introductionsFrom(strangers: Strangers | undefined, messages: readonly HeardMessage[], nameOf: (id: string) => string | undefined, leadId: string, playerId?: string): Introduction[] {
+  const out: Introduction[] = []
+  const ordered = [...messages].sort((a, b) => a.createdAt - b.createdAt)
+  for (const [newcomerId, record] of Object.entries(strangers ?? {})) for (const personId of record.ids) {
+    const name = nameOf(personId)
+    if (!name) continue
+    const message = ordered.find((m) => {
+      const byId = m.speakerId ?? (m.role === 'user' ? playerId : leadId)
+      return m.id && byId && byId !== newcomerId && m.createdAt >= record.since
+        && m.presentIds?.includes(newcomerId) && nameSpoken((m.swipes?.[m.activeSwipe ?? 0] ?? m.text) || '', name)
+    })
+    if (message) out.push({ newcomerId, personId, byId: message.speakerId ?? (message.role === 'user' ? playerId! : leadId),
+      messageId: message.id!, at: message.createdAt, witnessIds: [...new Set(message.presentIds)] })
+  }
+  return out
 }

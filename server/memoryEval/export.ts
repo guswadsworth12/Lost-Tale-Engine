@@ -26,6 +26,9 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     const chain = sceneChainIds(chatId, (id) => get('chats', id), (id) => get('stories', id))
     const memories = db.prepare(`SELECT * FROM memories WHERE chatId IN (${chain.map(() => '?').join(', ')}) ORDER BY createdAt, id`)
       .all(...chain).map(decode)
+    if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_links'").get()) {
+      for (const memory of memories) memory.links = db.prepare('SELECT * FROM memory_links WHERE memoryId = ? ORDER BY createdAt, id').all(memory.id).map(decode).filter((link) => link.relation !== 'supersedes')
+    }
     const now = Date.now()
     if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_recall_events'").get()) {
       const recalls = db.prepare(`SELECT e.memoryId, COUNT(*) AS count, MAX(e.at) AS lastAt
@@ -47,8 +50,10 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
     for (const id of otherChats) if (!chain.includes(id)) chats.push({ id, previousSceneId: undefined, storyId: undefined })
     const stories = [...new Set(chats.map((c) => c.storyId).filter(Boolean))].map((id) => ({ id, continuesFrom: get('stories', id)?.continuesFrom }))
     const presentIds = chat.scene?.presentCharacterIds ?? [chat.characterId, ...(chat.participants ?? [])].filter(Boolean)
-    const ids = new Set<string>([speakerId, ...presentIds, ...memories.flatMap((m) => [
+    const introductions = chat.introductions ?? []
+    const ids = new Set<string>([...introductions.flatMap((i: Row) => [i.newcomerId, i.personId, i.byId, ...i.witnessIds]), speakerId, ...presentIds, ...memories.flatMap((m) => [
       ...m.witnesses, ...m.knownBy, ...(m.about ?? []), ...(m.consolidatedFor ?? []),
+      ...(m.links ?? []).flatMap((l: Row) => [...(l.fromKind === 'person' ? [l.fromId] : []), ...(l.toKind === 'person' ? [l.toId] : [])]),
       ...Object.keys(m.feelings ?? {}), ...(m.toldVia ?? []).flatMap((t: Row) => t.to),
     ])])
     const cast = [...ids].map((id) => ({ id, name: get('characters', id)?.card?.name ?? id }))
@@ -60,7 +65,7 @@ export function exportCase(databasePath: string, chatId: string, speakerId: stri
       .map((m) => m.text).filter((v): v is string => typeof v === 'string' && !!v.trim()).slice(-6)
     return parseCase({
       id: chatId, category: 'private', cast, memories, chats, stories,
-      scene: { chatId, speakerId, presentIds, location: setting.location, atmosphere: setting.atmosphere, recentMessages, now },
+      scene: { introductions, chatId, speakerId, presentIds, location: setting.location, atmosphere: setting.atmosphere, recentMessages, now },
       question, expectedIds, forbiddenIds: [], mustNeverRegress: false,
     })
   } finally { db.close() }

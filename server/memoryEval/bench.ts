@@ -1,3 +1,5 @@
+import { normalizeLink } from '../../src/lib/memory/links'
+import type { Introduction } from '../../src/lib/story/acquaintance'
 import { stubEmbedding } from './stubEmbedder'
 import { memorySimilarities, memoryTextHash, type MemoryVector } from '../memoryVectorPlan'
 import type { CharacterMemory, MemoryRecall } from '../../src/lib/types'
@@ -9,7 +11,7 @@ export interface RecallCase {
   id: string
   category: string
   cast: { id: string; name: string }[]
-  memories: (CharacterMemory & { recalls?: MemoryRecall; links?: unknown[] })[]
+  memories: (CharacterMemory & { recalls?: MemoryRecall; links?: import('../../src/lib/memory/links').MemoryLink[] })[]
   chats: (ChatLike & { id: string })[]
   stories: (StoryLike & { id: string })[]
   scene: {
@@ -19,6 +21,7 @@ export interface RecallCase {
     location?: string | null
     atmosphere?: string | null
     recentMessages: string[]
+    introductions?: Introduction[]
     now?: number
   }
   question: string
@@ -64,10 +67,12 @@ export function parseCase(raw: unknown): RecallCase {
     require(m.feelings === undefined || (object(m.feelings) && Object.entries(m.feelings).every(([id, v]) => cast.has(id) && finite(v) && Math.abs(v) <= 1)), 'invalid feelings')
     require(m.toldVia === undefined || (Array.isArray(m.toldVia) && m.toldVia.every((t: any) => object(t) && strings(t.to)
       && t.to.every((id: string) => cast.has(id)) && finite(t.at) && (t.chatId === undefined || chats.has(t.chatId)))), 'invalid tellings')
+    require(m.links === undefined || (Array.isArray(m.links) && m.links.every((l: any) => object(l) && text(l.id) && l.memoryId === m.id && normalizeLink({ fromKind: l.fromKind, fromId: l.fromId, relation: l.relation, toKind: l.toKind, toId: l.toId }, (id) => cast.has(id) ? id : undefined) && finite(l.validFrom) && (l.validTo === null || finite(l.validTo)) && (l.closedByMessageId === null || text(l.closedByMessageId)) && finite(l.createdAt))), 'invalid memory links')
     require(m.location === undefined || typeof m.location === 'string', 'invalid memory location')
     require(m.recalls === undefined || (object(m.recalls) && Number.isInteger(m.recalls.count) && m.recalls.count >= 0 && finite(m.recalls.lastAt)), 'invalid recalls')
     for (const key of ['pinned', 'unresolved']) require(m[key] === undefined || typeof m[key] === 'boolean', `invalid ${key}`)
   }
+  require(c.scene.introductions === undefined || (Array.isArray(c.scene.introductions) && c.scene.introductions.every((i: any) => object(i) && [i.newcomerId, i.personId, i.byId].every((id) => cast.has(id)) && text(i.messageId) && finite(i.at) && strings(i.witnessIds) && i.witnessIds.every((id: string) => cast.has(id)))), 'invalid introductions')
   const ids = new Set(c.memories.map((m: any) => m.id))
   for (const key of ['expectedIds', 'forbiddenIds']) {
     require(strings(c[key]) && c[key].every((id: string) => ids.has(id)) && new Set(c[key]).size === c[key].length, `invalid ${key}`)
@@ -108,7 +113,7 @@ export function evaluateCase(c: RecallCase, options: EvalOptions = {}) {
     presentIds: c.scene.presentIds,
     recentText: c.scene.recentMessages.slice(-6).join('\n'),
     budgetTokens,
-    ...(options.module === 'on' ? { deep: { similarities, location: c.scene.location, now: c.scene.now ?? 2_000_000_000, recalls: new Map(c.memories.flatMap((m) => m.recalls ? [[m.id, m.recalls] as const] : [])) } } : {}),
+    ...(options.module === 'on' ? { deep: { introductions: c.scene.introductions, nameOf: (id) => c.cast.find((v) => v.id === id)?.name, similarities, location: c.scene.location, now: c.scene.now ?? 2_000_000_000, recalls: new Map(c.memories.flatMap((m) => m.recalls ? [[m.id, m.recalls] as const] : [])) } } : {}),
   })
   const picked = new Set(picks.map((p) => p.memory.id))
   const recalled = c.expectedIds.filter((id) => picked.has(id))

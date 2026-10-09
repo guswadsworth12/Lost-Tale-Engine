@@ -1,0 +1,220 @@
+[
+  {
+    "id": "link-unknown",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      }
+    ],
+    "chats": [
+      {
+        "id": "scene"
+      }
+    ],
+    "stories": [],
+    "scene": {
+      "chatId": "scene",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "recentMessages": [],
+      "now": 100
+    },
+    "question": "Which unrelated record belongs in recall when an expansion link is unavailable?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "target"
+    ],
+    "mustNeverRegress": true,
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "scene",
+        "text": "Brisa remembered the parcel inspection. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. ",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.9,
+        "createdAt": 2,
+        "active": true,
+        "origin": "manual"
+      },
+      {
+        "id": "target",
+        "chatId": "scene",
+        "text": "Tavi remembered an unrelated errand. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. ",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "createdAt": 1,
+        "active": true,
+        "origin": "manual",
+        "about": [
+          "tavi"
+        ]
+      },
+      {
+        "id": "edge",
+        "chatId": "scene",
+        "text": "An unavailable connection.",
+        "kind": "event",
+        "witnesses": [
+          "rowan"
+        ],
+        "knownBy": [
+          "rowan"
+        ],
+        "importance": 0,
+        "createdAt": 0,
+        "active": true,
+        "origin": "manual",
+        "links": [
+          {
+            "id": "edge-link",
+            "memoryId": "edge",
+            "fromKind": "person",
+            "fromId": "brisa",
+            "relation": "works with",
+            "toKind": "person",
+            "toId": "tavi",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "link-closed",
+    "category": "knowledge",
+    "cast": [
+      {
+        "id": "brisa",
+        "name": "Brisa"
+      },
+      {
+        "id": "tavi",
+        "name": "Tavi"
+      },
+      {
+        "id": "rowan",
+        "name": "Rowan"
+      }
+    ],
+    "chats": [
+      {
+        "id": "scene"
+      }
+    ],
+    "stories": [],
+    "scene": {
+      "chatId": "scene",
+      "speakerId": "brisa",
+      "presentIds": [
+        "brisa"
+      ],
+      "recentMessages": [],
+      "now": 100
+    },
+    "question": "Which unrelated record belongs in recall when an expansion link is unavailable?",
+    "expectedIds": [
+      "safe"
+    ],
+    "forbiddenIds": [
+      "target"
+    ],
+    "mustNeverRegress": true,
+    "memories": [
+      {
+        "id": "safe",
+        "chatId": "scene",
+        "text": "Brisa remembered the parcel inspection. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. The clerk wrapped a numbered packet and checked the paper ledger carefully. ",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.9,
+        "createdAt": 2,
+        "active": true,
+        "origin": "manual"
+      },
+      {
+        "id": "target",
+        "chatId": "scene",
+        "text": "Tavi remembered an unrelated errand. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. The courier carried a sealed envelope along a familiar quiet street at dawn. ",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0.8,
+        "createdAt": 1,
+        "active": true,
+        "origin": "manual",
+        "about": [
+          "tavi"
+        ]
+      },
+      {
+        "id": "edge",
+        "chatId": "scene",
+        "text": "An unavailable connection.",
+        "kind": "event",
+        "witnesses": [
+          "brisa"
+        ],
+        "knownBy": [
+          "brisa"
+        ],
+        "importance": 0,
+        "createdAt": 0,
+        "active": true,
+        "origin": "manual",
+        "links": [
+          {
+            "id": "edge-link",
+            "memoryId": "edge",
+            "fromKind": "person",
+            "fromId": "brisa",
+            "relation": "works with",
+            "toKind": "person",
+            "toId": "tavi",
+            "validFrom": 1,
+            "validTo": 2,
+            "closedByMessageId": "closure",
+            "createdAt": 1
+          }
+        ]
+      }
+    ]
+  }
+]
