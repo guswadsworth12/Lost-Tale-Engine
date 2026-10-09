@@ -1,5 +1,5 @@
 export interface EmbeddingConnection { model: string; key: string; dimensions?: () => number | undefined; embed: (texts: string[], signal?: AbortSignal) => Promise<number[][]> }
-export interface MeaningResult { similarities?: ReadonlyMap<string, number>; skipped?: string }
+export interface MeaningResult { queryVector?: number[]; similarities?: ReadonlyMap<string, number>; skipped?: string }
 
 // Bound both embedding and scoring, even if a provider ignores cancellation.
 function withinReplyDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -21,6 +21,7 @@ export class MeaningRecall {
     if (!text.trim()) return { skipped: 'There is no recent conversation to compare yet.' }
     if (!crypto.subtle) return { skipped: 'Recall by meaning needs HTTPS or a browser on localhost.' }
     const signal = AbortSignal.timeout(2500)
+    let queryVector: number[] | undefined
     try {
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(connection.key + text))
       const key = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
@@ -36,10 +37,11 @@ export class MeaningRecall {
         cached = entry
       }
       const vector = await withinReplyDeadline(cached.value, signal)
+      queryVector = vector
       const scores = await withinReplyDeadline(score(connection.model, vector, signal), signal)
-      if (!Object.keys(scores).length) return { skipped: 'No current indexed memories are available for this speaker.' }
-      return { similarities: new Map(Object.entries(scores)) }
-    } catch { return { skipped: 'The embedding service or meaning search could not answer. Ordinary recall was used.' } }
+      if (!Object.keys(scores).length) return { queryVector: vector, skipped: 'No current indexed memories are available for this speaker.' }
+      return { queryVector: vector, similarities: new Map(Object.entries(scores)) }
+    } catch { return { ...(queryVector ? { queryVector } : {}), skipped: 'The embedding service or meaning search could not answer. Ordinary recall was used.' } }
   }
   clear() { this.queries.clear() }
 }

@@ -17,6 +17,10 @@ export interface InspectedMemoryPick {
  * asked for, how character memory shaped it. The real generation path never fills these.
  */
 export interface PromptInspection extends PromptBuildResult {
+  examplePicks?: import('../characters/exampleBank').ExamplePick[]
+  exampleBankSkipped?: string
+  exampleSpeakerId?: string
+  exampleIds?: string[]
   /** Turn bookkeeping only, filled for Deep Memory without changing the prompt. */
   memoryRecallIds?: string[]
   /** Plain explanation of a meaning-recall fallback; never added to the model prompt. */

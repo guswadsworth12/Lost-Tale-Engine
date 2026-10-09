@@ -130,6 +130,7 @@ export interface CharacterCardV2 {
 export interface Character {
   id: string
   card: CharacterCardData
+  exampleBank?: import('./exampleBank').ExampleBankEntry[]
   /** False keeps this card in the library while excluding it from the GM's automatic scene cast. */
   gmEligible?: boolean
   /** "You only": a card made to be played by you. The AI never voices it, and it stays out of

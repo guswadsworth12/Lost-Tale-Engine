@@ -1,3 +1,5 @@
+import { ExampleBankEditor } from './ExampleBankEditor'
+import { validateExampleBank, type ExampleBankEntry } from '@/lib/characters/exampleBank'
 import { VisibilityField } from '@/components/ui/VisibilityField'
 import type { Visibility } from '@/lib/packs/contract'
 import { BODY_REGIONS } from '@/lib/dating/arousal'
@@ -259,6 +261,7 @@ export function CharacterEditor({
 }) {
   const [tab, setTab] = useState(initialTab ?? 'character')
   const [form, setForm] = useState(character?.card ?? blankCharacterData())
+  const [exampleBank, setExampleBank] = useState<ExampleBankEntry[]>(character?.exampleBank ?? [])
   const [promptItems, setPromptItems] = useState<PromptItem[]>(character?.promptItems ?? [])
   const [privateMemory, setPrivateMemory] = useState(character?.privateMemory ?? '')
   const [modelOverride, setModelOverride] = useState(character?.modelOverride ?? '')
@@ -532,9 +535,11 @@ export function CharacterEditor({
   const removeBehavioralRule = (id: string) => setBehavioralRules((list) => list.filter((r) => r.id !== id))
 
   const save = async () => {
+    try { validateExampleBank(exampleBank) } catch (error) { toastError((error as Error).message); return }
     setSaving(true)
     const payload = {
       card: form,
+      exampleBank,
       promptItems,
       privateMemory,
       modelOverride: modelOverride.trim() || null,
@@ -766,6 +771,7 @@ export function CharacterEditor({
   /** Applies a parsed card (V1/V2/V3) into the form, including any V3 `emotion`/`icon` assets. */
   const applyImport = (result: Awaited<ReturnType<typeof importCharacterFile>>) => {
     setForm(result.card)
+    setExampleBank(result.exampleBank ?? [])
     if (result.avatarDataUrl) setAvatarDataUrl(result.avatarDataUrl)
     if (result.sprites && Object.keys(result.sprites).length) {
       setSprites((s) => ({ ...result.sprites, ...s })) // keep anything already uploaded over an import
@@ -805,7 +811,7 @@ export function CharacterEditor({
     if (!character) return
     try {
       const boundWorld = worlds.find((w) => w.id === character.worldId)
-      const pack = await buildCharacterPack(character, boundWorld)
+      const pack = await buildCharacterPack({ ...character, card: form, exampleBank }, boundWorld)
       downloadCharacterPack(pack)
     } catch (e) {
       toastError(errorMessage(e))
@@ -909,10 +915,10 @@ export function CharacterEditor({
             </Button>
             {character && (
               <>
-                <Button variant="ghost" onClick={() => downloadJson(form)}>
+                <Button variant="ghost" onClick={() => downloadJson(form, exampleBank)}>
                   Export JSON
                 </Button>
-                <Button variant="ghost" onClick={() => downloadPng(form, avatarDataUrl)}>
+                <Button variant="ghost" onClick={() => downloadPng(form, avatarDataUrl, exampleBank)}>
                   Export PNG
                 </Button>
                 <Button variant="ghost" onClick={exportPack} title="Bundle the card, sprites, gallery, gift preferences, and bound world into one file">
@@ -1219,6 +1225,7 @@ export function CharacterEditor({
               value={form.mes_example}
               onChange={(e) => set('mes_example', e.target.value)}
             />
+            <ExampleBankEditor entries={exampleBank} onChange={setExampleBank} base={form.mes_example} clearBase={() => set('mes_example', '')} />
           </Section>
           <Section
             title="Behavioral rules"
@@ -2210,7 +2217,7 @@ export function CharacterEditor({
               hint={
                 replyLength === 'auto'
                   ? (() => {
-                      const d = deriveCardReplyBand(form)
+                      const d = deriveCardReplyBand(form, exampleBank)
                       const from =
                         d.source === 'examples'
                           ? 'measured from this card’s example dialogue'

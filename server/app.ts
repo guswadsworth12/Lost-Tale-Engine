@@ -40,6 +40,7 @@ import { relayRouter } from './relay.ts'
 import { restoreScene, storiesRouter } from './stories.ts'
 import { momentsRouter } from './moments.ts'
 import { memoryVectorsRouter } from './memoryVectors.ts'
+import { validateExampleBank } from '../src/lib/characters/exampleBank.ts'
 import { recordIntroductions } from './introductions.ts'
 import { forkChatMemories, memoriesRouter, retractMessageMemories } from './memories.ts'
 import { rewindRouter, saveCheckpoint } from './rewind.ts'
@@ -749,12 +750,14 @@ function ownershipFor(req: express.Request, res: express.Response, existing: Rec
 
 /** A character's stored fields from a create body: every value normalized, every upload written. Shared by create and pack import. */
 export function characterRow(id: string, body: Record<string, any>): Record<string, unknown> {
+  const exampleBank = validateExampleBank(body.exampleBank)
   const avatarDataUrl = resolveAvatar('characters', id, body.avatarDataUrl)
   const sprites = resolveAvatarMap('characters', 'sprites', id, body.sprites)
   const spriteVariants = resolveAvatarMapVariants('characters', 'sprites', id, body.spriteVariants)
   const gallery = normalizeGalleryEntries(id, body.gallery)
   return {
     card: body.card,
+    exampleBank,
     promptItems: normalizePromptItems(body.promptItems),
     privateMemory: typeof body.privateMemory === 'string' ? body.privateMemory.slice(0, 100_000) : undefined,
     modelOverride: typeof body.modelOverride === 'string' ? body.modelOverride.trim().slice(0, 200) || undefined : undefined,
@@ -806,6 +809,7 @@ export function characterRow(id: string, body: Record<string, any>): Record<stri
 }
 
 app.post('/api/characters', (req, res) => {
+  try { validateExampleBank(req.body.exampleBank) } catch (error) { return res.status(400).json({ error: (error as Error).message }) }
   if (refuseHiddenReferences(req, res, { worldIds: [req.body.worldId] })) return
   const ownership = ownershipFor(req, res, undefined)
   if (!ownership) return
@@ -829,6 +833,9 @@ app.put('/api/characters/:id', (req, res) => {
   const ownership = ownershipFor(req, res, existing)
   if (!ownership) return
   const patch: Record<string, unknown> = { updatedAt: Date.now(), ...ownership }
+  if ('exampleBank' in req.body) {
+    try { patch.exampleBank = validateExampleBank(req.body.exampleBank) } catch (error) { return res.status(400).json({ error: (error as Error).message }) }
+  }
   if ('card' in req.body) patch.card = req.body.card
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)
   if ('revisions' in req.body) patch.revisions = normalizeWorldRevisions(req.body.revisions) ?? []

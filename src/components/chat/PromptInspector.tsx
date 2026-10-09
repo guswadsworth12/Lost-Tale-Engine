@@ -188,6 +188,14 @@ export function PromptInspector({
               </p>
             )}
 
+            {(result.examplePicks || result.exampleBankSkipped) && <section className="rounded-xl border border-border p-3">
+              <h3 className="text-sm font-semibold">Example bank</h3>
+              {result.exampleBankSkipped && <p className="mt-1 text-xs text-text-muted">{result.exampleBankSkipped}</p>}
+              {result.examplePicks?.map((pick, index) => <div key={pick.entry.id} className="mt-2 text-xs">
+                <p className="text-text-muted">Example {index + 1}: {[...pick.situations, ...(pick.similarMeaning ? ['similar meaning'] : []), ...(pick.fallback ? ['fallback'] : [])].join(', ')} · ~{pick.tokens} tokens</p>
+                <p className="mt-1 whitespace-pre-wrap">{pick.entry.text}</p>
+              </div>)}
+            </section>}
             {result.memoryPicks && <MemoriesSection result={result} />}
 
             <h3 className="mb-1 text-xs font-semibold text-text-muted">Exact text sent to the model</h3>
