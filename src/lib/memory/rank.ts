@@ -20,6 +20,7 @@ export const DEEP_MEMORY_WEIGHTS = {
   place: 0.5,
   recall: 0.25,
   similarity: 0.75,
+  linked: 0.4,
 } as const
 // Below this gap between the best and the median score, a "best match" is mostly noise.
 const MIN_SIMILARITY_SPREAD = 0.15
@@ -41,7 +42,7 @@ function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<s
   }))
 }
 const RECALL_HALF_LIFE_MS = 30 * 86400_000
-const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+export const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 
 function recallStrength(recall: MemoryRecall | undefined, now: number): number {
   if (!recall || !Number.isFinite(recall.count) || recall.count <= 0 || !Number.isFinite(recall.lastAt)) return 0
@@ -112,7 +113,7 @@ export interface SelectMemoriesOptions {
   /** Default `MEMORY_TOKEN_BUDGET`. Pinned memories are kept even past it (up to `MAX_PINNED`). */
   budgetTokens?: number
   /** Omitted means the original ranking, including the original reasons. */
-  deep?: { location?: string | null; recalls?: ReadonlyMap<string, MemoryRecall>; similarities?: ReadonlyMap<string, number>; now: number }
+  deep?: { location?: string | null; recalls?: ReadonlyMap<string, MemoryRecall>; similarities?: ReadonlyMap<string, number>; now: number; introductions?: import('../story/acquaintance').Introduction[]; nameOf?: (id: string) => string | undefined }
 }
 
 /** The memories `characterId` knows that fit the budget, pinned first, then by score. */
@@ -133,6 +134,7 @@ export interface MemoryReasons {
   samePlace?: boolean
   oftenRecalled?: boolean
   similarMeaning?: boolean
+  linkedThrough?: string[]
 }
 
 export interface ExplainedMemory {
@@ -148,6 +150,28 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
   if (known.length === 0) return []
 
   const similarities = calibratedSimilarities(known, opts.deep?.similarities)
+  const seeds = new Set(opts.presentIds.map((id) => `person:${id}`))
+  if (opts.deep?.location) seeds.add(`place:${placeKey(opts.deep.location)}`)
+  const neighbours = new Map<string, string>()
+  const join = (from: string, to: string) => {
+    if (seeds.has(from) && !seeds.has(to) && !to.startsWith('memory:')) {
+      const id = to.slice(to.indexOf(':') + 1)
+      neighbours.set(to, to.startsWith('person:') ? opts.deep?.nameOf?.(id) ?? id : id)
+    }
+  }
+  if (opts.deep) {
+    // Only this speaker's live, unfolded memories reach this expansion; one step, never recursive.
+    for (const memory of known) for (const link of memory.links ?? []) {
+      if (link.validTo !== null || link.validFrom > opts.deep.now || link.relation === 'supersedes') continue
+      const from = `${link.fromKind}:${link.fromId}`, to = `${link.toKind}:${link.toId}`
+      join(from, to); join(to, from)
+    }
+    for (const intro of opts.deep.introductions ?? []) {
+      if (!intro.witnessIds.includes(characterId) || intro.at > opts.deep.now) continue
+      join(`person:${intro.newcomerId}`, `person:${intro.personId}`)
+      join(`person:${intro.personId}`, `person:${intro.newcomerId}`)
+    }
+  }
   const recent = keywords(opts.recentText ?? '')
   const present = new Set(presentIds)
   const byAge = [...known].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -161,6 +185,9 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
     const place = !!deep && !!placeKey(m.location) && placeKey(m.location) === placeKey(deep.location)
     const strength = deep ? recallStrength(deep.recalls?.get(m.id), deep.now) : 0
     const similarity = similarities.get(m.id) ?? 0
+    const entities = [...(m.about ?? []).map((id) => `person:${id}`), ...(m.links ?? []).flatMap((l) =>
+      l.validTo === null && l.relation !== 'supersedes' && l.validFrom <= (deep?.now ?? 0) ? [`${l.fromKind}:${l.fromId}`, `${l.toKind}:${l.toId}`] : [])]
+    const linkedThrough = [...new Set(entities.flatMap((id) => neighbours.has(id) ? [neighbours.get(id)!] : []))]
     return {
       pinned: !!m.pinned,
       openThread: !!m.unresolved,
@@ -168,14 +195,14 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
       matchedWords: [...keywords(m.text)].filter((w) => recent.has(w)),
       recent: (recency.get(m.id) ?? 0) >= 0.8,
       important: (m.importance ?? 0.5) >= 0.7,
-      ...(deep ? { strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
+      ...(deep ? { linkedThrough, strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
       ...(deep?.similarities ? { similarMeaning: similarity >= 0.6 } : {}),
       score: DEEP_MEMORY_WEIGHTS.importance * (m.importance ?? 0.5)
         + DEEP_MEMORY_WEIGHTS.recency * (recency.get(m.id) ?? 0)
         + (m.unresolved ? DEEP_MEMORY_WEIGHTS.openThread : 0)
         + (aboutPresent.length ? DEEP_MEMORY_WEIGHTS.aboutPresent : 0)
         + DEEP_MEMORY_WEIGHTS.keywords * overlap
-        + (deep ? DEEP_MEMORY_WEIGHTS.feeling * feeling + DEEP_MEMORY_WEIGHTS.place * Number(place) + DEEP_MEMORY_WEIGHTS.recall * strength : 0)
+        + (deep ? DEEP_MEMORY_WEIGHTS.feeling * feeling + DEEP_MEMORY_WEIGHTS.place * Number(place) + DEEP_MEMORY_WEIGHTS.recall * strength + DEEP_MEMORY_WEIGHTS.linked * Number(linkedThrough.length > 0) : 0)
         + (deep?.similarities ? DEEP_MEMORY_WEIGHTS.similarity * similarity : 0),
     }
   }

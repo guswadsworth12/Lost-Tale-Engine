@@ -1,3 +1,5 @@
+import { nameVariants } from '../text/nameVariants.ts'
+export { nameVariants } from '../text/nameVariants.ts'
 import type { Outfit } from './outfits'
 import { BASE_OUTFIT_ID, expressionIdsForOutfit, isOutfitUnlocked } from './outfits'
 
@@ -83,13 +85,6 @@ const cleanTerms = (terms: readonly string[]) => [...new Set(terms.map((term) =>
 export function formTerms(form: FormChoice): string[] {
   const unnamedBase = form.id === BASE_OUTFIT_ID && form.formOnly?.includes(form.label.toLowerCase())
   return cleanTerms([unnamedBase ? '' : form.label, form.id === BASE_OUTFIT_ID ? '' : form.id, ...(form.aliases ?? [])])
-}
-
-/** How narration refers to a character: the full card name, or the first name alone ("Wren" for "Wren Talley"). */
-export function nameVariants(name: string): string[] {
-  const full = name.trim()
-  const first = full.split(/\s+/)[0] ?? ''
-  return [...new Set([full, first.length >= 3 ? first : ''])].filter(Boolean)
 }
 
 /** Whether a passage mentions the character by either name, or by one of their aliases ("the courier"). */

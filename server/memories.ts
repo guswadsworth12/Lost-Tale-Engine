@@ -1,5 +1,8 @@
 import express from 'express'
-import { characterStore, chatStore, db, memoryRecallStore, memoryVectorStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
+import { withLinks, validateLinks, saveLinks, removeMemoryLinks, reopenLinks, copyLinks } from './memoryLinks.ts'
+import { retractIntroductions, forkIntroductions } from './introductions.ts'
+import { replacementFor, type MemoryLinkInput } from '../src/lib/memory/links.ts'
+import { characterStore, chatStore, db, memoryLinkStore, memoryRecallStore, memoryVectorStore, memoryStore, messageStore, newId, storyStore, worldStore } from './db.ts'
 import { canSeeCharacter, canSeeChat } from './access.ts'
 import {
   consolidateFor,
@@ -56,12 +59,18 @@ function withChatContext(m: NewMemory, chat: Row): NewMemory {
   return out
 }
 
+function deepMemoryForChat(chat: Row): boolean {
+  const worldId = str(chat.worldId) || str(characterStore.get(str(chat.characterId))?.worldId)
+  return modulesForWorld(worldStore.get(worldId) as Parameters<typeof modulesForWorld>[0]).deepMemory
+}
+
 // ---- Hooks for app.ts ----
 
 /** Part of `purgeChat`: the chat's own memories go with it. */
 export function purgeChatMemories(chatId: string): void {
   memoryRecallStore.purgeChat(chatId)
   for (const m of memoryStore.list({ where: 'chatId = ?', params: [chatId] })) {
+    removeMemoryLinks(String(m.id))
     memoryVectorStore.remove(String(m.id))
     memoryRecallStore.removeMemory(String(m.id))
     memoryStore.remove(String(m.id))
@@ -76,8 +85,10 @@ export function purgeChatMemories(chatId: string): void {
 export function retractMessageMemories(chatId: string, messageId: string, keepRecalls = false): void {
   if (!chatId || !messageId) return
   if (!keepRecalls) memoryRecallStore.retract(messageId)
+  retractIntroductions(chatId, messageId)
+  reopenLinks(messageId)
   const plan = retractMessage(memoriesIn(chainOf(chatId)), messageId)
-  for (const id of plan.remove) { memoryVectorStore.remove(id); memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
+  for (const id of plan.remove) { removeMemoryLinks(id); memoryVectorStore.remove(id); memoryRecallStore.removeMemory(id); memoryStore.remove(id) }
   for (const { id, patch } of plan.update) memoryStore.update(id, { ...patch, updatedAt: Date.now() })
 }
 
@@ -98,6 +109,8 @@ export function forkChatMemories(
   })) {
     memoryStore.insert(asRow(row))
   }
+  copyLinks(memoryIds, idMap, sourceIds)
+  forkIntroductions(sourceChatId, newChatId, idMap)
   for (const [sourceId, targetId] of memoryIds) memoryVectorStore.copy(sourceId, targetId)
   for (const event of memoryRecallStore.forChat(sourceChatId)) {
     if (!idMap.has(event.messageId) || (sourceIds.has(event.memoryId) && !memoryIds.has(event.memoryId))) continue
@@ -122,10 +135,12 @@ memoriesRouter.get('/chats/:id/memories', (req, res) => {
   if (character && !canSeeCharacter(req, character)) return res.status(404).json({ error: 'Not found' })
   const chain = chainOf(req.params.id)
   const inChain = new Set(chain)
-  const rows = memoriesIn(chain).map((m) => memoryAsSeenFrom(m, inChain))
+  const rows = memoriesIn(chain).filter((m) => canSeeChat(req, chatStore.get(m.chatId))).map((m) => memoryAsSeenFrom(m, inChain))
   if (!characterId) return res.json(rows)
   const recalls = new Map(memoryRecallStore.counts(characterId, chain).map(({ memoryId, count, lastAt }) => [memoryId, { count, lastAt }]))
-  res.json(rows.filter((m) => m.knownBy.includes(characterId)).map((m) => {
+  const deep = deepMemoryForChat(chatStore.get(req.params.id)!)
+  res.json(rows.filter((m) => m.knownBy.includes(characterId) && (!deep || (m.active && !m.consolidatedFor?.includes(characterId)))).map((row) => {
+    const m = deep ? withLinks(row, inChain) : row
     const recall = recalls.get(m.id)
     return recall ? { ...m, recall } : m
   }))
@@ -207,8 +222,17 @@ memoriesRouter.post('/memories', (req, res) => {
   const input = normalizeMemoryInput(req.body, Date.now())
   if ('error' in input) return res.status(400).json({ error: input.error })
   const chat = chatStore.get(input.chatId)
-  if (!chat) return res.status(404).json({ error: `Chat ${input.chatId} not found` })
-  const created = memoryStore.insert(asRow({ ...withChatContext(input, chat), id: newId() }))
+  if (!chat || !canSeeChat(req, chat)) return res.status(404).json({ error: 'Not found' })
+  const links = validateLinks(req.body?.links, req)
+  if ('error' in links) return res.status(400).json(links)
+  if (links.length && !deepMemoryForChat(chat)) return res.status(409).json({ error: 'Deep Memory is off.' })
+  let created: Row
+  db.exec('BEGIN')
+  try {
+    created = memoryStore.insert(asRow({ ...withChatContext(input, chat), id: newId() }))
+    saveLinks(String(created.id), links, Date.now())
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
   res.status(201).json(created)
 })
 
@@ -220,17 +244,26 @@ memoriesRouter.post('/memories/batch', (req, res) => {
   const now = Date.now()
   const chats = new Map<string, Row | undefined>()
   const ready: Row[] = []
+  const linksByMemory = new Map<string, MemoryLinkInput[]>()
+  let totalLinks = 0
   for (const [i, raw] of list.entries()) {
     const input = normalizeMemoryInput(raw, now)
     if ('error' in input) return res.status(400).json({ error: `memories[${i}]: ${input.error}` })
     if (!chats.has(input.chatId)) chats.set(input.chatId, chatStore.get(input.chatId))
     const chat = chats.get(input.chatId)
-    if (!chat) return res.status(404).json({ error: `memories[${i}]: chat ${input.chatId} not found` })
-    ready.push(asRow({ ...withChatContext(input, chat), id: newId() }))
+    if (!chat || !canSeeChat(req, chat)) return res.status(404).json({ error: 'Not found' })
+    const links = validateLinks(raw?.links, req)
+    if ('error' in links) return res.status(400).json(links)
+    if (links.length && !deepMemoryForChat(chat)) return res.status(409).json({ error: 'Deep Memory is off.' })
+    totalLinks += links.length
+    if (totalLinks > 30) return res.status(400).json({ error: 'At most 30 links per batch.' })
+    const id = newId()
+    linksByMemory.set(id, links)
+    ready.push(asRow({ ...withChatContext(input, chat), id }))
   }
   db.exec('BEGIN')
   try {
-    for (const row of ready) memoryStore.insert(row)
+    for (const row of ready) { memoryStore.insert(row); saveLinks(String(row.id), linksByMemory.get(String(row.id))!, now) }
     db.exec('COMMIT')
   } catch (e) {
     db.exec('ROLLBACK')
@@ -244,7 +277,33 @@ memoriesRouter.put('/memories/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' })
   const patch = normalizeMemoryPatch(req.body, asMemory(existing), Date.now())
   if ('error' in patch) return res.status(400).json({ error: patch.error })
-  res.json(memoryStore.update(req.params.id, asRow(patch)))
+  const messageId = patch.retiredByMessageId
+  const message = messageId ? messageStore.get(messageId) : undefined
+  const chat = message ? chatStore.get(str(message.chatId)) : chatStore.get(str(existing.chatId))
+  if (messageId && (!message || !chat || !canSeeChat(req, chat) || !chainOf(str(message.chatId)).includes(str(existing.chatId)))) return res.status(400).json({ error: 'Retirement needs a message in this story branch.' })
+  const retirementPatch = messageId && message ? { retiredInChatId: String(message.chatId) } : {}
+  const replacements = req.body?.replacementIds ?? []
+  if (!Array.isArray(replacements) || replacements.length > 30 || replacements.some((id: unknown) => typeof id !== 'string')) return res.status(400).json({ error: 'Invalid replacement memories.' })
+  const additions: CharacterMemory[] = []
+  for (const id of replacements) {
+    const row = memoryStore.get(id)
+    if (!row || !message || row.chatId !== message.chatId || !canSeeChat(req, chatStore.get(str(row.chatId)))) return res.status(400).json({ error: 'Replacement memory is outside this batch scene.' })
+    additions.push(withLinks(asMemory(row)))
+  }
+  db.exec('BEGIN')
+  try {
+    if (patch.active === false && messageId && chat && deepMemoryForChat(chat)) {
+      const old = withLinks(asMemory(existing)), now = Date.now()
+      for (const link of old.links ?? []) if (link.validTo === null) memoryLinkStore.update(link.id, { validTo: now, closedByMessageId: messageId })
+      const replacement = replacementFor(old, additions)
+      if (replacement && replacement.id !== old.id) memoryLinkStore.insert({ id: newId(), memoryId: replacement.id,
+        fromKind: 'memory', fromId: replacement.id, relation: 'supersedes', toKind: 'memory', toId: old.id,
+        validFrom: now, validTo: null, closedByMessageId: null, createdAt: now, sourceMessageId: messageId })
+    }
+    const updated = memoryStore.update(req.params.id, asRow({ ...patch, ...retirementPatch }))
+    db.exec('COMMIT')
+    res.json(updated)
+  } catch (error) { db.exec('ROLLBACK'); throw error }
 })
 
 /** `{ to: string[], by?, messageId? }`: someone was told. Ids that already know it are skipped. */
@@ -288,6 +347,7 @@ memoriesRouter.post('/memories/consolidate', (req, res) => {
 
 /** The player's "forget": gone for good. */
 memoriesRouter.delete('/memories/:id', (req, res) => {
+  removeMemoryLinks(req.params.id)
   memoryVectorStore.remove(req.params.id)
   memoryRecallStore.removeMemory(req.params.id)
   memoryStore.remove(req.params.id)

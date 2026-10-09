@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import fixtures from './fixtures/cases.json'
+import originalFixtures from './fixtures/cases.json'
+import linkLeaks from './fixtures/link-leaks.json'
+const fixtures = [...originalFixtures, ...linkLeaks]
 import { evaluateCase, parseCase, summarize } from './bench'
 import { parseOptions, run } from './runner'
+import { memoryBlock } from '../../src/lib/memory/rank'
 
 describe('recall bench', () => {
-  it('has twenty synthetic cases covering all six required categories', () => {
+  it('has twenty original and two link-boundary synthetic cases covering all six required categories', () => {
     const cases = fixtures.map(parseCase)
-    expect(cases).toHaveLength(20)
-    expect(new Set(cases.map((c) => c.id)).size).toBe(20)
+    expect(cases).toHaveLength(22)
+    expect(new Set(cases.map((c) => c.id)).size).toBe(22)
     expect(new Set(cases.map((c) => c.category))).toEqual(new Set([
       'wording', 'connections', 'emotion', 'place', 'knowledge', 'branch',
     ]))
@@ -29,6 +32,10 @@ describe('recall bench', () => {
 
   it('picks the forbidden memory when each protected case loses its guard', () => {
     for (const options of [{ module: 'off' }, { module: 'on' }, { module: 'on', embedder: 'stub' }, { module: 'on', embedder: 'stub-compressed' }] as const) for (const c of fixtures.map((raw) => parseCase(structuredClone(raw))).filter((c) => c.mustNeverRegress)) {
+      if (c.id.startsWith('link-') && options.module === 'off') {
+        expect(evaluateCase(c, options).forbidden).toEqual([])
+        continue
+      }
       for (const m of c.memories.filter((m) => c.forbiddenIds.includes(m.id))) {
         if (c.category === 'branch') {
           m.chatId = c.scene.chatId
@@ -41,6 +48,8 @@ describe('recall bench', () => {
           m.witnesses = [...new Set([...m.witnesses, c.scene.speakerId])]
         }
       }
+      if (c.id === 'link-unknown') { c.memories.find((m) => m.id === 'edge')!.knownBy = ['brisa']; c.memories.find((m) => m.id === 'edge')!.witnesses = ['brisa'] }
+      if (c.id === 'link-closed') c.memories.find((m) => m.id === 'edge')!.links![0].validTo = null
       const result = evaluateCase(c, options)
       expect(result.forbidden, c.id).toEqual(c.forbiddenIds)
       expect(result.hit, c.id).toBe(false)
@@ -144,4 +153,33 @@ it('runs compressed synthetic vectors through production filters and preserves m
   expect(run(['--module', 'on', '--embedder', 'stub-compressed'], (s) => lines.push(s))).toBe(0)
   expect(lines.join('\n')).toContain('synthetic stub-compressed embedder: wiring only')
   for (const c of fixtures.map(parseCase)) expect(evaluateCase(c, { module: 'off', embedder: 'stub-compressed' })).toEqual(evaluateCase(c))
+})
+
+
+it('improves all three original connections under tighter budgets without increasing the production budget', () => {
+  const cases = originalFixtures.map(parseCase).filter((c) => c.category === 'connections')
+  const off = summarize(cases.map((c) => evaluateCase(c, { module: 'off', budgetTokens: 300 })))
+  const on = summarize(cases.map((c) => evaluateCase(c, { module: 'on', budgetTokens: 300 })))
+  expect(off.hits).toBe(0)
+  expect(on.hits).toBe(3)
+  for (const c of cases) {
+    const picks = evaluateCase(c, { module: 'on' }).picks
+    expect(picks.slice(0, 2).map((p) => p.memory.id).sort()).toEqual(['link', 'wanted'])
+    expect(picks.slice(0, 2).every((p) => p.reasons.linkedThrough?.includes('Mira'))).toBe(true)
+  }
+})
+
+
+it('preserves module-off prompts when link metadata and introductions are present', () => {
+  for (const c of originalFixtures.map(parseCase)) {
+    const plain = { ...c, memories: c.memories.map(({ links: _links, ...m }) => m), scene: { ...c.scene, introductions: undefined } }
+    const before = evaluateCase(plain)
+    const after = evaluateCase(c)
+    expect(after.picks.map((p) => ({ id: p.memory.id, reasons: p.reasons }))).toEqual(before.picks.map((p) => ({ id: p.memory.id, reasons: p.reasons })))
+    expect(after.usedTokens).toBe(before.usedTokens)
+    expect(memoryBlock('Brisa', after.picks.map((p) => p.memory), undefined, c.scene.speakerId)).toBe(memoryBlock('Brisa', before.picks.map((p) => p.memory), undefined, c.scene.speakerId))
+    if (c.category !== 'connections') for (const embedder of [undefined, 'stub', 'stub-compressed'] as const) {
+      expect(evaluateCase(c, { module: 'on', embedder }).picks.map((p) => p.memory.id)).toEqual(evaluateCase(plain, { module: 'on', embedder }).picks.map((p) => p.memory.id))
+    }
+  }
 })

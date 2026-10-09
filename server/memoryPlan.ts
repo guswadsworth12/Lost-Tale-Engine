@@ -203,7 +203,7 @@ export function normalizeMemoryInput(raw: unknown, now: number): NewMemory | { e
 export type MemoryPatch = Partial<
   Pick<
     CharacterMemory,
-    | 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor'
+    | 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'retiredByMessageId' | 'consolidatedFor'
     | 'certainty' | 'verdict' | 'canonFactId' | 'updatedAt'
   >
 >
@@ -242,6 +242,10 @@ export function normalizeMemoryPatch(raw: unknown, existing: Pick<CharacterMemor
     if (!(key in raw)) continue
     if (typeof raw[key] !== 'boolean') return { error: `${key} must be true or false.` }
     patch[key] = raw[key] as boolean
+  }
+  if ('retiredByMessageId' in raw) {
+    if (raw.retiredByMessageId !== null && typeof raw.retiredByMessageId !== 'string') return { error: 'retiredByMessageId must be a message id or null.' }
+    patch.retiredByMessageId = str(raw.retiredByMessageId).trim() || undefined
   }
   if ('retiredReason' in raw) {
     const reason = str(raw.retiredReason).trim().slice(0, RETIRED_REASON_MAX)
@@ -310,7 +314,7 @@ export interface MemoryRetraction {
   /** Memories that came from the message: they go with it. */
   remove: string[]
   /** Memories that were told in the message: the telling is undone. */
-  update: { id: string; patch: Pick<CharacterMemory, 'toldVia' | 'knownBy' | 'feelings' | 'consolidatedFor'> }[]
+  update: { id: string; patch: Partial<Pick<CharacterMemory, 'toldVia' | 'knownBy' | 'feelings' | 'consolidatedFor' | 'active' | 'retiredReason' | 'retiredByMessageId' | 'retiredInChatId'>> }[]
 }
 
 /** What deleting (or rewriting) `messageId` does to `memories`. */
@@ -323,12 +327,14 @@ export function retractMessage(memories: CharacterMemory[], messageId: string): 
       continue
     }
     const told = m.toldVia ?? []
-    if (!told.some((t) => t.messageId === messageId)) continue
+    const retirement = m.retiredByMessageId === messageId
+    if (!retirement && !told.some((t) => t.messageId === messageId)) continue
     const toldVia = told.filter((t) => t.messageId !== messageId)
     const knownBy = computeKnownBy(m.witnesses ?? [], toldVia)
     out.update.push({
       id: m.id,
       patch: {
+        ...(retirement ? { active: true, retiredReason: undefined, retiredByMessageId: undefined, retiredInChatId: undefined } : {}),
         toldVia: toldVia.length ? toldVia : undefined,
         knownBy,
         feelings: feelingsFor(m.feelings, knownBy),
@@ -374,6 +380,11 @@ export function forkMemories(
     const knownBy = computeKnownBy(m.witnesses ?? [], toldVia)
     const { toldVia: _tv, feelings: _f, sourceMessageId: _s, consolidatedFor: _cf, ...rest } = m
     const row: CharacterMemory = { ...rest, id: newId(m.id), chatId: newChatId, knownBy }
+    if (m.retiredByMessageId) {
+      const retiredBy = idMap.get(m.retiredByMessageId)
+      if (retiredBy) { row.retiredByMessageId = retiredBy; row.retiredInChatId = newChatId }
+      else { row.active = true; delete row.retiredByMessageId; delete row.retiredInChatId; delete row.retiredReason }
+    }
     if (sourceMessageId) row.sourceMessageId = sourceMessageId
     if (toldVia.length) row.toldVia = toldVia
     const feelings = feelingsFor(m.feelings, knownBy)
@@ -391,6 +402,9 @@ export function forkMemories(
  * scene (made from the character card) count everywhere.
  */
 export function memoryAsSeenFrom(memory: CharacterMemory, chain: ReadonlySet<string>): CharacterMemory {
+  if (memory.retiredByMessageId && memory.retiredInChatId && !chain.has(memory.retiredInChatId)) {
+    memory = { ...memory, active: true, retiredReason: undefined, retiredByMessageId: undefined, retiredInChatId: undefined }
+  }
   const told = memory.toldVia ?? []
   const seen = told.filter((t) => !t.chatId || chain.has(t.chatId))
   if (seen.length === told.length) return memory

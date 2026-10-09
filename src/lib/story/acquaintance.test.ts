@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nameSpoken, stillStrangers, strangerNote, strangersFor } from './acquaintance'
+import { introductionsFrom, nameSpoken, stillStrangers, strangerNote, strangersFor } from './acquaintance'
 
 const names: Record<string, string> = { kell: 'Kell Ashby', mira: 'Mira Dace', wren: 'Wren', player: 'Tam Holloway' }
 const nameOf = (id: string) => names[id]
@@ -42,4 +42,16 @@ describe('who a newcomer has met', () => {
     expect(strangerNote('Wren', ['Kell Ashby', 'Mira Dace', 'Tam Holloway'])).toContain('Kell Ashby, Mira Dace and Tam Holloway and does not know their names')
     expect(strangerNote('Wren', [])).toBe('')
   })
+})
+
+
+it('records only the first witnessed name spoken by someone other than the newcomer', () => {
+  const strangers = { wren: { ids: ['mira'], since: 100 } }
+  const message = { id: 'intro', speakerId: 'kell', text: '"Mira can help."', presentIds: ['wren', 'kell'], createdAt: 110 }
+  expect(introductionsFrom(strangers, [
+    { ...message, id: 'too-early', createdAt: 90 },
+    { ...message, id: 'absent', presentIds: ['kell'] },
+    { ...message, id: 'self', speakerId: 'wren' }, message,
+    { ...message, id: 'repeat', createdAt: 120 },
+  ], nameOf, 'kell')).toEqual([{ newcomerId: 'wren', personId: 'mira', byId: 'kell', messageId: 'intro', at: 110, witnessIds: ['wren', 'kell'] }])
 })

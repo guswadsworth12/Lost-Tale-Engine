@@ -506,9 +506,9 @@ export const chatFactsApi = {
 /** A character's memory as `memoriesApi.forCharacter` returns it: labelled with where it happened. */
 export type CharacterMemoryListing = CharacterMemory & { sceneLabel?: string; storyTitle?: string }
 /** What `create` takes: the server assigns `id`, fills `storyId`/`worldId` from the chat, and computes `knownBy`. */
-export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active'> & { createdAt?: number }
+export type NewCharacterMemory = Omit<CharacterMemory, 'id' | 'knownBy' | 'createdAt' | 'active' | 'links'> & { createdAt?: number; links?: import('@/lib/memory/links').MemoryLinkInput[] }
 export type CharacterMemoryPatch = Partial<
-  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
+  Pick<CharacterMemory, 'text' | 'kind' | 'about' | 'importance' | 'feelings' | 'unresolved' | 'pinned' | 'active' | 'retiredReason' | 'retiredByMessageId' | 'consolidatedFor' | 'certainty' | 'canonFactId'>
 > & {
   /** `null` clears the player's ruling. */
   verdict?: CharacterMemory['verdict'] | null
@@ -541,7 +541,7 @@ export const memoriesApi = {
     invalidate('memories')
     return result
   },
-  async update(id: string, patch: CharacterMemoryPatch): Promise<CharacterMemory> {
+  async update(id: string, patch: CharacterMemoryPatch & { replacementIds?: string[] }): Promise<CharacterMemory> {
     const result = await request<CharacterMemory>('PUT', `/memories/${id}`, patch)
     invalidate('memories')
     return result

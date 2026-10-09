@@ -206,3 +206,66 @@ bytes for 32 candidates, or 58,001 bytes for 1,000. Actual JSON sizes depend on
 numeric precision and names. Only one query vector is sent per context; candidate
 vectors stay in SQLite. The browser must be on HTTPS or localhost to hash cached
 queries; otherwise the Inspector explains that ordinary recall is being used.
+
+
+## Phase 3: one-step connections and history
+
+The original three connection cases now carry stored memory links and a witnessed
+introduction. Existing text, labels and scope are unchanged. Two new protected
+cases in `fixtures/link-leaks.json` prove that a hidden or closed link cannot
+promote an otherwise unrelated memory. The complete default suite has 22 cases,
+25 expected memories, and nine protected cases. All four modes retain every
+protected case and pick no forbidden memory:
+
+| Mode | Complete hits | Expected recalled | Recall |
+| --- | ---: | ---: | ---: |
+| Off | 15/22 | 18/25 | 72.0% |
+| On, no embedder | 20/22 | 23/25 | 92.0% |
+| On, synthetic stub | 22/22 | 25/25 | 100.0% |
+| On, compressed synthetic stub | 22/22 | 25/25 | 100.0% |
+
+The original connections already passed at 350 tokens before Phase 3; that metric
+cannot improve above 3/3. Their two expected memories now rank first and second.
+At a fixed **300-token** budget, complete connection hits improve from **0/3** with
+links off to **3/3** on (expected-memory recall 3/6 to 6/6). A 0.25 boost did not
+change those picks; **linked = 0.4** does. Production remains at 350 tokens. Tests
+preserve original module-off picks, reasons and memory prompt text, and verify
+that other original categories retain their picks in every enabled mode.
+
+Expansion starts with people present (including the player's character) and the
+normalized current place, follows only one open edge, and never chains through
+new neighbours. Only this speaker's known, active, unfolded branch memories and
+introductions they witnessed can contribute. **Linked through Mara** names the
+neighbour whose connection helped. Closed links stay as story history and are
+included in backups, but do not drive ranking. Engine-only `supersedes` edges are
+memory-to-memory and also do not drive expansion.
+
+The module-on scribe asks for explicit endpoint objects such as
+`{"from":{"person":"Mara"},"relation":"owes","to":{"person":"Tavi"}}`.
+Names resolve through the cast, kinds are never guessed, and unknown shapes,
+names and relations are discarded. Limits are three links per memory and thirty
+per batch, revalidated by the server. The existing scribe call and output limit
+are unchanged. The module-off prompt is compared byte-for-byte with its captured
+pre-Phase-3 fixture.
+
+Measured synthetic JSON overhead for a batch of four added memories:
+
+| Links per memory | Extra UTF-8 bytes | Estimated extra tokens |
+| ---: | ---: | ---: |
+| 1 | 312 | 78 |
+| 3 | 896 | 224 |
+
+These use short invented names and the project's token estimator, not a provider
+tokenizer or a real model response. Longer allowed names cost more; the existing
+scribe output limit may return fewer additions. No extra model calls are made.
+
+Retirements record the newest batch message. With the module on, their open links
+close with that message and a matching addition can supersede the old memory.
+**Rewind also undoes retirement with the module off**: this fixes the previous gap
+where a removed retirement message left the old memory inactive. Rewind removes
+supersedes edges introduced by that message and reopens its closed links. Forks
+remap memory/message ids, undo later retirements and keep only copied introductions.
+Deletes, source edits/retractions, purge and character deletion clean links and
+incoming supersedes pointers. Full backup and restore include links and chat
+introductions. The private, read-only export tool also carries stored links and
+introductions when available; no private export was run during development.

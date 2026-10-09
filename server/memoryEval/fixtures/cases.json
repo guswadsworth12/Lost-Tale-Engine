@@ -931,7 +931,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 1
+        "createdAt": 1,
+        "links": [
+          {
+            "id": "wanted-edge",
+            "memoryId": "wanted",
+            "fromKind": "person",
+            "fromId": "mira",
+            "relation": "introduced",
+            "toKind": "person",
+            "toId": "tavi",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "link",
@@ -951,7 +966,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 21
+        "createdAt": 21,
+        "links": [
+          {
+            "id": "link-edge",
+            "memoryId": "link",
+            "fromKind": "person",
+            "fromId": "mira",
+            "relation": "introduced",
+            "toKind": "person",
+            "toId": "rowan",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "routine-0",
@@ -1125,6 +1155,20 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "Who introduced Tavi to Rowan?"
+      ],
+      "introductions": [
+        {
+          "newcomerId": "brisa",
+          "personId": "mira",
+          "byId": "rowan",
+          "messageId": "synthetic-introduction",
+          "at": 1,
+          "witnessIds": [
+            "brisa",
+            "mira",
+            "rowan"
+          ]
+        }
       ]
     },
     "question": "Who introduced Tavi to Rowan?",
@@ -1175,7 +1219,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 1
+        "createdAt": 1,
+        "links": [
+          {
+            "id": "wanted-edge",
+            "memoryId": "wanted",
+            "fromKind": "person",
+            "fromId": "tavi",
+            "relation": "promised",
+            "toKind": "person",
+            "toId": "mira",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "link",
@@ -1195,7 +1254,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 21
+        "createdAt": 21,
+        "links": [
+          {
+            "id": "link-edge",
+            "memoryId": "link",
+            "fromKind": "person",
+            "fromId": "mira",
+            "relation": "promised",
+            "toKind": "person",
+            "toId": "rowan",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "routine-0",
@@ -1369,6 +1443,20 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "Who can help Rowan find the missing key?"
+      ],
+      "introductions": [
+        {
+          "newcomerId": "brisa",
+          "personId": "mira",
+          "byId": "rowan",
+          "messageId": "synthetic-introduction",
+          "at": 1,
+          "witnessIds": [
+            "brisa",
+            "mira",
+            "rowan"
+          ]
+        }
       ]
     },
     "question": "Who can help Rowan find the key?",
@@ -1419,7 +1507,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 1
+        "createdAt": 1,
+        "links": [
+          {
+            "id": "wanted-edge",
+            "memoryId": "wanted",
+            "fromKind": "person",
+            "fromId": "mira",
+            "relation": "lives at",
+            "toKind": "place",
+            "toId": "orchard",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "link",
@@ -1439,7 +1542,22 @@
         "about": [],
         "active": true,
         "origin": "manual",
-        "createdAt": 21
+        "createdAt": 21,
+        "links": [
+          {
+            "id": "link-edge",
+            "memoryId": "link",
+            "fromKind": "person",
+            "fromId": "mira",
+            "relation": "keeps",
+            "toKind": "thing",
+            "toId": "basket",
+            "validFrom": 1,
+            "validTo": null,
+            "closedByMessageId": null,
+            "createdAt": 1
+          }
+        ]
       },
       {
         "id": "routine-0",
@@ -1613,6 +1731,20 @@
       "atmosphere": "quiet",
       "recentMessages": [
         "Where did Tavi leave the basket?"
+      ],
+      "introductions": [
+        {
+          "newcomerId": "brisa",
+          "personId": "mira",
+          "byId": "rowan",
+          "messageId": "synthetic-introduction",
+          "at": 1,
+          "witnessIds": [
+            "brisa",
+            "mira",
+            "rowan"
+          ]
+        }
       ]
     },
     "question": "Who knows where Tavi left the basket?",

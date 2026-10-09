@@ -13,6 +13,7 @@ import {
   db,
   assistantThreadStore,
   instructTemplateStore,
+  memoryLinkStore,
   memoryStore,
   memoryRecallStore,
   memoryVectorStore,
@@ -39,6 +40,7 @@ import { relayRouter } from './relay.ts'
 import { restoreScene, storiesRouter } from './stories.ts'
 import { momentsRouter } from './moments.ts'
 import { memoryVectorsRouter } from './memoryVectors.ts'
+import { recordIntroductions } from './introductions.ts'
 import { forkChatMemories, memoriesRouter, retractMessageMemories } from './memories.ts'
 import { rewindRouter, saveCheckpoint } from './rewind.ts'
 import { presenceOf, uniqueIds } from './memoryPlan.ts'
@@ -1037,7 +1039,7 @@ app.put('/api/chats/:id', (req, res) => {
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
   // Who a story belongs to is never the client's to say (ownership.ts).
-  const { characterId: _c, id: _id, createdAt: _ca, ownerUserId: _owner, skipTouch, ...patch } = req.body
+  const { characterId: _c, id: _id, createdAt: _ca, ownerUserId: _owner, introductions: _introductions, skipTouch, ...patch } = req.body
   if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
@@ -1048,7 +1050,8 @@ app.put('/api/chats/:id', (req, res) => {
     ...(skipTouch ? {} : { updatedAt: Date.now() }),
   })
   if (!updated) return notFound(res)
-  res.json(updated)
+  if ('strangers' in patch) recordIntroductions(req.params.id)
+  res.json(chatStore.get(req.params.id))
 })
 
 // Forks a chat at a given message (or its latest), copying relationship/gift/gallery state and the transcript up to that point.
@@ -1074,7 +1077,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
   // A fork of a scene is another take on that scene: it keeps its place in the story (storyId,
   // sceneNumber, previousSceneId) but is live again, so an ended scene's ending and recap stay behind.
   const { id: _id, createdAt: _ca, updatedAt: _ua, title, worldInfoState: _wis, rapport: _rap, endedAt: _end, recap: _rec, ...rest } = source
-  const forkedChat = chatStore.insert({
+  chatStore.insert({
     ...rest,
     ownerUserId: userOf(req)?.id,
     id: newChatId,
@@ -1122,7 +1125,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
   // Memories from the kept messages, re-pointed at their copies.
   forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId)
 
-  res.status(201).json(forkedChat)
+  res.status(201).json(chatStore.get(newChatId))
 })
 
 // Soft delete: drops out of the normal list but stays recoverable via `POST /:id/restore` until purged.
@@ -1231,6 +1234,7 @@ app.post('/api/chats/:id/roll', (req, res) => {
     const presentIds = Array.isArray(req.body?.presentIds) ? uniqueIds(req.body.presentIds) : presenceOf(chat)
     saveCheckpoint(req.params.id, messageId)
     const created = messageStore.insert({ id: messageId, chatId: req.params.id, role: 'user', name, text, campaignRoll: roll, presentIds, createdAt: now })
+    recordIntroductions(String(created.chatId))
     return res.status(201).json(created)
   } catch (error) {
     // A concurrent retry may have won the unique message-id insert in another server process.
@@ -1284,6 +1288,7 @@ app.post('/api/messages', (req, res) => {
     id,
     createdAt: req.body.createdAt ?? Date.now(),
   })
+  recordIntroductions(String(created.chatId))
   res.status(201).json(created)
 })
 
@@ -1318,6 +1323,7 @@ app.put('/api/messages/:id', (req, res) => {
   }
   if (Array.isArray(body.swipes)) memoryRecallStore.removeSwipes(req.params.id, Math.max(1, body.swipes.length))
   const updated = messageStore.update(req.params.id, body)
+  recordIntroductions(String(existing.chatId))
   res.json(updated)
 })
 
@@ -1325,6 +1331,7 @@ app.delete('/api/messages/:id', (req, res) => {
   const existing = messageStore.get(req.params.id)
   if (existing) retractMessageMemories(existing.chatId as string, req.params.id)
   messageStore.remove(req.params.id)
+  if (existing) recordIntroductions(String(existing.chatId))
   res.status(204).end()
 })
 
@@ -1727,6 +1734,7 @@ const BACKUP_STORES = {
   relationshipEvents: relationshipEventStore,
   chatFacts: chatFactStore,
   memories: memoryStore,
+  memoryLinks: memoryLinkStore,
   memoryRecallEvents: memoryRecallStore,
   stories: storyStore,
   storyMoments: storyMomentStore,

@@ -1,0 +1,35 @@
+Task: you are the scribe for a roleplay. Read the new messages below and record what the characters in them will remember.
+
+Most batches add nothing, or one memory. Only record concrete, durable things: a promise, a revelation, a name or secret learned, a changed relationship, an injury, a decision, a moment that landed hard.
+Skip small talk, greetings, and narration flavour. Skip tactical orders, formations, and plans for the next few minutes (who scouts, who watches the rear, a time limit): they matter now, not later. If nothing here will matter in a later scene, add nothing.
+Preserve attribution: distinguish who asked, permitted, intended, offered, and explicitly committed. A request or reassurance is not a promise. Record an established fact only if someone witnessed it; mark reports and beliefs as such.
+Treat changed bodies, roles, locations, and other states as transitions: retire obsolete current-state memories but preserve the earlier event as history. Resolve a completed objective only when the messages show completion; reassurance alone does not close a matter. Do not invent a routine or elapsed absence.
+Ash is the player's character. Speech or action presented as theirs counts the same as anyone else's.
+
+Characters: Ash.
+
+New messages:
+[1] Ash (witnessed by: Ash): Ash kept the key.
+
+Rules:
+- "add": new memories, at most 4. Each is one plain sentence in third person that uses character names, never "I" or "you". "from" is the message number it comes from.
+- "kind" is one of: event, learned, promise, secret, impression. "importance" is 0 to 1 (0.3 minor, 0.6 matters, 0.9 life changing). "about" lists who it concerns.
+- "certainty" is one of: firsthand, claim, belief. firsthand: the witnesses saw or heard it happen themselves. claim: someone only SAID it (a report, rumor, accusation, story, or boast that may be wrong or a lie); write it as "X said that ..." and never as plain fact. belief: an inference, suspicion, or impression nobody has confirmed.
+- "witnesses": only when fewer people perceived it than that message lists (a whisper, a private thought, a note read alone). Never add anyone not listed for that message. Leave it out otherwise.
+- "feelings": only when it clearly landed differently on different witnesses. A number per witness name from -1 (hurt, hostile) to 1 (warm, glad).
+- "unresolved": true only for something still owed beyond this scene: a promise to a person, a debt, an unanswered question that matters. An order, a plan, or an intention is not an open thread.
+- "told": when a message shows a character telling another something from a remembered memory above, give that memory number, who learned it ("to"), who told it ("by"), and the message number ("from"). If something from these new messages is passed on in a later new message, record it with "add" instead.
+- "retire": remembered current-state memories that these messages contradict or supersede, with a short reason. Keep the former state as historical context if it matters.
+- "resolve": numbers of remembered open threads that these messages demonstrably close. An offer or reassurance is not completion.
+- Write plain sentences. Never invent anything that is not in the messages.
+
+Example. Messages:
+[1] Ash (witnessed by: Ash, Bea, Cole): Ash hands Bea the key. "Keep it until I come back."
+[2] Bea (witnessed by: Ash, Bea, Cole): Bea leans close and whispers so only Ash hears. "My real name is Wren."
+[3] Cole (witnessed by: Ash, Bea, Cole): "Word at the inn is the mayor fled the city last night."
+Reply:
+{"add":[{"from":1,"text":"Ash gave Bea the key and asked her to keep it until he returns.","kind":"promise","certainty":"firsthand","importance":0.6,"about":["Ash","Bea"],"unresolved":true},{"from":2,"text":"Bea told Ash her real name is Wren.","kind":"secret","certainty":"claim","importance":0.8,"about":["Bea"],"witnesses":["Ash","Bea"],"feelings":{"Ash":0.4}},{"from":3,"text":"Cole said that, according to talk at the inn, the mayor fled the city last night.","kind":"learned","certainty":"claim","importance":0.5,"about":["Cole"]}],"told":[],"retire":[],"resolve":[]}
+
+Reply with only a JSON object: {"add":[{"from":1,"text":"...","kind":"event","certainty":"firsthand","importance":0.5,"about":["Name"],"witnesses":["Name"],"feelings":{"Name":0.5},"unresolved":false}],"told":[{"memory":1,"to":["Name"],"by":"Name","from":1}],"retire":[{"memory":1,"reason":"..."}],"resolve":[1]}
+
+If nothing is worth remembering, reply {"add":[],"told":[],"retire":[],"resolve":[]}

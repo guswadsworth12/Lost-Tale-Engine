@@ -167,6 +167,25 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_memories_chatId_createdAt ON memories(chatId, createdAt);
 
+  CREATE TABLE IF NOT EXISTS memory_links (
+    id TEXT PRIMARY KEY,
+    memoryId TEXT NOT NULL,
+    fromKind TEXT NOT NULL,
+    fromId TEXT NOT NULL,
+    relation TEXT NOT NULL,
+    toKind TEXT NOT NULL,
+    toId TEXT NOT NULL,
+    validFrom INTEGER NOT NULL,
+    validTo INTEGER,
+    closedByMessageId TEXT,
+    createdAt INTEGER NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_memory_links_memoryId ON memory_links(memoryId);
+  CREATE INDEX IF NOT EXISTS idx_memory_links_from ON memory_links(fromKind, fromId);
+  CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(toKind, toId);
+  CREATE INDEX IF NOT EXISTS idx_memory_links_closedBy ON memory_links(closedByMessageId);
+
   -- Derived embeddings: rebuilt locally and deliberately omitted from backups.
   CREATE TABLE IF NOT EXISTS memory_vectors (
     memoryId TEXT NOT NULL,
@@ -380,6 +399,7 @@ export const chatFactStore = createStore('chat_facts', [{ name: 'chatId' }, { na
 export const chatCheckpointStore = createStore('chat_checkpoints', [{ name: 'chatId' }, { name: 'createdAt' }])
 export const storyStore = createStore('stories', [{ name: 'createdAt' }, { name: 'updatedAt' }])
 export const storyMomentStore = createStore('story_moments', [{ name: 'storyId' }, { name: 'chatId' }, { name: 'createdAt' }])
+export const memoryLinkStore = createStore('memory_links', ['memoryId', 'fromKind', 'fromId', 'relation', 'toKind', 'toId', 'validFrom', 'validTo', 'closedByMessageId', 'createdAt'].map((name) => ({ name })))
 export const memoryStore = createStore('memories', [{ name: 'chatId' }, { name: 'createdAt' }])
 // Accounts: security state, deliberately left out of BACKUP_STORES in app.ts.
 export const userStore = createStore('users', [{ name: 'usernameKey' }, { name: 'emailKey' }, { name: 'createdAt' }])

@@ -50,3 +50,10 @@ Locations can have day/night backgrounds and music. A scene can pin scenery or *
 ![The Locations tab of Hollowmere showing its four backgrounds](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-world-locations.jpg) Test a new world with a short story and inspect the assembled prompt before building many assets.
 
 See [World Packs](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/World-Packs) for sharing a reusable world without play history.
+
+
+With Deep Memory on, the memory scribe can also record up to three connections per memory: people, places and named things, using a fixed set of relationships. It uses the existing scribe call. Connections inherit the memory's knowledge and branch; hidden, retired or folded memories cannot spread a connection into recall. People present (including your character) and the current place lead to neighbours one step away. **Linked through Mara** in the Inspector explains the extra pull, within the same 350-token memory budget.
+
+The chat also records who first said a name where a newcomer could hear it. Only witnesses to that introduction use its connection. Editing, deleting or rewinding the message removes the introduction, and forks keep only introductions from copied messages.
+
+Retiring a memory closes its connections, preserving when they were true. A related replacement can carry a **supersedes** connection added by the engine. Closed connections remain in backups as story history, but do not drive expansion. Rewinding the retirement message reactivates the old memory and reopens its connections, even if Deep Memory is now off. Deletion, purge and source-message retraction remove the memory's connections and any supersedes pointers to it; forks remap memory and message ids. Full backups include connections and restore them.
