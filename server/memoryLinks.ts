@@ -40,7 +40,7 @@ export function validateLinks(raw: unknown, req: Request): MemoryLinkInput[] | {
   return links.every((l) => l !== undefined) ? links as MemoryLinkInput[] : { error: 'Invalid memory link.' }
 }
 export function saveLinks(memoryId: string, links: MemoryLinkInput[], now: number): void {
-  for (const link of links) memoryLinkStore.insert({ ...link, id: newId(), memoryId, validFrom: now, validTo: null, closedByMessageId: null, createdAt: now })
+  for (const link of links) memoryLinkStore.insert({ ...link, id: newId(), memoryId, validFrom: now, validTo: null, closedByMessageId: null, createdAt: now, lastUsedAt: now })
 }
 export function removeMemoryLinks(memoryId: string): void {
   // Includes engine-only edges pointing at the memory from a surviving replacement.

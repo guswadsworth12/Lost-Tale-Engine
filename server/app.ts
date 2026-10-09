@@ -59,6 +59,8 @@ import { validateCustomResolver } from '../src/lib/world/customRules.ts'
 import { CALENDAR_LIMITS, normalizeCalendar } from '../src/lib/world/calendar.ts'
 import { normalizeWorldRevisions } from '../src/lib/world/revisions.ts'
 import { normalizePromptOverrides } from '../src/lib/prompt/promptOverrides.ts'
+import { consolidationRouter } from './consolidation.ts'
+import { consolidationSettings } from '../src/lib/memory/consolidation.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
 import type { Character } from '../src/lib/characters/cardSpec.ts'
 import type { Chat, ChatFact, Objective, StoredMessage, WorldCard, WorldInfoBook } from '../src/lib/types.ts'
@@ -96,6 +98,7 @@ app.use('/api/openmayhem', openMayhemRouter())
 app.use('/api', storiesRouter)
 app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
+app.use('/api', consolidationRouter)
 app.use('/api', memoryVectorsRouter)
 app.use('/api', rewindRouter)
 // Files follow what they belong to: a private character's sprites are its owner's alone (access.ts).
@@ -1046,7 +1049,7 @@ app.put('/api/chats/:id', (req, res) => {
   // whether or not a message actually landed — without this, that bookkeeping-only write would
   // bump updatedAt and reorder ChatsPanel (sorted by updatedAt DESC) for a chat nothing happened in.
   // Who a story belongs to is never the client's to say (ownership.ts).
-  const { characterId: _c, id: _id, createdAt: _ca, ownerUserId: _owner, introductions: _introductions, skipTouch, ...patch } = req.body
+  const { characterId: _c, id: _id, createdAt: _ca, ownerUserId: _owner, introductions: _introductions, consolidationRuns: _runs, consolidationAttempts: _attempts, skipTouch, ...patch } = req.body
   if (refuseHiddenReferences(req, res, { characterIds: [patch.playerCharacterId, ...(Array.isArray(patch.participants) ? patch.participants : [])] })) return
   // Starting values for tracked state: known shapes only. `null` clears them.
   if ('gameState' in patch) patch.gameState = patch.gameState === null ? null : normalizeGameState(patch.gameState) ?? null
@@ -1130,7 +1133,7 @@ app.post('/api/chats/:id/fork', (req, res) => {
   }
 
   // Memories from the kept messages, re-pointed at their copies.
-  forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId)
+  forkChatMemories(sourceChatId, messageIdMap, cutoffCreatedAt, newChatId, !req.body.messageId)
 
   res.status(201).json(chatStore.get(newChatId))
 })
@@ -1554,6 +1557,7 @@ export function worldRow(id: string, body: Record<string, any>): Record<string, 
     name: body.name,
     campaign: normalizeCampaign(body.campaign),
     modules: normalizeWorldModules(body.modules),
+    memoryConsolidation: body.memoryConsolidation === undefined ? undefined : consolidationSettings(body.memoryConsolidation),
     calendar: normalizeCalendar(body.calendar),
     advanceClockInPlay: body.advanceClockInPlay === true || undefined,
     promptItems: normalizePromptItems(body.promptItems),
@@ -1618,6 +1622,7 @@ app.put('/api/worlds/:id', (req, res) => {
   if ('scenerySet' in req.body) patch.scenerySet = ['adventure', 'modern-school', 'custom-only'].includes(req.body.scenerySet) ? req.body.scenerySet : undefined
   if ('campaign' in req.body) patch.campaign = normalizeCampaign(req.body.campaign)
   if ('modules' in req.body) patch.modules = normalizeWorldModules(req.body.modules)
+  if ('memoryConsolidation' in req.body) patch.memoryConsolidation = consolidationSettings(req.body.memoryConsolidation)
   if ('calendar' in req.body) patch.calendar = normalizeCalendar(req.body.calendar)
   if ('advanceClockInPlay' in req.body) patch.advanceClockInPlay = req.body.advanceClockInPlay === true || undefined
   if ('promptItems' in req.body) patch.promptItems = normalizePromptItems(req.body.promptItems)

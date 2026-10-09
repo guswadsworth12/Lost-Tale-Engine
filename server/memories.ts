@@ -1,4 +1,8 @@
+import { cleanConsolidations, cleanMemoryConsolidations, runsIn } from './consolidation.ts'
 import express from 'express'
+import { chainOf, memoriesIn, worldOf } from './memoryContext.ts'
+export { chainOf, memoriesIn } from './memoryContext.ts'
+import { LINK_WEIGHT } from '../src/lib/memory/linkWeight.ts'
 import { withLinks, withLinksMany, validateLinks, saveLinks, removeMemoryLinks, reopenLinks, copyLinks } from './memoryLinks.ts'
 import { retractIntroductions, forkIntroductions } from './introductions.ts'
 import { replacementFor, type MemoryLinkInput } from '../src/lib/memory/links.ts'
@@ -13,7 +17,6 @@ import {
   normalizeMemoryInput,
   normalizeMemoryPatch,
   retractMessage,
-  sceneChainIds,
   shareMemory,
   uniqueIds,
   type NewMemory,
@@ -36,31 +39,19 @@ const asRow = (m: object) => m as Row
 /** Most memories one batch may create. */
 const BATCH_MAX = 200
 
-/** Every scene id visible from `chatId`, current first. */
-export function chainOf(chatId: string): string[] {
-  return sceneChainIds(chatId, (id) => chatStore.get(id), (id) => storyStore.get(id))
-}
-
-export function memoriesIn(chatIds: string[]): CharacterMemory[] {
-  if (!chatIds.length) return []
-  return memoryStore
-    .list({ where: `chatId IN (${chatIds.map(() => '?').join(', ')})`, params: chatIds, orderBy: 'createdAt' })
-    .map(asMemory)
-}
-
 /** Fills `storyId`/`worldId` from the chat (the world falling back to the lead character's). */
 function withChatContext(m: NewMemory, chat: Row): NewMemory {
   const out = { ...m }
   if (!out.storyId && str(chat.storyId)) out.storyId = str(chat.storyId)
   if (!out.worldId) {
-    const worldId = str(chat.worldId) || str(characterStore.get(str(chat.characterId))?.worldId)
+    const worldId = worldOf(chat)
     if (worldId) out.worldId = worldId
   }
   return out
 }
 
 function deepMemoryForChat(chat: Row): boolean {
-  const worldId = str(chat.worldId) || str(characterStore.get(str(chat.characterId))?.worldId)
+  const worldId = worldOf(chat)
   return modulesForWorld(worldStore.get(worldId) as Parameters<typeof modulesForWorld>[0]).deepMemory
 }
 
@@ -68,6 +59,7 @@ function deepMemoryForChat(chat: Row): boolean {
 
 /** Part of `purgeChat`: the chat's own memories go with it. */
 export function purgeChatMemories(chatId: string): void {
+  cleanConsolidations(chatId)
   memoryRecallStore.purgeChat(chatId)
   for (const m of memoryStore.list({ where: 'chatId = ?', params: [chatId] })) {
     removeMemoryLinks(String(m.id))
@@ -84,9 +76,10 @@ export function purgeChatMemories(chatId: string): void {
  */
 export function retractMessageMemories(chatId: string, messageId: string, textChange = false): void {
   if (!chatId || !messageId) return
+  const memories = memoriesIn(chainOf(chatId))
+  cleanConsolidations(chatId, messageId, memories)
   if (!textChange) memoryRecallStore.retract(messageId)
   retractIntroductions(chatId, messageId)
-  const memories = memoriesIn(chainOf(chatId))
   if (!textChange) {
     reopenLinks(messageId)
     const starts = memories.filter((m) => m.retiredByMessageId === messageId && m.retiredBatchFrom !== undefined).map((m) => m.retiredBatchFrom! - 1)
@@ -106,16 +99,35 @@ export function forkChatMemories(
   idMap: Map<string, string>,
   cutoffCreatedAt: number | undefined,
   newChatId: string,
+  fullFork = false,
 ): void {
   const source = memoriesIn([sourceChatId])
+  const retainedMemoryIds = new Set(fullFork ? runsIn(sourceChatId).filter((r) => !r.undoneAt).flatMap((r) => [...r.summaryIds, ...r.originalIds]) : [])
   const sourceIds = new Set(source.map((m) => m.id))
   const memoryIds = new Map<string, string>()
   for (const row of forkMemories(source, idMap, cutoffCreatedAt, newChatId, (sourceId) => {
     const id = newId()
     if (sourceId) memoryIds.set(sourceId, id)
     return id
-  })) {
+  }, retainedMemoryIds)) {
     memoryStore.insert(asRow(row))
+  }
+  if (runsIn(sourceChatId).length) {
+    const runIds = new Map<string, string>()
+    const copiedRuns = runsIn(sourceChatId).filter((run) => !run.undoneAt && run.summaryIds.every((id) => memoryIds.has(id))).map((run) => {
+      const id = newId(); runIds.set(run.id, id)
+      return { ...run, id, copiedFrom: run.copiedFrom ?? run.id, chatId: newChatId, summaryIds: run.summaryIds.map((id) => memoryIds.get(id)!), originalIds: run.originalIds.map((id) => memoryIds.get(id) ?? id) }
+    })
+    chatStore.update(newChatId, { consolidationRuns: copiedRuns, consolidationAttempts: [] })
+    for (const memory of memoriesIn([newChatId])) {
+      const scopes = memory.consolidationScopes?.flatMap((s) => s.chatId !== sourceChatId ? [s] : runIds.has(s.runId) ? [{ ...s, chatId: newChatId, runId: runIds.get(s.runId)! }] : [])
+      memoryStore.update(memory.id, { consolidationScopes: scopes?.length ? scopes : undefined })
+    }
+    for (const run of copiedRuns) for (const id of run.originalIds) {
+      const memory = memoryStore.get(id) as unknown as CharacterMemory | undefined
+      if (!memory || memory.chatId === newChatId) continue
+      memoryStore.update(id, { consolidationScopes: [...(memory.consolidationScopes ?? []), { characterId: run.characterId, chatId: newChatId, runId: run.id }] })
+    }
   }
   copyLinks(memoryIds, idMap, sourceIds)
   forkIntroductions(sourceChatId, newChatId, idMap)
@@ -168,9 +180,7 @@ memoriesRouter.post('/memories/recalls', (req, res) => {
   const chat = chatStore.get(chatId)
   const character = characterStore.get(characterId)
   if (!chat || !character || !canSeeChat(req, chat) || !canSeeCharacter(req, character)) return res.status(404).json({ error: 'Not found' })
-  const worldId = str(characterStore.get(str(chat.characterId))?.worldId)
-  const world = worldId ? worldStore.get(worldId) : undefined
-  if (!modulesForWorld(world as Parameters<typeof modulesForWorld>[0]).deepMemory) return res.status(409).json({ error: 'Deep Memory is off.' })
+  if (!deepMemoryForChat(chat)) return res.status(409).json({ error: 'Deep Memory is off.' })
   const message = messageStore.get(messageId)
   const swipeText = swipe === (message?.activeSwipe ?? 0) ? message?.text
     : Array.isArray(message?.swipes) ? message.swipes[swipe] : undefined
@@ -186,7 +196,14 @@ memoriesRouter.post('/memories/recalls', (req, res) => {
   const at = Date.now()
   db.exec('BEGIN')
   try {
-    for (const memoryId of ids) memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at })
+    for (const memoryId of ids) {
+      const saved = memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at })
+      if (!saved.changes) continue
+      for (const link of withLinks(asMemory(memoryStore.get(memoryId)!), chain).links ?? []) {
+        if (link.validTo !== null || link.validFrom > at || link.relation === 'supersedes') continue
+        memoryLinkStore.update(link.id, { weight: Math.min(LINK_WEIGHT.cap, (link.weight ?? 1) + LINK_WEIGHT.increment), lastUsedAt: at })
+      }
+    }
     db.exec('COMMIT')
   } catch (error) { db.exec('ROLLBACK'); throw error }
   res.status(204).end()
@@ -300,6 +317,7 @@ memoriesRouter.put('/memories/:id', (req, res) => {
   }
   db.exec('BEGIN')
   try {
+    if (existing.origin !== 'consolidation' && patch.text !== undefined && patch.text !== existing.text) cleanMemoryConsolidations(req.params.id)
     if (patch.active === false && messageId && chat && deepMemoryForChat(chat)) {
       const old = withLinks(asMemory(existing)), now = Date.now()
       for (const link of old.links ?? []) if (link.validTo === null) memoryLinkStore.update(link.id, { validTo: now, closedByMessageId: messageId })
@@ -355,6 +373,7 @@ memoriesRouter.post('/memories/consolidate', (req, res) => {
 
 /** The player's "forget": gone for good. */
 memoriesRouter.delete('/memories/:id', (req, res) => {
+  cleanMemoryConsolidations(req.params.id)
   removeMemoryLinks(req.params.id)
   memoryVectorStore.remove(req.params.id)
   memoryRecallStore.removeMemory(req.params.id)

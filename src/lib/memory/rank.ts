@@ -1,4 +1,5 @@
 import type { CharacterMemory, MemoryRecall } from '../types.ts'
+import { effectiveLinkWeight } from './linkWeight.ts'
 import { estimateTokens } from '../tokenEstimate.ts'
 import { calibrateSimilarities } from './vector.ts'
 
@@ -31,7 +32,7 @@ function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<s
 const RECALL_HALF_LIFE_MS = 30 * 86400_000
 export const placeKey = (value: string | null | undefined) => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 
-function recallStrength(recall: MemoryRecall | undefined, now: number): number {
+export function recallStrength(recall: MemoryRecall | undefined, now: number): number {
   if (!recall || !Number.isFinite(recall.count) || recall.count <= 0 || !Number.isFinite(recall.lastAt)) return 0
   const count = Math.min(1, Math.log1p(recall.count) / Math.log(11))
   const age = Math.max(0, now - recall.lastAt)
@@ -122,6 +123,7 @@ export interface MemoryReasons {
   oftenRecalled?: boolean
   similarMeaning?: boolean
   linkedThrough?: string[]
+  linkedWeights?: Record<string, number>
 }
 
 export interface ExplainedMemory {
@@ -139,11 +141,11 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
   const similarities = calibratedSimilarities(known, opts.deep?.similarities)
   const seeds = new Set(opts.presentIds.map((id) => `person:${id}`))
   if (opts.deep?.location) seeds.add(`place:${placeKey(opts.deep.location)}`)
-  const neighbours = new Map<string, string>()
-  const join = (from: string, to: string) => {
+  const neighbours = new Map<string, { name: string; weight: number }>()
+  const join = (from: string, to: string, weight = 1) => {
     if (seeds.has(from) && !seeds.has(to) && !to.startsWith('memory:')) {
       const id = to.slice(to.indexOf(':') + 1)
-      neighbours.set(to, to.startsWith('person:') ? opts.deep?.nameOf?.(id) ?? id : id)
+      if (weight > (neighbours.get(to)?.weight ?? -1)) neighbours.set(to, { name: to.startsWith('person:') ? opts.deep?.nameOf?.(id) ?? id : id, weight })
     }
   }
   if (opts.deep) {
@@ -151,7 +153,8 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
     for (const memory of known) for (const link of memory.links ?? []) {
       if (link.validTo !== null || link.validFrom > opts.deep.now || link.relation === 'supersedes') continue
       const from = `${link.fromKind}:${link.fromId}`, to = `${link.toKind}:${link.toId}`
-      join(from, to); join(to, from)
+      const weight = effectiveLinkWeight(link, opts.deep.now)
+      join(from, to, weight); join(to, from, weight)
     }
     for (const intro of opts.deep.introductions ?? []) {
       if (!intro.witnessIds.includes(characterId) || intro.at > opts.deep.now) continue
@@ -174,7 +177,10 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
     const similarity = similarities.get(m.id) ?? 0
     const entities = [...(m.about ?? []).map((id) => `person:${id}`), ...(m.links ?? []).flatMap((l) =>
       l.validTo === null && l.relation !== 'supersedes' && l.validFrom <= (deep?.now ?? 0) ? [`${l.fromKind}:${l.fromId}`, `${l.toKind}:${l.toId}`] : [])]
-    const linkedThrough = [...new Set(entities.flatMap((id) => neighbours.has(id) ? [neighbours.get(id)!] : []))]
+    const reached = entities.flatMap((id) => neighbours.has(id) ? [neighbours.get(id)!] : [])
+    const linkedThrough = [...new Set(reached.map((r) => r.name))]
+    const linkedWeight = Math.min(1, Math.max(0, ...reached.map((r) => r.weight)))
+    const linkedWeights = Object.fromEntries(linkedThrough.map((name) => [name, Math.max(...reached.filter((r) => r.name === name).map((r) => r.weight))]))
     return {
       pinned: !!m.pinned,
       openThread: !!m.unresolved,
@@ -182,14 +188,14 @@ export function selectMemoriesExplained(memories: CharacterMemory[], opts: Selec
       matchedWords: [...keywords(m.text)].filter((w) => recent.has(w)),
       recent: (recency.get(m.id) ?? 0) >= 0.8,
       important: (m.importance ?? 0.5) >= 0.7,
-      ...(deep ? { linkedThrough, strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
+      ...(deep ? { linkedThrough, linkedWeights, strongFeeling: feeling >= 0.5, samePlace: place, oftenRecalled: strength >= 0.5 } : {}),
       ...(deep?.similarities ? { similarMeaning: similarity >= 0.6 } : {}),
       score: DEEP_MEMORY_WEIGHTS.importance * (m.importance ?? 0.5)
         + DEEP_MEMORY_WEIGHTS.recency * (recency.get(m.id) ?? 0)
         + (m.unresolved ? DEEP_MEMORY_WEIGHTS.openThread : 0)
         + (aboutPresent.length ? DEEP_MEMORY_WEIGHTS.aboutPresent : 0)
         + DEEP_MEMORY_WEIGHTS.keywords * overlap
-        + (deep ? DEEP_MEMORY_WEIGHTS.feeling * feeling + DEEP_MEMORY_WEIGHTS.place * Number(place) + DEEP_MEMORY_WEIGHTS.recall * strength + DEEP_MEMORY_WEIGHTS.linked * Number(linkedThrough.length > 0) : 0)
+        + (deep ? DEEP_MEMORY_WEIGHTS.feeling * feeling + DEEP_MEMORY_WEIGHTS.place * Number(place) + DEEP_MEMORY_WEIGHTS.recall * strength + DEEP_MEMORY_WEIGHTS.linked * linkedWeight : 0)
         + (deep?.similarities ? DEEP_MEMORY_WEIGHTS.similarity * similarity : 0),
     }
   }
@@ -250,4 +256,28 @@ export function memoryBlock(
   if (selected.length === 0 && !journalText) return ''
   const lines = selected.map((m) => `- ${formatMemoryLine(m, characterId)}`)
   return [`What ${name} remembers (only ${name} knows exactly this; others may not):`, ...(journalText ? [journalText] : []), ...lines].join('\n')
+}
+
+export const JOURNAL_PROMPT_SHARE = 0.5
+/** Deep Memory reserves room for the journal inside the existing budget; off reproduces the old block. */
+export function memoryPrompt(memories: CharacterMemory[], opts: SelectMemoriesOptions, name: string): { picks: ExplainedMemory[]; journal: CharacterMemory | undefined; text: string } {
+  let journal = latestJournal(memories, opts.characterId)
+  let selection = opts
+  if (opts.deep && journal?.text.trim()) {
+    const budget = opts.budgetTokens ?? MEMORY_TOKEN_BUDGET
+    const limit = Math.floor(budget * JOURNAL_PROMPT_SHARE) * 4
+    if (journal.text.length > limit) {
+      const cut = journal.text.slice(0, limit)
+      const endings = [...cut.matchAll(/[.!?](?=\s)/g)]
+      // A sentence end only counts when it keeps at least half the room; otherwise cut at a word.
+      const last = endings[endings.length - 1]?.index
+      const end = last !== undefined && last + 1 >= limit / 2 ? last : undefined
+      const fragment = journal.text.slice(0, Math.max(0, limit - 1))
+      const space = fragment.lastIndexOf(' ')
+      journal = { ...journal, text: end !== undefined ? cut.slice(0, end + 1) : `${space >= 0 ? fragment.slice(0, space) : fragment}…` }
+    }
+    selection = { ...opts, budgetTokens: Math.max(0, budget - estimateTokens(memoryBlock(name, [], journal, opts.characterId))) }
+  }
+  const picks = selectMemoriesExplained(memories, selection)
+  return { picks, journal, text: memoryBlock(name, picks.map((p) => p.memory), journal, opts.characterId) }
 }

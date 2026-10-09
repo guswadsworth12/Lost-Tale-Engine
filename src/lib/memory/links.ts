@@ -11,6 +11,8 @@ export interface MemoryLinkInput {
   toId: string
 }
 export interface MemoryLink {
+  weight?: number | null
+  lastUsedAt?: number | null
   sourceMessageId?: string
   id: string; memoryId: string
   fromKind: EntityKind | 'memory'; fromId: string

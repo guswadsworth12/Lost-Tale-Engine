@@ -296,9 +296,10 @@ export interface CharacterMemory {
   links?: import('./memory/links').MemoryLink[]
   /** Characters whose journal already holds this memory. For them it is no longer retrieved as its own line; for other knowers it still is. */
   consolidatedFor?: string[]
+  consolidationScopes?: { characterId: string; chatId: string; runId: string }[]
   /** The message it came from. Deleting that message removes the memory; editing it re-reads it. */
   sourceMessageId?: string
-  origin: 'scribe' | 'manual' | 'journal'
+  origin: 'scribe' | 'manual' | 'journal' | 'consolidation'
   createdAt: number
   updatedAt?: number
 }
@@ -466,6 +467,8 @@ export interface RapportRead {
 }
 
 export interface Chat {
+  consolidationAttempts?: { id: string; characterId: string; at: number }[]
+  consolidationRuns?: import('./memory/consolidation').ConsolidationRun[]
   id: string
   /** The primary character. VN sprite/expression staging still keys on this one; relationship stats/gifts/gallery no longer do — see `participantRelationships`. */
   characterId: string
@@ -697,6 +700,7 @@ export interface Story {
 export const MAIN_STORYLINE_ID = 'main'
 
 export interface WorldCard {
+  memoryConsolidation?: { enabled: boolean; dailyCap: number }
   id: string
   name: string
   /** Optional storytelling campaign configuration; unset worlds keep Lost Tales Engine behavior. */

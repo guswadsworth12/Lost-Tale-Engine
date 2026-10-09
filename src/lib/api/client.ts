@@ -515,6 +515,21 @@ export type CharacterMemoryPatch = Partial<
 }
 
 /** Per-character memory (`server/memories.ts`). Every write invalidates 'memories'. */
+export const consolidationApi = {
+  list: (worldId: string) => request<import('@/lib/memory/consolidation').ConsolidationRun[]>('GET', `/worlds/${worldId}/consolidations`),
+  prepare: (chatId: string, characterId: string) => request<{ id: string; prompt: string } | null>('POST', `/chats/${chatId}/consolidation/prepare`, { characterId }),
+  async commit(chatId: string, token: string, raw: string) {
+    const run = await request<import('@/lib/memory/consolidation').ConsolidationRun>('POST', `/chats/${chatId}/consolidation/${token}`, { raw })
+    invalidate('memories'); invalidate('chats')
+    return run
+  },
+  cancel: (chatId: string, token: string) => request<void>('POST', `/chats/${chatId}/consolidation/${token}`, { cancel: true }),
+  async undo(run: import('@/lib/memory/consolidation').ConsolidationRun) {
+    await request<void>('POST', `/chats/${run.chatId}/consolidations/${run.id}/undo`)
+    invalidate('memories'); invalidate('chats')
+  },
+}
+
 export const memoriesApi = {
   /** Memories visible from a scene (it and every scene before it), oldest first; inactive and consolidated included. */
   forChat(chatId: string, characterId?: string): Promise<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]> {

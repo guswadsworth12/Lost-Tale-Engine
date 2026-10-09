@@ -97,6 +97,7 @@ export const WORLD_FIELDS: Record<keyof WorldCard, WorldFieldClass> = {
   artStyle: 'setting',
   template: 'setting',
   modules: 'setting',
+  memoryConsolidation: 'setting',
   campaign: 'setting',
   scenerySet: 'setting',
   customBackgrounds: 'setting',
@@ -160,7 +161,7 @@ export const CHARACTER_PACK_FIELDS = [
 /** The world fields the single-character pack carries alongside its character. Never a `local` one. */
 export const CHARACTER_PACK_WORLD_FIELDS = [
   'name', 'description', 'rules', 'template', 'lorebook', 'avatarDataUrl', 'backgrounds', 'backgroundUnlocks',
-  'customBackgrounds', 'music', 'gifts', 'items', 'customSceneFlags', 'scenarios', 'relationshipThresholds', 'campaign', 'modules',
+  'customBackgrounds', 'music', 'gifts', 'items', 'customSceneFlags', 'scenarios', 'relationshipThresholds', 'campaign', 'modules', 'memoryConsolidation',
 ] as const satisfies readonly (keyof WorldCard)[]
 
 /** A copy of `row` with only `fields`, leaving out the ones it doesn't have. */

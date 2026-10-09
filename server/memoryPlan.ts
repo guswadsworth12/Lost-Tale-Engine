@@ -11,7 +11,7 @@ type Row = Record<string, unknown>
 type ToldVia = NonNullable<CharacterMemory['toldVia']>[number]
 
 export const MEMORY_KINDS: readonly MemoryKind[] = ['event', 'learned', 'promise', 'secret', 'impression', 'journal']
-export const MEMORY_ORIGINS: readonly CharacterMemory['origin'][] = ['scribe', 'manual', 'journal']
+export const MEMORY_ORIGINS: readonly CharacterMemory['origin'][] = ['scribe', 'manual', 'journal', 'consolidation']
 export const MEMORY_CERTAINTIES: readonly MemoryCertainty[] = ['firsthand', 'claim', 'belief']
 export const MEMORY_VERDICTS: readonly NonNullable<CharacterMemory['verdict']>[] = ['true', 'false']
 export const MEMORY_TEXT_MAX = 600
@@ -361,6 +361,7 @@ export function forkMemories(
   cutoffCreatedAt: number | undefined,
   newChatId: string,
   newId: (sourceId?: string) => string,
+  retainedMemoryIds: ReadonlySet<string> = new Set(),
 ): CharacterMemory[] {
   const byCutoff = (at: unknown) => cutoffCreatedAt === undefined || (finite(at) && at <= cutoffCreatedAt)
   const rows: CharacterMemory[] = []
@@ -369,7 +370,7 @@ export function forkMemories(
     if (m.sourceMessageId) {
       sourceMessageId = idMap.get(m.sourceMessageId)
       if (!sourceMessageId) continue
-    } else if (!byCutoff(m.createdAt)) {
+    } else if (!retainedMemoryIds.has(m.id) && !byCutoff(m.createdAt)) {
       continue
     }
     const toldVia: ToldVia[] = []
@@ -408,6 +409,10 @@ export function forkMemories(
 export function memoryAsSeenFrom(memory: CharacterMemory, chain: ReadonlySet<string>): CharacterMemory {
   if (memory.retiredByMessageId && memory.retiredInChatId && !chain.has(memory.retiredInChatId)) {
     memory = { ...memory, active: true, retiredReason: undefined, retiredByMessageId: undefined, retiredInChatId: undefined, retiredBatchFrom: undefined }
+  }
+  if (memory.consolidationScopes?.length) {
+    const scopes = memory.consolidationScopes
+    memory = { ...memory, consolidatedFor: [...new Set([...(memory.consolidatedFor ?? []), ...scopes.filter((s) => chain.has(s.chatId)).map((s) => s.characterId)])] }
   }
   const told = memory.toldVia ?? []
   const seen = told.filter((t) => !t.chatId || chain.has(t.chatId))
