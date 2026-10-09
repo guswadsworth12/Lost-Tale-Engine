@@ -139,3 +139,12 @@ it('keeps optional meaning search and indexing failures quiet', async () => {
   await expect(memoryVectorsApi.put([])).rejects.toThrow()
   expect(useToastStore.getState().toasts).toEqual([])
 })
+
+it('sends the Inspector reasons alongside the active swipe without a model call', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+  vi.stubGlobal('fetch', fetchMock)
+  const reasons = { pinned: false, openThread: false, aboutPresent: [], matchedWords: ['quay'], recent: true, important: false, score: 0.5 }
+  await memoriesApi.recordRecalls('scene', 'mara', 'reply', ['memory'], 1, { memory: reasons })
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ swipe: 1, reasons: { memory: reasons } })
+})

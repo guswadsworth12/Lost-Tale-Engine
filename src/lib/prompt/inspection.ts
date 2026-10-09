@@ -23,6 +23,7 @@ export interface PromptInspection extends PromptBuildResult {
   exampleIds?: string[]
   /** Turn bookkeeping only, filled for Deep Memory without changing the prompt. */
   memoryRecallIds?: string[]
+  memoryRecallReasons?: Record<string, MemoryReasons>
   /** Plain explanation of a meaning-recall fallback; never added to the model prompt. */
   memoryMeaningSkipped?: string
   /** Present whenever character memory ran for this speaker (may be empty). */

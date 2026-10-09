@@ -48,7 +48,7 @@ export function removeMemoryLinks(memoryId: string): void {
 }
 export function reopenLinks(messageId: string): void {
   db.prepare('DELETE FROM memory_links WHERE sourceMessageId = ?').run(messageId)
-  for (const link of memoryLinkStore.list({ where: 'closedByMessageId = ?', params: [messageId] })) memoryLinkStore.update(String(link.id), { validTo: null, closedByMessageId: null })
+  for (const link of memoryLinkStore.list({ where: 'closedByMessageId = ?', params: [messageId] })) if (link.closedBy !== 'player') memoryLinkStore.update(String(link.id), { validTo: null, closedByMessageId: null })
 }
 export function copyLinks(memoryIds: Map<string, string>, messageIds: Map<string, string>, sourceIds: Set<string>): void {
   for (const [source, target] of memoryIds) for (const link of linksFor(source)) {

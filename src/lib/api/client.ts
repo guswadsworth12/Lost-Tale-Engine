@@ -530,6 +530,22 @@ export const consolidationApi = {
   },
 }
 
+export const memoryExplorerApi = {
+  read(chatId: string, characterId: string): Promise<import('@/lib/memory/explorer').MemoryExplorer> {
+    return request('GET', `/chats/${chatId}/memory-explorer?characterId=${encodeURIComponent(characterId)}`)
+  },
+  recalls(messageId: string, swipe: number): Promise<import('@/lib/memory/explorer').ReplyRecalls> {
+    return request('GET', `/messages/${messageId}/recalls?swipe=${swipe}`)
+  },
+  async connection(id: string, action: 'relation' | 'close' | 'reopen' | 'remove', relation?: string): Promise<void> {
+    await request(action === 'remove' ? 'DELETE' : action === 'relation' ? 'PUT' : 'POST', `/memory-links/${id}${action === 'close' || action === 'reopen' ? `/${action}` : ''}`, action === 'relation' ? { relation } : undefined)
+    invalidate('memories')
+  },
+  async unfade(id: string, characterId: string): Promise<void> {
+    await request('POST', `/memories/${id}/unfade`, { characterId })
+    invalidate('memories')
+  },
+}
 export const memoriesApi = {
   /** Memories visible from a scene (it and every scene before it), oldest first; inactive and consolidated included. */
   forChat(chatId: string, characterId?: string): Promise<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]> {
@@ -537,9 +553,9 @@ export const memoriesApi = {
     return request<(CharacterMemory & { recall?: import('@/lib/types').MemoryRecall })[]>('GET', `/chats/${chatId}/memories${query}`)
   },
   /** Best-effort HTTP bookkeeping, never in the way of a saved reply. */
-  async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[], swipe = 0): Promise<void> {
+  async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[], swipe = 0, reasons?: Record<string, import('@/lib/memory/rank').MemoryReasons>): Promise<void> {
     if (!memoryIds.length) return
-    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds, swipe }).catch(() => {})
+    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds, swipe, reasons }).catch(() => {})
   },
   /** Everything a character knows, across every chat, newest first. */
   forCharacter(characterId: string): Promise<CharacterMemoryListing[]> {

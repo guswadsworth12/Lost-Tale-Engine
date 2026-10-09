@@ -1,3 +1,4 @@
+import { migrateRecallReasons } from './recallReasonsMigration.ts'
 import { migrateLinkWeights } from './linkWeightMigration.ts'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import fs from 'node:fs'
@@ -281,6 +282,7 @@ if (!(db.prepare('PRAGMA table_info(memory_links)').all() as { name: string }[])
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_memory_links_sourceMessageId ON memory_links(sourceMessageId)')
 migrateLinkWeights(db)
+migrateRecallReasons(db)
 
 // Accounts tables made before sign-in by email existed lack users.emailKey.
 if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'emailKey')) {
@@ -422,7 +424,7 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
-export interface RecallEvent { memoryId: string; characterId: string; messageId: string; chatId: string; swipe: number; at: number }
+export interface RecallEvent { memoryId: string; characterId: string; messageId: string; chatId: string; swipe: number; at: number; reasons?: string | null }
 
 /** Indexed reply events; counts include only the selected swipe in the visible scene chain. */
 export const memoryRecallStore = {
@@ -441,11 +443,12 @@ export const memoryRecallStore = {
       GROUP BY e.memoryId`).all(characterId, ...chain) as unknown as { memoryId: string; count: number; lastAt: number }[]
   },
   insert(row: Record<string, unknown>) {
-    return db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at)
-      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
-      .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at))
+    return db.prepare(`INSERT INTO memory_recall_events (memoryId, characterId, chatId, messageId, swipe, at, reasons)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
+      .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at), typeof row.reasons === 'string' ? row.reasons : row.reasons ? JSON.stringify(row.reasons) : null)
   },
-  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ?').run(memoryId) },
+  // Keep reply explanations after forgetting; the read route returns a placeholder without old text.
+  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ? AND reasons IS NULL').run(memoryId) },
   removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recall_events WHERE characterId = ?').run(characterId) },
   retract(messageId: string, swipe?: number) {
     if (swipe === undefined) db.prepare('DELETE FROM memory_recall_events WHERE messageId = ?').run(messageId)

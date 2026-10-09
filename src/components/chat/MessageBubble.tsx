@@ -1,3 +1,4 @@
+import { ReplyMemoriesMenu } from './ReplyMemories'
 import { memo, useState } from 'react'
 import { AlertCircle, Brain, Check, ChevronLeft, ChevronRight, Compass, Copy, GitFork, Heart, History, ImagePlus, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
@@ -333,6 +334,7 @@ export const MessageBubble = memo(function MessageBubble({
       {!isStreaming && (
         <>
           {message.text.trim() && <CopyMessageButton text={message.text} />}
+          {message.role === 'char' && <ReplyMemoriesMenu messageId={message.id} swipe={message.activeSwipe ?? 0} />}
           {onPicture && (
             <button
               onClick={() => onPicture(message.id)}
