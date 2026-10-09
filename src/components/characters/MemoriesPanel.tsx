@@ -1,3 +1,4 @@
+import { MemoryExplorerSection } from './MemoryExplorer'
 import { useMemo, useState } from 'react'
 import { BookOpen, Pin } from 'lucide-react'
 import type { Character } from '@/lib/characters/cardSpec'
@@ -43,6 +44,7 @@ export function MemoriesPanel({ character }: { character: Character }) {
 
   return (
     <div className="space-y-10">
+      <MemoryExplorerSection character={character} scenes={scenes} characters={characters} />
       <Section
         title="Memories"
         description={`What ${name} saw, heard, or was told. Each memory stays in the story it happened in.`}

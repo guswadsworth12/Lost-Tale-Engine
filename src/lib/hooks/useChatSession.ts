@@ -1360,7 +1360,10 @@ export function useChatSession(chatId: string | null) {
         built.examplePicks = examplePicks
         built.exampleBankSkipped = bankDefault ? 'Deep Memory is off for this world: one example from the bank was sent, because the card has no other examples.' : !modules.deepMemory ? 'Example bank is off for this world.' : !bankOn ? 'Example bank is not used for this reply.' : !examplePicks.length ? 'No enabled example fits this situation and the example budget.' : undefined
       }
-      if (memoryOn && modules.deepMemory) built.memoryRecallIds = memoryPicks.map((p) => p.memory.id)
+      if (memoryOn && modules.deepMemory) {
+        built.memoryRecallIds = memoryPicks.map((p) => p.memory.id)
+        built.memoryRecallReasons = Object.fromEntries(memoryPicks.map((p) => [p.memory.id, p.reasons]))
+      }
       // Prompt Inspector only: why each memory reached this speaker, and what the witness rule held back.
       if (opts?.includeSectionBreakdown && memoryOn) {
         built.memoryMeaningSkipped = meaning.skipped
@@ -3219,6 +3222,7 @@ export function useChatSession(chatId: string | null) {
       let scene: ReturnType<typeof sanitizeSceneTag>
       let wroteAnything = false
       const recalledIds = new Set<string>()
+      const recalledReasons: NonNullable<PromptInspection['memoryRecallReasons']> = {}
       let recallSwipe = 0
       let retainReply = true
       // Set when the loop ends on a reply that's still mid-sentence with no continuation coming — trimmed after the loop.
@@ -3402,7 +3406,10 @@ export function useChatSession(chatId: string | null) {
             })
           }
           if (isUsableReply && built.exampleSpeakerId) exampleHistory.record(chat.id, built.exampleSpeakerId, targetMessageId, built.exampleIds ?? [])
-          if (isUsableReply) for (const id of built.memoryRecallIds ?? []) recalledIds.add(id)
+          if (isUsableReply) for (const id of built.memoryRecallIds ?? []) {
+            recalledIds.add(id)
+            if (built.memoryRecallReasons?.[id]) recalledReasons[id] = built.memoryRecallReasons[id]
+          }
           wroteAnything = wroteAnything || isUsableReply
           // Rolls world-info sticky/cooldown state forward for next turn.
           await chatsApi.update(chat.id, { worldInfoState: built.worldInfoState ?? {} })
@@ -3648,7 +3655,7 @@ export function useChatSession(chatId: string | null) {
         // One batch for the retained reply, including a saved partial continuation. The server
         // checks that it is usable; a rejected attempt leaves recording to its replacement.
         if (retainReply && wroteAnything && recalledIds.size) {
-          void memoriesApi.recordRecalls(chat.id, speaker.id, targetMessageId, [...recalledIds], recallSwipe)
+          void memoriesApi.recordRecalls(chat.id, speaker.id, targetMessageId, [...recalledIds], recallSwipe, recalledReasons)
         }
         activeGenerationClientRef.current = null
         setIsGenerating(false)

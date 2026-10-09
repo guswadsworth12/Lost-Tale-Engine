@@ -11,6 +11,7 @@ export interface MemoryLinkInput {
   toId: string
 }
 export interface MemoryLink {
+  closedBy?: 'player'
   weight?: number | null
   lastUsedAt?: number | null
   sourceMessageId?: string

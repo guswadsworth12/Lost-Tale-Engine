@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express'
 import { currentUser } from './auth.ts'
 import {
-  assistantThreadStore, characterStore, chatFactStore, chatStore, instructTemplateStore, memoryStore, messageStore, objectiveStore, personaStore,
+  assistantThreadStore, characterStore, chatFactStore, chatStore, instructTemplateStore, memoryLinkStore, memoryStore, messageStore, objectiveStore, personaStore,
   presetStore, storyStore, themeStore, userStore, worldInfoBookStore, worldStore,
 } from './db.ts'
 import { characterVisibleTo, chatVisibleTo, ownsRow, visibleTo, type Lookups } from './ownership.ts'
@@ -76,6 +76,10 @@ accessGuards.use('/api/characters/:id', guard((id) => characterStore.get(id), ca
 accessGuards.use('/api/world-info-books/:id', guard((id) => worldInfoBookStore.get(id), canSee))
 accessGuards.use('/api/chats/:id', guard((id) => chatStore.get(id), chatAllowed))
 accessGuards.use('/api/messages/:id', guard((id) => messageStore.get(id), viaChat))
+accessGuards.use('/api/memory-links/:id', guard((id) => memoryLinkStore.get(id), (req, link) => {
+  const memory = memoryStore.get(String(link.memoryId))
+  return !!memory && viaChat(req, memory)
+}))
 accessGuards.use('/api/memories/:id', guard((id) => memoryStore.get(id), viaChat))
 accessGuards.use('/api/objectives/:id', guard((id) => objectiveStore.get(id), viaChat))
 accessGuards.use('/api/chat-facts/:id', guard((id) => chatFactStore.get(id), viaChat))

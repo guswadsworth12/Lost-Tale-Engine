@@ -1,3 +1,4 @@
+import { ReplyMemoriesMenu } from './ReplyMemories'
 import { memo, useState } from 'react'
 import { AlertCircle, Brain, Check, ChevronLeft, ChevronRight, Compass, Copy, GitFork, Heart, History, ImagePlus, MessageSquareWarning, RotateCcw, Star, TriangleAlert, Unlink, X } from 'lucide-react'
 import type { StoredMessage } from '@/lib/types'
@@ -94,6 +95,7 @@ interface MessageBubbleProps {
   sfx?: SfxConfig
   /** Set when this message produced character memories. Must be the same object across renders for `memo` to skip. */
   memoryNote?: MemoryNote
+  showMemoryReasons?: boolean
   // Every callback below takes this message's own id as its first argument, rather than
   // `MessageLog` pre-binding a fresh `() => onX(m.id)` closure per message per render — the whole
   // point of wrapping this component in `memo` below is to skip re-rendering a bubble whose props
@@ -142,6 +144,7 @@ export const MessageBubble = memo(function MessageBubble({
   isHighlighted,
   sfx,
   memoryNote,
+  showMemoryReasons = false,
   onEdit,
   onDelete,
   onRewind,
@@ -333,6 +336,7 @@ export const MessageBubble = memo(function MessageBubble({
       {!isStreaming && (
         <>
           {message.text.trim() && <CopyMessageButton text={message.text} />}
+          {showMemoryReasons && message.role === 'char' && !message.gm && <ReplyMemoriesMenu messageId={message.id} swipe={message.activeSwipe ?? 0} />}
           {onPicture && (
             <button
               onClick={() => onPicture(message.id)}

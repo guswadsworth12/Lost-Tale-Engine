@@ -59,6 +59,7 @@ import { validateCustomResolver } from '../src/lib/world/customRules.ts'
 import { CALENDAR_LIMITS, normalizeCalendar } from '../src/lib/world/calendar.ts'
 import { normalizeWorldRevisions } from '../src/lib/world/revisions.ts'
 import { normalizePromptOverrides } from '../src/lib/prompt/promptOverrides.ts'
+import { memoryExplorerRouter } from './memoryExplorer.ts'
 import { consolidationRouter } from './consolidation.ts'
 import { consolidationSettings } from '../src/lib/memory/consolidation.ts'
 import { modulesForWorld } from '../src/lib/world/worldTemplates.ts'
@@ -99,6 +100,7 @@ app.use('/api', storiesRouter)
 app.use('/api', momentsRouter)
 app.use('/api', memoriesRouter)
 app.use('/api', consolidationRouter)
+app.use('/api', memoryExplorerRouter)
 app.use('/api', memoryVectorsRouter)
 app.use('/api', rewindRouter)
 // Files follow what they belong to: a private character's sprites are its owner's alone (access.ts).

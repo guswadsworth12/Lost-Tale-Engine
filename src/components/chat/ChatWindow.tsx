@@ -211,6 +211,7 @@ export function ChatWindow({
     forkChat,
   } = session
 
+  const characterMemoryOn = useSettingsStore((s) => s.characterMemory)
   const globalVisualNovelMode = useSettingsStore((s) => s.visualNovelMode)
   // Story moments (`story/moments.ts`): pictures made from this scene, shown by the line they picture.
   const allMoments = useApiQuery('moments', () => momentsApi.list(), []) ?? []
@@ -1322,6 +1323,7 @@ export function ChatWindow({
           scrollRef,
           log: {
                 messages,
+                showMemoryReasons: characterMemoryOn && modules.deepMemory,
                 character,
                 persona,
                 participantCharacters,

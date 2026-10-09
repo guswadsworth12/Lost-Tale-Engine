@@ -747,6 +747,7 @@ export function VNStage({
   const canSwipe = !!lastCharMsg && swipes.length > 0 && !isStreamingThis
 
   // See vnArtHint; dismissal is per-character.
+  const characterMemoryOn = useSettingsStore((s) => s.characterMemory)
   const vnArtHintDismissed = useSettingsStore((s) => s.vnArtHintDismissed)
   const dismissVnArtHint = useSettingsStore((s) => s.dismissVnArtHint)
   const artHint = vnArtHint(character, world, vnArtHintDismissed)
@@ -1489,6 +1490,7 @@ export function VNStage({
           <div className="mx-auto w-full max-w-3xl">
           <MessageLog
             messages={messages}
+            showMemoryReasons={characterMemoryOn && worldModules.deepMemory}
             character={character}
             persona={persona}
             participantCharacters={participantCharacters}

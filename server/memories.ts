@@ -1,5 +1,6 @@
 import { cleanConsolidations, cleanMemoryConsolidations, runsIn } from './consolidation.ts'
 import express from 'express'
+import { validRecallReasons } from './recallReasons.ts'
 import { chainOf, memoriesIn, worldOf } from './memoryContext.ts'
 export { chainOf, memoriesIn } from './memoryContext.ts'
 import { LINK_WEIGHT } from '../src/lib/memory/linkWeight.ts'
@@ -189,15 +190,17 @@ memoriesRouter.post('/memories/recalls', (req, res) => {
   const chain = new Set(chainOf(chatId))
   const ids = uniqueIds(body.memoryIds).filter((id) => {
     const row = memoryStore.get(id)
-    if (!row || !chain.has(str(row.chatId))) return false
+    if (!row || !chain.has(str(row.chatId)) || !canSeeChat(req, chatStore.get(str(row.chatId)))) return false
     const m = memoryAsSeenFrom(asMemory(row), chain)
     return m.active && m.kind !== 'journal' && m.knownBy.includes(characterId) && !m.consolidatedFor?.includes(characterId)
   })
+  // Diagnostics must never prevent a valid recall from being counted and strengthening its connections.
+  const reasons = body.reasons && typeof body.reasons === 'object' && !Array.isArray(body.reasons) ? body.reasons : undefined
   const at = Date.now()
   db.exec('BEGIN')
   try {
     for (const memoryId of ids) {
-      const saved = memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at })
+      const saved = memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at, reasons: validRecallReasons(reasons?.[memoryId]) ? reasons[memoryId] : null })
       if (!saved.changes) continue
       for (const link of withLinks(asMemory(memoryStore.get(memoryId)!), chain).links ?? []) {
         if (link.validTo !== null || link.validFrom > at || link.relation === 'supersedes') continue
