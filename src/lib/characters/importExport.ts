@@ -1,3 +1,4 @@
+import { validateExampleBank, type ExampleBankEntry } from './exampleBank'
 import { extractCardAssets, normalizeCardJson, wrapCardV2, type CharacterCardData } from './cardSpec'
 import type { CustomExpression } from '@/lib/vn/expressions'
 import { readCharacterFromPng, writeCharacterToPng } from './png'
@@ -13,6 +14,7 @@ export async function fileToDataUrl(file: File | Blob): Promise<string> {
 
 export interface ImportResult {
   card: CharacterCardData
+  exampleBank?: ExampleBankEntry[]
   avatarDataUrl?: string
   /** Character Card V3 `emotion` assets, mapped to expression ids — empty for a plain V1/V2 card. */
   sprites?: Record<string, string>
@@ -28,7 +30,7 @@ export async function importCharacterFile(file: File): Promise<ImportResult> {
     const assets = extractCardAssets(raw)
     // The PNG's own pixels are the portrait (a V3 `icon` asset is usually `ccdefault:` = "this image").
     const avatarDataUrl = await fileToDataUrl(file)
-    return { card, avatarDataUrl, sprites: assets.sprites, customExpressions: assets.customExpressions }
+    return { card, exampleBank: validateExampleBank(card.extensions?.lost_tales_example_bank), avatarDataUrl, sprites: assets.sprites, customExpressions: assets.customExpressions }
   }
   const text = await file.text()
   const raw = JSON.parse(text)
@@ -36,22 +38,30 @@ export async function importCharacterFile(file: File): Promise<ImportResult> {
   const assets = extractCardAssets(raw)
   return {
     card,
+    exampleBank: validateExampleBank(card.extensions?.lost_tales_example_bank),
     avatarDataUrl: assets.avatarDataUrl,
     sprites: assets.sprites,
     customExpressions: assets.customExpressions,
   }
 }
 
-export function downloadJson(card: CharacterCardData) {
-  const blob = new Blob([JSON.stringify(wrapCardV2(card), null, 2)], { type: 'application/json' })
+/** Namespaced V2 extension keeps banks intact in both JSON and PNG card exports. */
+export function cardWithExampleBank(card: CharacterCardData, exampleBank?: readonly ExampleBankEntry[]): CharacterCardData {
+  const extensions = { ...card.extensions }
+  if (exampleBank?.length) extensions.lost_tales_example_bank = exampleBank
+  else delete extensions.lost_tales_example_bank
+  return { ...card, extensions }
+}
+export function downloadJson(card: CharacterCardData, exampleBank?: readonly ExampleBankEntry[]) {
+  const blob = new Blob([JSON.stringify(wrapCardV2(cardWithExampleBank(card, exampleBank)), null, 2)], { type: 'application/json' })
   triggerDownload(blob, `${sanitizeFilename(card.name)}.json`)
 }
 
-export async function downloadPng(card: CharacterCardData, avatarDataUrl?: string) {
+export async function downloadPng(card: CharacterCardData, avatarDataUrl?: string, exampleBank?: readonly ExampleBankEntry[]) {
   const avatarBlob = avatarDataUrl
     ? await (await fetch(avatarDataUrl)).blob()
     : await blankAvatarBlob()
-  const pngBlob = await writeCharacterToPng(avatarBlob, wrapCardV2(card))
+  const pngBlob = await writeCharacterToPng(avatarBlob, wrapCardV2(cardWithExampleBank(card, exampleBank)))
   triggerDownload(pngBlob, `${sanitizeFilename(card.name)}.png`)
 }
 

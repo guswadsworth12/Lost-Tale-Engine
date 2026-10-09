@@ -22,3 +22,11 @@ One character can keep **separate sheets for multiple worlds**. Changing the she
 Built-in presets supply editable core check fields. They do not import complete D&D, Starfinder, Fate, or GURPS characters automatically. Enter or adapt the fields the world's rules actually use, and test a move with that character before a long session.
 
 See [Ruleset Builder](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Ruleset-Builder) and [Visual Novel and VRM](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Visual-Novel-and-VRM).
+
+## Example bank
+
+In a character’s **Behavior** tab, **Example bank** holds up to 40 exchanges, each with up to 3,000 characters. Start each with `<START>` and use `{{user}}:` and `{{char}}:` lines. Toggle situation chips, turn entries on or off, reorder them, or add and delete examples by hand. **Split my current examples into the bank** makes one entry per block and suggests situations; you can edit every suggestion. Clearing the original examples requires confirmation.
+
+The bank is used only with **Deep Memory** on in the character’s world. The original **Example messages** remain the always-sent base. Each reply adds up to two enabled examples that fit the recent six messages and scene state, within an extra budget of about 450 tokens. Situation words and active dates, hangouts, pending rulings and objectives guide selection. If an embedding model is available, the existing recent-conversation comparison also helps; entry comparisons are prepared once per text and model for the browser session. Without it, situation selection still works.
+
+Examples from the previous successful turn for this speaker in this chat are avoided when another fitting example exists. With no match, one everyday example may be used. **Inspect prompt & memory** shows the selected text, situations, similar meaning or fallback, and explains when the bank is off. Enabled bank examples also inform automatic reply length when the module is on; disabled examples do not. Banks travel with JSON/PNG character cards and character/world packs. Turning Deep Memory off, or using a card without a bank, preserves the original prompt behavior.

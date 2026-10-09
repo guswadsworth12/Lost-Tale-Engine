@@ -774,6 +774,14 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         ],
       },
       {
+        id: 'example-bank',
+        heading: 'Example bank',
+        blocks: [
+          { kind: 'text', text: 'In a character’s **Behavior** tab, add exchanges to **Example bank**, toggle their situation chips, turn them on or off, and move them up or down. Each starts with <START> and uses {{user}}: and {{char}}: lines. **Split my current examples into the bank** makes editable copies and asks before clearing the originals.' },
+          { kind: 'text', text: 'With **Deep Memory** on in their world, up to two fitting examples join the original example messages per reply, within about 450 tokens. The recent conversation and scene guide selection; an optional embedding model can help with similar meaning. Consecutive turns avoid the same examples when another fits. With no match, one everyday example may be used. **Inspect prompt & memory** shows the choices and reasons. Cards and packs preserve the bank. Turning the module off keeps the original prompt behavior.' },
+        ],
+      },
+      {
         id: 'worlds-modules',
         heading: 'World modules',
         blocks: [

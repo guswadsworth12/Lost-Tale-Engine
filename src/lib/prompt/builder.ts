@@ -59,6 +59,7 @@ export interface ChatMessage {
 }
 
 export interface PromptBuildInput {
+  exampleDialogue?: string
   character: CharacterCardData
   /** Ordered authored prompts belonging only to the active speaker. */
   characterPromptItems?: PromptItem[]
@@ -268,9 +269,10 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     : ''
 
   // Frame example dialogue explicitly, so a weak model doesn't read it as something already said and echo it back.
+  const examples = input.exampleDialogue ?? character.mes_example
   const exampleBlock =
-    sections.examples && character.mes_example?.trim()
-      ? `Example lines showing ${macroCtx.charName}'s voice, style, and typical phrasing. A reference only, not something that already happened in this scene. Do not repeat or continue these lines; write a new reply instead.\n${sub(character.mes_example)}`
+    sections.examples && examples?.trim()
+      ? `Example lines showing ${macroCtx.charName}'s voice, style, and typical phrasing. A reference only, not something that already happened in this scene. Do not repeat or continue these lines; write a new reply instead.\n${sub(examples)}`
       : ''
 
   const worldBefore = before.map((e) => sub(e.content)).join('\n')

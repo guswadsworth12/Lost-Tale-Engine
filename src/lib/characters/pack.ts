@@ -1,3 +1,4 @@
+import { validateExampleBank } from './exampleBank'
 import { charactersApi, worldsApi } from '@/lib/api/client'
 import { validateScenarioSource } from '@/lib/dating/scenarios'
 import { fileToDataUrl } from './importExport'
@@ -17,6 +18,7 @@ export interface CharacterPackV1 {
   version: typeof PACK_VERSION
   character: {
     card: CharacterCardData
+    exampleBank?: Character['exampleBank']
     playerOnly?: boolean
     worldId?: string
     sheet?: Character['sheet']
@@ -177,6 +179,7 @@ export async function parseCharacterPackFile(file: File): Promise<CharacterPackV
 export async function importCharacterPack(
   pack: CharacterPackV1,
 ): Promise<{ character: Character; world?: WorldCard; rejectedScenarios: string[] }> {
+  validateExampleBank(pack.character.exampleBank)
   let world: WorldCard | undefined
   const rejectedScenarios: string[] = []
   if (pack.world) {

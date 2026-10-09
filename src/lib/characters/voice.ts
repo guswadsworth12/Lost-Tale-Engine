@@ -5,6 +5,7 @@
  * a hard sampler cap that only ever lowers the user's own `max_length`, never raises it.
  */
 
+import type { ExampleBankEntry } from './exampleBank'
 import type { CharacterCardData } from './cardSpec'
 
 /** `auto` reads the card's own example dialogue; the rest are an explicit authorial override. */
@@ -62,6 +63,20 @@ const USER_TURN_RE = /^\s*(?:\{\{user\}\}|\{\{USER\}\})\s*:\s*/
 const START_MARKER_RE = /^\s*<START>\s*$/i
 const NAMED_TURN_RE = /^\s*[\p{L}][\p{L}\p{N} .,'-]{0,60}:\s*/u
 
+/** One block per line-based <START> delimiter, shared by extraction and bank splitting. */
+export function splitExampleBlocks(text: string): string[] {
+  const blocks: string[] = []
+  let lines: string[] = []
+  for (const line of text.split('\n')) {
+    if (START_MARKER_RE.test(line)) {
+      if (lines.join('\n').trim()) blocks.push('<START>\n' + lines.join('\n').trim())
+      lines = []
+    } else lines.push(line)
+  }
+  if (lines.join('\n').trim()) blocks.push('<START>\n' + lines.join('\n').trim())
+  return blocks
+}
+
 /** Words in a stretch of RP prose, ignoring the asterisks and quote marks that wrap it. */
 export function countProseWords(text: string): number {
   return text
@@ -110,8 +125,8 @@ function median(values: number[]): number {
 }
 
 /** What length this card is already written at. Prefers `mes_example` over `first_mes` (a greeting runs longer since it has to establish a scene, so it's discounted before banding). */
-export function deriveCardReplyBand(card: Pick<CharacterCardData, 'mes_example' | 'first_mes'>): DerivedReplyBand {
-  const exampleTurns = extractExampleCharTurns(card.mes_example)
+export function deriveCardReplyBand(card: Pick<CharacterCardData, 'mes_example' | 'first_mes'>, bank: readonly ExampleBankEntry[] = []): DerivedReplyBand {
+  const exampleTurns = [card.mes_example, ...bank.filter((e) => e.enabled).map((e) => e.text)].flatMap(extractExampleCharTurns)
   const exampleWords = exampleTurns.map(countProseWords).filter((n) => n > 0)
   if (exampleWords.length > 0) {
     const words = median(exampleWords)
@@ -148,11 +163,12 @@ export interface ResolvedReplyLength {
 export function resolveReplyLength(
   setting: ReplyLength | undefined,
   card: Pick<CharacterCardData, 'mes_example' | 'first_mes'>,
+  bank: readonly ExampleBankEntry[] = [],
 ): ResolvedReplyLength {
   if (setting && setting !== 'auto') {
     return { band: setting, instruction: BANDS[setting].instruction, derived: false, measuredWords: 0 }
   }
-  const derived = deriveCardReplyBand(card)
+  const derived = deriveCardReplyBand(card, bank)
   const spec = BANDS[derived.band]
   // Point the model at its own card's examples when the band was measured from them.
   const instruction =
