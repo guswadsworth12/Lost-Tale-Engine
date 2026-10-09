@@ -21,8 +21,11 @@ export const DEEP_MEMORY_WEIGHTS = {
   recall: 0.25,
   similarity: 0.75,
 } as const
+// Below this gap between the best and the median score, a "best match" is mostly noise.
+const MIN_SIMILARITY_SPREAD = 0.15
 // Calibrate only finite scores of this speaker's eligible candidates. With five or
-// more, median maps to zero and maximum to one; flat distributions add no boost.
+// more, median maps to zero and maximum to one, scaled down when the maximum barely
+// stands out, so noise never crowns a winner; flat distributions add no boost.
 // Small sets use a fixed 0.4 floor, rescaled to 0..1 to avoid amplifying noise.
 function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<string, number>) {
   const values = known.map((m) => scores?.get(m.id)).filter((v): v is number => v !== undefined && Number.isFinite(v))
@@ -30,10 +33,11 @@ function calibratedSimilarities(known: CharacterMemory[], scores?: ReadonlyMap<s
   const middle = Math.floor(values.length / 2)
   const floor = values.length >= 5 ? (values[middle] + values[Math.ceil(values.length / 2) - 1]) / 2 : 0.4
   const ceiling = values.length >= 5 ? values[values.length - 1] : 1
+  const confidence = values.length >= 5 ? Math.min(1, (ceiling - floor) / MIN_SIMILARITY_SPREAD) : 1
   return new Map(known.map((m) => {
     const raw = scores?.get(m.id)
     return [m.id, raw !== undefined && Number.isFinite(raw) && ceiling > floor
-      ? Math.max(0, Math.min(1, (raw - floor) / (ceiling - floor))) : 0]
+      ? confidence * Math.max(0, Math.min(1, (raw - floor) / (ceiling - floor))) : 0]
   }))
 }
 const RECALL_HALF_LIFE_MS = 30 * 86400_000

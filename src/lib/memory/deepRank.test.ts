@@ -78,3 +78,19 @@ it('calibrates compressed cosine using only eligible candidates and labels only 
   expect(flat.every((p) => !p.reasons.similarMeaning)).toBe(true)
   expect(flat.map((p) => p.reasons.score)).toEqual(selectMemoriesExplained(memories, { ...base, deep: { now } }).map((p) => p.reasons.score))
 })
+
+
+it('does not let noise-level similarity differences crown a low-value memory', () => {
+  // Bunched within 0.03, as unrelated text often scores with real models.
+  const sims = [0.51, 0.50, 0.52, 0.505, 0.53]
+  const memories = sims.map((_, i) => memory({ id: `noise-${i}`, createdAt: i, importance: [0.9, 0.9, 0.5, 0.5, 0.2][i] }))
+  const similarities = new Map(memories.map((m, i) => [m.id, sims[i]]))
+  const picks = selectMemoriesExplained(memories, { ...base, budgetTokens: 30, deep: { now, similarities } })
+  expect(picks.some((p) => p.reasons.similarMeaning)).toBe(false)
+  expect(picks[0].memory.importance).toBeGreaterThanOrEqual(0.9)
+  // The best match stands only 0.02 above the median: at most 0.02 / 0.15 of the full boost.
+  const all = selectMemoriesExplained(memories, { ...base, deep: { now, similarities } })
+  const plain = selectMemoriesExplained(memories, { ...base, deep: { now } })
+  const gain = all.find((p) => p.memory.id === 'noise-4')!.reasons.score - plain.find((p) => p.memory.id === 'noise-4')!.reasons.score
+  expect(gain).toBeCloseTo(DEEP_MEMORY_WEIGHTS.similarity * (0.02 / 0.15))
+})
