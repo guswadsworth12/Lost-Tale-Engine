@@ -24,8 +24,8 @@ async function setup(deepMemory = true) {
 it('filters knowledge, sibling branches and private chats before building the index and recall counts', async () => {
   const s = await setup()
   const hidden = (await call('/memories', 'POST', { chatId: s.chat.id, text: 'Hidden vault password.', witnesses: [s.other.id], location: 'vault' })).body
-  const branch = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
-  const sibling = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  const branch = (await call('/chats', 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).body
+  const sibling = (await call('/chats', 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).body
   for (const scene of [branch, sibling]) await call(`/chats/${scene.id}`, 'PUT', { previousSceneId: s.chat.id })
   const siblingMemory = (await call('/memories', 'POST', { chatId: sibling.id, text: 'Only in the other story branch.', witnesses: [s.speaker.id], location: 'market' })).body
   const evidence = (await call('/messages', 'POST', { chatId: sibling.id, role: 'char', speakerId: s.speaker.id, text: 'A different telling.' })).body
@@ -36,7 +36,7 @@ it('filters knowledge, sibling branches and private chats before building the in
   expect(JSON.stringify(data)).not.toContain(hidden.id)
   expect(JSON.stringify(data)).not.toContain(siblingMemory.id)
   expect(data.subjects.find((e: any) => e.kind === 'thing' && e.id === 'brass compass')).toMatchObject({ memoryIds: [s.memory.id], linkIds: [s.memory.links[1].id] })
-  expect(data.subjects.find((e: any) => e.kind === 'place')).toMatchObject({ id: 'quay', memoryIds: [s.memory.id] })
+  expect(data.subjects.find((e: any) => e.kind === 'place')).toMatchObject({ id: 'quay', displayLabel: 'Quay', memoryIds: [s.memory.id] })
   expect(data.connections[0].startedScene).toBe('The quay')
   expect((await call(`/chats/${s.chat.id}/memory-explorer?characterId=${s.speaker.id}`, 'GET', undefined, member)).status).toBe(404)
   expect((await call(`/chats/${s.chat.id}/memory-explorer?characterId=missing`)).status).toBe(404)
@@ -54,10 +54,10 @@ it('edits only the chosen connection, refuses invalid relations and inactive reo
   const closed = (await call(`/memory-links/${id}/close`, 'POST')).body
   expect(closed).toMatchObject({ closedBy: 'player', closedByMessageId: null, validTo: expect.any(Number) })
   await call(`/memories/${s.memory.id}`, 'PUT', { active: false })
-  expect((await call(`/memory-links/${id}/reopen`, 'POST')).status).toBe(400)
+  expect((await call(`/memory-links/${id}/reopen`, 'POST', { chatId: s.chat.id })).status).toBe(400)
   await call(`/memories/${s.memory.id}`, 'PUT', { active: true })
-  expect((await call(`/memory-links/${id}/reopen`, 'POST')).body).toMatchObject({ validTo: null, closedByMessageId: null })
-  expect((await call(`/memory-links/${id}/reopen`, 'POST')).body.closedBy).toBeUndefined()
+  expect((await call(`/memory-links/${id}/reopen`, 'POST', { chatId: s.chat.id })).body).toMatchObject({ validTo: null, closedByMessageId: null })
+  expect((await call(`/memory-links/${id}/reopen`, 'POST', { chatId: s.chat.id })).body.closedBy).toBeUndefined()
   const { memoryLinkStore } = await import('./db.ts')
   memoryLinkStore.update(id, { relation: 'supersedes' })
   for (const [method, suffix, body] of [['PUT', '', { relation: 'owes' }], ['POST', '/close', undefined], ['POST', '/reopen', undefined], ['DELETE', '', undefined]] as const) expect((await call(`/memory-links/${id}${suffix}`, method, body)).status).toBe(400)
@@ -105,13 +105,13 @@ it('shows edits in the next prompt, fades in worlds with the module off, and nev
   await call('/memories/consolidate', 'POST', { characterId: s.speaker.id, ids: [s.memory.id] })
   expect(await pick()).toEqual([])
   expect((await s.explorer()).body.memories[0].status).toBe('faded')
-  await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id })
+  await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id, chatId: s.chat.id })
   expect((await pick())[0].memory.id).toBe(s.memory.id)
   const { memoryStore } = await import('./db.ts')
   const scopes = [{ characterId: s.speaker.id, chatId: s.chat.id, runId: 'synthetic-run' }]
   memoryStore.update(s.memory.id, { consolidationScopes: scopes })
   await call('/memories/consolidate', 'POST', { characterId: s.speaker.id, ids: [s.memory.id] })
-  await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id })
+  await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id, chatId: s.chat.id })
   expect(memoryStore.get(s.memory.id)?.consolidationScopes).toEqual(scopes)
   expect((await s.explorer()).body.memories[0]).toMatchObject({ status: 'summarized', summaryRunId: 'synthetic-run' })
   const off = await setup(false)
@@ -119,14 +119,13 @@ it('shows edits in the next prompt, fades in worlds with the module off, and nev
   expect((await off.explorer()).body.subjects.map((e: any) => e.kind)).toEqual(['person', 'place'])
   await call('/memories/consolidate', 'POST', { characterId: off.speaker.id, ids: [off.memory.id] })
   expect((await off.explorer()).body.memories[0].status).toBe('faded')
-  await call(`/memories/${off.memory.id}/unfade`, 'POST', { characterId: off.speaker.id })
+  await call(`/memories/${off.memory.id}/unfade`, 'POST', { characterId: off.speaker.id, chatId: off.chat.id })
   await call(`/memories/${off.memory.id}`, 'PUT', { pinned: true })
   expect((await off.explorer()).body.memories[0]).toMatchObject({ status: 'active', pinned: true })
 })
 it('validates and saves bounded reasons per swipe; legacy/off replies are unrecorded and forgotten memories have no text', async () => {
   const s = await setup()
-  for (const invalid of [{ ...reason, prompt: 'arbitrary text' }, { ...reason, score: null }, { ...reason, recent: 'yes' }, { ...reason, matchedWords: Array(11).fill('word') }, { ...reason, linkedThrough: ['x'.repeat(81)] }, { ...reason, linkedWeights: { Mara: 'strong' } }]) expect((await s.record(0, { [s.memory.id]: invalid })).status).toBe(400)
-  expect((await s.record()).status).toBe(204)
+    expect((await s.record()).status).toBe(204)
   const alternate = { ...reason, samePlace: false, score: 0.3 }
   expect((await s.record(1, { [s.memory.id]: alternate })).status).toBe(204)
   const read = (swipe: number) => call(`/messages/${s.reply.id}/recalls?swipe=${swipe}`)
@@ -148,6 +147,74 @@ it('validates and saves bounded reasons per swipe; legacy/off replies are unreco
   expect((await read(0)).body.memories).toEqual([])
   memoryStore.update(s.memory.id, { knownBy: [s.speaker.id] })
   await call(`/memories/${s.memory.id}`, 'DELETE')
-  expect((await read(0)).body).toMatchObject({ recorded: true, memories: [{ text: 'A memory since forgotten', forgotten: true }] })
+  expect((await read(0)).body).toMatchObject({ recorded: false, memories: [] })
+  const events = (await call('/backup')).body.data.memoryRecallEvents
+  expect(events.some((e: any) => e.memoryId === s.memory.id)).toBe(false)
+  expect(JSON.stringify(events)).not.toContain(s.memory.id)
   expect(JSON.stringify((await read(0)).body)).not.toContain(s.memory.text)
+})
+
+it('saves recalls and strengthens connections even when diagnostic metadata is invalid', async () => {
+  const invalidReasons = [{ ...reason, prompt: 'arbitrary text' }, { ...reason, score: null }, { ...reason, recent: 'yes' }, { ...reason, matchedWords: Array(11).fill('word') }, { ...reason, linkedThrough: ['x'.repeat(81)] }, { ...reason, linkedWeights: { Mara: 'strong' } }]
+  for (const invalid of invalidReasons) {
+    const s = await setup()
+    expect((await s.record(0, { [s.memory.id]: invalid })).status).toBe(204)
+    const event = (await call('/backup')).body.data.memoryRecallEvents.find((e: any) => e.memoryId === s.memory.id)
+    expect(event).toMatchObject({ reasons: null, messageId: s.reply.id })
+    expect((await s.explorer()).body.memories[0].recall.count).toBe(1)
+    expect((await s.explorer()).body.connections[0].weight).toBe(1.1)
+  }
+})
+
+it('trims twelve matched words on the client and records the event, reasons and connection strength', async () => {
+  const s = await setup()
+  const words = ['harbor', 'lantern', 'compass', 'cargo', 'captain', 'dock', 'berth', 'tide', 'boat', 'crew', 'rope', 'quay']
+  const memory = { ...s.memory, text: words.join(' ') }
+  const picked = selectMemoriesExplained([memory], { characterId: s.speaker.id, presentIds: [], recentText: words.join(' ') })[0]
+  expect(picked.reasons.matchedWords).toHaveLength(12)
+  const { savedRecallReasons } = await import('../src/lib/memory/savedReasons.ts')
+  expect((await s.record(0, { [s.memory.id]: savedRecallReasons(picked.reasons) })).status).toBe(204)
+  const data = (await call(`/messages/${s.reply.id}/recalls`)).body
+  expect(data.recorded).toBe(true)
+  expect(data.memories[0].reasons.matchedWords).toHaveLength(10)
+  expect(picked.reasons.matchedWords).toHaveLength(12)
+  expect((await s.explorer()).body.memories[0].recall.count).toBe(1)
+  expect((await s.explorer()).body.connections[0].weight).toBe(1.1)
+})
+
+it('reopens from the selected branch view, rejecting retired, unrelated and invisible scenes', async () => {
+  const s = await setup()
+  const branch = (await call('/chats', 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).body
+  const sibling = (await call('/chats', 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).body
+  for (const scene of [branch, sibling]) await call(`/chats/${scene.id}`, 'PUT', { previousSceneId: s.chat.id })
+  const evidence = (await call('/messages', 'POST', { chatId: sibling.id, role: 'char', speakerId: s.speaker.id, text: 'An alternate telling.' })).body
+  await call(`/memory-links/${s.link.id}/close`, 'POST')
+  await call(`/memories/${s.memory.id}`, 'PUT', { active: false, retiredByMessageId: evidence.id, retiredReason: 'Another telling.' })
+  expect((await s.explorer(branch.id)).body.memories[0].status).toBe('active')
+  expect((await call(`/memory-links/${s.link.id}/reopen`, 'POST', { chatId: sibling.id })).status).toBe(400)
+  const unrelated = (await call('/chats', 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).body
+  expect((await call(`/memory-links/${s.link.id}/reopen`, 'POST', { chatId: unrelated.id })).status).toBe(400)
+  const privateScene = (await call('/chats', 'POST', { characterId: s.speaker.id }, member)).body
+  expect((await call(`/memory-links/${s.link.id}/reopen`, 'POST', { chatId: privateScene.id })).status).toBe(404)
+  expect((await call(`/memory-links/${s.link.id}/reopen`, 'POST', { chatId: branch.id })).body).toMatchObject({ validTo: null, closedByMessageId: null })
+})
+
+it('keeps the earliest written place label while grouping normalized keys', async () => {
+  const s = await setup()
+  await call('/memories', 'POST', { chatId: s.chat.id, text: 'A second quay visit.', witnesses: [s.speaker.id], location: 'QUAY' })
+  const places = (await s.explorer()).body.subjects.filter((subject: any) => subject.kind === 'place')
+  expect(places).toHaveLength(1)
+  expect(places[0]).toMatchObject({ id: 'quay', displayLabel: 'Quay' })
+  expect(places[0].memoryIds).toHaveLength(2)
+})
+
+it('checks selected-branch knowledge before bringing a faded memory back', async () => {
+  const s = await setup()
+  const sibling = (await call('/chats', 'POST', { characterId: s.speaker.id })).body
+  await call(`/chats/${sibling.id}`, 'PUT', { previousSceneId: s.chat.id })
+  const { memoryStore } = await import('./db.ts')
+  memoryStore.update(s.memory.id, { witnesses: [s.other.id], knownBy: [s.other.id, s.speaker.id], toldVia: [{ to: [s.speaker.id], chatId: sibling.id, at: Date.now() }], consolidatedFor: [s.speaker.id] })
+  expect((await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id, chatId: s.chat.id })).status).toBe(400)
+  expect(memoryStore.get(s.memory.id)?.consolidatedFor).toEqual([s.speaker.id])
+  expect((await call(`/memories/${s.memory.id}/unfade`, 'POST', { characterId: s.speaker.id, chatId: sibling.id })).status).toBe(200)
 })

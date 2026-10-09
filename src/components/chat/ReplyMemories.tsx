@@ -8,10 +8,7 @@ import { whyLabels } from './memoryWhy'
 export function ReplyMemoriesMenu({ messageId, swipe }: { messageId: string; swipe: number }) {
   const [open, setOpen] = useState(false)
   return <>
-    <details className="relative">
-      <summary className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-md hover:bg-bg-sunken hover:text-text" aria-label="Memory actions" title="Memory actions"><Brain size={13} /></summary>
-      <button className="absolute bottom-full right-0 z-30 mb-2 w-44 rounded-lg border border-border bg-bg-elevated p-3 text-left text-xs text-text themed-shadow" onClick={(e) => { setOpen(true); e.currentTarget.closest('details')?.removeAttribute('open') }}>Why these memories?</button>
-    </details>
+    <button className="flex h-6 w-6 items-center justify-center rounded-md hover:bg-bg-sunken hover:text-text" aria-label="Why these memories?" title="Why these memories?" onClick={() => setOpen(true)}><Brain size={13} /></button>
     {open && <ReplyMemoriesSheet key={`${messageId}:${swipe}`} messageId={messageId} swipe={swipe} onClose={() => setOpen(false)} />}
   </>
 }

@@ -36,7 +36,8 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const names = new Map(characters.map((c) => [c.id, c.card.name]))
-  const nameOf = (kind: string, id: string) => kind === 'person' ? names.get(id) || 'Someone' : kind === 'memory' ? 'Earlier memory' : id
+  const nameOf = (kind: string, id: string) => kind === 'person' ? names.get(id) || 'Someone' : kind === 'memory' ? 'Earlier memory' : data?.subjects.find((s) => s.kind === kind && s.id === id)?.displayLabel || id
+  const subjectName = (s: import('@/lib/memory/explorer').ExplorerSubject) => nameOf(s.kind, s.id)
   const subject = data?.subjects.find((s) => s.key === picked)
   const run = async (action: () => Promise<unknown>) => {
     if (busy) return
@@ -47,9 +48,9 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
   return <ExplorerLayout data={data} picked={!!subject} list={<>
     <input className={inputClass} aria-label="Filter people, places and things" placeholder="Find a person, place or thing…" value={filter} onChange={(e) => setFilter(e.target.value)} />
     <ul className="mt-3 space-y-1">
-      {data.subjects.filter((s) => nameOf(s.kind, s.id).toLowerCase().includes(filter.toLowerCase())).map((s) => <li key={s.key}>
+      {data.subjects.filter((s) => subjectName(s).toLowerCase().includes(filter.toLowerCase())).map((s) => <li key={s.key}>
         <button onClick={() => setPicked(s.key)} aria-pressed={picked === s.key} className={`w-full rounded-lg px-3 py-2 text-left ${picked === s.key ? 'bg-accent/10 text-accent' : 'hover:bg-bg-sunken'}`}>
-          <span className="block break-words text-sm">{nameOf(s.kind, s.id)}</span>
+          <span className="block break-words text-sm">{subjectName(s)}</span>
           <span className="text-xs text-text-muted">{kindLabel[s.kind]} · {s.memoryIds.length} {s.memoryIds.length === 1 ? 'memory' : 'memories'}</span>
         </button>
       </li>)}
@@ -57,7 +58,7 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
     {!data.subjects.length && <p className="mt-3 text-sm text-text-muted">No people, places or things recorded in this branch yet.</p>}
   </>} detail={subject ? <>
     <button className={`${actionClass} mb-3 md:hidden`} onClick={() => setPicked('')}>← Back to people, places and things</button>
-    <h4 className="mb-4 break-words font-display text-lg">{nameOf(subject.kind, subject.id)}</h4>
+    <h4 className="mb-4 break-words font-display text-lg">{subjectName(subject)}</h4>
     {data.connections.filter((l) => subject.linkIds.includes(l.id)).map((l) => <div key={l.id} className="mb-3 rounded-xl border border-border p-3">
       <p className="break-words text-sm">{nameOf(l.fromKind, l.fromId)} {l.relation} {nameOf(l.toKind, l.toId)} · since {l.startedScene}
         {l.validTo !== null ? ` · until ${l.endedScene || new Date(l.validTo).toLocaleDateString()}` : ''}
@@ -66,14 +67,14 @@ function SceneExplorer({ character, chatId, characters }: { character: Character
         <select aria-label="Change connection relation" className="min-w-0 rounded-md bg-bg-sunken p-1 text-xs" disabled={busy} value={l.relation} onChange={(e) => run(() => memoryExplorerApi.connection(l.id, 'relation', e.target.value))}>
           {LINK_RELATIONS.map((r) => <option key={r}>{r}</option>)}
         </select>
-        <button className={actionClass} disabled={busy || (l.validTo !== null && !data.memories.find((m) => m.id === l.memoryId)?.active)} onClick={() => run(() => memoryExplorerApi.connection(l.id, l.validTo === null ? 'close' : 'reopen'))}>{l.validTo === null ? 'Close' : 'Reopen'}</button>
+        <button className={actionClass} disabled={busy || (l.validTo !== null && !data.memories.find((m) => m.id === l.memoryId)?.active)} onClick={() => run(() => memoryExplorerApi.connection(l.id, l.validTo === null ? 'close' : 'reopen', undefined, chatId))}>{l.validTo === null ? 'Close' : 'Reopen'}</button>
         <button className={actionClass} disabled={busy} onClick={() => run(async () => {
           if (await confirmDialog({ title: 'Remove this connection?', body: 'The memory stays. Only this connection is removed.', confirmLabel: 'Remove', tone: 'danger' })) await memoryExplorerApi.connection(l.id, 'remove')
         })}>Remove</button>
       </div>}
     </div>)}
     <h5 className="mb-2 text-sm font-medium">Memories</h5>
-    {data.memories.filter((m) => subject.memoryIds.includes(m.id)).map((m) => <ExplorerMemoryCard key={m.id} memory={m} character={character} busy={busy} run={run} />)}
+    {data.memories.filter((m) => subject.memoryIds.includes(m.id)).map((m) => <ExplorerMemoryCard key={m.id} memory={m} character={character} chatId={chatId} busy={busy} run={run} />)}
   </> : <p className="text-sm text-text-muted">Choose a person, place or thing to see their connections and memories.</p>} />
 }
 /** Phone navigation replaces the list with a full-width detail; desktop keeps both visible. */
@@ -86,14 +87,14 @@ export function ExplorerLayout({ data, picked, list, detail }: { data: Pick<Memo
     </div>
   </>
 }
-function ExplorerMemoryCard({ memory: m, character, busy, run }: { memory: ExplorerMemory; character: Character; busy: boolean; run: (action: () => Promise<unknown>) => Promise<void> }) {
+function ExplorerMemoryCard({ memory: m, character, chatId, busy, run }: { memory: ExplorerMemory; character: Character; chatId: string; busy: boolean; run: (action: () => Promise<unknown>) => Promise<void> }) {
   return <div className="mb-3 rounded-xl border border-border p-3">
     <div className="flex flex-wrap gap-2 text-xs text-text-muted"><span>{m.status === 'summarized' ? 'Part of a summary' : m.status[0].toUpperCase() + m.status.slice(1)}</span>{m.pinned && <span>Pinned</span>}{m.unresolved && <span>Open thread</span>}</div>
     <p className="my-2 whitespace-pre-wrap break-words text-sm">{m.text}</p>
     <p className="text-xs text-text-muted">Remembered {m.recall.count} {m.recall.count === 1 ? 'time' : 'times'}{m.recall.lastAt ? ` · last ${recallWhen(m.recall.lastAt)}` : ''}</p>
     <div className="mt-2 flex flex-wrap gap-1">
       <button className={actionClass} disabled={busy} onClick={() => run(() => memoriesApi.update(m.id, { pinned: !m.pinned }))}>{m.pinned ? 'Unpin' : 'Pin'}</button>
-      {m.status === 'summarized' ? <p className="text-xs text-text-muted">To bring this back, use Undo in World settings → Deep Memory → Recent runs.</p> : m.kind !== 'journal' && m.active && <button className={actionClass} disabled={busy} onClick={() => run(() => m.status === 'faded' ? memoryExplorerApi.unfade(m.id, character.id) : memoriesApi.consolidate(character.id, [m.id]))}>{m.status === 'faded' ? 'Bring back' : `Fade for ${character.card.name}`}</button>}
+      {m.status === 'summarized' ? <p className="text-xs text-text-muted">To bring this back, use Undo in World settings → Deep Memory → Recent runs.</p> : m.kind !== 'journal' && m.active && <button className={actionClass} disabled={busy} onClick={() => run(() => m.status === 'faded' ? memoryExplorerApi.unfade(m.id, character.id, chatId) : memoriesApi.consolidate(character.id, [m.id]))}>{m.status === 'faded' ? 'Bring back' : `Fade for ${character.card.name}`}</button>}
     </div>
   </div>
 }

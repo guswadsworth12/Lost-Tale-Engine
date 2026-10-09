@@ -15,6 +15,7 @@ export interface ExplorerSubject {
   key: string
   kind: EntityKind
   id: string
+  displayLabel?: string
   memoryIds: string[]
   linkIds: string[]
 }
@@ -28,5 +29,5 @@ export interface MemoryExplorer {
 export interface ReplyRecalls {
   characterId: string
   recorded: boolean
-  memories: { id: string; text: string; forgotten?: boolean; reasons?: MemoryReasons }[]
+  memories: { id: string; text: string; reasons?: MemoryReasons }[]
 }

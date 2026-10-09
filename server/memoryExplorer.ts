@@ -29,9 +29,10 @@ memoryExplorerRouter.get('/chats/:id/memory-explorer', (req, res) => {
   const recalls = new Map(memoryRecallStore.counts(characterId, [...chain]).map(({ memoryId, count, lastAt }) => [memoryId, { count, lastAt }]))
   const now = Date.now()
   const subjects = new Map<string, ExplorerSubject>()
-  const add = (kind: EntityKind, id: string, memoryId: string, linkId?: string) => {
+  const add = (kind: EntityKind, id: string, memoryId: string, linkId?: string, displayLabel?: string) => {
     if (!id) return
     const key = `${kind}:${id}`, subject = subjects.get(key) ?? { key, kind, id, memoryIds: [], linkIds: [] }
+    if (displayLabel && !subject.displayLabel) subject.displayLabel = displayLabel
     if (!subject.memoryIds.includes(memoryId)) subject.memoryIds.push(memoryId)
     if (linkId && !subject.linkIds.includes(linkId)) subject.linkIds.push(linkId)
     subjects.set(key, subject)
@@ -47,7 +48,7 @@ memoryExplorerRouter.get('/chats/:id/memory-explorer', (req, res) => {
   })
   for (const m of rows) {
     for (const id of m.about ?? []) add('person', id, m.id)
-    if (placeKey(m.location)) add('place', placeKey(m.location), m.id)
+    if (placeKey(m.location)) add('place', placeKey(m.location), m.id, undefined, m.location?.trim())
     for (const l of m.links ?? []) {
       if (l.fromKind !== 'memory') add(l.fromKind, l.fromId, m.id, l.id)
       if (l.toKind !== 'memory') add(l.toKind, l.toId, m.id, l.id)
@@ -72,7 +73,14 @@ for (const action of ['close', 'reopen'] as const) memoryExplorerRouter.post(`/m
   const link = editableLink(req.params.id)
   if (!link) return res.status(404).json({ error: 'Not found' })
   if (link.relation === 'supersedes') return res.status(400).json({ error: 'A replacement connection cannot be edited.' })
-  if (action === 'reopen' && !memoryStore.get(link.memoryId)?.active) return res.status(400).json({ error: 'This memory is retired. Its connection cannot be reopened.' })
+  if (action === 'reopen') {
+    const chatId = str(req.body?.chatId), chat = chatStore.get(chatId)
+    if (!chat || !canSeeChat(req, chat)) return res.status(404).json({ error: 'Not found' })
+    const chain = new Set(chainOf(chatId).filter((id) => canSeeChat(req, chatStore.get(id))))
+    const memory = memoryStore.get(link.memoryId) as unknown as CharacterMemory | undefined
+    if (!memory || !chain.has(memory.chatId)) return res.status(400).json({ error: 'This connection is outside the selected scene’s branch.' })
+    if (!memoryAsSeenFrom(memory, chain).active) return res.status(400).json({ error: 'This memory is retired. Its connection cannot be reopened.' })
+  }
   res.json(memoryLinkStore.update(link.id, action === 'close' ? { validTo: Date.now(), closedByMessageId: null, closedBy: 'player' } : { validTo: null, closedByMessageId: null, closedBy: undefined }))
 })
 memoryExplorerRouter.delete('/memory-links/:id', (req, res) => {
@@ -84,7 +92,9 @@ memoryExplorerRouter.delete('/memory-links/:id', (req, res) => {
 memoryExplorerRouter.post('/memories/:id/unfade', (req, res) => {
   const row = memoryStore.get(req.params.id), characterId = str(req.body?.characterId)
   if (!row || !canSeeCharacter(req, characterStore.get(characterId))) return res.status(404).json({ error: 'Not found' })
-  if (!(row.knownBy as string[]).includes(characterId)) return res.status(400).json({ error: 'This character does not know that memory.' })
+  const chatId = str(req.body?.chatId), chat = chatStore.get(chatId)
+  if (!chat || !canSeeChat(req, chat)) return res.status(404).json({ error: 'Not found' })
+  if (!knownIn(req, chatId, characterId).memories.some((m) => m.id === req.params.id)) return res.status(400).json({ error: 'This character does not know that memory.' })
   const ids = (row.consolidatedFor as string[] | undefined)?.filter((id) => id !== characterId)
   res.json(memoryStore.update(req.params.id, { consolidatedFor: ids?.length ? ids : undefined, updatedAt: Date.now() }))
 })
@@ -97,16 +107,16 @@ memoryExplorerRouter.get('/messages/:id/recalls', (req, res) => {
   if (!Number.isSafeInteger(swipe) || swipe < 0) return res.status(400).json({ error: 'Invalid swipe.' })
   const { memories } = knownIn(req, str(chat.id), characterId), known = new Map(memories.map((m) => [m.id, m]))
   const data: ReplyRecalls = { characterId, recorded: false, memories: [] }
-  for (const event of memoryRecallStore.forChat(str(chat.id)).filter((e) => e.messageId === message.id && e.characterId === characterId && e.swipe === swipe)) {
+  for (const event of memoryRecallStore.forReply(str(message.id), characterId, swipe)) {
     if (!event.reasons) continue
     let reasons: unknown
     try { reasons = JSON.parse(event.reasons) } catch { continue }
     if (!validRecallReasons(reasons)) continue
     const memory = known.get(event.memoryId)
-    // Existing but no longer known/visible memories never leave the server, including their reasons.
-    if (!memory && memoryStore.get(event.memoryId)) continue
+    // Forgotten and no longer known/visible memories never leave the server, including their reasons.
+    if (!memory) continue
     data.recorded = true
-    data.memories.push(memory ? { id: memory.id, text: memory.text, reasons } : { id: event.memoryId, text: 'A memory since forgotten', forgotten: true })
+    data.memories.push({ id: memory.id, text: memory.text, reasons })
   }
   res.json(data)
 })

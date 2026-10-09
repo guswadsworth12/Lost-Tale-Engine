@@ -194,14 +194,13 @@ memoriesRouter.post('/memories/recalls', (req, res) => {
     const m = memoryAsSeenFrom(asMemory(row), chain)
     return m.active && m.kind !== 'journal' && m.knownBy.includes(characterId) && !m.consolidatedFor?.includes(characterId)
   })
-  const reasons = body.reasons
-  if (reasons !== undefined && (!reasons || typeof reasons !== 'object' || Array.isArray(reasons) || Object.keys(reasons).length > BATCH_MAX
-    || Object.entries(reasons).some(([id, value]) => !body.memoryIds.includes(id) || !validRecallReasons(value)))) return res.status(400).json({ error: 'Invalid memory reasons.' })
+  // Diagnostics must never prevent a valid recall from being counted and strengthening its connections.
+  const reasons = body.reasons && typeof body.reasons === 'object' && !Array.isArray(body.reasons) ? body.reasons : undefined
   const at = Date.now()
   db.exec('BEGIN')
   try {
     for (const memoryId of ids) {
-      const saved = memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at, reasons: reasons?.[memoryId] })
+      const saved = memoryRecallStore.insert({ memoryId, characterId, chatId, messageId, swipe, at, reasons: validRecallReasons(reasons?.[memoryId]) ? reasons[memoryId] : null })
       if (!saved.changes) continue
       for (const link of withLinks(asMemory(memoryStore.get(memoryId)!), chain).links ?? []) {
         if (link.validTo !== null || link.validFrom > at || link.relation === 'supersedes') continue

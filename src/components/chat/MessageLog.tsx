@@ -13,6 +13,7 @@ import { memoriesByMessage, rememberLine, rememberers } from './memoryMarker'
 
 interface MessageLogProps {
   messages: StoredMessage[]
+  showMemoryReasons?: boolean
   character?: Character
   /** The player's public view, built from the story's `playerCharacterId` card (`useChatSession().persona`). */
   persona?: Persona
@@ -41,6 +42,7 @@ interface MessageLogProps {
 /** The classic scrolling transcript — shared by the default chat view and the VN mode backlog drawer. */
 export function MessageLog({
   messages,
+  showMemoryReasons = false,
   character,
   persona,
   participantCharacters = [],
@@ -123,6 +125,7 @@ export function MessageLog({
           streamingText={generatingMessageId === m.id ? streamingText : ''}
           isHighlighted={highlightedMessageId === m.id}
           memoryNote={memoryNotes.get(m.id)}
+          showMemoryReasons={showMemoryReasons}
           onEdit={onEdit}
           onDelete={onDelete}
           onRewind={onRewind}

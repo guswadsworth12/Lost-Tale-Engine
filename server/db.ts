@@ -434,6 +434,9 @@ export const memoryRecallStore = {
   forChat(chatId: string): RecallEvent[] {
     return db.prepare('SELECT * FROM memory_recall_events WHERE chatId = ?').all(chatId) as unknown as RecallEvent[]
   },
+  forReply(messageId: string, characterId: string, swipe: number): RecallEvent[] {
+    return db.prepare('SELECT * FROM memory_recall_events WHERE messageId = ? AND characterId = ? AND swipe = ?').all(messageId, characterId, swipe) as unknown as RecallEvent[]
+  },
   counts(characterId: string, chain: string[]) {
     if (!chain.length) return []
     return db.prepare(`SELECT e.memoryId, COUNT(*) AS count, MAX(e.at) AS lastAt
@@ -447,8 +450,7 @@ export const memoryRecallStore = {
       VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(memoryId, characterId, messageId, swipe) DO NOTHING`)
       .run(bind(row.memoryId), bind(row.characterId), bind(row.chatId), bind(row.messageId), bind(row.swipe), bind(row.at), typeof row.reasons === 'string' ? row.reasons : row.reasons ? JSON.stringify(row.reasons) : null)
   },
-  // Keep reply explanations after forgetting; the read route returns a placeholder without old text.
-  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ? AND reasons IS NULL').run(memoryId) },
+  removeMemory(memoryId: string) { db.prepare('DELETE FROM memory_recall_events WHERE memoryId = ?').run(memoryId) },
   removeCharacter(characterId: string) { db.prepare('DELETE FROM memory_recall_events WHERE characterId = ?').run(characterId) },
   retract(messageId: string, swipe?: number) {
     if (swipe === undefined) db.prepare('DELETE FROM memory_recall_events WHERE messageId = ?').run(messageId)

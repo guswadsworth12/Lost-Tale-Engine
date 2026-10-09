@@ -1,3 +1,4 @@
+import { savedRecallReasons } from '@/lib/memory/savedReasons'
 import type { Character } from '@/lib/characters/cardSpec'
 import type { MomentInput, StoryMoment } from '@/lib/story/moments'
 import type {
@@ -537,12 +538,12 @@ export const memoryExplorerApi = {
   recalls(messageId: string, swipe: number): Promise<import('@/lib/memory/explorer').ReplyRecalls> {
     return request('GET', `/messages/${messageId}/recalls?swipe=${swipe}`)
   },
-  async connection(id: string, action: 'relation' | 'close' | 'reopen' | 'remove', relation?: string): Promise<void> {
-    await request(action === 'remove' ? 'DELETE' : action === 'relation' ? 'PUT' : 'POST', `/memory-links/${id}${action === 'close' || action === 'reopen' ? `/${action}` : ''}`, action === 'relation' ? { relation } : undefined)
+  async connection(id: string, action: 'relation' | 'close' | 'reopen' | 'remove', relation?: string, chatId?: string): Promise<void> {
+    await request(action === 'remove' ? 'DELETE' : action === 'relation' ? 'PUT' : 'POST', `/memory-links/${id}${action === 'close' || action === 'reopen' ? `/${action}` : ''}`, action === 'relation' ? { relation } : chatId ? { chatId } : undefined)
     invalidate('memories')
   },
-  async unfade(id: string, characterId: string): Promise<void> {
-    await request('POST', `/memories/${id}/unfade`, { characterId })
+  async unfade(id: string, characterId: string, chatId: string): Promise<void> {
+    await request('POST', `/memories/${id}/unfade`, { characterId, chatId })
     invalidate('memories')
   },
 }
@@ -555,7 +556,8 @@ export const memoriesApi = {
   /** Best-effort HTTP bookkeeping, never in the way of a saved reply. */
   async recordRecalls(chatId: string, characterId: string, messageId: string, memoryIds: string[], swipe = 0, reasons?: Record<string, import('@/lib/memory/rank').MemoryReasons>): Promise<void> {
     if (!memoryIds.length) return
-    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds, swipe, reasons }).catch(() => {})
+    const savedReasons = reasons ? Object.fromEntries(Object.entries(reasons).map(([id, value]) => [id, savedRecallReasons(value)])) : undefined
+    await request<void>('POST', '/memories/recalls', { chatId, characterId, messageId, memoryIds, swipe, reasons: savedReasons }).catch(() => {})
   },
   /** Everything a character knows, across every chat, newest first. */
   forCharacter(characterId: string): Promise<CharacterMemoryListing[]> {
