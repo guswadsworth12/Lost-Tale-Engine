@@ -55,6 +55,8 @@ export function activateWorldInfo(
   recentText: string,
   affection = 0,
   runtime?: WorldInfoRuntimeInput,
+  /** Per-book overrides of `affection`, by `sourceKey`. */
+  affectionByBook?: Readonly<Record<string, number>>,
 ): WorldInfoActivationResult {
   const haystackLower = recentText.toLowerCase()
   const activated: LorebookEntry[] = []
@@ -68,6 +70,7 @@ export function activateWorldInfo(
 
   for (let bookIndex = 0; bookIndex < books.length; bookIndex++) {
     const book = books[bookIndex]
+    const bookAffection = book.sourceKey !== undefined && typeof affectionByBook?.[book.sourceKey] === 'number' ? affectionByBook[book.sourceKey] : affection
     let matched: LorebookEntry[] = []
     const matchedIds = new Set<number>()
     const keywordEntries: LorebookEntry[] = []
@@ -80,7 +83,7 @@ export function activateWorldInfo(
       // Manual entries use their own enabled check below, not this generic one.
       if (mode !== 'manual' && !entry.enabled) continue
       const requiredAffection = Number((entry.extensions as Record<string, unknown> | undefined)?.affectionMin ?? 0)
-      if (Number.isFinite(requiredAffection) && affection < requiredAffection) continue
+      if (Number.isFinite(requiredAffection) && bookAffection < requiredAffection) continue
       // ST's `delay`: hold back until the chat reaches `delay` messages; needs a runtime to apply.
       if (runtime && entry.delay !== undefined && runtime.turn < entry.delay) continue
       if (mode === 'always') {

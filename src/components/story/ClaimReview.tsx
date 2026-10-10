@@ -51,7 +51,7 @@ export function ClaimReview({ chatId, worldId, nameOf }: {
     // Read fresh, as finishScene does, so a fact added elsewhere since this render is kept.
     const current = await worldsApi.get(worldId)
     if (!current) throw new Error('This world no longer exists.')
-    const promoted = promoteToCanon(current.canonFacts, text, chatId, newId(), Date.now())
+    const promoted = promoteToCanon(current.canonFacts, text, chatId, newId(), Date.now(), m.knownBy)
     if (!promoted) return
     await worldsApi.update(worldId, { canonFacts: promoted.canonFacts })
     await memoriesApi.update(m.id, promoted.memoryPatch)

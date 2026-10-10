@@ -1,4 +1,5 @@
 import type { CharacterMemory, WorldCard } from '@/lib/types'
+import { canonAudience } from '@/lib/world/canonFacts'
 
 /**
  * The player's review of what characters heard or think (`ClaimReview`): claims and beliefs wait
@@ -37,7 +38,8 @@ export function canonTextFrom(text: string): string {
 /**
  * Promoting a claim to world canon: the world's facts with the new one appended (the same shape
  * `finishScene` writes), and the patch that marks the memory ruled true and linked to it. Blank
- * text changes nothing (null).
+ * text changes nothing (null). `knownBy` is who heard the claim: the fact is only told to them, so
+ * making it canon doesn't hand it to everyone else in the world.
  */
 export function promoteToCanon(
   canonFacts: readonly CanonFact[] | undefined,
@@ -45,11 +47,12 @@ export function promoteToCanon(
   sourceChatId: string,
   id: string,
   now: number,
+  knownBy?: readonly string[],
 ): { canonFacts: CanonFact[]; memoryPatch: { verdict: 'true'; canonFactId: string } } | null {
   const fact = text.trim()
   if (!fact) return null
   return {
-    canonFacts: [...(canonFacts ?? []), { id, text: fact, createdAt: now, sourceChatId }],
+    canonFacts: [...(canonFacts ?? []), { id, text: fact, createdAt: now, sourceChatId, knownBy: canonAudience(knownBy) }],
     memoryPatch: { verdict: 'true', canonFactId: id },
   }
 }

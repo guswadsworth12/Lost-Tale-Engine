@@ -199,7 +199,8 @@ export function LorebookEditor({
                       />
                     )}
                     <NumberField
-                      label="Unlock warmth"
+                      label="Unlocks at affection"
+                      hint="A character's own lore uses their own affection; world and shared books use the scene lead's."
                       min={0}
                       max={100}
                       value={Number((entry.extensions as Record<string, unknown> | undefined)?.affectionMin ?? 0)}

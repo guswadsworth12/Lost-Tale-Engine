@@ -52,6 +52,12 @@ describe('planNextScene', () => {
     expect(newChat.createdAt).toBe(1000)
   })
 
+  it('carries who saw each consequence, merged with what came before, and only for consequences still carried', () => {
+    const before = { ...source, consequenceAudience: { 'The gate is sealed.': ['lead'], 'Forgotten.': ['ally'] } }
+    const { newChat } = planNextScene(before, [], undefined, { recap, consequences: ['The ally owes a favor.', 'The gate is sealed.'], consequenceAudience: { 'The ally owes a favor.': ['ally', 'hero'], 'The gate is sealed.': ['rival'], 'Not carried.': ['x'] } }, 1000, ids())
+    expect(newChat.consequenceAudience).toEqual({ 'The gate is sealed.': ['lead', 'rival'], 'The ally owes a favor.': ['ally', 'hero'] })
+  })
+
   it('opens the next scene on the state the last one ended with, not the one it started with', () => {
     const started = { ...source, gameState: { supplies: 3 } }
     expect(planNextScene(started, [], undefined, { recap }, 1000, ids(), { supplies: 1, 'hurt@hero': true }).newChat.gameState).toEqual({ supplies: 1, 'hurt@hero': true })
@@ -184,6 +190,16 @@ describe('deleting one scene', () => {
   /** The scenes as the server leaves them after a plan: patches merged, cleared fields gone. */
   const apply = (all: Record<string, unknown>[], plan: { scenePatches: Record<string, Record<string, unknown>> }, id: string, sourcePatch: Record<string, unknown>) =>
     all.map((s) => JSON.parse(JSON.stringify({ ...s, ...(plan.scenePatches[s.id as string] ?? {}), ...(s.id === id ? sourcePatch : {}) })))
+
+  it('takes a deleted scene\'s consequence audience off later scenes and puts it back on restore', () => {
+    const s3Heard = { ...s3, consequenceAudience: { 'Rend is strained.': ['lead'], 'The gate is sealed.': ['ally'] } }
+    const all = [s1, s2, s3Heard]
+    const plan = planSceneRemoval(s2, all, undefined, s2Messages, 500)
+    expect(plan.scenePatches.s3.consequenceAudience).toEqual({ 'The gate is sealed.': ['ally'] })
+    const after = apply(all, plan, 's2', plan.sourcePatch)
+    const back = planSceneRestore(after.find((s) => s.id === 's2'), after, undefined, 0, 600)
+    expect(back.scenePatches.s3.consequenceAudience).toEqual({ 'The gate is sealed.': ['ally'], 'Rend is strained.': ['lead'] })
+  })
 
   it('closes the gap around a middle scene and takes back what happened only in it', () => {
     const plan = planSceneRemoval(s2, scenes, undefined, s2Messages, 500)

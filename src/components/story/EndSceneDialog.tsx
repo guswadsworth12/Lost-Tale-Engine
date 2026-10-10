@@ -325,7 +325,7 @@ export function EndSceneDialog({
                     <input type="checkbox" checked={canon.has(i)} onChange={() => toggleCanon(i)} className="mt-0.5" />
                     <span className="min-w-0">
                       <span className="block text-text">{change}</span>
-                      <span className="block text-xs text-text-muted">Record as world canon</span>
+                      <span className="block text-xs text-text-muted">Record as world canon. Only the characters who were in this scene will be told.</span>
                     </span>
                   </label>
                 </li>

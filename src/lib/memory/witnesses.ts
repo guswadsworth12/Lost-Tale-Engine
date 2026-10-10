@@ -5,8 +5,8 @@ import type { Chat, StoredMessage } from '@/lib/types'
  * narrow a memory's witnesses (a whisper), but can never add someone who was not there.
  */
 
-type PresenceChat = Pick<Chat, 'characterId' | 'participants' | 'playerCharacterId' | 'scene'>
-type PresenceMessage = Pick<StoredMessage, 'role' | 'speakerId' | 'presentIds'>
+export type PresenceChat = Pick<Chat, 'characterId' | 'participants' | 'playerCharacterId' | 'scene'>
+export type PresenceMessage = Pick<StoredMessage, 'role' | 'speakerId' | 'presentIds'>
 
 function uniq(ids: (string | undefined | null)[]): string[] {
   const seen = new Set<string>()

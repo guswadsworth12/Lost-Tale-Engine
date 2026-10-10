@@ -217,7 +217,16 @@ function normalizeCanonFacts(raw: unknown) {
       text: (item.text as string).trim().slice(0, 4000),
       createdAt: typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : Date.now(),
       sourceChatId: typeof item.sourceChatId === 'string' ? item.sourceChatId.slice(0, 100) : undefined,
+      knownBy: normalizeCanonKnownBy(item.knownBy),
+      shared: item.shared === true || undefined,
     }))
+}
+
+/** Who may be told a canon fact. Missing or empty stays public; it never becomes "nobody". */
+function normalizeCanonKnownBy(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const ids = [...new Set(raw.filter((id): id is string => typeof id === 'string' && !!id.trim()).map((id) => id.trim().slice(0, 100)))].slice(0, 200)
+  return ids.length ? ids : undefined
 }
 
 function normalizeCustomExpressions(raw: unknown) {

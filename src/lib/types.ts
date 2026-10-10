@@ -566,6 +566,8 @@ export interface Chat {
   recap?: SceneRecap
   /** Confirmed branch consequences from earlier scenes (their GM turns stay with those scenes). */
   carriedConsequences?: string[]
+  /** Who saw each carried consequence confirmed, by its text (`branchConsequenceAudience`). A consequence missing here was saved before this existed and is told to everyone. */
+  consequenceAudience?: Record<string, string[]>
   /** Canon beats of this story (`world/gm.ts` `SetEvent`): when one happens, it happens as written, with no roll. Carried into later scenes. */
   setEvents?: import('@/lib/world/gm').SetEvent[]
   /** Set events already carried out in earlier scenes of this story. */
@@ -712,7 +714,7 @@ export interface WorldCard {
   /** Ordered setting prompts shared by everyone in this world. */
   promptItems?: import('@/lib/prompt/items').PromptItem[]
   /** Player-confirmed facts shared across every chat using this world. */
-  canonFacts?: { id: string; text: string; createdAt: number; sourceChatId?: string }[]
+  canonFacts?: { id: string; text: string; createdAt: number; sourceChatId?: string; /** Characters who may be told it (`world/canonFacts.ts`). Unset: everyone in the world. */ knownBy?: string[]; /** Told to the whole world even though it was recorded from play. */ shared?: boolean }[]
   /** Setting, tone, general facts — always included in the prompt for any character in this world. */
   description: string
   /** Hard constraints (magic system, tech level, taboos) the model should never contradict. */

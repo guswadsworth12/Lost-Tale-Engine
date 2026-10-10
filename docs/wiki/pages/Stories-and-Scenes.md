@@ -16,7 +16,7 @@ Open a story card to resume its current scene. Cards show the world, current pla
 
 ## Move through a long story
 
-Open **Story panel → Scenes** to revisit earlier scenes or **Read the whole story**. **End scene…** opens a dialog that drafts a recap with your model: check and edit **What happened**, keep or remove **Open threads**, review any **Lasting changes** proposed as world canon, and set up the next scene (title, location, lead, and who's there). Tick **Also end Chapter 1** to close the chapter with its own recap, or **Split off a parallel storyline** to branch. Read the recap before carrying it forward: a bad summary can distort later play.
+Open **Story panel → Scenes** to revisit earlier scenes or **Read the whole story**. **End scene…** opens a dialog that drafts a recap with your model: check and edit **What happened**, keep or remove **Open threads**, review any **Lasting changes** proposed as world canon (a fact you record this way is only told to the characters who were in the scene, so a private plan doesn't reach someone who wasn't there; facts you type into the world yourself are told to everyone), and set up the next scene (title, location, lead, and who's there). Tick **Also end Chapter 1** to close the chapter with its own recap, or **Split off a parallel storyline** to branch. Read the recap before carrying it forward: a bad summary can distort later play.
 
 ![The End Scene dialog with a model-written recap, two open threads, and the next-scene options](https://raw.githubusercontent.com/guswadsworth12/Lost-Tale-Engine/master/screenshots/wiki-end-scene.jpg)
 

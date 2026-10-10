@@ -12,3 +12,5 @@
 The module choice also controls the dating chrome and prompt emphasis. A world with dating off should not display dating controls in play. Switching a module off keeps its data for later. CG unlocks are browsed in **Media**; character sprites remain in **Cast**.
 
 See [Worlds and Modules](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Worlds-and-Modules) for the module selector.
+
+In a group scene, each character's private lore unlocks on their own affection with you, not the lead's. See [Lore and Knowledge](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Lore-and-Knowledge).

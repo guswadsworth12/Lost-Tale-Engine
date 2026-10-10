@@ -280,6 +280,8 @@ export interface NextSceneBody {
   recap: Pick<SceneRecap, 'text' | 'presentIds' | 'openThreads' | 'location'>
   /** Confirmed consequences from this scene's GM turns, kept in force afterwards. */
   consequences?: string[]
+  /** Who saw each of those confirmed, by text, so later scenes tell them only to those who were there. */
+  consequenceAudience?: Record<string, string[]>
   /** Set events carried out so far, so later scenes do not repeat them. */
   setEventsDone?: string[]
   /** Ends the chapter too: its recap, and the next chapter's name and goal. */

@@ -1,3 +1,4 @@
+import { messageWitnesses, type PresenceChat, type PresenceMessage } from '../memory/witnesses'
 import { campaignNeedsTarget, scaleGuidance, type CampaignConfig, type PbtaRoll } from './campaign'
 import { describeBands, describeDice, tierLabels } from './customRules'
 import { choiceEffectsText, effectsForChoice, effectsForSetEvent, effectsText, parseEffects, PLAYER_HOLDER, type StateChange, type TrackEffect } from './gameState'
@@ -1019,6 +1020,27 @@ function listNames(names: string[]): string {
 /** Consequences the player confirmed on this branch, in story order. Derived from messages, so fork/rewind need no bookkeeping. */
 export function branchConsequencesFrom(messages: { gm?: GmTurn }[]): string[] {
   return messages.flatMap((m) => (m.gm?.proposals ?? []).filter((p) => p.status === 'confirmed' && p.scope === 'branch').map((p) => p.text))
+}
+
+/**
+ * Who saw each branch consequence confirmed: everyone present for the Game Master turn it came
+ * from (`messageWitnesses`), minus the Game Master. Saved with the scene when it ends, so later
+ * scenes tell a consequence only to those who were there.
+ */
+export function branchConsequenceAudience(messages: (PresenceMessage & { gm?: GmTurn })[], chat: PresenceChat): Record<string, string[]> {
+  const audience: Record<string, string[]> = {}
+  for (const m of messages) {
+    const texts = (m.gm?.proposals ?? []).filter((p) => p.status === 'confirmed' && p.scope === 'branch').map((p) => p.text)
+    if (!texts.length) continue
+    const witnesses = messageWitnesses(m, chat).filter((id) => id !== GM_SPEAKER_ID)
+    for (const text of texts) audience[text] = [...new Set([...(audience[text] ?? []), ...witnesses])]
+  }
+  return audience
+}
+
+/** The consequences `characterId` may be told: those they saw, and older ones saved before audiences were recorded. */
+export function consequencesKnownBy(texts: readonly string[], audience: Readonly<Record<string, readonly string[]>> | undefined, characterId: string): string[] {
+  return [...new Set(texts)].filter((text) => !audience?.[text] || audience[text].includes(characterId))
 }
 
 /** Small authoritative ledger for later turns, independent of model-written summaries. */

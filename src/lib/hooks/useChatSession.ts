@@ -35,6 +35,8 @@ import {
   GM_NAME,
   GM_SPEAKER_ID,
   branchConsequencesFrom,
+  branchConsequenceAudience,
+  consequencesKnownBy,
   earlierRollFrom,
   pendingChoiceFrom,
   setEventsDoneFrom,
@@ -263,8 +265,9 @@ import {
 import { appearanceForCharacter, formChoices, isPhysicalForm } from '@/lib/vn/appearances'
 import { assessRapport } from '@/lib/dating/rapport'
 import { bookAppliesToChat } from '@/lib/worldinfo/scope'
-import { buildFactsLorebook } from '@/lib/worldinfo/facts'
+import { buildFactsLorebook, factsWitnessedBy } from '@/lib/worldinfo/facts'
 import { messageWitnesses, witnessedMessage } from '@/lib/memory/witnesses'
+import { canonAudience, canonFactsFor } from '@/lib/world/canonFacts'
 import { latestJournal, memoriesKnownBy, memoryPrompt } from '@/lib/memory/rank'
 import type { PromptInspection } from '@/lib/prompt/inspection'
 import { gmMemoryDigest, knowledgeGaps } from '@/lib/memory/gmKnowledge'
@@ -732,8 +735,11 @@ export function useChatSession(chatId: string | null) {
         )
         .map((b) => ({ ...b.book, sourceKey: `book:${b.id}` }))
       const worldLorebook = world?.lorebook ? [{ ...world.lorebook, sourceKey: `world:${world.id}` }] : []
-      const factsLorebook = buildFactsLorebook(activeFacts).map((b) => ({ ...b, sourceKey: 'facts' }))
       const affection = freshChat.affection ?? 0
+      // A character's own lore unlocks on their own closeness to the player, not the lead's (#86).
+      // World, bound and facts books describe the shared scene, so they stay on the lead's value.
+      const ownAffection = speaker.id !== freshChat.characterId ? freshChat.participantRelationships?.[speaker.id]?.affection : undefined
+      const affectionByBook = typeof ownAffection === 'number' ? { [`char:${speaker.id}`]: ownAffection } : undefined
       const modules = modulesForWorld(world ?? { template: freshChat.mode })
       const romanceEmphasis = modules.romanceEmphasis
       const romanceFocus = romanceEmphasis === 'focus'
@@ -748,11 +754,19 @@ export function useChatSession(chatId: string | null) {
       // and belongs in the cacheable prefix, while what the world is *doing right now* changes as
       // the clock advances or the scene moves, and would otherwise invalidate the KV cache for
       // every history token behind it each time it did.
+      // This story branch's scenes, read fresh so a just-ended scene counts. Canon recorded from play
+      // stays in its own branch and reaches only the characters who were there for it.
+      const scenesForRecap = freshChat.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => storyScenes) : []
+      const branchIds = new Set([freshChat.id, ...sceneChain(scenesForRecap, freshChat).map((s) => s.id)])
+      const speakerCanon = canonFactsFor(world?.canonFacts, speaker.id, branchIds)
       const worldDescriptionLines = world
-        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign && modules.campaignRules ? campaignPrompt({ ...world.campaign, mode: modules.campaignRules, relationships: modules.relationships, dating: modules.dating }, modules.romanceEmphasis) : '', world.canonFacts?.length ? `Setting canon and historical dates (the current scene state below controls the present):\n${world.canonFacts.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
+        ? [world.description?.trim(), world.rules?.trim() ? `World rules: ${world.rules.trim()}` : '', world.campaign && modules.campaignRules ? campaignPrompt({ ...world.campaign, mode: modules.campaignRules, relationships: modules.relationships, dating: modules.dating }, modules.romanceEmphasis) : '', speakerCanon.length ? `Setting canon and historical dates (the current scene state below controls the present):\n${speakerCanon.map((fact) => `- ${fact.text}`).join('\n')}` : ''].filter(Boolean)
         : []
       // Read fresh: a GM turn or scenery choice may have landed after this render's `messages`.
       const branchMessages = await messagesApi.listByChat(freshChat.id)
+      // The scene's facts and open threads this speaker was there for.
+      const speakerFacts = factsWitnessedBy(activeFacts, branchMessages, freshChat, speaker.id)
+      const factsLorebook = buildFactsLorebook(speakerFacts).map((b) => ({ ...b, sourceKey: 'facts' }))
       const sceneSetting = sceneSettingFrom(branchMessages, freshChat.scene, (id) => backgroundLabel(id, world))
       // Character memory: this speaker hears only what they witnessed or were told, in this story.
       // The transcript leaves out messages from while they were not there (before they arrived, or
@@ -798,7 +812,12 @@ export function useChatSession(chatId: string | null) {
       const memoryJournal = recallPrompt?.journal
       const memoryText = recallPrompt?.text ?? ''
       // Earlier scenes' confirmed consequences ride along on the chat; this scene's come from its GM turns.
-      const branchConsequences = [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)]
+      // Only the consequences this speaker saw confirmed, here or in an earlier scene.
+      const branchConsequences = consequencesKnownBy(
+        [...(freshChat.carriedConsequences ?? []), ...branchConsequencesFrom(branchMessages)],
+        { ...freshChat.consequenceAudience, ...branchConsequenceAudience(branchMessages, freshChat) },
+        speaker.id,
+      )
       const recentRolls = modules.campaignRules === 'mechanical' ? recentRollsFrom(branchMessages) : []
       // Tracked state this speaker can see: the story's shared values and their own.
       const tracks = modules.campaignRules ? world?.campaign?.tracks : undefined
@@ -1117,7 +1136,7 @@ export function useChatSession(chatId: string | null) {
         timePhase: sceneStateLine ? undefined : promptTimePhase,
         presentNames: sceneStateLine ? undefined : sceneRoster.map((c) => c.card.name),
         currentActivity: sceneStateLine ? undefined : freshChat.activeEvent?.title,
-        openThreads: activeFacts.filter((f) => f.unresolved).map((f) => f.text),
+        openThreads: speakerFacts.filter((f) => f.unresolved).map((f) => f.text),
       })
 
       // Messages already folded into chat.summary are represented there, not sent verbatim.
@@ -1282,8 +1301,7 @@ export function useChatSession(chatId: string | null) {
           ]
 
       const contextBudget = sampler.max_context_length - sampler.max_length - 32
-      // Earlier scenes this speaker was actually there for, read fresh so a just-ended scene counts.
-      const scenesForRecap = freshChat.storyId ? await storiesApi.scenes(freshChat.storyId).catch(() => storyScenes) : []
+      // Earlier scenes this speaker was actually there for (`scenesForRecap` is read above).
       const storyForRecap = freshChat.storyId ? await storiesApi.get(freshChat.storyId) : undefined
       const storyRecap = storyRecapBlock(sceneChain(scenesForRecap, freshChat), { characterId: speaker.id }, {
         maxTokens: Math.floor(contextBudget * 0.15),
@@ -1352,6 +1370,7 @@ export function useChatSession(chatId: string | null) {
           currentOutfitId: speakerOutfitId,
         },
         affection,
+        affectionByBook,
         participants: sceneRoster.length ? sceneRoster.map((c) => ({ name: c.card.name })) : undefined,
         nextSpeakerName: speaker.card.name,
       })
@@ -2909,7 +2928,7 @@ export function useChatSession(chatId: string | null) {
       if (facts.length && world) {
         const current = await worldsApi.get(world.id)
         await worldsApi.update(world.id, {
-          canonFacts: [...(current?.canonFacts ?? []), ...facts.map((text) => ({ id: newId(), text, createdAt: Date.now(), sourceChatId: chatId }))],
+          canonFacts: [...(current?.canonFacts ?? []), ...facts.map((text) => ({ id: newId(), text, createdAt: Date.now(), sourceChatId: chatId, knownBy: canonAudience(presentIds) }))],
         })
       }
       // Names learned in this scene stay learned in the next: only those still unheard carry over.
@@ -2930,6 +2949,7 @@ export function useChatSession(chatId: string | null) {
           location: sceneSettingFrom(branch, fresh.scene, (id) => backgroundLabel(id, world)).location,
         },
         consequences: branchConsequencesFrom(branch),
+        consequenceAudience: branchConsequenceAudience(branch, fresh),
         setEventsDone: [...new Set([...(fresh.setEventsDone ?? []), ...setEventsDoneFrom(branch)])],
         ...(input.chapter ? { chapter: {
           recap: { text: input.chapter.recapText.trim(), openThreads: input.chapter.openThreads.map((t) => t.trim()).filter(Boolean) },
@@ -3752,7 +3772,8 @@ export function useChatSession(chatId: string | null) {
         activeObjective: activeObjective?.status === 'active'
           ? [activeObjective.title, ...activeObjective.tasks.filter((t) => t.status === 'pending').map((t) => t.description)].join(' — ')
           : undefined,
-        canonFacts: (world.canonFacts ?? []).map((f) => f.text),
+        // The narrator hears all of this branch's canon, and none of another story's.
+        canonFacts: canonFactsFor(world.canonFacts, 'narrator', new Set([freshChat?.id ?? '', ...(freshChat ? sceneChain(gmScenes, freshChat) : []).map((s) => s.id)])).map((f) => f.text),
         ...(characterMemoryOn ? await (async () => {
           const memories = await memoriesApi.forChat(chatId).catch(() => [])
           const nameOf = (id: string) => (id === freshChat?.playerCharacterId ? playerName : fullRoster.find((c) => c.id === id)?.name)
@@ -4045,9 +4066,12 @@ export function useChatSession(chatId: string | null) {
       await messagesApi.update(messageId, { gm: { ...msg.gm, proposals } })
       if (decision === 'confirmed' && proposal.scope === 'world' && world) {
         const fresh = await worldsApi.get(world.id)
+        const sceneNow = chatId ? await chatsApi.get(chatId) : undefined
+        // Only those who were there for the turn this came from are told it.
+        const knownBy = sceneNow ? canonAudience(messageWitnesses(msg, sceneNow).filter((id) => id !== GM_SPEAKER_ID)) : undefined
         if (fresh) {
           await worldsApi.update(world.id, {
-            canonFacts: [...(fresh.canonFacts ?? []), { id: newId(), text: proposal.text, createdAt: Date.now(), sourceChatId: chatId ?? undefined }],
+            canonFacts: [...(fresh.canonFacts ?? []), { id: newId(), text: proposal.text, createdAt: Date.now(), sourceChatId: chatId ?? undefined, knownBy }],
           })
         }
       }

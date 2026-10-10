@@ -149,6 +149,8 @@ export interface PromptBuildInput {
   sceneOptions?: { expressionIds: string[]; backgroundIds: string[]; moodIds?: string[]; outfitIds?: string[]; formIds?: string[]; currentOutfitId?: string }
   /** Current relationship score for unlock-gated lore entries. */
   affection?: number
+  /** Overrides `affection` for single books, by `sourceKey`: a character's own lore unlocks on their own closeness. */
+  affectionByBook?: Readonly<Record<string, number>>
   /** Per-entry sticky/cooldown state from the previous turn. Omit to disable sticky/cooldown. */
   worldInfoState?: WorldInfoRuntimeState
   /** Monotonic turn counter for sticky/cooldown. Defaults to `history.length`. */
@@ -217,6 +219,7 @@ export async function buildPrompt(input: PromptBuildInput): Promise<PromptBuildR
     input.worldInfoState
       ? { turn: input.worldInfoTurn ?? history.length, prevState: input.worldInfoState }
       : undefined,
+    input.affectionByBook,
   )
   const before = activatedEntries.filter((e) => e.position !== 'after_char' && e.position !== 'at_depth')
   const after = activatedEntries.filter((e) => e.position === 'after_char')
