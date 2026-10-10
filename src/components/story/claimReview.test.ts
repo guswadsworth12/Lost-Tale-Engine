@@ -68,6 +68,15 @@ describe('promoteToCanon', () => {
     expect(existing).toHaveLength(1)
   })
 
+  it('only tells the characters who heard the claim, so canon does not reach everyone', () => {
+    const result = promoteToCanon([], 'The mayor fled.', 'scene-1', 'f1', 100, ['ash', 'bea', 'ash'])
+    expect(result!.canonFacts[0].knownBy).toEqual(['ash', 'bea'])
+  })
+
+  it('leaves the fact public when nobody is named', () => {
+    expect(promoteToCanon([], 'The mayor fled.', 'scene-1', 'f1', 100, [])!.canonFacts[0].knownBy).toBeUndefined()
+  })
+
   it('does nothing for blank text', () => {
     expect(promoteToCanon([], '   ', 'scene-1', 'f1', 100)).toBeNull()
   })

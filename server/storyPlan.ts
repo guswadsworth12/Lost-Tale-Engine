@@ -25,6 +25,8 @@ export interface NextSceneRequest {
   recap: { text: string; presentIds: string[]; openThreads?: string[]; location?: string }
   /** Confirmed consequences from the ending scene's GM turns, to keep in force afterwards. */
   consequences?: string[]
+  /** Who saw each of those confirmed, by text; later scenes tell a consequence only to them. */
+  consequenceAudience?: Record<string, string[]>
   /** Set events carried out in the ending scene or before it, so they do not happen twice. */
   setEventsDone?: string[]
   /** Ends the scene's chapter too, with its recap, and opens the next scene as the first of a new chapter. */
@@ -55,6 +57,16 @@ export interface NextScenePlan {
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [])
+
+/** Who saw each consequence, merged across `maps` and kept only for `texts` (the consequences still carried). */
+function audienceFor(texts: readonly string[], ...maps: unknown[]): Record<string, string[]> | undefined {
+  const out: Record<string, string[]> = {}
+  for (const text of texts) {
+    const ids = maps.flatMap((m) => (m && typeof m === 'object' && !Array.isArray(m) ? strings((m as Record<string, unknown>)[text]) : []))
+    if (ids.length) out[text] = [...new Set(ids.map((id) => id.trim().slice(0, 100)))].slice(0, 200)
+  }
+  return Object.keys(out).length ? out : undefined
+}
 const threadsOf = (v: unknown) => strings(v).map((t) => t.trim().slice(0, 300)).slice(0, 12)
 
 /** The story's chapters as editable copies: saved ones, or the implicit first chapter written down. */
@@ -175,6 +187,7 @@ export function planNextScene(
     participants: participants.length ? participants : undefined,
     scene: nextScene,
     carriedConsequences: carried.length ? carried : undefined,
+    consequenceAudience: audienceFor(carried, source.consequenceAudience, body.consequenceAudience),
     setEventsDone: eventsDone.length ? eventsDone : undefined,
     gameState: endState && Object.keys(endState).length ? endState : undefined,
     createdAt: now,
@@ -203,6 +216,8 @@ export interface SceneRemoval {
   /** Set events carried out in it and consequences confirmed in it, taken off the scenes after it. */
   events: string[]
   consequences: string[]
+  /** Who saw those consequences, so a restore tells them to the same people. */
+  consequenceAudience?: Record<string, string[]>
   /** The scene before it, opened again because the deleted scene was where the story stood. */
   reopened?: { id: string; endedAt: number; recap?: unknown }
   /** Its chapter, removed with it when it was the chapter's only scene, and the chapter before reopened. */
@@ -274,7 +289,7 @@ export function planSceneRemoval(source: Row, storyScenes: Row[], story: Row | u
   for (const s of later) {
     const done = strings(s.setEventsDone).filter((id) => !events.includes(id))
     const carried = strings(s.carriedConsequences).filter((c) => !consequences.includes(c))
-    patch(s, { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined })
+    patch(s, { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined, consequenceAudience: audienceFor(carried, s.consequenceAudience) })
   }
 
   const removal: SceneRemoval = {
@@ -285,6 +300,7 @@ export function planSceneRemoval(source: Row, storyScenes: Row[], story: Row | u
     chapterRenumbered: chapterRenumbered.map((s) => str(s.id)),
     events,
     consequences,
+    consequenceAudience: audienceFor(consequences, ...later.map((s) => s.consequenceAudience)),
   }
 
   // The story stood at this scene: the one before it is where it stands again.
@@ -362,7 +378,7 @@ export function planSceneRestore(source: Row, storyScenes: Row[], story: Row | u
   for (const s of after) {
     const done = [...new Set([...strings(s.setEventsDone), ...removal.events])]
     const carried = [...new Set([...strings(s.carriedConsequences), ...removal.consequences])]
-    patch(str(s.id), { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined })
+    patch(str(s.id), { setEventsDone: done.length ? done : undefined, carriedConsequences: carried.length ? carried : undefined, consequenceAudience: audienceFor(carried, s.consequenceAudience, removal.consequenceAudience) })
   }
   if (removal.reopened) patch(removal.reopened.id, { endedAt: removal.reopened.endedAt, recap: removal.reopened.recap })
 

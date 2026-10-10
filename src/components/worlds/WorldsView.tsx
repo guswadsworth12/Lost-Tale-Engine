@@ -1,3 +1,4 @@
+import { canonIsPrivate } from '@/lib/world/canonFacts'
 import { MemoryConsolidationSettings } from './MemoryConsolidationSettings'
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Globe, ImagePlus, Moon, Music, Plus, Star, X } from 'lucide-react'
@@ -1029,9 +1030,9 @@ function WorldEditor({
             aiContext={{ name, description, extra: rules ? `World rules: ${rules}` : undefined }}
           />
         </Section>
-          <Section title="World canon" description="Confirmed facts shared by every chat in this world. Add only events that truly happened in the campaign." surface="bare">
+          <Section title="World canon" description="Facts you add here are known to everyone in this world. Facts recorded during play stay in their own story, and only the characters who were there know them, unless you tell everyone." surface="bare">
             <div className="space-y-2">
-              {canonFacts.map((fact) => <div key={fact.id} className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm text-text"><span className="flex-1">{fact.text}</span><button type="button" className="text-danger" aria-label="Remove world fact" onClick={() => setCanonFacts(canonFacts.filter((item) => item.id !== fact.id))}>Remove</button></div>)}
+              {canonFacts.map((fact) => <div key={fact.id} className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-3 text-sm text-text"><span className="min-w-0 flex-1 break-words">{fact.text}{canonIsPrivate(fact) && <span className="mt-1 block text-xs text-text-muted">{fact.knownBy ? `Recorded in play: only ${fact.knownBy.length === 1 ? 'one character knows' : `${fact.knownBy.length} characters know`} this, in that story.` : 'Recorded in play: known only in that story.'}</span>}</span>{canonIsPrivate(fact) && <button type="button" className="text-text-muted hover:text-text" onClick={() => setCanonFacts(canonFacts.map((item) => item.id === fact.id ? { ...item, shared: true } : item))}>Tell everyone</button>}<button type="button" className="text-danger" aria-label="Remove world fact" onClick={() => setCanonFacts(canonFacts.filter((item) => item.id !== fact.id))}>Remove</button></div>)}
               <TextAreaField label="New canon fact" value={newCanonFact} onChange={(e) => setNewCanonFact(e.target.value)} rows={2} />
               <Button variant="secondary" disabled={!newCanonFact.trim()} onClick={() => { setCanonFacts([...canonFacts, { id: newId(), text: newCanonFact.trim(), createdAt: Date.now() }]); setNewCanonFact('') }}>Add fact</Button>
             </div>

@@ -336,7 +336,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             kind: 'steps',
             items: [
               'A recap of the scene is drafted for you, along with its open threads. Edit it or rewrite it.',
-              'Tick any lasting change you want to **Record as world canon**: it becomes true in every story in this world.',
+              'Tick any lasting change you want to **Record as world canon**: it stays true for the rest of this story, and only the characters who were in the scene are told it. To share it with every story in the world, use **Tell everyone** under World canon in the world editor.',
               'Set up the next scene: its title, its location, and **Who\'s there** (the story\'s lead is always there). Choose whether to continue the story or **Split off a parallel storyline**.',
               '**End scene and continue** opens the new scene.',
             ],
@@ -762,7 +762,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             items: [
               '**Overview**: cover, **Name**, **Description**, **Rules**, **Template** and the **World modules**.',
               '**Story Rules**: the campaign ruleset and moves. Only when story rules are on.',
-              '**Canon**: **World lore** (lorebook entries for this setting) and **World canon** (facts every story here treats as true).',
+              '**Canon**: **World lore** (lorebook entries for this setting) and **World canon**. Facts you type there are known to everyone in the world. Facts recorded during play stay in their own story, known only to the characters who were there, until you choose **Tell everyone**.',
               '**Locations**: scene backgrounds.',
               '**Simulation**: custom scene flags, authored **Rules**, and the **World clock**. Only with world simulation.',
               '**Relationships**: relationship thresholds, plus the dating catalogs when dating tools are on. Only with relationships.',
@@ -870,7 +870,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             kind: 'list',
             items: [
               '**Scope** chooses where the book is available: every story, or only specific worlds or characters.',
-              'Each entry has **Keys**, **Content**, and optional timing and placement: secondary keys, order, position, depth, unlock warmth, chance, delay, sticky, cooldown and inclusion groups.',
+              'Each entry has **Keys**, **Content**, and optional timing and placement: secondary keys, order, position, depth, unlocks at affection, chance, delay, sticky, cooldown and inclusion groups. A character\'s own lore unlocks on that character\'s affection with you; world and shared books use the scene lead\'s.',
               "The book's **Token budget** and **Recursive scanning** control how much lore fits and whether entries can trigger each other.",
             ],
           },
@@ -1087,7 +1087,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
             kind: 'list',
             items: [
               'Each GM turn shows a card with the mode, pacing and who acts.',
-              'Lasting changes arrive as proposals, for **World canon** or **This branch**. **Confirm** or **Reject** them on the card or in Story panel → Canon.',
+              'Lasting changes arrive as proposals, for **World canon** or **This branch**. **Confirm** or **Reject** them on the card or in Story panel → Canon. Either way, only the characters who were present for that turn are told it, and it stays in this story.',
               '**GM notes** (Scene Rules) and the world\'s Game Master continuity notes are seen only by the GM.',
             ],
           },

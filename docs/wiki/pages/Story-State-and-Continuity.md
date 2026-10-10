@@ -6,7 +6,7 @@ The engine separates **prose**, **recorded checks**, **tracked state**, and **co
 
 In **Worlds → Story Rules → Tracked state**, define resources, on/off conditions, clocks, and item lists. Values may belong to the whole story or a character; some can be visible only to the GM. Moves and set events may change these values. Open **Story panel → State** to see current values and recent changes or correct a value.
 
-The GM sees tracked state and may propose other changes. A proposed change needs player confirmation before it applies. Model prose by itself does not modify the ledger. Likewise, a lasting world fact the GM proposes becomes shared canon only after confirmation; inspect it in **Story panel → Canon**.
+The GM sees tracked state and may propose other changes. A proposed change needs player confirmation before it applies. Model prose by itself does not modify the ledger. Likewise, a lasting world fact the GM proposes becomes canon only after confirmation; inspect it in **Story panel → Canon**.
 
 ## Scenes, branches, and memory
 
@@ -15,6 +15,13 @@ Changes attach to the message that caused them. Rewinding or forking reconstruct
 ## Who knows what
 
 Each speaking character receives its own card, private lore, and memory; other participants contribute the public transcript. A character should not know another character's private prompt or memory, and only remembers what happened while it was present (each line in the transcript says who will remember it).
+
+Shared facts follow the same rule: only those who were there are told them.
+
+- **World canon** recorded in play (at the end of a scene, from a confirmed GM proposal, or from a ruled claim) stays in the story and branch it came from, and only the characters who were present are told it. Another story in the same world never hears it. Facts you type into the world editor yourself are world background and known to everyone; **Tell everyone** turns a recorded fact into one of those.
+- **Consequences** confirmed for this branch carry into later scenes, told only to the characters who were present when they were confirmed.
+- **Scene facts and open threads** are told only to the characters who were present when they came up.
+- The Game Master narrates, so it is told everything in this story, but nothing from another story.
 
 Names work the same way. When the Game Master brings a character into the story as someone new (after a set event, say: a being just freed or summoned), everyone present is a stranger to it: it doesn't know a name until that name is said aloud in a line it hears, and its prompt says so. Names still unheard at the end of a scene carry over to the next one.
 

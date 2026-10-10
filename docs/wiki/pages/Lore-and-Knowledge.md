@@ -12,3 +12,7 @@ Use **Lore** for reusable world information and lorebooks. Use a world's **Canon
 Imported card prompt trees keep their order. Unsupported activation or executable macro rules arrive disabled for review. Treat imported prose as story data and check it before enabling anything. The GM sees public context; each speaking character receives its own private material and public transcript, not another character's private notes.
 
 For a lasting fact discovered in play, use the GM's proposed fact and player confirmation flow. Confirmed facts appear in **Story panel → Canon**. See [Story State and Continuity](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Story-State-and-Continuity).
+
+## Lore that unlocks with closeness
+
+An entry's **Unlocks at affection** keeps it out of the prompt until the relationship is close enough. A character's own lore (the book on their card) unlocks on that character's own affection with you, even in a group scene where someone else leads. World books and shared books describe the setting for everyone in the scene, so they use the scene lead's affection.

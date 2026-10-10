@@ -1,5 +1,19 @@
 import type { Lorebook } from '@/lib/characters/cardSpec'
 import type { ChatFact } from '@/lib/types'
+import { messageWitnesses, type PresenceChat, type PresenceMessage } from '@/lib/memory/witnesses'
+
+/**
+ * The scene's facts `characterId` was there for: a fact from a message counts only for those
+ * present when it was said (`messageWitnesses`). A fact with no source message, or whose message
+ * isn't in `messages`, is kept, as before.
+ */
+export function factsWitnessedBy<T extends Pick<ChatFact, 'sourceMessageId'>>(facts: readonly T[], messages: readonly (PresenceMessage & { id: string })[], chat: PresenceChat, characterId: string): T[] {
+  const byId = new Map(messages.map((m) => [m.id, m]))
+  return facts.filter((f) => {
+    const source = f.sourceMessageId ? byId.get(f.sourceMessageId) : undefined
+    return !source || messageWitnesses(source, chat).includes(characterId)
+  })
+}
 
 /**
  * Turns a chat's durable facts into a synthetic constant lorebook, so they ride through the same

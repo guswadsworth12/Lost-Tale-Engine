@@ -17,7 +17,7 @@ export const KEPT_CHAT_FIELDS = new Set([
   'storyId', 'sceneNumber', 'sceneTitle', 'storylineId', 'chapterId', 'chapterSceneNumber', 'previousSceneId',
   'endedAt', 'recap', 'parentChatId', 'forkedFromMessageId', 'mode', 'pinned', 'deletedAt',
   'lastOutreachCheckedAt', 'hasUnreadOutreach', 'ownerUserId', 'visibility',
-  'authorNote', 'gmNotes', 'setEvents', 'gmPlayed', 'assistOverrides', 'carriedConsequences', 'stage',
+  'authorNote', 'gmNotes', 'setEvents', 'gmPlayed', 'assistOverrides', 'carriedConsequences', 'consequenceAudience', 'stage',
   'memoryScribedUpTo',
 ])
 
