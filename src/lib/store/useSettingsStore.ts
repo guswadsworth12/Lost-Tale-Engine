@@ -212,7 +212,7 @@ interface SettingsState {
   sampler: GenerationParams
   /** When true, `sampler.max_context_length` tracks the connected model's real limit (see `useAutoContextLength`). Any manual edit to that field turns it off. */
   contextLengthAuto: boolean
-  /** Extra `max_length` headroom for a thinking/reasoning model's hidden reasoning phase (see `replyMaxTokens`). Backend-agnostic, so kept outside `sampler` (KoboldCpp's own wire-format shape, serialized as-is) rather than as one more of its fields. 0 = off, reproducing the old behavior. */
+  /** Extra `max_length` headroom for a thinking/reasoning model's hidden reasoning phase (see `replyTokenBudget`). Backend-agnostic, so kept outside `sampler` (KoboldCpp's own wire-format shape, serialized as-is) rather than as one more of its fields. 0 = off, reproducing the old behavior. */
   reasoningTokenReserve: number
   instructTemplateId: string
   /** Which of `builder.ts`'s fixed prompt sections are included; a missing key defaults to on. */

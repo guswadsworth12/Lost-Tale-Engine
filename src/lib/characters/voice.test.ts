@@ -5,7 +5,8 @@ import {
   deriveCardReplyBand,
   detectVoiceFingerprint,
   extractExampleCharTurns,
-  replyMaxTokens,
+  clipReplyToBudget,
+  replyTokenBudget,
   resolveReplyLength,
   usesActionMarkup,
 } from './voice'
@@ -210,35 +211,55 @@ describe('detectVoiceFingerprint', () => {
   })
 })
 
-describe('replyMaxTokens', () => {
+describe('replyTokenBudget', () => {
   it('caps well below the user max for a brief band', () => {
-    expect(replyMaxTokens('brief', 512)).toBeLessThan(160)
+    expect(replyTokenBudget('brief', 512).visible).toBeLessThan(160)
   })
 
-  it('never raises the user ceiling', () => {
-    expect(replyMaxTokens('detailed', 120)).toBeLessThanOrEqual(120)
+  it('never raises the user ceiling for the reply text', () => {
+    expect(replyTokenBudget('detailed', 120).visible).toBeLessThanOrEqual(120)
   })
 
   it('keeps a sane floor even against an extreme user setting', () => {
-    expect(replyMaxTokens('brief', 10)).toBeGreaterThanOrEqual(48)
+    expect(replyTokenBudget('brief', 10).visible).toBeGreaterThanOrEqual(48)
   })
 
   it('defaults to no reasoning reserve, reproducing the old prose-only cap', () => {
-    expect(replyMaxTokens('brief', 512)).toBe(replyMaxTokens('brief', 512, 0))
+    const budget = replyTokenBudget('brief', 512)
+    expect(budget.request).toBe(budget.visible)
+    expect(budget).toEqual(replyTokenBudget('brief', 512, 0))
   })
 
-  it('adds the reasoning reserve on top of the band cap, for a thinking model headroom to finish its reasoning phase before the visible reply', () => {
-    const withoutReserve = replyMaxTokens('brief', 8000)
-    const withReserve = replyMaxTokens('brief', 8000, 3000)
-    expect(withReserve).toBe(withoutReserve + 3000)
+  it('adds the reasoning reserve on top of the band cap for the request, so a thinking model can finish reasoning before the visible reply', () => {
+    const budget = replyTokenBudget('brief', 8000, 3000)
+    expect(budget.request).toBe(budget.visible + 3000)
+    expect(budget.visible).toBe(replyTokenBudget('brief', 8000).visible)
   })
 
-  it('still never raises the user ceiling, even with a large reasoning reserve', () => {
-    expect(replyMaxTokens('detailed', 512, 4000)).toBe(512)
+  it('keeps the band when the reserve is large: the reply text stays at the band cap and only the request grows', () => {
+    // The old cap clamped band + reserve to the user max, so a 768 reserve turned a moderate
+    // speaker's 228-token cap into the full 512, and the reply could fill it.
+    const budget = replyTokenBudget('moderate', 512, 768)
+    expect(budget.visible).toBeLessThan(512)
+    expect(budget.request).toBe(budget.visible + 768)
   })
 
   it('ignores a negative reserve rather than lowering the cap', () => {
-    expect(replyMaxTokens('brief', 512, -100)).toBe(replyMaxTokens('brief', 512, 0))
+    expect(replyTokenBudget('brief', 512, -100)).toEqual(replyTokenBudget('brief', 512, 0))
+  })
+})
+
+describe('clipReplyToBudget', () => {
+  it('leaves a reply within its budget alone', () => {
+    expect(clipReplyToBudget('Short and done.', 50)).toEqual({ text: 'Short and done.', clipped: false })
+  })
+
+  it('cuts a reply that ran past its budget to the budget', () => {
+    const long = 'She keeps talking. '.repeat(100)
+    const held = clipReplyToBudget(long, 50)
+    expect(held.clipped).toBe(true)
+    expect(held.text.length).toBe(200)
+    expect(long.startsWith(held.text)).toBe(true)
   })
 })
 
