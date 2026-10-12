@@ -1,8 +1,9 @@
 /**
  * Reply length and register, derived per-character instead of set globally. `deriveCardReplyBand`
  * measures a card's own example dialogue/greeting; `resolveReplyLength` turns that (or an explicit
- * override) into flexible length guidance; `replyMaxTokens` turns the same band into
- * a hard sampler cap that only ever lowers the user's own `max_length`, never raises it.
+ * override) into flexible length guidance; `replyTokenBudget` turns the same band into
+ * a hard cap on the reply text that only ever lowers the user's own `max_length`, plus any
+ * reasoning reserve on top of it for the request.
  */
 
 import type { ExampleBankEntry } from './exampleBank'
@@ -326,16 +327,28 @@ export function detectVoiceFingerprint(
 const TOKENS_PER_WORD = 1.6
 const SENTENCE_HEADROOM = 1.5
 
+export interface ReplyTokenBudget {
+  /** Ceiling on the reply text itself: the band's prose cap, never above `userMaxLength`. */
+  visible: number
+  /** This turn's `max_length`: `visible` plus the reasoning reserve. */
+  request: number
+}
+
 /**
- * Hard ceiling on this turn's `max_length`. Never above `userMaxLength` — only ever tightens it.
- * `reasoningReserve` adds headroom on top of the band's own prose cap for a thinking/reasoning
- * model's hidden reasoning phase (DeepSeek R1, Qwen3, GPT-OSS, and similar GGUF thinking models
- * served locally, e.g. via llama.cpp): that reasoning counts against the same server-side token
- * budget as the visible reply, so without it a terse band cap (a few hundred tokens) starves the
- * model before it even finishes thinking, let alone replies. 0 (the default) reproduces the old
- * prose-only cap exactly.
+ * This turn's token budget. `visible` only ever tightens the user's cap. `reasoningReserve` is added
+ * on top of it for the request, so a thinking/reasoning model's hidden reasoning (DeepSeek R1, Qwen3,
+ * GPT-OSS, OpenAI's GPT-5 family) has room before the visible reply: that reasoning counts against the
+ * same server-side budget, so without it a terse band cap starves the model before it replies. The
+ * reserve is never clamped under `userMaxLength`; doing that erased the band whenever the reserve was
+ * large, and a model that skipped its reasoning spent the headroom on extra prose. The caller holds
+ * the reply text to `visible`. 0 (the default) reproduces the old prose-only cap exactly.
  */
-export function replyMaxTokens(band: ReplyLengthBand, userMaxLength: number, reasoningReserve = 0): number {
-  const cap = Math.ceil(BANDS[band].words * TOKENS_PER_WORD * SENTENCE_HEADROOM) + Math.max(0, reasoningReserve)
-  return Math.max(48, Math.min(userMaxLength, cap))
+export function replyTokenBudget(band: ReplyLengthBand, userMaxLength: number, reasoningReserve = 0): ReplyTokenBudget {
+  const visible = Math.max(48, Math.min(userMaxLength, Math.ceil(BANDS[band].words * TOKENS_PER_WORD * SENTENCE_HEADROOM)))
+  return { visible, request: visible + Math.max(0, reasoningReserve) }
+}
+
+/** Holds a reply's text to its visible budget (about 4 characters a token, the synchronous estimate used elsewhere). The caller trims the cut back to its last complete sentence. */
+export function clipReplyToBudget(text: string, visible: number): { text: string; clipped: boolean } {
+  return Math.ceil(text.length / 4) > visible ? { text: text.slice(0, visible * 4), clipped: true } : { text, clipped: false }
 }

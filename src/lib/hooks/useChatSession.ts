@@ -214,7 +214,7 @@ import {
 } from '@/lib/text/slop'
 import { substituteMacros } from '@/lib/characters/macros'
 import { normalizeRpMarkup } from '@/lib/text/messageSegments'
-import { replyMaxTokens, resolveReplyLength } from '@/lib/characters/voice'
+import { clipReplyToBudget, replyTokenBudget, resolveReplyLength } from '@/lib/characters/voice'
 import { SCENE_MOOD_IDS } from '@/lib/vn/moods'
 import { DEFAULT_EXPRESSIONS, expressionCandidatesFor } from '@/lib/vn/expressions'
 import { getUnlockedBackgroundIds, getUnlockedExpressionIds } from '@/lib/vn/unlocks'
@@ -519,7 +519,7 @@ export function useChatSession(chatId: string | null) {
   const template = templateFor(jobClients.story.kind)
   // Shared prompt shaping for every background judge/assist call below (relationship tracker,
   // objectives, choices, director pick, rapport, scene vision) — never for the main reply, which
-  // already builds its own fully-templated, reasoning-aware prompt via `buildPrompt`/`replyMaxTokens`.
+  // already builds its own fully-templated, reasoning-aware prompt via `buildPrompt`/`replyTokenBudget`.
   // Each job uses its own connection's template (`plain-chat` for a chat-completion one, as the reply
   // does) so a background call looks like that model's own turn shape instead of a flat, unwrapped
   // block a strict template model (Gemma) reads as already-finished text and answers with EOS to
@@ -3218,12 +3218,13 @@ export function useChatSession(chatId: string | null) {
       activeGenerationClientRef.current = replyClient
       // Relationship tracking/rapport stay scoped to the primary; choice suggestions apply to anyone.
       const isPrimarySpeaker = speaker.id === character.id
-      // Hard max_length ceiling from this speaker's reply-length band, so a terse character stays
-      // terse even if the model ignores the prose instruction. Only tightens the user's cap, never raises it.
-      // `reasoningTokenReserve` (Settings → Generation) adds thinking headroom on top for reasoning models.
+      // Hard ceiling from this speaker's reply-length band, so a terse character stays terse even if
+      // the model ignores the prose instruction. The reply text only ever tightens the user's cap;
+      // `reasoningTokenReserve` (Settings → Generation) is added on top for the request, as thinking room.
       const replyBand = resolveReplyLength(speaker.replyLength, speaker.card, modulesForWorld(world).deepMemory || !speaker.card.mes_example?.trim() ? speaker.exampleBank : undefined).band
-      const effectiveMaxLength = replyMaxTokens(replyBand, sampler.max_length, reasoningTokenReserve)
-      const bandCapsBelowUserMax = effectiveMaxLength < sampler.max_length
+      const replyBudget = replyTokenBudget(replyBand, sampler.max_length, reasoningTokenReserve)
+      const effectiveMaxLength = replyBudget.request
+      const bandCapsBelowUserMax = replyBudget.visible < sampler.max_length
       // Becomes true once an auto-continue round kicks in — every remaining round then behaves like a manual continue.
       let continuing = !!opts?.continuing
       const wasOriginallyContinuing = continuing
@@ -3247,6 +3248,8 @@ export function useChatSession(chatId: string | null) {
       let retainReply = true
       // Set when the loop ends on a reply that's still mid-sentence with no continuation coming — trimmed after the loop.
       let needsSentenceTrim = false
+      // Set when a band-capped reply ran past the band (a reasoning model that skipped its reasoning spends the reserve on prose).
+      let clippedToBand = false
 
       try {
         // Auto-continues a reply that used its whole token budget (likely cut off mid-thought), capped so a model with no stop sequence can't loop forever.
@@ -3454,8 +3457,15 @@ export function useChatSession(chatId: string | null) {
           // mid-sentence — never one this character's reply-length band deliberately kept short.
           const looksTruncated = !bandCapsBelowUserMax && (hitCap || endedMidThought)
           if (!looksTruncated || round === MAX_AUTO_CONTINUE_ROUNDS) {
+            // A band-capped reply held to the band: the request also carries the reasoning reserve,
+            // which a reasoning model that skipped its reasoning can spend on prose instead.
+            if (bandCapsBelowUserMax && !abort.signal.aborted) {
+              const held = clipReplyToBudget(combined, replyBudget.visible)
+              combined = held.text
+              clippedToBand = held.clipped
+            }
             // Band-capped, or still ragged after the last allowed round: tidy the tail below.
-            needsSentenceTrim = !abort.signal.aborted && !endsCleanly(combined)
+            needsSentenceTrim = !abort.signal.aborted && (clippedToBand || !endsCleanly(combined))
             break
           }
 
@@ -3470,7 +3480,8 @@ export function useChatSession(chatId: string | null) {
         // A reply still mid-sentence when the loop ends gets trimmed to its last complete sentence and closed off; `rawText` stays untouched.
         if (needsSentenceTrim && !abort.signal.aborted) {
           const tidied = balanceTrailingMarkup(trimToLastSentence(combined))
-          if (tidied && tidied !== combined) {
+          // A reply clipped to its band is always rewritten: the stored message still holds the full text.
+          if (tidied && (clippedToBand || tidied !== combined)) {
             combined = tidied
             const freshMsg = await messagesApi.get(targetMessageId)
             const swipes = freshMsg?.swipes?.length ? [...freshMsg.swipes] : [combined]

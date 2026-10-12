@@ -16,7 +16,7 @@ The available models and options depend on the service. Do not paste API keys in
 
 ### Thinking models
 
-Reasoning ("thinking") models spend part of each reply's token budget thinking before they write. Each character also has a reply-length band that caps how long their replies are, so a short-spoken character can run out before saying anything; the reply then fails with *The model spent its whole reply budget on hidden reasoning*. Raise **Settings → Generation → Reasoning token reserve** (for example to 1024): it adds that many tokens on top of the character's cap. Leave it at 0 for ordinary models.
+Reasoning ("thinking") models spend part of each reply's token budget thinking before they write. Each character also has a reply-length band that caps how long their replies are, so a short-spoken character can run out before saying anything; the reply then fails with *The model spent its whole reply budget on hidden reasoning*. Raise **Settings → Generation → Reasoning token reserve** (for example to 1024): it adds that many tokens on top of the character's cap for the thinking, and the reply itself still stops at the character's band. Leave it at 0 for ordinary models.
 
 ## Optional services
 

@@ -194,7 +194,7 @@ export function SamplingControls() {
           step={256}
           value={String(reasoningTokenReserve)}
           onChange={(e) => setReasoningTokenReserve(Number(e.target.value) || 0)}
-          hint="Thinking/reasoning models only (DeepSeek R1, Qwen3, GPT-OSS, and similar local GGUF thinking models). Its hidden reasoning phase counts against the same reply cap as the visible text, so a tight reply-length band can cut the model off before it even finishes thinking. Adds this many extra tokens on top of that band's cap. Leave at 0 for ordinary models."
+          hint="Thinking/reasoning models only (DeepSeek R1, Qwen3, GPT-OSS, OpenAI's GPT-5 models, and similar). Its hidden reasoning phase counts against the same reply cap as the visible text, so a tight reply-length band can cut the model off before it even finishes thinking. Adds this many extra tokens on top of that band's cap for the thinking; the reply itself still stops at the band. Leave at 0 for ordinary models."
         />
       </Section>
 
