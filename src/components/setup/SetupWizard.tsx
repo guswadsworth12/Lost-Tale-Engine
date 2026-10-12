@@ -11,7 +11,7 @@ import type { ViewId } from '@/components/layout/Sidebar'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus } from '@/lib/accounts/secrets'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { charactersApi, worldsApi } from '@/lib/api/client'
+import { charactersApi, voiceSamplesApi, worldsApi } from '@/lib/api/client'
 import { blankCharacterData, type Character } from '@/lib/characters/cardSpec'
 import type { WorldCard } from '@/lib/types'
 import { STARTER_STORY } from '@/lib/setup/starterStory'
@@ -303,7 +303,7 @@ function VoiceStep() {
           {voice?.service.kind === 'edge'
             ? <span className="flex items-center gap-1 text-sm text-success"><Check size={14} aria-hidden="true" /> Using free voices</span>
             : <Button variant="primary" onClick={useFree}>Use free voices</Button>}
-          {voice && <VoiceTest />}
+          {voice?.service.kind === 'edge' && <VoiceTest />}
         </div>
       </div>
       <details className="rounded-xl border border-border p-4" open={!!voice && voice.service.kind !== 'edge'}>
@@ -314,10 +314,25 @@ function VoiceStep() {
           {voiceServices.length > 0 && (
             <ModelPicker capability="voice" value={voiceModel} onChange={(choice) => setModelChoice('voice', choice)} label="Voice model" />
           )}
+          {voice && voice.service.kind !== 'edge' && (
+            <div className="flex flex-wrap items-center gap-2">
+              {voice.service.kind === 'luxtts' && <LuxttsStatus />}
+              <VoiceTest />
+            </div>
+          )}
         </div>
       </details>
     </div>
   )
+}
+
+/** Your voice server's live state, as this app's server sees it. */
+function LuxttsStatus() {
+  const status = useApiQuery('luxtts-status', () => voiceSamplesApi.luxttsStatus(), [])
+  if (!status) return <span className="text-xs text-text-muted">Checking your voice server…</span>
+  return status.reachable
+    ? <span className="flex items-center gap-1 text-sm text-success"><Check size={14} aria-hidden="true" /> Connected</span>
+    : <span className="text-xs text-danger">{status.detail}</span>
 }
 
 function VoiceTest() {

@@ -2,11 +2,11 @@ import { useMemo } from 'react'
 import { useSettingsStore } from '@/lib/store/useSettingsStore'
 import { useSecretStatus, type SecretFlags } from '@/lib/accounts/secrets'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
-import { chatsApi } from '@/lib/api/client'
+import { chatsApi, voiceSamplesApi } from '@/lib/api/client'
 import { usersApi } from '@/lib/accounts/api'
 import { useAuthStore } from '@/lib/accounts/useAuthStore'
 import { SERVICE_KINDS, chosen, serviceSecret, type Capability, type ModelChoice, type Service } from '@/lib/api/services'
-import { verifiedKey, type SetupFacts } from '@/lib/setup/setup'
+import { verifiedKey, voiceWorks, type SetupFacts } from '@/lib/setup/setup'
 
 /** Whether a chosen model's service has what it needs to answer: its address and, if it takes one, its key. */
 export function modelReady(services: Service[], choice: ModelChoice | null | undefined, capability: Capability, secrets: SecretFlags): boolean {
@@ -32,6 +32,9 @@ export function useSetupFacts(): SetupFacts {
   const isOwner = self?.role === 'owner'
   // Only an owner can list accounts; for anyone else the Invite players step doesn't exist.
   const users = useApiQuery('users', () => (isOwner ? usersApi.list() : Promise.resolve([])), [isOwner])
+  // Your own voice server is checked by this app's server, which holds its address: connected counts as working.
+  const voiceKind = services.find((s) => s.id === voiceModel?.serviceId)?.kind
+  const luxtts = useApiQuery('luxtts-status', () => (voiceKind === 'luxtts' && isOwner ? voiceSamplesApi.luxttsStatus() : Promise.resolve(null)), [voiceKind, isOwner])
   return useMemo(() => {
     const hasStory = (chats?.length ?? 0) > 0
     // A model only counts once it has answered: a fresh install's defaults name a local server that may not be running.
@@ -40,12 +43,12 @@ export function useSetupFacts(): SetupFacts {
     const voiceService = services.find((s) => s.id === voiceModel?.serviceId)
     return {
       textReady: modelReady(services, textModel, 'text', secrets) && (hasStory || passed('text', textModel)),
-      voiceReady: modelReady(services, voiceModel, 'voice', secrets) && (hasStory || voiceService?.kind === 'edge' || passed('voice', voiceModel)),
+      voiceReady: voiceWorks({ configured: modelReady(services, voiceModel, 'voice', secrets), hasStory, kind: voiceService?.kind, serverConnected: luxtts?.reachable, testPassed: passed('voice', voiceModel) }),
       imagesReady: modelReady(services, imageModel, 'images', secrets),
       hasStory,
       isOwner,
       hasOtherUsers: (users ?? []).some((u) => u.id !== self?.id),
       loading: secretsLoading || chats === undefined,
     }
-  }, [chats, imageModel, isOwner, secrets, secretsLoading, self?.id, services, textModel, users, verified, voiceModel])
+  }, [chats, imageModel, isOwner, luxtts, secrets, secretsLoading, self?.id, services, textModel, users, verified, voiceModel])
 }

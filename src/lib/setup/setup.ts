@@ -27,6 +27,16 @@ export interface SetupProgress {
 }
 
 /** What a passed test is recorded against: the exact service and model, so changing either asks for a new test. */
+/**
+ * Whether a chosen, configured voice counts as working: any story played proves it, free voices
+ * need no proof, your own voice server counts once this app's server reports it connected, and
+ * anything else once its test line has played.
+ */
+export function voiceWorks(f: { configured: boolean; hasStory: boolean; kind?: string; serverConnected?: boolean; testPassed: boolean }): boolean {
+  if (!f.configured) return false
+  return f.hasStory || f.kind === 'edge' || (f.kind === 'luxtts' && !!f.serverConnected) || f.testPassed
+}
+
 export function verifiedKey(choice: { serviceId: string; model: string }): string {
   return `${choice.serviceId}:${choice.model}`
 }

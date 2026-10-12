@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NEW_SETUP, checklist, nextStep, previousStep, remaining, resumeStep, shouldShowWizard, withSkipped, type SetupFacts } from './setup'
+import { NEW_SETUP, checklist, nextStep, previousStep, remaining, resumeStep, shouldShowWizard, withSkipped, voiceWorks, type SetupFacts } from './setup'
 
 const nothing: SetupFacts = { textReady: false, voiceReady: false, imagesReady: false, hasStory: false }
 
@@ -56,5 +56,22 @@ describe('the setup wizard', () => {
     // Done once anyone else has an account; skippable like any optional step.
     expect(checklist({ ...owner, hasOtherUsers: true }, NEW_SETUP).find((i) => i.step.id === 'invite')?.state).toBe('done')
     expect(checklist(owner, withSkipped(NEW_SETUP, 'invite', true)).find((i) => i.step.id === 'invite')?.state).toBe('skipped')
+  })
+})
+
+describe('voiceWorks', () => {
+  const base = { configured: true, hasStory: false, testPassed: false }
+  it('counts your own voice server once it reports connected, even with no stories', () => {
+    expect(voiceWorks({ ...base, kind: 'luxtts', serverConnected: true })).toBe(true)
+    expect(voiceWorks({ ...base, kind: 'luxtts', serverConnected: false })).toBe(false)
+  })
+  it('keeps the other proofs: a played story, free voices, a passed test line', () => {
+    expect(voiceWorks({ ...base, kind: 'elevenlabs' })).toBe(false)
+    expect(voiceWorks({ ...base, kind: 'elevenlabs', hasStory: true })).toBe(true)
+    expect(voiceWorks({ ...base, kind: 'edge' })).toBe(true)
+    expect(voiceWorks({ ...base, kind: 'elevenlabs', testPassed: true })).toBe(true)
+  })
+  it('never counts a voice that is not configured', () => {
+    expect(voiceWorks({ ...base, configured: false, kind: 'luxtts', serverConnected: true, hasStory: true })).toBe(false)
   })
 })
