@@ -864,7 +864,7 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         blocks: [
           {
             kind: 'text',
-            text: 'Lore (titled World Info on the page) holds standalone lorebooks: locations, factions, history, rules. An entry is added to the prompt when its keys come up in the story. **New book** creates one; click a book to edit it and **All books** to go back.',
+            text: 'Lore (titled World Info on the page) holds standalone lorebooks: locations, factions, history, rules. An entry is added to the prompt when its keys come up in the story. **New book** creates one, and **Import JSON** makes one from a lorebook file or from the lore on a character card. Click a book to edit it and **All books** to go back.',
           },
           {
             kind: 'list',

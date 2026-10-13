@@ -9,6 +9,8 @@ Use **Lore** for reusable world information and lorebooks. Use a world's **Canon
 3. Play a test scene that should trigger it. Use the prompt inspector to check whether the intended entry was actually included.
 4. If the model misses a fact, simplify the entry and its trigger before duplicating it across many prompts.
 
+To bring in a lorebook you already have as a file, use **Import JSON** on the Lore page. It accepts a saved lorebook or a character card's lore, keeps each entry's keys, order and timing, and opens the new book so you can set where it applies. A book with no scope applies to every chat, so set its scope before you play.
+
 Imported card prompt trees keep their order. Unsupported activation or executable macro rules arrive disabled for review. Treat imported prose as story data and check it before enabling anything. The GM sees public context; each speaking character receives its own private material and public transcript, not another character's private notes.
 
 For a lasting fact discovered in play, use the GM's proposed fact and player confirmation flow. Confirmed facts appear in **Story panel → Canon**. See [Story State and Continuity](https://github.com/guswadsworth12/Lost-Tale-Engine/wiki/Story-State-and-Continuity).
