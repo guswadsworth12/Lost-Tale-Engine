@@ -402,7 +402,7 @@ function str(v: unknown): string {
 const CCV3_USABLE_URI = /^(data:|https:\/\/)/i
 
 /** V3 emotion names that don't line up 1:1 with our expression ids (src/lib/vn/expressions.ts). */
-const V3_EMOTION_ALIASES: Record<string, string> = {
+export const EXPRESSION_ALIASES: Readonly<Record<string, string>> = {
   joy: 'happy',
   joyful: 'happy',
   smile: 'happy',
@@ -476,7 +476,7 @@ export function extractCardAssets(raw: unknown): CardAssets {
     } else if (type === 'emotion' && name) {
       const slug = slugEmotion(name)
       if (!slug) continue
-      const id = V3_EMOTION_ALIASES[slug] ?? slug
+      const id = EXPRESSION_ALIASES[slug] ?? slug
       if (sprites[id]) continue
       sprites[id] = uri
       if (!DEFAULT_EXPRESSION_IDS.includes(id) && !customExpressions.some((c) => c.id === id)) {

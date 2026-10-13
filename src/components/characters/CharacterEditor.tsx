@@ -1,3 +1,4 @@
+import { expressionIdForFile } from '@/lib/vn/spriteLibrary'
 import { ExampleBankEditor } from './ExampleBankEditor'
 import { validateExampleBank, type ExampleBankEntry } from '@/lib/characters/exampleBank'
 import { VisibilityField } from '@/components/ui/VisibilityField'
@@ -650,25 +651,24 @@ export function CharacterEditor({
 
   /**
    * Bulk sprite upload: pick every expression image at once, matched to a slot by filename
-   * (`laughing.png` -> the `laughing` expression) instead of one at a time per slot.
+   * (`laughing.png` -> Laughing, `Loving.png` -> Loving) instead of one at a time per slot.
    */
   const handleBulkSpritePick = async (files: FileList) => {
-    const knownIds = new Set([...DEFAULT_EXPRESSIONS.map((e) => e.id), ...customExpressions.map((e) => e.id)])
     const matched: string[] = []
     const unmatched: string[] = []
     const updates: Record<string, string> = {}
     for (const file of Array.from(files)) {
-      const baseName = file.name.replace(/\.[^.]+$/, '').toLowerCase().trim()
-      if (knownIds.has(baseName)) {
-        updates[keyFor(baseName)] = await fileToDataUrl(file)
-        matched.push(baseName)
+      const expressionId = expressionIdForFile(file.name, customExpressions)
+      if (expressionId) {
+        updates[keyFor(expressionId)] = await fileToDataUrl(file)
+        matched.push(expressionId)
       } else {
         unmatched.push(file.name)
       }
     }
     if (Object.keys(updates).length > 0) setSprites((s) => ({ ...s, ...updates }))
     if (matched.length > 0) toastSuccess(`Matched ${matched.length} expression${matched.length === 1 ? '' : 's'} into ${activeOutfitLabel}: ${matched.join(', ')}`)
-    if (unmatched.length > 0) toastError(`No matching expression for: ${unmatched.join(', ')}. Rename to match an expression id, or add a custom expression with that id first.`)
+    if (unmatched.length > 0) toastError(`No matching expression for: ${unmatched.join(', ')}. Rename it to an expression's name, or add a custom expression with that name first.`)
   }
 
   /** Drops one expression's art in the outfit currently being edited. */
@@ -1474,7 +1474,7 @@ export function CharacterEditor({
               <Plus size={14} strokeWidth={2} />
               Bulk upload by filename
             </FileButton>
-            <span className="text-[11px] text-text-muted">e.g. laughing.png → Laughing</span>
+            <span className="text-[11px] text-text-muted">Name each file after its expression, e.g. Loving.png or laughing.png</span>
             <Button onClick={() => setShowExpressionSetDialog(true)} className="flex items-center gap-1.5">
               <Sparkles size={14} strokeWidth={2} />
               Generate expression set with AI
