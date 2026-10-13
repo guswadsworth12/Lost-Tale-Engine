@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expressionForFile, matchFolder, mergeById, planSpriteLibrary } from './spriteLibrary'
+import { expressionForFile, expressionIdForFile, matchFolder, mergeById, planSpriteLibrary } from './spriteLibrary'
 
 const cast = [
   { id: 'a1', name: 'Ivo Brand' },
@@ -45,5 +45,23 @@ describe('sprite library planning', () => {
   it('merging keeps existing authored outfits and gates untouched', () => {
     expect(mergeById([{ id: 'dress', label: 'Formal', unlockAffection: 40 }], [{ id: 'dress', label: 'dress' }, { id: 'coat', label: 'coat' }]))
       .toEqual([{ id: 'dress', label: 'Formal', unlockAffection: 40 }, { id: 'coat', label: 'coat' }])
+  })
+})
+
+describe('expressionIdForFile (bulk sprite upload)', () => {
+  it('matches an expression by its label as well as its id, in any case', () => {
+    for (const name of ['Loving.png', 'loving.png', 'LOVING.webp', 'love.png']) expect(expressionIdForFile(name)).toBe('love')
+    expect(expressionIdForFile('Laughing.png')).toBe('laughing')
+  })
+  it('takes common aliases, and custom expressions by id or label', () => {
+    expect(expressionIdForFile('adoration.png')).toBe('love')
+    expect(expressionIdForFile('normal.jpg')).toBe('neutral')
+    const custom = [{ id: 'battle-ready', label: 'Battle Ready' }]
+    expect(expressionIdForFile('battle-ready.png', custom)).toBe('battle-ready')
+    expect(expressionIdForFile('Battle Ready.png', custom)).toBe('battle-ready')
+  })
+  it('leaves an unknown name unmatched', () => {
+    expect(expressionIdForFile('mystery.png')).toBeUndefined()
+    expect(expressionIdForFile('.png')).toBeUndefined()
   })
 })

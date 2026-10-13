@@ -1,5 +1,6 @@
 import { DEFAULT_EXPRESSIONS, type CustomExpression } from '@/lib/vn/expressions'
 import { BASE_OUTFIT_ID, spriteKey, type Outfit } from '@/lib/vn/outfits'
+import { EXPRESSION_ALIASES } from '@/lib/characters/cardSpec'
 
 /**
  * Plans an import of an on-disk Visual Novel sprite library laid out as
@@ -53,6 +54,21 @@ const BASE_FOLDER = 'default'
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim()
 const slug = (s: string) => normalize(s).replace(/ /g, '-').slice(0, 40)
+
+/**
+ * The expression a sprite file is for, from its name: an expression's id or its label
+ * (`Loving.png` → `love`), or a common alias (`adoration.png` → `love`), among the default
+ * expressions and `custom` ones. Undefined when none fits.
+ */
+export function expressionIdForFile(fileName: string, custom: readonly Pick<CustomExpression, 'id' | 'label'>[] = []): string | undefined {
+  const n = normalize(fileName.replace(IMAGE_RE, '').replace(/\.[^.]+$/, ''))
+  if (!n) return undefined
+  const all = [...DEFAULT_EXPRESSIONS, ...custom]
+  const hit = all.find((e) => normalize(e.id) === n || normalize(e.label) === n)
+  if (hit) return hit.id
+  const alias = EXPRESSION_ALIASES[n.replace(/ /g, '')]
+  return alias && all.some((e) => e.id === alias) ? alias : undefined
+}
 
 /** Maps one file's base name to an expression id; `custom` when it isn't one of RP's defaults. */
 export function expressionForFile(fileName: string): { id: string; label: string; custom: boolean } {
