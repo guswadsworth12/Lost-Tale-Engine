@@ -4,14 +4,17 @@ import { ChevronLeft } from 'lucide-react'
 import { useApiQuery } from '@/lib/hooks/useApiQuery'
 import { charactersApi, worldInfoBooksApi, worldsApi } from '@/lib/api/client'
 import { isGlobalBook } from '@/lib/worldinfo/scope'
+import { parseLorebookImport } from '@/lib/worldinfo/importBook'
 import type { WorldInfoBook } from '@/lib/types'
 import { LorebookEditor } from './LorebookEditor'
 import { BookScopePicker } from './BookScopePicker'
 import { Button } from '@/components/ui/Button'
+import { FileButton } from '@/components/ui/FileButton'
 import { Section } from '@/components/ui/Section'
 import { ViewShell } from '@/components/ui/ViewShell'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { confirmDialog } from '@/lib/store/useConfirmStore'
+import { errorMessage, toastError, toastSuccess } from '@/lib/store/useToastStore'
 
 function scopeSummary(
   book: WorldInfoBook,
@@ -48,6 +51,19 @@ export function WorldInfoView() {
       boundWorldIds: [],
     })
     setActiveId(created.id)
+  }
+
+  // A book is imported with no scope, then opened so the next thing the player sets is where it applies.
+  const importBook = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      const { name, book } = parseLorebookImport(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ''))
+      const created = await worldInfoBooksApi.create({ name, book, boundChatIds: [], boundCharacterIds: [], boundWorldIds: [] })
+      setActiveId(created.id)
+      toastSuccess(`Imported ${book.entries.length} ${book.entries.length === 1 ? 'entry' : 'entries'}. Choose where the book applies.`)
+    } catch (e) {
+      toastError(`Couldn't import that file: ${errorMessage(e)}`)
+    }
   }
 
   const removeBook = async (id: string) => {
@@ -94,9 +110,14 @@ export function WorldInfoView() {
       title="World Info"
       description="Standalone lorebooks. Locations, factions, history, world rules. A book with no scope is available to every chat; scope it to a character or world to keep unrelated lore out. Lore that belongs to one character lives on the character card instead."
       actions={
-        <Button variant="primary" onClick={createBook}>
-          New book
-        </Button>
+        <div className="flex items-center gap-2">
+          <FileButton onPick={(f) => importBook(f[0])} accept=".json" title="Import a lorebook saved as JSON, or the lore from a character card">
+            Import JSON
+          </FileButton>
+          <Button variant="primary" onClick={createBook}>
+            New book
+          </Button>
+        </div>
       }
     >
       <div className="space-y-2">

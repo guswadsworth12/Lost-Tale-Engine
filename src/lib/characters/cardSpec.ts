@@ -330,7 +330,7 @@ export function normalizeCardJson(raw: unknown): CharacterCardData {
   }
 }
 
-function normalizeLorebook(raw: unknown): Lorebook | undefined {
+export function normalizeLorebook(raw: unknown): Lorebook | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const obj = raw as Record<string, unknown>
   const entriesRaw = obj.entries
